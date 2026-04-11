@@ -4,13 +4,15 @@
     "slug": "ministry-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
     "android": {
       "package": "com.bechara.ministrytracker",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0f172a"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#3dd6c8"
       },
       "permissions": [
         "android.permission.CAMERA",
