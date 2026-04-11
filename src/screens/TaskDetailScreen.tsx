@@ -24,7 +24,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
@@ -90,16 +89,6 @@ interface TaskDocument {
   created_at: string;
 }
 
-async function getGPS(): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return null;
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
-  } catch {
-    return null;
-  }
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -875,15 +864,12 @@ export default function TaskDetailScreen() {
   const handlePostComment = async () => {
     if (!newComment.trim()) return;
     setPostingComment(true);
-    const gps = await getGPS();
 
     if (isOnline) {
       const { error } = await supabase.from('task_comments').insert({
         task_id: taskId,
         author_id: teamMember?.id,
         body: newComment.trim(),
-        gps_lat: gps?.lat,
-        gps_lng: gps?.lng,
       });
       if (error) {
         Alert.alert('Error', error.message);
@@ -898,8 +884,6 @@ export default function TaskDetailScreen() {
           taskId,
           authorId: teamMember?.id ?? '',
           body: newComment.trim(),
-          gpsLat: gps?.lat,
-          gpsLng: gps?.lng,
         },
       });
       setNewComment('');
@@ -1577,7 +1561,7 @@ export default function TaskDetailScreen() {
                 <View style={s.commentHeader}>
                   <Text style={s.commentAuthor}>{c.author?.name ?? 'Unknown'}</Text>
                   <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
-                  {c.author_id === teamMember?.id && editingCommentId !== c.id && (
+                  {editingCommentId !== c.id && (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
                         <Text style={s.commentEditBtn}>✎</Text>
@@ -1611,11 +1595,6 @@ export default function TaskDetailScreen() {
                   </View>
                 ) : (
                   <Text style={s.commentBody}>{c.body}</Text>
-                )}
-                {c.gps_lat != null && editingCommentId !== c.id && (
-                  <Text style={s.commentGps}>
-                    📍 {c.gps_lat.toFixed(5)}, {c.gps_lng!.toFixed(5)}
-                  </Text>
                 )}
               </View>
             </View>

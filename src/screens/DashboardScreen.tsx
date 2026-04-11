@@ -54,6 +54,7 @@ function SwipeableTaskRow({
   onEdit,
   onDelete,
   onFinance,
+  resetKey,
 }: {
   task: Task;
   statusColor: string;
@@ -63,9 +64,18 @@ function SwipeableTaskRow({
   onEdit: () => void;
   onDelete: () => void;
   onFinance: () => void;
+  resetKey?: number;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef<'left' | 'right' | false>(false);
+
+  // Close swipe when parent FlatList scrolls
+  useEffect(() => {
+    if (resetKey !== undefined) {
+      isOpen.current = false;
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    }
+  }, [resetKey]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -298,6 +308,12 @@ export default function DashboardScreen() {
   // Date picker modal for date fields
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentDateField, setCurrentDateField] = useState<string | null>(null);
+  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const [calCurrentDate, setCalCurrentDate] = useState<string | undefined>(undefined);
+
+  // Key incremented on scroll to auto-close all open swipe rows
+  const [swipeResetKey, setSwipeResetKey] = useState(0);
 
   // Network listener
   useEffect(() => {
@@ -358,9 +374,13 @@ export default function DashboardScreen() {
 
   // Apply filters
   const filteredTasks = tasks.filter((task) => {
-    // Archive filter — hide archived unless user explicitly shows them
-    if (!filters.showArchived && task.is_archived) return false;
-    if (filters.showArchived && !task.is_archived) return false;
+    // Archive filter: a task is archived if DB flag is set OR all route stops are Done
+    const stopsTotal = task.route_stops?.length ?? 0;
+    const taskIsArchived =
+      task.is_archived === true ||
+      (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done'));
+    if (!filters.showArchived && taskIsArchived) return false;
+    if (filters.showArchived && !taskIsArchived) return false;
 
     if (
       filters.search &&
@@ -620,9 +640,10 @@ export default function DashboardScreen() {
         onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
         onDelete={() => handleDeleteTask(item)}
         onFinance={() => openQuickFinance(item)}
+        resetKey={swipeResetKey}
       />
     ),
-    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, openQuickFinance]
+    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, openQuickFinance, swipeResetKey]
   );
 
   if (loading) {
@@ -830,6 +851,7 @@ export default function DashboardScreen() {
           ) : null
         }
         renderItem={renderTaskRow}
+        onScrollBeginDrag={() => setSwipeResetKey((k) => k + 1)}
         getItemLayout={(_data, index) => ({
           length: TASK_ROW_HEIGHT,
           offset: TASK_ROW_HEIGHT * index,
@@ -1042,8 +1064,12 @@ export default function DashboardScreen() {
                                 if (currentDateField === def.id && showDatePicker) {
                                   setShowDatePicker(false);
                                   setCurrentDateField(null);
+                                  setShowMonthYearPicker(false);
+                                  setCalCurrentDate(undefined);
                                 } else {
                                   setCurrentDateField(def.id);
+                                  setShowMonthYearPicker(false);
+                                  setCalCurrentDate(undefined);
                                   setShowDatePicker(true);
                                 }
                               }}
@@ -1055,8 +1081,39 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                             {currentDateField === def.id && showDatePicker && (
                               <View style={styles.inlineCalendarContainer}>
+                                {/* Month/Year quick-jump picker */}
+                                {showMonthYearPicker ? (
+                                  <View style={styles.monthYearPicker}>
+                                    {/* Year navigation */}
+                                    <View style={styles.monthYearPickerHeader}>
+                                      <TouchableOpacity onPress={() => setPickerYear((y) => y - 1)} style={styles.monthYearArrow}>
+                                        <Text style={styles.monthYearArrowText}>‹</Text>
+                                      </TouchableOpacity>
+                                      <Text style={styles.monthYearPickerYear}>{pickerYear}</Text>
+                                      <TouchableOpacity onPress={() => setPickerYear((y) => y + 1)} style={styles.monthYearArrow}>
+                                        <Text style={styles.monthYearArrowText}>›</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                    {/* Month grid */}
+                                    <View style={styles.monthGrid}>
+                                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((mon, idx) => (
+                                        <TouchableOpacity
+                                          key={mon}
+                                          style={styles.monthGridItem}
+                                          onPress={() => {
+                                            const isoDate = `${pickerYear}-${String(idx + 1).padStart(2, '0')}-01`;
+                                            setCalCurrentDate(isoDate);
+                                            setShowMonthYearPicker(false);
+                                          }}
+                                        >
+                                          <Text style={styles.monthGridItemText}>{mon}</Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </View>
+                                  </View>
+                                ) : (
                                 <Calendar
-                                  current={
+                                  current={calCurrentDate ?? (
                                     clientFormFieldValues[def.id]
                                       ? (() => {
                                           const val = clientFormFieldValues[def.id];
@@ -1067,12 +1124,31 @@ export default function DashboardScreen() {
                                           return val || undefined;
                                         })()
                                       : undefined
-                                  }
+                                  )}
                                   onDayPress={(day) => {
                                     const [y, m, d] = day.dateString.split('-');
                                     setClientFormFieldValues((p) => ({ ...p, [def.id]: `${d}/${m}/${y}` }));
                                     setShowDatePicker(false);
                                     setCurrentDateField(null);
+                                    setCalCurrentDate(undefined);
+                                    setShowMonthYearPicker(false);
+                                  }}
+                                  onMonthChange={(date) => setCalCurrentDate(date.dateString)}
+                                  renderHeader={(date) => {
+                                    const d = typeof date === 'string' ? new Date(date) : date as any;
+                                    const label = d?.toString ? d.toString('MMMM yyyy') : '';
+                                    return (
+                                      <TouchableOpacity
+                                        onPress={() => {
+                                          const year = typeof d?.getFullYear === 'function' ? d.getFullYear() : new Date().getFullYear();
+                                          setPickerYear(year);
+                                          setShowMonthYearPicker(true);
+                                        }}
+                                        style={styles.calHeaderBtn}
+                                      >
+                                        <Text style={styles.calHeaderText}>{label} ▾</Text>
+                                      </TouchableOpacity>
+                                    );
                                   }}
                                   markedDates={clientFormFieldValues[def.id] ? {
                                     [(() => {
@@ -1103,6 +1179,7 @@ export default function DashboardScreen() {
                                     textDayHeaderFontSize: 12,
                                   }}
                                 />
+                                )}
                                 {clientFormFieldValues[def.id] ? (
                                   <TouchableOpacity
                                     style={styles.clearDateBtn}
@@ -1895,6 +1972,59 @@ const styles = StyleSheet.create({
     alignItems:      'center',
   },
   clearDateBtnText: { ...theme.typography.body, fontWeight: '600' },
+
+  // Month/year picker
+  monthYearPicker: {
+    padding: theme.spacing.space3,
+    backgroundColor: theme.color.bgBase,
+  },
+  monthYearPickerHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    marginBottom:   theme.spacing.space3,
+  },
+  monthYearPickerYear: {
+    ...theme.typography.heading,
+    color: theme.color.textPrimary,
+  },
+  monthYearArrow: {
+    padding: theme.spacing.space2,
+  },
+  monthYearArrowText: {
+    fontSize: 24,
+    color: theme.color.primary,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  monthGrid: {
+    flexDirection:  'row',
+    flexWrap:       'wrap',
+    gap:            theme.spacing.space2,
+  },
+  monthGridItem: {
+    width:           '22%',
+    paddingVertical: theme.spacing.space2,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.bgSurface,
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  monthGridItemText: {
+    ...theme.typography.label,
+    color: theme.color.textPrimary,
+  },
+  calHeaderBtn: {
+    paddingVertical: theme.spacing.space2,
+    paddingHorizontal: theme.spacing.space3,
+    alignSelf: 'center',
+  },
+  calHeaderText: {
+    ...theme.typography.body,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+  },
 
   // Services section label
   mgmtAddSectionLabel: {
