@@ -130,12 +130,22 @@ export default function TaskDetailScreen() {
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
-  // New assignee creation
+  // New team member creation (existing)
   const [showNewAssigneeForm, setShowNewAssigneeForm] = useState(false);
   const [newAssigneeName, setNewAssigneeName] = useState('');
   const [newAssigneeRole, setNewAssigneeRole] = useState('');
   const [newAssigneeEmail, setNewAssigneeEmail] = useState('');
   const [savingAssignee, setSavingAssignee] = useState(false);
+
+  // External assignees (new)
+  const [extAssignees, setExtAssignees] = useState<Array<{id:string;name:string;phone?:string;reference?:string;notes?:string;created_by?:string;creator?:{name:string};created_at:string}>>([]);
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [showCreateAssigneeForm, setShowCreateAssigneeForm] = useState(false);
+  const [newExtName, setNewExtName] = useState('');
+  const [newExtPhone, setNewExtPhone] = useState('');
+  const [newExtReference, setNewExtReference] = useState('');
+  const [newExtNotes, setNewExtNotes] = useState('');
+  const [savingExtAssignee, setSavingExtAssignee] = useState(false);
 
   // Status update states
   const [selectedStop, setSelectedStop] = useState<TaskRouteStop | null>(null);
@@ -147,6 +157,9 @@ export default function TaskDetailScreen() {
   // Comment states
   const [newComment, setNewComment] = useState('');
   const [postingComment, setPostingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentBody, setEditingCommentBody] = useState('');
+  const [savingEditComment, setSavingEditComment] = useState(false);
 
   // Financial transaction states
   const [transactions, setTransactions] = useState<FileTransaction[]>([]);
@@ -162,7 +175,7 @@ export default function TaskDetailScreen() {
   const [contractPriceUSD, setContractPriceUSD] = useState(0);
   const [contractPriceLBP, setContractPriceLBP] = useState(0);
   const [priceHistory, setPriceHistory] = useState<Array<{id:string;old_price_usd:number;old_price_lbp:number;new_price_usd:number;new_price_lbp:number;note?:string;changer?:{name:string};created_at:string}>>([]);
-  const [showPriceHistory, setShowPriceHistory] = useState(false);
+  // showPriceHistory removed — price history is always visible
   const [showEditPrice, setShowEditPrice] = useState(false);
   const [editPriceUSD, setEditPriceUSD] = useState('');
   const [editPriceLBP, setEditPriceLBP] = useState('');
@@ -186,6 +199,13 @@ export default function TaskDetailScreen() {
   const [editServiceId, setEditServiceId] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Quick add requirement states
+  const [showQuickReq, setShowQuickReq] = useState(false);
+  const [quickReqStopId, setQuickReqStopId] = useState('');
+  const [quickReqStageName, setQuickReqStageName] = useState('');
+  const [quickReqTitle, setQuickReqTitle] = useState('');
+  const [savingQuickReq, setSavingQuickReq] = useState(false);
+
   // Document archive states
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [showScanner, setShowScanner] = useState(false);
@@ -200,6 +220,7 @@ export default function TaskDetailScreen() {
         .from('tasks')
         .select(
           `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*),
+           ext_assignee:assignees!ext_assignee_id(*, creator:team_members!created_by(name)),
            route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*))`
         )
         .eq('id', taskId)
@@ -272,6 +293,13 @@ export default function TaskDetailScreen() {
       .eq('task_id', taskId)
       .order('created_at', { ascending: false });
     if (docsData) setDocuments(docsData as TaskDocument[]);
+
+    // Load all external assignees
+    const { data: assigneesData } = await supabase
+      .from('assignees')
+      .select('*, creator:team_members!created_by(name)')
+      .order('name');
+    if (assigneesData) setExtAssignees(assigneesData as any[]);
 
     // Load all available stages
     const { data: stagesData } = await supabase
@@ -662,7 +690,52 @@ export default function TaskDetailScreen() {
     ]);
   };
 
-  // ─── Create new assignee ──────────────────────────────────
+  // ─── External assignee operations ────────────────────────
+  const handleAssignExternal = async (assigneeId: string) => {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ ext_assignee_id: assigneeId, updated_at: new Date().toISOString() })
+      .eq('id', taskId);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setShowAssigneePicker(false);
+    fetchTask();
+  };
+
+  const handleUnassignExternal = () => {
+    Alert.alert('Remove Assignee', 'Remove the current assignee?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        await supabase.from('tasks').update({ ext_assignee_id: null, updated_at: new Date().toISOString() }).eq('id', taskId);
+        fetchTask();
+      }},
+    ]);
+  };
+
+  const handleCreateExternalAssignee = async () => {
+    if (!newExtName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+    setSavingExtAssignee(true);
+    const { data, error } = await supabase
+      .from('assignees')
+      .insert({
+        name: newExtName.trim(),
+        phone: newExtPhone.trim() || null,
+        reference: newExtReference.trim() || null,
+        notes: newExtNotes.trim() || null,
+        created_by: teamMember?.id,
+      })
+      .select('*, creator:team_members!created_by(name)')
+      .single();
+    setSavingExtAssignee(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    const newAssignee = data as any;
+    setExtAssignees((prev) => [...prev, newAssignee].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setNewExtNotes('');
+    setShowCreateAssigneeForm(false);
+    // Auto-assign to this task
+    await handleAssignExternal(newAssignee.id);
+  };
+
+  // ─── Create new team member assignee ──────────────────────────────────
   const handleCreateAssignee = async () => {
     if (!newAssigneeName.trim()) {
       Alert.alert('Required', 'Name is required.');
@@ -744,22 +817,25 @@ export default function TaskDetailScreen() {
           .eq('task_id', taskId);
 
         let newTaskStatus = newStatus;
+        let shouldArchive = false;
         if (allStops) {
-          const updatedStatuses = allStops.map((s: { id: string; status: string }) =>
-            s.id === stop.id ? newStatus : s.status
-          );
           const allDone = allStops.every((s: { id: string; status: string }, i: number) =>
             (i === allStops.findIndex((x: { id: string }) => x.id === stop.id))
               ? newStatus === 'Done'
               : s.status === 'Done'
           );
           newTaskStatus = allDone ? 'Done' : newStatus;
+          shouldArchive = allDone;
         }
 
         await supabase
           .from('tasks')
-          .update({ current_status: newTaskStatus, updated_at: now })
+          .update({ current_status: newTaskStatus, updated_at: now, ...(shouldArchive ? { is_archived: true } : {}) })
           .eq('id', taskId);
+
+        if (shouldArchive) {
+          Alert.alert('File Completed', 'All stages are done. This file has been moved to the archive.');
+        }
 
         // Notify the assignee if it's not the current user
         if (task?.assignee?.push_token && task.assignee.id !== teamMember?.id) {
@@ -833,6 +909,60 @@ export default function TaskDetailScreen() {
     setPostingComment(false);
   };
 
+  // ─── Edit comment ─────────────────────────────────────────
+  const handleSaveEditComment = async () => {
+    if (!editingCommentId || !editingCommentBody.trim()) return;
+    setSavingEditComment(true);
+    const { error } = await supabase
+      .from('task_comments')
+      .update({ body: editingCommentBody.trim() })
+      .eq('id', editingCommentId);
+    setSavingEditComment(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setEditingCommentId(null);
+    setEditingCommentBody('');
+    fetchTask();
+  };
+
+  // ─── Quick add requirement ────────────────────────────────
+  const handleSaveQuickReq = async () => {
+    if (!quickReqTitle.trim()) {
+      Alert.alert('Required', 'Requirement title is required.');
+      return;
+    }
+    setSavingQuickReq(true);
+    const { data: existing } = await supabase
+      .from('stop_requirements')
+      .select('sort_order')
+      .eq('stop_id', quickReqStopId)
+      .order('sort_order', { ascending: false })
+      .limit(1);
+    const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1;
+    const { error } = await supabase.from('stop_requirements').insert({
+      stop_id: quickReqStopId,
+      title: quickReqTitle.trim(),
+      req_type: 'document',
+      is_completed: false,
+      sort_order: nextOrder,
+      created_by: teamMember?.id,
+    });
+    setSavingQuickReq(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setShowQuickReq(false);
+    setQuickReqTitle('');
+    Alert.alert('Added', `Requirement added to ${quickReqStageName}.`);
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    Alert.alert('Delete Comment', 'Delete this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        await supabase.from('task_comments').delete().eq('id', commentId);
+        fetchTask();
+      }},
+    ]);
+  };
+
   if (loading || !task) {
     return (
       <View style={s.center}>
@@ -856,7 +986,7 @@ export default function TaskDetailScreen() {
   const outstandingLBP = contractPriceLBP - totalRevenueLBP;
 
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const fmtLBP = (n: number) => `ل.ل${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
@@ -966,6 +1096,42 @@ export default function TaskDetailScreen() {
             )}
           </View>
 
+          {/* External Assignee subsection */}
+          <View style={s.extAssigneeSection}>
+            <Text style={s.extAssigneeSectionLabel}>ASSIGNEE</Text>
+            {task.ext_assignee ? (
+              <View style={s.extAssigneeCard}>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={s.extAssigneeName}>{task.ext_assignee.name}</Text>
+                  {(task.ext_assignee as any).phone ? (
+                    <Text style={s.extAssigneeMeta}>📞 {(task.ext_assignee as any).phone}</Text>
+                  ) : null}
+                  {(task.ext_assignee as any).reference ? (
+                    <Text style={s.extAssigneeMeta}>Ref: {(task.ext_assignee as any).reference}</Text>
+                  ) : null}
+                  {(task.ext_assignee as any).notes ? (
+                    <Text style={s.extAssigneeMeta}>📝 {(task.ext_assignee as any).notes}</Text>
+                  ) : null}
+                  {(task.ext_assignee as any).creator?.name ? (
+                    <Text style={s.extAssigneeCreatedBy}>Added by {(task.ext_assignee as any).creator.name}</Text>
+                  ) : null}
+                </View>
+                <View style={{ gap: 6 }}>
+                  <TouchableOpacity style={s.extReassignBtn} onPress={() => setShowAssigneePicker(true)}>
+                    <Text style={s.extReassignBtnText}>↺ Change</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.extRemoveBtn} onPress={handleUnassignExternal}>
+                    <Text style={s.extRemoveBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity style={s.extAssignBtn} onPress={() => setShowAssigneePicker(true)}>
+                <Text style={s.extAssignBtnText}>+ Assign Assignee</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Assignment history */}
           {assignmentHistory.length > 0 && (
             <View style={s.historyBlock}>
@@ -1039,6 +1205,18 @@ export default function TaskDetailScreen() {
                       }
                     >
                       <Text style={s.reqStopBtnText}>📋 Requirements</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={s.addReqBtn}
+                      onPress={() => {
+                        setQuickReqStopId(stop.id);
+                        setQuickReqStageName(stop.ministry?.name ?? 'Stage');
+                        setQuickReqTitle('');
+                        setShowQuickReq(true);
+                      }}
+                    >
+                      <Text style={s.addReqBtnText}>+ Req</Text>
                     </TouchableOpacity>
 
                     {stopHistory.length > 0 && (
@@ -1119,21 +1297,16 @@ export default function TaskDetailScreen() {
               >
                 <Text style={s.editPriceBtnText}>✎ Edit</Text>
               </TouchableOpacity>
-              {priceHistory.length > 0 && (
-                <TouchableOpacity
-                  style={s.priceHistoryBtn}
-                  onPress={() => setShowPriceHistory((v) => !v)}
-                >
-                  <Text style={s.priceHistoryBtnText}>
-                    {showPriceHistory ? '▲' : `▼ ${priceHistory.length}`}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
           </View>
-          {showPriceHistory && priceHistory.length > 0 && (
-            <View style={s.priceHistoryBlock}>
-              {priceHistory.map((h) => (
+
+          {/* Contract price change history — always visible */}
+          <View style={s.priceHistoryBlock}>
+            <Text style={s.priceHistoryLabel}>CONTRACT PRICE CHANGES</Text>
+            {priceHistory.length === 0 ? (
+              <Text style={s.priceHistoryEmpty}>No changes recorded yet</Text>
+            ) : (
+              priceHistory.map((h) => (
                 <View key={h.id} style={s.priceHistoryRow}>
                   <View style={s.stopHistoryDot} />
                   <View style={{ flex: 1 }}>
@@ -1141,16 +1314,26 @@ export default function TaskDetailScreen() {
                       <Text style={s.stopHistoryOld}>{fmtUSD(h.old_price_usd)}</Text>
                       <Text style={s.stopHistoryArrow}> → </Text>
                       <Text style={s.stopHistoryNew}>{fmtUSD(h.new_price_usd)}</Text>
+                      {h.old_price_lbp > 0 && (
+                        <Text style={[s.stopHistoryOld, { marginStart: 8 }]}>{fmtLBP(h.old_price_lbp)}</Text>
+                      )}
+                      {h.old_price_lbp > 0 && (
+                        <Text style={s.stopHistoryArrow}> → </Text>
+                      )}
+                      {h.new_price_lbp > 0 && (
+                        <Text style={s.stopHistoryNew}>{fmtLBP(h.new_price_lbp)}</Text>
+                      )}
                     </View>
                     <Text style={s.stopHistoryMeta}>
-                      {h.changer?.name ?? 'Unknown'} · {formatDate(h.created_at)}
-                      {h.note ? `  —  ${h.note}` : ''}
+                      Changed by <Text style={{ color: theme.color.primaryText }}>{h.changer?.name ?? 'Unknown'}</Text>
+                      {' · '}{formatDate(h.created_at)}
+                      {h.note ? `\n"${h.note}"` : ''}
                     </Text>
                   </View>
                 </View>
-              ))}
-            </View>
-          )}
+              ))
+            )}
+          </View>
 
           {/* P&L summary */}
           <View style={s.balanceSummary}>
@@ -1163,7 +1346,7 @@ export default function TaskDetailScreen() {
             </View>
             {contractPriceUSD > 0 && (
               <View style={s.balanceRow}>
-                <Text style={s.balanceLabel}>OUTSTANDING</Text>
+                <Text style={s.balanceLabel}>DUE</Text>
                 <View style={s.balanceAmounts}>
                   <Text style={[s.balanceRevenue, outstandingUSD > 0 ? s.negative : s.positive]}>
                     {fmtUSD(outstandingUSD)}
@@ -1394,9 +1577,42 @@ export default function TaskDetailScreen() {
                 <View style={s.commentHeader}>
                   <Text style={s.commentAuthor}>{c.author?.name ?? 'Unknown'}</Text>
                   <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
+                  {c.author_id === teamMember?.id && editingCommentId !== c.id && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
+                        <Text style={s.commentEditBtn}>✎</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
+                        <Text style={s.commentDeleteBtn}>🗑</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-                <Text style={s.commentBody}>{c.body}</Text>
-                {c.gps_lat != null && (
+                {editingCommentId === c.id ? (
+                  <View style={s.commentEditRow}>
+                    <TextInput
+                      style={s.commentEditInput}
+                      value={editingCommentBody}
+                      onChangeText={setEditingCommentBody}
+                      multiline
+                      autoFocus
+                      placeholderTextColor={theme.color.textMuted}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                      <TouchableOpacity style={s.commentSaveBtn} onPress={handleSaveEditComment} disabled={savingEditComment}>
+                        {savingEditComment
+                          ? <ActivityIndicator size="small" color={theme.color.white} />
+                          : <Text style={s.commentSaveBtnText}>Save</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.commentCancelBtn} onPress={() => { setEditingCommentId(null); setEditingCommentBody(''); }}>
+                        <Text style={s.commentCancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={s.commentBody}>{c.body}</Text>
+                )}
+                {c.gps_lat != null && editingCommentId !== c.id && (
                   <Text style={s.commentGps}>
                     📍 {c.gps_lat.toFixed(5)}, {c.gps_lng!.toFixed(5)}
                   </Text>
@@ -1747,6 +1963,116 @@ export default function TaskDetailScreen() {
         </View>
       </Modal>
 
+      {/* ── ASSIGNEE PICKER MODAL ── */}
+      <Modal
+        visible={showAssigneePicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowAssigneePicker(false); setShowCreateAssigneeForm(false); }}
+      >
+        <View style={s.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <View style={[s.modalSheet, { maxHeight: '85%' }]}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Select Assignee</Text>
+                <TouchableOpacity onPress={() => { setShowAssigneePicker(false); setShowCreateAssigneeForm(false); }}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
+                {extAssignees.length === 0 && !showCreateAssigneeForm && (
+                  <Text style={s.emptyText}>No assignees yet. Create one below.</Text>
+                )}
+                {extAssignees.map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={[s.memberOption, task.ext_assignee_id === a.id && s.memberOptionActive]}
+                    onPress={() => handleAssignExternal(a.id)}
+                  >
+                    <View style={s.memberAvatar}>
+                      <Text style={s.memberAvatarText}>{a.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={s.memberName}>{a.name}</Text>
+                      {a.phone ? <Text style={s.memberRole}>{a.phone}</Text> : null}
+                      {a.reference ? <Text style={s.memberRole}>Ref: {a.reference}</Text> : null}
+                      {a.creator?.name ? <Text style={[s.memberRole, { color: theme.color.textMuted }]}>Added by {a.creator.name}</Text> : null}
+                    </View>
+                    {task.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+
+                {/* Create new assignee form toggle */}
+                <TouchableOpacity style={s.createMemberBtn} onPress={() => setShowCreateAssigneeForm((v) => !v)}>
+                  <Text style={s.createMemberBtnText}>
+                    {showCreateAssigneeForm ? '− Cancel' : '+ Create New Assignee'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showCreateAssigneeForm && (
+                  <View style={s.newMemberForm}>
+                    <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName} placeholder="Full name *" placeholderTextColor={theme.color.textMuted} />
+                    <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone} placeholder="Phone number" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                    <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference} placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
+                    <TextInput style={[s.newMemberInput, { minHeight: 60, textAlignVertical: 'top' }]} value={newExtNotes} onChangeText={setNewExtNotes} placeholder="Notes" placeholderTextColor={theme.color.textMuted} multiline />
+                    <TouchableOpacity
+                      style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
+                      onPress={handleCreateExternalAssignee}
+                      disabled={savingExtAssignee}
+                    >
+                      {savingExtAssignee
+                        ? <ActivityIndicator color={theme.color.white} size="small" />
+                        : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* ── QUICK ADD REQUIREMENT MODAL ── */}
+      <Modal
+        visible={showQuickReq}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQuickReq(false)}
+      >
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Add Requirement — {quickReqStageName}</Text>
+              <TouchableOpacity onPress={() => setShowQuickReq(false)}>
+                <Text style={s.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.modalBody}>
+              <TextInput
+                style={s.txInput}
+                value={quickReqTitle}
+                onChangeText={setQuickReqTitle}
+                placeholder="Requirement title *"
+                placeholderTextColor={theme.color.textMuted}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[s.txSaveBtn, s.txSaveBtnRevenue, savingQuickReq && s.disabledBtn]}
+                onPress={handleSaveQuickReq}
+                disabled={savingQuickReq}
+              >
+                {savingQuickReq
+                  ? <ActivityIndicator color={theme.color.white} size="small" />
+                  : <Text style={s.txSaveBtnText}>Add Requirement</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* ── DOCUMENT SCANNER MODAL ── */}
       <DocumentScannerModal
         visible={showScanner}
@@ -2045,6 +2371,15 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   reqStopBtnText: { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
+  addReqBtn: {
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderRadius:      theme.radius.sm,
+    backgroundColor:   theme.color.success + '22',
+    borderWidth:       1,
+    borderColor:       theme.color.success + '55',
+  },
+  addReqBtnText: { ...theme.typography.label, color: theme.color.success, fontWeight: '600' },
 
   // Comments
   emptyText: { ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', paddingVertical: theme.spacing.space2 },
@@ -2090,6 +2425,36 @@ const s = StyleSheet.create({
     paddingVertical: theme.spacing.space3,
   },
   commentSendBtnText: { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
+  commentEditBtn:   { ...theme.typography.caption, color: theme.color.primaryText },
+  commentDeleteBtn: { ...theme.typography.caption, color: theme.color.danger },
+  commentEditRow:   { gap: 4 },
+  commentEditInput: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.primary,
+    color:           theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    ...theme.typography.body,
+    minHeight:       60,
+  },
+  commentSaveBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+  },
+  commentSaveBtnText:   { ...theme.typography.caption, color: theme.color.white, fontWeight: '700' },
+  commentCancelBtn: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  commentCancelBtnText: { ...theme.typography.caption, color: theme.color.textSecondary },
   disabledBtn: { opacity: 0.5 },
 
   // Modals
@@ -2238,7 +2603,21 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   priceHistoryBtnText: { ...theme.typography.caption, color: theme.color.textSecondary },
-  priceHistoryBlock:   { marginBottom: theme.spacing.space2, paddingStart: theme.spacing.space3 },
+  extAssigneeSection: { marginTop: theme.spacing.space3, paddingTop: theme.spacing.space3, borderTopWidth: 1, borderTopColor: theme.color.border },
+  extAssigneeSectionLabel: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: theme.spacing.space2 },
+  extAssigneeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space3, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space3 },
+  extAssigneeName: { ...theme.typography.body, fontWeight: '700' },
+  extAssigneeMeta: { ...theme.typography.caption, color: theme.color.textSecondary },
+  extAssigneeCreatedBy: { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
+  extAssignBtn: { paddingVertical: theme.spacing.space2, paddingHorizontal: theme.spacing.space3, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, alignSelf: 'flex-start' },
+  extAssignBtnText: { ...theme.typography.label, color: theme.color.textSecondary },
+  extReassignBtn: { paddingVertical: theme.spacing.space1, paddingHorizontal: theme.spacing.space2, borderRadius: theme.radius.sm, backgroundColor: theme.color.primary + '22' },
+  extReassignBtnText: { ...theme.typography.caption, color: theme.color.primaryText, fontWeight: '600' },
+  extRemoveBtn: { paddingVertical: theme.spacing.space1, paddingHorizontal: theme.spacing.space2, borderRadius: theme.radius.sm, backgroundColor: theme.color.danger + '22' },
+  extRemoveBtnText: { ...theme.typography.caption, color: theme.color.danger, fontWeight: '600' },
+  priceHistoryBlock:   { marginTop: theme.spacing.space3, marginBottom: theme.spacing.space2, paddingStart: theme.spacing.space3, borderStartWidth: 2, borderStartColor: theme.color.primary + '44' },
+  priceHistoryLabel:   { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: theme.spacing.space2 },
+  priceHistoryEmpty:   { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
   priceHistoryRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space2, marginBottom: 6 },
   balanceTotalLabel:   { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '800', letterSpacing: 0.8 },
   balanceAmounts:      { flexDirection: 'row', gap: theme.spacing.space3 },

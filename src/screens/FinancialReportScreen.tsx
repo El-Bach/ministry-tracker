@@ -34,6 +34,7 @@ interface ReportRow {
   clientName: string;
   serviceName: string;
   status: string;
+  isArchived: boolean;
   createdAt: string;
   contractPriceUSD: number;
   contractPriceLBP: number;
@@ -50,7 +51,7 @@ interface ReportRow {
 const fmtUSD = (n: number) =>
   `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtLBP = (n: number) =>
-  `ل.ل${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -66,6 +67,7 @@ export default function FinancialReportScreen() {
   const [filterStatus, setFilterStatus] = useState('');
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [filterArchive, setFilterArchive] = useState<'all' | 'active' | 'archived'>('all');
 
   // Available options for pickers
   const [serviceOptions, setServiceOptions] = useState<string[]>([]);
@@ -83,7 +85,7 @@ export default function FinancialReportScreen() {
     // Fetch tasks with client + service
     const { data: tasks, error: tasksErr } = await supabase
       .from('tasks')
-      .select('id, current_status, price_usd, price_lbp, created_at, client:clients(name), service:services(name)')
+      .select('id, current_status, is_archived, price_usd, price_lbp, created_at, client:clients(name), service:services(name)')
       .order('created_at', { ascending: false });
 
     if (tasksErr || !tasks) {
@@ -118,6 +120,7 @@ export default function FinancialReportScreen() {
         clientName: t.client?.name ?? '—',
         serviceName: t.service?.name ?? '—',
         status: t.current_status ?? '—',
+        isArchived: t.is_archived ?? false,
         createdAt: t.created_at,
         contractPriceUSD: contractUSD,
         contractPriceLBP: contractLBP,
@@ -170,9 +173,13 @@ export default function FinancialReportScreen() {
       const matchSearch = !q || r.clientName.toLowerCase().includes(q) || r.serviceName.toLowerCase().includes(q);
       const matchService = !filterService || r.serviceName === filterService;
       const matchStatus = !filterStatus || r.status === filterStatus;
-      return matchSearch && matchService && matchStatus;
+      const matchArchive =
+        filterArchive === 'all' ||
+        (filterArchive === 'archived' && r.isArchived) ||
+        (filterArchive === 'active' && !r.isArchived);
+      return matchSearch && matchService && matchStatus && matchArchive;
     });
-  }, [rows, search, filterService, filterStatus]);
+  }, [rows, search, filterService, filterStatus, filterArchive]);
 
   // ─── Totals ──────────────────────────────────────────────────
   const totals = useMemo(() => ({
@@ -201,10 +208,17 @@ export default function FinancialReportScreen() {
           </View>
           <Text style={s.rowService}>{r.serviceName}</Text>
         </View>
-        <View style={[s.statusPill, { backgroundColor: r.status === 'Done' ? theme.color.success + '22' : theme.color.primary + '22' }]}>
-          <Text style={[s.statusPillText, { color: r.status === 'Done' ? theme.color.success : theme.color.primaryText }]}>
-            {r.status}
-          </Text>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={[s.statusPill, { backgroundColor: r.status === 'Done' ? theme.color.success + '22' : theme.color.primary + '22' }]}>
+            <Text style={[s.statusPillText, { color: r.status === 'Done' ? theme.color.success : theme.color.primaryText }]}>
+              {r.status}
+            </Text>
+          </View>
+          {r.isArchived && (
+            <View style={[s.statusPill, { backgroundColor: theme.color.textMuted + '22' }]}>
+              <Text style={[s.statusPillText, { color: theme.color.textMuted }]}>📦 Archived</Text>
+            </View>
+          )}
         </View>
       </View>
       <Text style={s.rowDate}>{formatDate(r.createdAt)}</Text>
@@ -215,7 +229,7 @@ export default function FinancialReportScreen() {
           {r.receivedLBP > 0 && <><View style={s.rowCurrencyDivider} /><Text style={[s.rowFinSub, { color: theme.color.success }]}>{fmtLBP(r.receivedLBP)}</Text></>}
         </View>
         <View style={s.rowFinCell}>
-          <Text style={s.rowFinLabel}>OUTSTANDING</Text>
+          <Text style={s.rowFinLabel}>DUE</Text>
           <Text style={[s.rowFinValue, r.outstandingUSD > 0 ? s.negative : s.positive]}>
             {fmtUSD(r.outstandingUSD)}
           </Text>
@@ -270,8 +284,16 @@ export default function FinancialReportScreen() {
               {filterStatus || 'All Statuses'}
             </Text>
           </TouchableOpacity>
-          {(filterService || filterStatus || search) ? (
-            <TouchableOpacity style={s.clearBtn} onPress={() => { setSearch(''); setFilterService(''); setFilterStatus(''); }}>
+          <TouchableOpacity
+            style={[s.filterChip, filterArchive !== 'all' && s.filterChipActive]}
+            onPress={() => setFilterArchive((v) => v === 'all' ? 'active' : v === 'active' ? 'archived' : 'all')}
+          >
+            <Text style={[s.filterChipText, filterArchive !== 'all' && s.filterChipTextActive]}>
+              {filterArchive === 'all' ? '📋 All Files' : filterArchive === 'active' ? '📋 Active' : '📦 Archived'}
+            </Text>
+          </TouchableOpacity>
+          {(filterService || filterStatus || search || filterArchive !== 'all') ? (
+            <TouchableOpacity style={s.clearBtn} onPress={() => { setSearch(''); setFilterService(''); setFilterStatus(''); setFilterArchive('all'); }}>
               <Text style={s.clearBtnText}>✕ Clear</Text>
             </TouchableOpacity>
           ) : null}
@@ -291,7 +313,7 @@ export default function FinancialReportScreen() {
           {totals.receivedLBP > 0 && <><View style={s.currencyDivider} /><Text style={[s.totalValueSub, s.positive]}>{fmtLBP(totals.receivedLBP)}</Text></>}
         </View>
         <View style={s.totalCell}>
-          <Text style={s.totalLabel}>OUTSTANDING</Text>
+          <Text style={s.totalLabel}>DUE</Text>
           <Text style={[s.totalValue, totals.outstandingUSD > 0 ? s.negative : s.positive]}>
             {fmtUSD(totals.outstandingUSD)}
           </Text>
@@ -394,7 +416,7 @@ export default function FinancialReportScreen() {
                   {detailRow.receivedLBP > 0 && <Text style={[s.detailSummarySub, s.positive]}>{fmtLBP(detailRow.receivedLBP)}</Text>}
                 </View>
                 <View style={s.detailSummaryCell}>
-                  <Text style={s.detailSummaryLabel}>OUTSTANDING</Text>
+                  <Text style={s.detailSummaryLabel}>DUE</Text>
                   <Text style={[s.detailSummaryValue, detailRow.outstandingUSD > 0 ? s.negative : s.positive]}>{fmtUSD(detailRow.outstandingUSD)}</Text>
                 </View>
                 <View style={s.detailSummaryCell}>

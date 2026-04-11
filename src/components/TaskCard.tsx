@@ -3,7 +3,7 @@
 // Locked 4-row structure per design spec v2. All styles via theme tokens.
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, I18nManager } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, I18nManager, Alert, Linking } from 'react-native';
 import { Task } from '../types';
 import StatusBadge from './StatusBadge';
 import { theme } from '../theme';
@@ -118,6 +118,15 @@ function TaskCard({
   const accentColor  = allDone ? theme.color.success : urgentColor;
   const displayColor = allStatusColors[displayStatus] ?? statusColor;
 
+  const handlePhonePress = (phone: string) => {
+    const clean = phone.replace(/[^0-9+]/g, '');
+    Alert.alert(task.client?.name ?? '', phone, [
+      { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+      { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   // Error state
   if (error) {
     return (
@@ -183,6 +192,17 @@ function TaskCard({
             <Text style={styles.referenceLabel} numberOfLines={1}>
               via {task.client.reference_name}
             </Text>
+          )}
+          {!!task.client?.phone && (
+            <TouchableOpacity
+              onPress={() => handlePhonePress(task.client!.phone!)}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.phoneLabel} numberOfLines={1}>
+                📞 {task.client.phone}
+              </Text>
+            </TouchableOpacity>
           )}
         </TouchableOpacity>
       </View>
@@ -317,6 +337,11 @@ const styles = StyleSheet.create({
   referenceLabel: {
     ...theme.typography.caption,
     fontStyle: 'italic',
+  },
+  phoneLabel: {
+    ...theme.typography.caption,
+    color: theme.color.primary,
+    textDecorationLine: 'underline',
   },
 
   // Row 2

@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../hooks/useAuth';
 import { theme } from '../theme';
@@ -120,11 +121,12 @@ function DashboardStack() {
 
 // ─── Main bottom tabs ────────────────────────────────────────
 function MainTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: { ...styles.tabBar, paddingBottom: insets.bottom + 4, height: 56 + insets.bottom },
         tabBarActiveTintColor: theme.color.primary,
         tabBarInactiveTintColor: theme.color.textMuted,
         tabBarLabelStyle: styles.tabLabel,
@@ -183,8 +185,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.bgBase,
     borderTopColor: theme.color.bgSurface,
     borderTopWidth: 1,
-    height: 68,
-    paddingBottom: 8,
     paddingTop: 4,
   },
   tabLabel: {

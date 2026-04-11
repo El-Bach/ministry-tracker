@@ -205,6 +205,7 @@ interface Filters {
   ministryId: string;
   statusLabel: string;
   dateFilter: 'all' | 'overdue' | 'today' | 'week';
+  showArchived: boolean;
 }
 
 const DATE_OPTIONS = [
@@ -232,6 +233,7 @@ export default function DashboardScreen() {
     ministryId: '',
     statusLabel: '',
     dateFilter: 'all',
+    showArchived: false,
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -356,6 +358,10 @@ export default function DashboardScreen() {
 
   // Apply filters
   const filteredTasks = tasks.filter((task) => {
+    // Archive filter — hide archived unless user explicitly shows them
+    if (!filters.showArchived && task.is_archived) return false;
+    if (filters.showArchived && !task.is_archived) return false;
+
     if (
       filters.search &&
       !task.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
@@ -763,9 +769,19 @@ export default function DashboardScreen() {
 
       {/* Result count + action buttons */}
       <View style={styles.resultRow}>
-        <Text style={styles.resultCount}>
-          {filteredTasks.length} file{filteredTasks.length !== 1 ? 's' : ''}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={styles.resultCount}>
+            {filteredTasks.length} file{filteredTasks.length !== 1 ? 's' : ''}
+          </Text>
+          <TouchableOpacity
+            style={[styles.archiveToggle, filters.showArchived && styles.archiveToggleActive]}
+            onPress={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
+          >
+            <Text style={[styles.archiveToggleText, filters.showArchived && styles.archiveToggleTextActive]}>
+              {filters.showArchived ? '📦 Archive' : '📋 Active'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.resultBtns}>
           <TouchableOpacity
             style={styles.newClientBtn}
@@ -1532,6 +1548,19 @@ const styles = StyleSheet.create({
     ...theme.typography.label,
     color: theme.color.textMuted,
   },
+  archiveToggle: {
+    paddingHorizontal: theme.spacing.space2,
+    paddingVertical:   3,
+    borderRadius:      theme.radius.sm,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+  },
+  archiveToggleActive: {
+    borderColor:      theme.color.warning,
+    backgroundColor:  theme.color.warning + '22',
+  },
+  archiveToggleText: { ...theme.typography.caption, color: theme.color.textMuted },
+  archiveToggleTextActive: { color: theme.color.warning, fontWeight: '700' },
   resultBtns: {
     flexDirection: 'row',
     gap:           theme.spacing.space2,

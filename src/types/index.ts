@@ -89,6 +89,17 @@ export interface StatusUpdate {
   created_at: string;
 }
 
+export interface Assignee {
+  id: string;
+  name: string;
+  phone?: string;
+  reference?: string;
+  notes?: string;
+  created_by?: string;
+  creator?: { name: string };
+  created_at: string;
+}
+
 export interface Task {
   id: string;
   client_id: string;
@@ -97,11 +108,14 @@ export interface Task {
   service?: Service;
   assigned_to?: string;
   assignee?: TeamMember;
+  ext_assignee_id?: string;
+  ext_assignee?: Assignee;
   current_status: string;
   due_date?: string;
   notes?: string;
   price_usd: number;
   price_lbp: number;
+  is_archived?: boolean;
   created_at: string;
   updated_at: string;
   // joined relations
