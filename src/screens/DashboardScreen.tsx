@@ -1088,7 +1088,19 @@ export default function DashboardScreen() {
                                       <TouchableOpacity onPress={() => setPickerYear((y) => y - 1)} style={styles.monthYearArrow}>
                                         <Text style={styles.monthYearArrowText}>‹</Text>
                                       </TouchableOpacity>
-                                      <Text style={styles.monthYearPickerYear}>{pickerYear}</Text>
+                                      <TextInput
+                                        style={styles.monthYearPickerYearInput}
+                                        value={String(pickerYear)}
+                                        onChangeText={(v) => {
+                                          const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
+                                          if (!isNaN(n)) setPickerYear(n);
+                                          else if (v === '') setPickerYear(0);
+                                        }}
+                                        keyboardType="number-pad"
+                                        maxLength={4}
+                                        selectTextOnFocus
+                                        placeholderTextColor={theme.color.textMuted}
+                                      />
                                       <TouchableOpacity onPress={() => setPickerYear((y) => y + 1)} style={styles.monthYearArrow}>
                                         <Text style={styles.monthYearArrowText}>›</Text>
                                       </TouchableOpacity>
@@ -1983,9 +1995,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom:   theme.spacing.space3,
   },
-  monthYearPickerYear: {
+  monthYearPickerYearInput: {
     ...theme.typography.heading,
-    color: theme.color.textPrimary,
+    color:           theme.color.textPrimary,
+    borderBottomWidth: 2,
+    borderBottomColor: theme.color.primary,
+    minWidth:        64,
+    textAlign:       'center',
+    paddingVertical: theme.spacing.space1,
   },
   monthYearArrow: {
     padding: theme.spacing.space2,
