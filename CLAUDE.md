@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 11 (design token system: src/theme/tokens.ts + src/theme/index.ts; full migration of all 22 screens/components to theme.* tokens; RTL-safe margins throughout; no hardcoded hex colors remaining)
+> Last updated: session 12 (EAS build fixed; custom app icon; assignees table; archive system; Android safe area; LBP→LBP/Outstanding→Due; phone call+WhatsApp from TaskCard; edit/delete comments; quick requirement button; swipe opacity fix; calendar month/year picker; GPS removed from comments)
 
 ---
 
@@ -27,7 +27,7 @@
 | State | Zustand (offline queue only) |
 | Offline | AsyncStorage-persisted Zustand queue, syncs on reconnect |
 | Push | Expo Notifications + Expo Push API |
-| GPS | Expo Location (comments only — removed from status updates) |
+| GPS | Expo Location — **fully removed** (GPS removed from comments in session 12; no GPS anywhere) |
 | Calendar | react-native-calendars |
 | Network | @react-native-community/netinfo |
 | Keyboard | react-native-keyboard-aware-scroll-view (replaces KeyboardAvoidingView+ScrollView) |
@@ -43,13 +43,20 @@
 ### Confirmed working versions
 - expo: 54.0.33
 - react: 19.1.0
-- react-native: 0.81.4 ← must match Expo Go binary
+- react-native: 0.81.5
 - babel-preset-expo: ~54.0.10
 - expo-camera: ~17.0.10 (SDK 54 compatible)
 - expo-print: ~15.0.8 (SDK 54 compatible)
 - expo-file-system: ~19.0.21 (SDK 54 compatible)
 - NO react-native-gesture-handler (causes PlatformConstants crash)
 - NO react-native-reanimated (causes PlatformConstants crash)
+- NO lucide-react-native (removed session 12 — was never imported, caused EAS lockfile sync failure)
+
+### EAS Build
+- Profile: `preview` → produces `.apk` for Android sideloading
+- `npm ci` (no flags) must pass locally before pushing — EAS uses strict lockfile sync
+- Lockfile must be generated without `--legacy-peer-deps` (EAS doesn't use that flag)
+- App icon: `assets/icon.png` + `assets/adaptive-icon.png` (1024×1024 PNG each)
 
 ---
 
@@ -62,6 +69,9 @@ ministry-tracker/
 ├── package.json
 ├── tsconfig.json
 ├── CLAUDE.md
+├── assets/
+│   ├── icon.png                         # App icon 1024×1024 (iOS + general)
+│   └── adaptive-icon.png               # Android adaptive icon foreground 1024×1024
 ├── supabase/
 │   ├── schema.sql
 │   ├── migration_assignment_history.sql
@@ -73,7 +83,10 @@ ministry-tracker/
 │   ├── migration_service_pricing.sql
 │   ├── migration_ministry_requirements.sql
 │   ├── migration_task_documents.sql
-│   └── migration_task_documents_v2.sql  ← NEW session 9 — adds display_name + requirement_id
+│   ├── migration_task_documents_v2.sql  ← session 9 — adds display_name + requirement_id
+│   ├── migration_client_reference.sql   ← session 10 — reference_name + reference_phone
+│   ├── migration_assignees.sql          ← session 12 — assignees table + ext_assignee_id on tasks
+│   └── migration_archive.sql           ← session 12 — is_archived column on tasks
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
@@ -113,7 +126,7 @@ ministry-tracker/
 
 ---
 
-## Database Schema (18 tables)
+## Database Schema (20 tables)
 
 | Table | Key fields | Notes |
 |---|---|---|
@@ -122,10 +135,10 @@ ministry-tracker/
 | `ministries` | id, name, type (parent/child), parent_id | also used as "stages" in UI |
 | `services` | id, name, ministry_id, estimated_duration_days, base_price_usd, base_price_lbp | duration always 0 (unused) |
 | `status_labels` | id, label, color (hex), sort_order | user-defined |
-| `tasks` | id, client_id, service_id, assigned_to (nullable), current_status, due_date, notes, price_usd, price_lbp, created_at, updated_at | |
-| `task_route_stops` | id, task_id, ministry_id, stop_order, status, updated_by | called "stages" in UI; NO GPS |
-| `task_comments` | id, task_id, author_id, body, gps_lat, gps_lng | GPS only here |
-| `status_updates` | id, task_id, stop_id, updated_by, old_status, new_status | audit log; NO GPS |
+| `tasks` | id, client_id, service_id, assigned_to (nullable), ext_assignee_id (nullable), current_status, due_date, notes, price_usd, price_lbp, is_archived, created_at, updated_at | ext_assignee_id + is_archived added session 12 |
+| `task_route_stops` | id, task_id, ministry_id, stop_order, status, updated_by | called "stages" in UI |
+| `task_comments` | id, task_id, author_id, body, gps_lat, gps_lng | gps columns exist in DB but GPS no longer collected or displayed (session 12) |
+| `status_updates` | id, task_id, stop_id, updated_by, old_status, new_status | audit log |
 | `assignment_history` | id, task_id, assigned_to, assigned_by, created_at | |
 | `client_field_definitions` | id, label, field_key, field_type, options (jsonb), is_required, is_active, sort_order | 14 types |
 | `client_field_values` | id, client_id, field_id, value_text, value_number, value_boolean, value_json | |
@@ -134,7 +147,8 @@ ministry-tracker/
 | `stop_requirements` | id, stop_id, title, req_type, notes, is_completed, attachment_url, attachment_name, sort_order, created_by, updated_at | |
 | `task_price_history` | id, task_id, old_price_usd, old_price_lbp, new_price_usd, new_price_lbp, note, changed_by | |
 | `ministry_requirements` | id, ministry_id, title, req_type, notes, sort_order, created_at, updated_at | template requirements per stage (no completion state) |
-| `task_documents` | id, task_id, file_name, display_name, file_url, file_type, uploaded_by, requirement_id, created_at | display_name + requirement_id added session 9 |
+| `task_documents` | id, task_id, file_name, display_name, file_url, file_type, uploaded_by, requirement_id, created_at | |
+| `assignees` | id, name, phone, reference, notes, created_by → team_members, created_at | external assignees (not team members); added session 12 |
 
 ### Migrations to run (in order)
 1. `supabase/schema.sql`
@@ -149,6 +163,8 @@ ministry-tracker/
 10. `supabase/migration_task_documents.sql`
 11. `supabase/migration_task_documents_v2.sql`
 12. `supabase/migration_client_reference.sql`
+13. `supabase/migration_assignees.sql`
+14. `supabase/migration_archive.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
@@ -163,8 +179,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 - `ministries` table = stages in UI (same table, type parent/child)
 - `task_route_stops` = stages; ordered by `stop_order` (1-indexed)
 - `tasks.current_status` = most recently updated stage status. Only "Done" when ALL stages are "Done"
-- Status updates: NO GPS — removed intentionally
-- GPS only stored on `task_comments`
+- **Archive**: `tasks.is_archived` set to `true` when all route stops become "Done". Dashboard derives archived state client-side: `is_archived === true || all route_stops.status === 'Done'` — no dependency on DB column for display
+- **External Assignees**: `assignees` table (separate from `team_members`); linked via `tasks.ext_assignee_id`; can be created inline in TaskDetailScreen
+- GPS columns exist on `task_comments` but GPS is no longer collected or shown (removed session 12)
 - `client_id` auto-generated as `CLT-{Date.now()}`
 - `assigned_to` is nullable — assignment always optional
 - `created_at` on tasks set from device clock (not Supabase server time)
@@ -197,9 +214,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 
 | Screen | Key behavior |
 |---|---|
-| DashboardScreen | Filters (team/status/date/search); swipe-left (Edit/Delete); swipe-right (💰 Quick Finance); manage dropdown (Clients/Services/Stages with search bar each); + New Client modal with custom fields + reference fields; service name tap → ServiceStages; date fields use inline calendar (no nested modal) |
+| DashboardScreen | Filters (team/status/date/search); swipe-left (Edit/Delete); swipe-right (💰 Quick Finance); 📋 Active / 📦 Archive toggle; manage dropdown (Clients/Services/Stages with search bar each); + New Client modal with custom fields + reference fields; service name tap → ServiceStages; date fields use inline calendar with month/year quick-jump picker |
 | NewTaskScreen | Client picker (✎ Edit → EditClient, ✕ delete); service picker (✎ Stages → ServiceStages, ✕ delete); create service with inline stage builder; stages auto-load on service select; useFocusEffect refreshes on return |
-| TaskDetailScreen | Stages timeline + status update; assignment history; financials + contract price; DOCUMENTS section (row list, in-app viewer, share as file, delete, req tag); comments with GPS |
+| TaskDetailScreen | Stages timeline + status update (auto-archives when all Done); team member assignment + external assignee (create/assign/remove); financials + contract price history; DOCUMENTS section; comments (no GPS; edit/delete available to all users); "+ Req" quick-add requirement per stage |
 | CalendarScreen | Multi-dot calendar; day task list |
 | TeamScreen | Member cards with workload; expandable task list |
 | SettingsScreen | CRUD: ministries, services (✎ Stages modal), status labels, team members; Arabic/RTL toggle |
@@ -264,9 +281,14 @@ Library picks: center-crop to A4 ratio.
 - Saves directly to `file_transactions`
 - "View full financials →" link navigates to TaskDetail
 
-### Swipe fix (prevents action buttons showing through)
-Container must have `overflow: 'hidden'` + `borderRadius: 12` + `marginBottom: 10`.
+### Swipe fix (prevents action buttons showing through during scroll)
+Action button groups use `translateX.interpolate()` animated opacity:
+- Finance button opacity: `inputRange: [0, FINANCE_ACTION_WIDTH], outputRange: [0, 1]`
+- Edit/Delete opacity: `inputRange: [-SWIPE_ACTION_WIDTH, 0], outputRange: [1, 0]`
+At `translateX = 0` (closed/rest), both button groups are fully invisible — no ghost buttons while scrolling.
+Container still has `overflow: 'hidden'` + `borderRadius` + `marginBottom`.
 TaskCard passed `cardStyle={{ marginBottom: 0 }}` from the wrapper.
+Do NOT use `onScrollBeginDrag` + `resetKey` — it fires during horizontal swipe gestures and prevents swipe from holding open.
 
 ---
 
@@ -418,7 +440,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 - Dark theme: `#0f172a` bg, `#1e293b` card, `#334155` border
 - Accent: `#6366f1`, success: `#10b981`, error: `#ef4444`
-- No GPS on status updates — GPS only on comments
+- No GPS anywhere — GPS columns exist in DB but are never written or displayed (fully removed session 12)
 - No hardcoded dropdowns — all from DB
 - No `e.g.` in any placeholder text
 - `useRealtime` uses unique channel counter to prevent double-subscribe
@@ -442,13 +464,14 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 ## Setup Checklist
 
-- [ ] Run all 12 SQL migration files in Supabase SQL Editor (in order)
+- [ ] Run all 14 SQL migration files in Supabase SQL Editor (in order)
 - [ ] Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `src/lib/supabase.ts`
 - [ ] Create Supabase Storage bucket `task-attachments` (public)
 - [ ] Create auth users in Supabase dashboard
 - [ ] Insert matching rows in `team_members`
-- [ ] `npm install --legacy-peer-deps`
+- [ ] `npm install` (no --legacy-peer-deps — lockfile must be compatible with `npm ci`)
 - [ ] `npx expo start --clear`
+- [ ] For APK: `eas build --platform android --profile preview`
 
 ---
 
@@ -477,6 +500,14 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 | `downloadAsync`/`uploadAsync` deprecated warning | Import from `expo-file-system/legacy` (SDK 54 moved APIs) |
 | Calendar modal freezes dashboard | React Native can't stack two Modals — replaced date picker Modal with inline Calendar inside existing modal |
 | Service manage row had no tap-to-stages | Service name tappable (indigo, ›) → navigates to ServiceStages; ✎ still edits name/price |
+| EAS build failed — lockfile sync error | Removed unused `lucide-react-native`; regenerated lockfile with plain `npm install` (no --legacy-peer-deps) |
+| Swipe buttons visible during scroll | Replaced overflow:hidden approach with animated opacity interpolated from translateX — buttons invisible at rest |
+| Swipe doesn't hold after resetKey fix | resetKey/onScrollBeginDrag fires during horizontal swipe → removed; opacity approach has no side effects |
+| Archive filter not working | Derived archived state client-side from route_stops all Done; no DB column dependency |
+| GPS shown on comments | Removed getGPS() call, GPS fields from insert, GPS display from comment rows; expo-location import removed |
+| Android tab bar covered by system nav | `useSafeAreaInsets` in navigation/index.tsx; tabBar height = 56 + insets.bottom |
+| ل.ل symbol showing instead of LBP | Replaced throughout FinancialReportScreen + TaskDetailScreen |
+| Outstanding label | Renamed to "Due" throughout |
 
 ---
 
@@ -484,6 +515,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 12 | EAS build fixed (lockfile regenerated without --legacy-peer-deps, lucide-react-native removed); custom app icon (assets/icon.png + adaptive-icon.png); Android tab bar safe area (useSafeAreaInsets); external assignees (assignees table + ext_assignee_id, inline create in TaskDetail); archive system (is_archived on tasks, auto-set when all stages Done, Active/Archive toggle on dashboard + FinancialReport); phone call + WhatsApp from TaskCard phone number; edit/delete comments (all users); "+ Req" quick-add requirement per stage in TaskDetail; swipe ghost fix (animated opacity); calendar month/year quick-jump picker; GPS fully removed from comments; ل.ل→LBP, Outstanding→Due; contract price history always visible |
 | 11 | Design token system: `src/theme/tokens.ts` (colors, spacing, typography, radius, shadow, zIndex, animation) + `src/theme/index.ts`; full migration of all 22 screens/components — zero hardcoded hex colors remaining; RTL-safe margins (`marginStart`/`marginEnd`) throughout; all `placeholderTextColor`, `ActivityIndicator color`, and `Switch trackColor/thumbColor` use tokens |
 | 1 | Initial full build |
 | 2 | SDK upgrade, folder fix, assignment history, stage editing, date picker, urgency status, GPS removed |
@@ -502,13 +534,17 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | # | Feature | Effort | Value |
 |---|---|---|---|
-| 1 | Dashboard summary bar (active files, overdue count, outstanding balance) | Low | High |
+| 1 | Dashboard summary bar (active files, overdue count, total due balance) | Low | High |
 | 2 | Export Financial Report as PDF (expo-print already installed) | Low | High |
-| 3 | WhatsApp share button in TaskDetail (status summary as text) | Low | High |
-| 4 | Quick status update from dashboard (long-press or 2nd swipe) | Medium | High |
-| 5 | Global search across clients, files, stages, requirements | Medium | Medium |
-| 6 | Document rename after upload | Low | Medium |
-| 7 | Due date push notification (on-open overdue check) | Medium | Medium |
+| 3 | WhatsApp share in TaskDetail — send status summary as formatted text message | Low | High |
+| 4 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
+| 5 | Web version (Expo Web) — same codebase, runs in browser for desktop users | Medium | High |
+| 6 | File duplication — clone a task with same client + service + stages | Low | High |
+| 7 | Due date push notification (overdue check on app open) | Medium | Medium |
 | 8 | Notifications inbox / activity feed tab | High | High |
-| 9 | File duplication (same client + service + stages) | Medium | Medium |
-| 10 | Offline status updates queue (currently only comments queue) | High | Medium |
+| 9 | Global search across clients, files, stages, requirements | Medium | Medium |
+| 10 | Document rename after upload | Low | Medium |
+| 11 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
+| 12 | Client statement — printable summary of all files + financial balance per client | Medium | High |
+| 13 | Stage deadline per stop (separate from file due date) | Low | Medium |
+| 14 | Offline status updates queue (currently only comments queue offline) | High | Medium |
