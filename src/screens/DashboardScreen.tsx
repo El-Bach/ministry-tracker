@@ -54,7 +54,6 @@ function SwipeableTaskRow({
   onEdit,
   onDelete,
   onFinance,
-  resetKey,
 }: {
   task: Task;
   statusColor: string;
@@ -64,18 +63,22 @@ function SwipeableTaskRow({
   onEdit: () => void;
   onDelete: () => void;
   onFinance: () => void;
-  resetKey?: number;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef<'left' | 'right' | false>(false);
 
-  // Close swipe when parent FlatList scrolls
-  useEffect(() => {
-    if (resetKey !== undefined) {
-      isOpen.current = false;
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    }
-  }, [resetKey]);
+  // Animate button visibility from translateX so buttons are
+  // completely invisible at rest — no ghost buttons while scrolling
+  const financeOpacity = translateX.interpolate({
+    inputRange: [0, FINANCE_ACTION_WIDTH],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const actionsOpacity = translateX.interpolate({
+    inputRange: [-SWIPE_ACTION_WIDTH, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
 
   const panResponder = useRef(
     PanResponder.create({
@@ -116,8 +119,8 @@ function SwipeableTaskRow({
 
   return (
     <View style={swipeStyles.container}>
-      {/* Right-swipe: Finance action (left side) */}
-      <View style={swipeStyles.financeAction}>
+      {/* Right-swipe: Finance action (left side) — hidden at rest */}
+      <Animated.View style={[swipeStyles.financeAction, { opacity: financeOpacity }]}>
         <TouchableOpacity
           style={swipeStyles.financeBtn}
           onPress={() => { close(); onFinance(); }}
@@ -125,10 +128,10 @@ function SwipeableTaskRow({
           <Text style={swipeStyles.financeIcon}>💰</Text>
           <Text style={swipeStyles.financeBtnText}>Add</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
-      {/* Left-swipe: Edit + Delete actions (right side) */}
-      <View style={swipeStyles.actions}>
+      {/* Left-swipe: Edit + Delete actions (right side) — hidden at rest */}
+      <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
         <TouchableOpacity
           style={swipeStyles.editBtn}
           onPress={() => { close(); onEdit(); }}
@@ -141,7 +144,7 @@ function SwipeableTaskRow({
         >
           <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* Swipeable card */}
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
@@ -312,8 +315,6 @@ export default function DashboardScreen() {
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
   const [calCurrentDate, setCalCurrentDate] = useState<string | undefined>(undefined);
 
-  // Key incremented on scroll to auto-close all open swipe rows
-  const [swipeResetKey, setSwipeResetKey] = useState(0);
 
   // Network listener
   useEffect(() => {
@@ -640,10 +641,9 @@ export default function DashboardScreen() {
         onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
         onDelete={() => handleDeleteTask(item)}
         onFinance={() => openQuickFinance(item)}
-        resetKey={swipeResetKey}
       />
     ),
-    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, openQuickFinance, swipeResetKey]
+    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, openQuickFinance]
   );
 
   if (loading) {
@@ -851,7 +851,6 @@ export default function DashboardScreen() {
           ) : null
         }
         renderItem={renderTaskRow}
-        onScrollBeginDrag={() => setSwipeResetKey((k) => k + 1)}
         getItemLayout={(_data, index) => ({
           length: TASK_ROW_HEIGHT,
           offset: TASK_ROW_HEIGHT * index,
