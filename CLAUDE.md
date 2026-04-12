@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 13 (StageRequirementsScreen modal fix; dashboard status color fix; NewTaskScreen external assignee; Android adaptive icon fix; iOS PWA (ministry-papers.netlify.app); full-bleed app icon; GitHub backup)
+> Last updated: session 14 (graphify knowledge graph update; npm ci clean; EAS preview APK build succeeded)
 
 ---
 
@@ -534,6 +534,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 14 | graphify knowledge graph incremental update (2 source files re-extracted: NewTaskScreen + StageRequirementsScreen); npm ci clean (728 packages, 0 vulnerabilities); EAS preview APK built successfully (`eas build --platform android --profile preview`) |
 | 13 | StageRequirementsScreen modal fix (height:85% so form fields visible); TaskCard status color fallback fixed (primary instead of current_status color); NewTaskScreen Assign To now supports external assignees + inline create; Android adaptive icon removed (icon.png used directly); iOS PWA deployed to ministry-papers.netlify.app (Safari Add to Home Screen); full-bleed icon-fullbleed.png generated for PWA apple-touch-icon; GitHub backup set up (github.com/El-Bach/ministry-tracker) |
 | 12 | EAS build fixed (lockfile regenerated without --legacy-peer-deps, lucide-react-native removed); custom app icon (assets/icon.png + adaptive-icon.png); Android tab bar safe area (useSafeAreaInsets); external assignees (assignees table + ext_assignee_id, inline create in TaskDetail); archive system (is_archived on tasks, auto-set when all stages Done, Active/Archive toggle on dashboard + FinancialReport); phone call + WhatsApp from TaskCard phone number; edit/delete comments (all users); "+ Req" quick-add requirement per stage in TaskDetail; swipe ghost fix (animated opacity); calendar month/year quick-jump picker; GPS fully removed from comments; ل.ل→LBP, Outstanding→Due; contract price history always visible |
 | 11 | Design token system: `src/theme/tokens.ts` (colors, spacing, typography, radius, shadow, zIndex, animation) + `src/theme/index.ts`; full migration of all 22 screens/components — zero hardcoded hex colors remaining; RTL-safe margins (`marginStart`/`marginEnd`) throughout; all `placeholderTextColor`, `ActivityIndicator color`, and `Switch trackColor/thumbColor` use tokens |
