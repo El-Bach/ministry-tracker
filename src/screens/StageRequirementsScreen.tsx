@@ -636,7 +636,7 @@ const s = StyleSheet.create({
     backgroundColor: theme.color.bgSurface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    height: '85%',
     paddingBottom: Platform.OS === 'ios' ? 34 : theme.spacing.space4,
   },
   modalHeader: {

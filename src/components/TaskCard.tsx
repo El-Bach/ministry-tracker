@@ -114,9 +114,9 @@ function TaskCard({
     ? urgentStatus
     : task.current_status;
 
-  const urgentColor  = allStatusColors[urgentStatus] ?? statusColor;
+  const urgentColor  = allStatusColors[urgentStatus] ?? theme.color.primary;
   const accentColor  = allDone ? theme.color.success : urgentColor;
-  const displayColor = allStatusColors[displayStatus] ?? statusColor;
+  const displayColor = allStatusColors[displayStatus] ?? theme.color.primary;
 
   const handlePhonePress = (phone: string) => {
     const clean = phone.replace(/[^0-9+]/g, '');

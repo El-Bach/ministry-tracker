@@ -822,7 +822,18 @@ export default function NewTaskScreen() {
  const [dueDate, setDueDate] = useState(''); // stored as DD/MM/YYYY display format
  const [notes, setNotes] = useState('');
 
- const [modal, setModal] = useState<'client' | 'service' | 'stage' | 'assignee' | null>(null);
+ // External assignees
+ const [extAssignees, setExtAssignees] = useState<Array<{id:string;name:string;phone?:string;reference?:string;notes?:string;creator?:{name:string};created_at:string}>>([]);
+ const [selectedExtAssignee, setSelectedExtAssignee] = useState<{id:string;name:string;phone?:string}|null>(null);
+ const [showAssigneeModal, setShowAssigneeModal] = useState(false);
+ const [showCreateExtForm, setShowCreateExtForm] = useState(false);
+ const [newExtName, setNewExtName] = useState('');
+ const [newExtPhone, setNewExtPhone] = useState('');
+ const [newExtReference, setNewExtReference] = useState('');
+ const [newExtNotes, setNewExtNotes] = useState('');
+ const [savingExtAssignee, setSavingExtAssignee] = useState(false);
+
+ const [modal, setModal] = useState<'client' | 'service' | 'stage' | null>(null);
 
  // New client form
  const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -934,11 +945,12 @@ export default function NewTaskScreen() {
  };
 
  const loadData = async () => {
- const [c, sv, m, tm] = await Promise.all([
+ const [c, sv, m, tm, ea] = await Promise.all([
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
  supabase.from('ministries').select('*').order('name'),
  supabase.from('team_members').select('*').order('name'),
+ supabase.from('assignees').select('*, creator:team_members!created_by(name)').order('name'),
  ]);
  if (c.data) {
    setClients(c.data as Client[]);
@@ -952,6 +964,7 @@ export default function NewTaskScreen() {
  if (sv.data) setServices(sv.data as Service[]);
  if (m.data) setStages(m.data as Ministry[]);
  if (tm.data) setTeamMembers(tm.data as TeamMember[]);
+ if (ea.data) setExtAssignees(ea.data as any[]);
  };
 
  const toggleStage = (stage: Ministry) => {
@@ -1166,6 +1179,7 @@ export default function NewTaskScreen() {
  client_id: selectedClient!.id,
  service_id: selectedService!.id,
  assigned_to: selectedAssignee?.id ?? null,
+ ext_assignee_id: selectedExtAssignee?.id ?? null,
  current_status: 'Submitted',
  due_date: dueDateISO,
  notes: notes.trim() || null,
@@ -1500,14 +1514,14 @@ export default function NewTaskScreen() {
  <Text style={s.sectionTitle}>ASSIGNMENT (OPTIONAL)</Text>
  <FieldRow
  label="Assign To"
- value={selectedAssignee ? `${selectedAssignee.name} · ${selectedAssignee.role}` : ''}
- onPress={() => setModal('assignee')}
+ value={selectedAssignee ? `${selectedAssignee.name} · ${selectedAssignee.role}` : selectedExtAssignee ? selectedExtAssignee.name : ''}
+ onPress={() => setShowAssigneeModal(true)}
  placeholder="Unassigned"
  />
- {selectedAssignee && (
+ {(selectedAssignee || selectedExtAssignee) && (
  <TouchableOpacity
  style={s.addInlineBtn}
- onPress={() => setSelectedAssignee(null)}
+ onPress={() => { setSelectedAssignee(null); setSelectedExtAssignee(null); }}
  >
  <Text style={[s.addInlineBtnText, { color: theme.color.danger }]}>✕ Remove assignment</Text>
  </TouchableOpacity>
@@ -1605,17 +1619,141 @@ export default function NewTaskScreen() {
  multiSelect
  selectedIds={routeStops.map((r) => r.id)}
  />
- <PickerModal
- visible={modal === 'assignee'}
- title="Assign To"
- items={teamMembers.map((tm) => ({
- id: tm.id,
- label: tm.id === teamMember?.id ? `${tm.name} (you)` : tm.name,
- subtitle: tm.role,
- }))}
- onSelect={(item) => setSelectedAssignee(teamMembers.find((tm) => tm.id === item.id)!)}
- onClose={() => setModal(null)}
- />
+      {/* ── ASSIGNEE PICKER MODAL ── */}
+      <Modal
+        visible={showAssigneeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowAssigneeModal(false); setShowCreateExtForm(false); }}
+      >
+        <View style={{ flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: theme.color.bgSurface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: theme.spacing.space5, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                <Text style={{ color: theme.color.textPrimary, fontSize: 18, fontWeight: '700' }}>Assign To</Text>
+                <TouchableOpacity onPress={() => { setShowAssigneeModal(false); setShowCreateExtForm(false); }}>
+                  <Text style={{ color: theme.color.textSecondary, fontSize: 20 }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={{ maxHeight: 500 }} keyboardShouldPersistTaps="handled">
+                {/* Team Members section */}
+                <Text style={{ color: theme.color.textMuted, fontSize: theme.typography.caption.fontSize, fontWeight: '700', marginHorizontal: theme.spacing.space5, marginTop: theme.spacing.space4, marginBottom: theme.spacing.space2 }}>TEAM MEMBERS</Text>
+                {teamMembers.map((tm) => (
+                  <TouchableOpacity
+                    key={tm.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.space5, paddingVertical: theme.spacing.space3, gap: theme.spacing.space3, backgroundColor: selectedAssignee?.id === tm.id ? theme.color.primaryDim : 'transparent' }}
+                    onPress={() => { setSelectedAssignee(tm); setSelectedExtAssignee(null); setShowAssigneeModal(false); setShowCreateExtForm(false); }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: theme.color.white, fontWeight: '700', fontSize: 14 }}>{tm.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.color.textPrimary, fontSize: 15, fontWeight: '600' }}>{tm.id === teamMember?.id ? `${tm.name} (you)` : tm.name}</Text>
+                      <Text style={{ color: theme.color.textSecondary, fontSize: theme.typography.caption.fontSize }}>{tm.role}</Text>
+                    </View>
+                    {selectedAssignee?.id === tm.id && <Text style={{ color: theme.color.primary, fontSize: 16, fontWeight: '700' }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+
+                {/* External Assignees section */}
+                <Text style={{ color: theme.color.textMuted, fontSize: theme.typography.caption.fontSize, fontWeight: '700', marginHorizontal: theme.spacing.space5, marginTop: theme.spacing.space5, marginBottom: theme.spacing.space2 }}>EXTERNAL ASSIGNEES</Text>
+                {extAssignees.length === 0 && !showCreateExtForm && (
+                  <Text style={{ color: theme.color.textSecondary, fontSize: theme.typography.body.fontSize, marginHorizontal: theme.spacing.space5, marginBottom: theme.spacing.space3 }}>No external assignees yet. Create one below.</Text>
+                )}
+                {extAssignees.map((a) => (
+                  <TouchableOpacity
+                    key={a.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.space5, paddingVertical: theme.spacing.space3, gap: theme.spacing.space3, backgroundColor: selectedExtAssignee?.id === a.id ? theme.color.primaryDim : 'transparent' }}
+                    onPress={() => { setSelectedExtAssignee(a); setSelectedAssignee(null); setShowAssigneeModal(false); setShowCreateExtForm(false); }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.border, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: theme.color.textPrimary, fontWeight: '700', fontSize: 14 }}>{a.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: theme.color.textPrimary, fontSize: 15, fontWeight: '600' }}>{a.name}</Text>
+                      {a.phone ? <Text style={{ color: theme.color.textSecondary, fontSize: theme.typography.caption.fontSize }}>📞 {a.phone}</Text> : null}
+                      {a.reference ? <Text style={{ color: theme.color.textSecondary, fontSize: theme.typography.caption.fontSize }}>Ref: {a.reference}</Text> : null}
+                    </View>
+                    {selectedExtAssignee?.id === a.id && <Text style={{ color: theme.color.primary, fontSize: 16, fontWeight: '700' }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+
+                {/* Create new external assignee toggle */}
+                <TouchableOpacity
+                  style={{ margin: theme.spacing.space5, padding: theme.spacing.space3, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.primary, alignItems: 'center' }}
+                  onPress={() => setShowCreateExtForm((v) => !v)}
+                >
+                  <Text style={{ color: theme.color.primary, fontWeight: '700', fontSize: theme.typography.body.fontSize }}>{showCreateExtForm ? '− Cancel' : '+ Create New Assignee'}</Text>
+                </TouchableOpacity>
+
+                {showCreateExtForm && (
+                  <View style={{ marginHorizontal: theme.spacing.space5, marginBottom: theme.spacing.space4, gap: theme.spacing.space3 }}>
+                    <TextInput
+                      style={{ backgroundColor: theme.color.bgBase, color: theme.color.textPrimary, borderRadius: theme.radius.md, padding: theme.spacing.space3, fontSize: 15, borderWidth: 1, borderColor: theme.color.border }}
+                      value={newExtName}
+                      onChangeText={setNewExtName}
+                      placeholder="Full name *"
+                      placeholderTextColor={theme.color.textMuted}
+                    />
+                    <TextInput
+                      style={{ backgroundColor: theme.color.bgBase, color: theme.color.textPrimary, borderRadius: theme.radius.md, padding: theme.spacing.space3, fontSize: 15, borderWidth: 1, borderColor: theme.color.border }}
+                      value={newExtPhone}
+                      onChangeText={setNewExtPhone}
+                      placeholder="Phone number"
+                      placeholderTextColor={theme.color.textMuted}
+                      keyboardType="phone-pad"
+                    />
+                    <TextInput
+                      style={{ backgroundColor: theme.color.bgBase, color: theme.color.textPrimary, borderRadius: theme.radius.md, padding: theme.spacing.space3, fontSize: 15, borderWidth: 1, borderColor: theme.color.border }}
+                      value={newExtReference}
+                      onChangeText={setNewExtReference}
+                      placeholder="Reference"
+                      placeholderTextColor={theme.color.textMuted}
+                    />
+                    <TextInput
+                      style={{ backgroundColor: theme.color.bgBase, color: theme.color.textPrimary, borderRadius: theme.radius.md, padding: theme.spacing.space3, fontSize: 15, borderWidth: 1, borderColor: theme.color.border, minHeight: 60, textAlignVertical: 'top' }}
+                      value={newExtNotes}
+                      onChangeText={setNewExtNotes}
+                      placeholder="Notes"
+                      placeholderTextColor={theme.color.textMuted}
+                      multiline
+                    />
+                    <TouchableOpacity
+                      style={{ backgroundColor: savingExtAssignee ? theme.color.border : theme.color.primary, padding: 14, borderRadius: theme.radius.md, alignItems: 'center' }}
+                      onPress={async () => {
+                        if (!newExtName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+                        setSavingExtAssignee(true);
+                        const { data, error } = await supabase
+                          .from('assignees')
+                          .insert({ name: newExtName.trim(), phone: newExtPhone.trim() || null, reference: newExtReference.trim() || null, notes: newExtNotes.trim() || null, created_by: teamMember?.id })
+                          .select('*, creator:team_members!created_by(name)')
+                          .single();
+                        setSavingExtAssignee(false);
+                        if (error) { Alert.alert('Error', error.message); return; }
+                        const newA = data as any;
+                        setExtAssignees((prev) => [...prev, newA].sort((a, b) => a.name.localeCompare(b.name)));
+                        setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setNewExtNotes('');
+                        setShowCreateExtForm(false);
+                        setSelectedExtAssignee(newA);
+                        setSelectedAssignee(null);
+                        setShowAssigneeModal(false);
+                      }}
+                      disabled={savingExtAssignee}
+                    >
+                      {savingExtAssignee
+                        ? <ActivityIndicator color={theme.color.white} size="small" />
+                        : <Text style={{ color: theme.color.white, fontWeight: '700', fontSize: 15 }}>Save & Assign</Text>}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={{ height: 16 }} />
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Edit client modal */}
       {/* Field picker modal */}
