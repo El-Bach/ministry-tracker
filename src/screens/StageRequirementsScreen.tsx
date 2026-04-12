@@ -239,8 +239,22 @@ export default function StageRequirementsScreen() {
         .from('task-attachments')
         .getPublicUrl(filePath);
 
-      setAttachmentUrl(urlData.publicUrl);
-      setAttachmentName(asset.fileName ?? fileName);
+      const publicUrl = urlData.publicUrl;
+      const displayName = asset.fileName ?? fileName;
+
+      setAttachmentUrl(publicUrl);
+      setAttachmentName(displayName);
+
+      // Create task_documents record for audit trail (mirrors DocumentScannerModal)
+      await supabase.from('task_documents').insert({
+        task_id: taskId,
+        file_name: fileName,
+        display_name: displayName,
+        file_url: publicUrl,
+        file_type: ext,
+        uploaded_by: teamMember?.id ?? null,
+        requirement_id: editingReq?.id ?? null,
+      });
     } catch (e: any) {
       Alert.alert('Upload failed', e.message ?? 'Could not upload file.');
     } finally {
