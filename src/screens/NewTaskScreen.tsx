@@ -22,9 +22,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Calendar } from 'react-native-calendars';
-import * as Notifications from 'expo-notifications';
-
 import supabase from '../lib/supabase';
+import { sendPushNotification } from '../lib/notifications';
 import { theme } from '../theme';
 import { FieldDefinition, FieldValue, useFieldDefinitions } from '../components/ClientFieldsForm';
 import * as Location from 'expo-location';
@@ -1209,16 +1208,18 @@ export default function NewTaskScreen() {
  new_status: 'Submitted',
  });
 
- try {
- await Notifications.scheduleNotificationAsync({
- content: {
- title: 'New File Assigned',
- body: `${selectedClient!.name} — ${selectedService!.name}`,
- data: { taskId: taskData.id },
- },
- trigger: null,
- });
- } catch (_) {}
+ // Notify the assigned team member if it's not the current user
+ if (selectedAssignee && selectedAssignee.id !== teamMember?.id) {
+   const assignedMember = teamMembers.find((m) => m.id === selectedAssignee.id);
+   if (assignedMember?.push_token) {
+     sendPushNotification(
+       assignedMember.push_token,
+       'New File Assigned to You',
+       `${selectedClient!.name} — ${selectedService!.name}`,
+       { taskId: taskData.id }
+     );
+   }
+ }
 
  Alert.alert('File Created', 'The file has been created successfully.', [
  { text: 'OK', onPress: () => navigation.goBack() },
