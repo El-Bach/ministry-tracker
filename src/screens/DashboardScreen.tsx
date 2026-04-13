@@ -31,7 +31,7 @@ import supabase from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { useOfflineQueue } from '../store/offlineQueue';
-import { Task, StatusLabel, TeamMember, Ministry, Client, Service, DashboardStackParamList } from '../types';
+import { Task, StatusLabel, TeamMember, Ministry, Client, Service, City, DashboardStackParamList } from '../types';
 import TaskCard from '../components/TaskCard';
 import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
@@ -217,6 +217,7 @@ interface Filters {
   teamMemberId: string;
   ministryId: string;
   statusLabel: string;
+  cityId: string;
   dateFilter: 'all' | 'overdue' | 'today' | 'week';
   showArchived: boolean;
 }
@@ -238,6 +239,7 @@ export default function DashboardScreen() {
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<Filters>({
@@ -245,6 +247,7 @@ export default function DashboardScreen() {
     teamMemberId: '',
     ministryId: '',
     statusLabel: '',
+    cityId: '',
     dateFilter: 'all',
     showArchived: false,
   });
@@ -325,11 +328,11 @@ export default function DashboardScreen() {
   }, []);
 
   const fetchData = useCallback(async () => {
-    const [tasksRes, labelsRes, membersRes, ministriesRes, clientsRes, svcRes] = await Promise.all([
+    const [tasksRes, labelsRes, membersRes, ministriesRes, clientsRes, svcRes, citiesRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*))`
+          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*)), city:cities(id,name)`
         )
         .order('created_at', { ascending: false }),
       supabase.from('status_labels').select('*').order('sort_order'),
@@ -337,6 +340,7 @@ export default function DashboardScreen() {
       supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
+      supabase.from('cities').select('*').order('name'),
     ]);
 
     if (tasksRes.data) setTasks(tasksRes.data as Task[]);
@@ -345,6 +349,7 @@ export default function DashboardScreen() {
     if (ministriesRes.data) setMinistries(ministriesRes.data as Ministry[]);
     if (clientsRes.data) setClients(clientsRes.data as Client[]);
     if (svcRes.data) setServices(svcRes.data as Service[]);
+    if (citiesRes.data) setCities(citiesRes.data as City[]);
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -392,6 +397,7 @@ export default function DashboardScreen() {
     }
     if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
     if (filters.statusLabel && task.current_status !== filters.statusLabel) return false;
+    if (filters.cityId && task.city_id !== filters.cityId) return false;
     if (filters.ministryId) {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
@@ -760,6 +766,35 @@ export default function DashboardScreen() {
                   ]}
                 >
                   {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* City filter */}
+          <Text style={styles.filterSectionLabel}>CITY</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            <TouchableOpacity
+              style={[styles.chip, !filters.cityId && styles.chipActive]}
+              onPress={() => setFilters((f) => ({ ...f, cityId: '' }))}
+            >
+              <Text style={[styles.chipText, !filters.cityId && styles.chipTextActive]}>
+                All
+              </Text>
+            </TouchableOpacity>
+            {cities.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.chip, filters.cityId === c.id && styles.chipActive]}
+                onPress={() =>
+                  setFilters((f) => ({
+                    ...f,
+                    cityId: f.cityId === c.id ? '' : c.id,
+                  }))
+                }
+              >
+                <Text style={[styles.chipText, filters.cityId === c.id && styles.chipTextActive]}>
+                  {c.name}
                 </Text>
               </TouchableOpacity>
             ))}

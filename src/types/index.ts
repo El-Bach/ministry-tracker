@@ -89,6 +89,12 @@ export interface StatusUpdate {
   created_at: string;
 }
 
+export interface City {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
 export interface Assignee {
   id: string;
   name: string;
@@ -116,6 +122,8 @@ export interface Task {
   price_usd: number;
   price_lbp: number;
   is_archived?: boolean;
+  city_id?: string | null;
+  city?: City | null;
   created_at: string;
   updated_at: string;
   // joined relations

@@ -404,7 +404,7 @@ const fp = StyleSheet.create({
   optionCheck:            { color: theme.color.success, fontSize: 18 },
 });
 import { useAuth } from '../hooks/useAuth';
-import { Client, Service, Ministry, TeamMember, DashboardStackParamList } from '../types';
+import { Client, Service, Ministry, TeamMember, City, DashboardStackParamList } from '../types';
 
 // ─── Date helpers ─────────────────────────────────────────────
 // Parse DD/MM/YYYY or DD/MM/YY → Date object
@@ -831,7 +831,14 @@ export default function NewTaskScreen() {
  const [newExtNotes, setNewExtNotes] = useState('');
  const [savingExtAssignee, setSavingExtAssignee] = useState(false);
 
- const [modal, setModal] = useState<'client' | 'service' | 'stage' | null>(null);
+ const [modal, setModal] = useState<'client' | 'service' | 'stage' | 'city' | null>(null);
+
+ // City
+ const [cities, setCities] = useState<City[]>([]);
+ const [selectedCity, setSelectedCity] = useState<City | null>(null);
+ const [showNewCityForm, setShowNewCityForm] = useState(false);
+ const [newCityName, setNewCityName] = useState('');
+ const [savingCity, setSavingCity] = useState(false);
 
  // New client form
  const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -938,6 +945,44 @@ export default function NewTaskScreen() {
    ]);
  };
 
+ const handleDeleteCity = (item: PickerItem) => {
+   Alert.alert('Delete City', `Permanently delete "${item.label}"?`, [
+     { text: 'Cancel', style: 'cancel' },
+     {
+       text: 'Delete', style: 'destructive',
+       onPress: async () => {
+         await supabase.from('cities').delete().eq('id', item.id);
+         setCities((prev) => prev.filter((c) => c.id !== item.id));
+         if (selectedCity?.id === item.id) setSelectedCity(null);
+       },
+     },
+   ]);
+ };
+
+ const handleCreateCity = async () => {
+   if (!newCityName.trim()) return;
+   const duplicate = cities.find(
+     (c) => c.name.trim().toLowerCase() === newCityName.trim().toLowerCase()
+   );
+   if (duplicate) {
+     Alert.alert('Already exists', `"${duplicate.name}" is already in the list.`);
+     return;
+   }
+   setSavingCity(true);
+   const { data, error } = await supabase
+     .from('cities')
+     .insert({ name: newCityName.trim() })
+     .select()
+     .single();
+   setSavingCity(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   const city = data as City;
+   setCities((prev) => [...prev, city].sort((a, b) => a.name.localeCompare(b.name)));
+   setSelectedCity(city);
+   setShowNewCityForm(false);
+   setNewCityName('');
+ };
+
  const handleDeleteClient = (item: PickerItem) => {
    Alert.alert(
      'Delete Client',
@@ -957,12 +1002,13 @@ export default function NewTaskScreen() {
  };
 
  const loadData = async () => {
- const [c, sv, m, tm, ea] = await Promise.all([
+ const [c, sv, m, tm, ea, ct] = await Promise.all([
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
  supabase.from('ministries').select('*').order('name'),
  supabase.from('team_members').select('*').order('name'),
  supabase.from('assignees').select('*, creator:team_members!created_by(name)').order('name'),
+ supabase.from('cities').select('*').order('name'),
  ]);
  if (c.data) {
    setClients(c.data as Client[]);
@@ -977,6 +1023,7 @@ export default function NewTaskScreen() {
  if (m.data) setStages(m.data as Ministry[]);
  if (tm.data) setTeamMembers(tm.data as TeamMember[]);
  if (ea.data) setExtAssignees(ea.data as any[]);
+ if (ct.data) setCities(ct.data as City[]);
  };
 
  const toggleStage = (stage: Ministry) => {
@@ -1193,6 +1240,7 @@ export default function NewTaskScreen() {
  assigned_to: selectedAssignee?.id ?? null,
  ext_assignee_id: selectedExtAssignee?.id ?? null,
  current_status: 'Submitted',
+ city_id: selectedCity?.id ?? null,
  due_date: dueDateISO,
  notes: notes.trim() || null,
  price_usd: (selectedService as any).base_price_usd ?? 0,
@@ -1524,6 +1572,56 @@ export default function NewTaskScreen() {
  </View>
  )}
 
+ {/* ── CITY ── */}
+ <View style={s.section}>
+ <Text style={s.sectionTitle}>CITY (OPTIONAL)</Text>
+ <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+   <View style={{ flex: 1 }}>
+     <FieldRow
+       label="Select City"
+       value={selectedCity?.name ?? ''}
+       onPress={() => setModal('city')}
+     />
+   </View>
+   {selectedCity && (
+     <TouchableOpacity onPress={() => setSelectedCity(null)} style={{ padding: theme.spacing.space2, marginStart: theme.spacing.space2 }}>
+       <Text style={{ color: theme.color.textMuted, fontSize: 18 }}>✕</Text>
+     </TouchableOpacity>
+   )}
+ </View>
+ <TouchableOpacity
+   style={s.addInlineBtn}
+   onPress={() => setShowNewCityForm((v) => !v)}
+ >
+   <Text style={s.addInlineBtnText}>
+     {showNewCityForm ? '− Cancel' : '+ Create new city'}
+   </Text>
+ </TouchableOpacity>
+ {showNewCityForm && (
+   <View style={s.inlineForm}>
+     <TextInput
+       style={s.inlineInput}
+       value={newCityName}
+       onChangeText={setNewCityName}
+       placeholder="City name *"
+       placeholderTextColor={theme.color.textMuted}
+       autoFocus
+     />
+     <TouchableOpacity
+       style={[s.inlineSaveBtn, savingCity && s.disabled]}
+       onPress={handleCreateCity}
+       disabled={savingCity}
+     >
+       {savingCity ? (
+         <ActivityIndicator color={theme.color.white} size="small" />
+       ) : (
+         <Text style={s.inlineSaveBtnText}>Save & Select</Text>
+       )}
+     </TouchableOpacity>
+   </View>
+ )}
+ </View>
+
  {/* ── ASSIGNMENT ── */}
  <View style={s.section}>
  <Text style={s.sectionTitle}>ASSIGNMENT (OPTIONAL)</Text>
@@ -1635,6 +1733,20 @@ export default function NewTaskScreen() {
  multiSelect
  selectedIds={routeStops.map((r) => r.id)}
  />
+      {/* ── CITY PICKER MODAL ── */}
+      <PickerModal
+        visible={modal === 'city'}
+        title="Select City"
+        items={cities.map((c) => ({ id: c.id, label: c.name }))}
+        onSelect={(item) => {
+          setSelectedCity(cities.find((c) => c.id === item.id) ?? null);
+          setModal(null);
+        }}
+        onItemDelete={handleDeleteCity}
+        onClose={() => setModal(null)}
+        search
+      />
+
       {/* ── ASSIGNEE PICKER MODAL ── */}
       <Modal
         visible={showAssigneeModal}
