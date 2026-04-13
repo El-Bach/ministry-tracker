@@ -924,6 +924,20 @@ export default function NewTaskScreen() {
    ]);
  };
 
+ const handleDeleteStage = (item: PickerItem) => {
+   Alert.alert('Delete Stage', `Permanently delete "${item.label}" from the stages directory?`, [
+     { text: 'Cancel', style: 'cancel' },
+     {
+       text: 'Delete', style: 'destructive',
+       onPress: async () => {
+         await supabase.from('ministries').delete().eq('id', item.id);
+         setStages((prev) => prev.filter((m) => m.id !== item.id));
+         setRouteStops((prev) => prev.filter((m) => m.id !== item.id));
+       },
+     },
+   ]);
+ };
+
  const handleDeleteClient = (item: PickerItem) => {
    Alert.alert(
      'Delete Client',
@@ -1615,6 +1629,7 @@ export default function NewTaskScreen() {
  const stage = stages.find((m) => m.id === item.id);
  if (stage) toggleStage(stage);
  }}
+ onItemDelete={handleDeleteStage}
  onClose={() => setModal(null)}
  search
  multiSelect
