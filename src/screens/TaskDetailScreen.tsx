@@ -188,8 +188,9 @@ export default function TaskDetailScreen() {
   const [editNotes, setEditNotes] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editServiceId, setEditServiceId] = useState('');
-  const [editCityId, setEditCityId] = useState<string | null>(null);
   const [allCities, setAllCities] = useState<City[]>([]);
+  const [citySearch, setCitySearch] = useState('');
+  const [savingCity, setSavingCity] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Quick add requirement states
@@ -540,8 +541,17 @@ export default function TaskDetailScreen() {
     setEditNotes(task?.notes ?? '');
     setEditDueDate(task?.due_date ? isoToDisplay(task.due_date) : '');
     setEditServiceId(task?.service_id ?? '');
-    setEditCityId(task?.city_id ?? null);
     setShowEditTask(true);
+  };
+
+  const handleSetCity = async (cityId: string | null) => {
+    setSavingCity(true);
+    await supabase
+      .from('tasks')
+      .update({ city_id: cityId, updated_at: new Date().toISOString() })
+      .eq('id', taskId);
+    setSavingCity(false);
+    fetchTask();
   };
 
   const handleSaveEdit = async () => {
@@ -561,7 +571,6 @@ export default function TaskDetailScreen() {
         notes: editNotes.trim() || null,
         due_date: isoDate,
         service_id: editServiceId,
-        city_id: editCityId ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', taskId);
@@ -1042,6 +1051,58 @@ export default function TaskDetailScreen() {
           <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
             <Text style={s.editTaskBtnText}>✎ Edit File Details</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ── CITY ── */}
+        <View style={s.section}>
+          <View style={s.sectionTitleRow}>
+            <Text style={s.sectionTitle}>CITY</Text>
+            {savingCity && <ActivityIndicator size="small" color={theme.color.primary} style={{ marginStart: 8 }} />}
+          </View>
+
+          {/* Current city */}
+          {task.city?.name ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.space3 }}>
+              <Text style={{ color: theme.color.primary, fontSize: 15, fontWeight: '600', flex: 1 }}>
+                📍 {task.city.name}
+              </Text>
+              <TouchableOpacity onPress={() => handleSetCity(null)} disabled={savingCity}
+                style={{ paddingHorizontal: theme.spacing.space2 }}>
+                <Text style={{ color: theme.color.danger, fontSize: 13 }}>✕ Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={{ color: theme.color.textMuted, fontSize: 13, marginBottom: theme.spacing.space3 }}>
+              No city assigned
+            </Text>
+          )}
+
+          {/* Search input */}
+          <TextInput
+            style={s.newMemberInput}
+            value={citySearch}
+            onChangeText={setCitySearch}
+            placeholder="Search city..."
+            placeholderTextColor={theme.color.textMuted}
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+          />
+
+          {/* Filtered city list */}
+          {allCities
+            .filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
+            .map(city => (
+              <TouchableOpacity
+                key={city.id}
+                style={[s.memberOption, task.city_id === city.id && s.memberOptionActive]}
+                onPress={() => { handleSetCity(city.id); setCitySearch(''); }}
+                disabled={savingCity}
+              >
+                <Text style={[s.memberName, { fontSize: 14 }]}>{city.name}</Text>
+                {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+              </TouchableOpacity>
+            ))
+          }
         </View>
 
         {/* ── ASSIGNMENT CARD ── */}
@@ -2242,25 +2303,6 @@ export default function TaskDetailScreen() {
                   multiline
                 />
 
-                {/* City */}
-                <Text style={[s.editFieldLabel, { marginTop: 16 }]}>CITY (OPTIONAL)</Text>
-                <TouchableOpacity
-                  style={[s.memberOption, !editCityId && s.memberOptionActive]}
-                  onPress={() => setEditCityId(null)}
-                >
-                  <Text style={[s.memberName, { fontSize: 14 }]}>— No city</Text>
-                  {!editCityId && <Text style={s.checkmark}>✓</Text>}
-                </TouchableOpacity>
-                {allCities.map((city) => (
-                  <TouchableOpacity
-                    key={city.id}
-                    style={[s.memberOption, editCityId === city.id && s.memberOptionActive]}
-                    onPress={() => setEditCityId(city.id)}
-                  >
-                    <Text style={[s.memberName, { fontSize: 14 }]}>{city.name}</Text>
-                    {editCityId === city.id && <Text style={s.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
               </ScrollView>
 
               <View style={s.editStagesSaveRow}>
