@@ -51,6 +51,7 @@ function SwipeableTaskRow({
   allStatusColors,
   onPress,
   onClientPress,
+  onCityPress,
   onEdit,
   onDelete,
   onFinance,
@@ -60,6 +61,7 @@ function SwipeableTaskRow({
   allStatusColors: Record<string, string>;
   onPress: () => void;
   onClientPress: () => void;
+  onCityPress: (cityId: string) => void;
   onEdit: () => void;
   onDelete: () => void;
   onFinance: () => void;
@@ -154,6 +156,7 @@ function SwipeableTaskRow({
           allStatusColors={allStatusColors}
           onPress={() => { if (isOpen.current) { close(); } else { onPress(); } }}
           onClientPress={onClientPress}
+          onCityPress={onCityPress}
           cardStyle={{ marginBottom: 0 }}
         />
       </Animated.View>
@@ -644,6 +647,7 @@ export default function DashboardScreen() {
         allStatusColors={allStatusColorsMap}
         onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
         onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
+        onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
         onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
         onDelete={() => handleDeleteTask(item)}
         onFinance={() => openQuickFinance(item)}

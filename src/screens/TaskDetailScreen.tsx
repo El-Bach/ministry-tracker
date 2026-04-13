@@ -45,6 +45,7 @@ import {
   Ministry,
   Service,
   TaskPriceHistory,
+  City,
 } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import RouteStop from '../components/RouteStop';
@@ -187,6 +188,8 @@ export default function TaskDetailScreen() {
   const [editNotes, setEditNotes] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editServiceId, setEditServiceId] = useState('');
+  const [editCityId, setEditCityId] = useState<string | null>(null);
+  const [allCities, setAllCities] = useState<City[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Quick add requirement states
@@ -205,13 +208,14 @@ export default function TaskDetailScreen() {
   const [statusMsg, setStatusMsg] = useState('');
 
   const fetchTask = useCallback(async () => {
-    const [taskRes, commentsRes, labelsRes, membersRes, historyRes] = await Promise.all([
+    const [taskRes, commentsRes, labelsRes, membersRes, historyRes, citiesRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
           `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*),
            ext_assignee:assignees!ext_assignee_id(*, creator:team_members!created_by(name)),
-           route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*))`
+           route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*)),
+           city:cities(id,name)`
         )
         .eq('id', taskId)
         .single(),
@@ -227,8 +231,10 @@ export default function TaskDetailScreen() {
         .select('*, assignee:team_members!assigned_to(*), assigner:team_members!assigned_by(*)')
         .eq('task_id', taskId)
         .order('created_at', { ascending: false }),
+      supabase.from('cities').select('*').order('name'),
     ]);
 
+    if (citiesRes.data) setAllCities(citiesRes.data as City[]);
     if (taskRes.data) {
       const t = taskRes.data as Task;
       if (t.route_stops) {
@@ -534,6 +540,7 @@ export default function TaskDetailScreen() {
     setEditNotes(task?.notes ?? '');
     setEditDueDate(task?.due_date ? isoToDisplay(task.due_date) : '');
     setEditServiceId(task?.service_id ?? '');
+    setEditCityId(task?.city_id ?? null);
     setShowEditTask(true);
   };
 
@@ -554,6 +561,7 @@ export default function TaskDetailScreen() {
         notes: editNotes.trim() || null,
         due_date: isoDate,
         service_id: editServiceId,
+        city_id: editCityId ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', taskId);
@@ -2233,6 +2241,26 @@ export default function TaskDetailScreen() {
                   placeholderTextColor={theme.color.textMuted}
                   multiline
                 />
+
+                {/* City */}
+                <Text style={[s.editFieldLabel, { marginTop: 16 }]}>CITY (OPTIONAL)</Text>
+                <TouchableOpacity
+                  style={[s.memberOption, !editCityId && s.memberOptionActive]}
+                  onPress={() => setEditCityId(null)}
+                >
+                  <Text style={[s.memberName, { fontSize: 14 }]}>— No city</Text>
+                  {!editCityId && <Text style={s.checkmark}>✓</Text>}
+                </TouchableOpacity>
+                {allCities.map((city) => (
+                  <TouchableOpacity
+                    key={city.id}
+                    style={[s.memberOption, editCityId === city.id && s.memberOptionActive]}
+                    onPress={() => setEditCityId(city.id)}
+                  >
+                    <Text style={[s.memberName, { fontSize: 14 }]}>{city.name}</Text>
+                    {editCityId === city.id && <Text style={s.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
               </ScrollView>
 
               <View style={s.editStagesSaveRow}>

@@ -15,6 +15,7 @@ interface Props {
   statusColor: string;
   onPress: () => void;
   onClientPress?: () => void;
+  onCityPress?: (cityId: string) => void;
   allStatusColors?: Record<string, string>;
   cardStyle?: object;
   loading?: boolean;
@@ -84,6 +85,7 @@ function TaskCard({
   statusColor,
   onPress,
   onClientPress,
+  onCityPress,
   allStatusColors = {},
   cardStyle,
   loading = false,
@@ -206,6 +208,21 @@ function TaskCard({
           )}
         </TouchableOpacity>
       </View>
+
+      {/* City chip — right of ROW 1 */}
+      {!!task.city?.name && (
+        <TouchableOpacity
+          style={styles.cityChip}
+          onPress={() => task.city_id && onCityPress?.(task.city_id)}
+          activeOpacity={onCityPress ? 0.65 : 1}
+          disabled={!onCityPress}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Filter by city ${task.city.name}`}
+        >
+          <Text style={styles.cityChipText} numberOfLines={1}>📍 {task.city.name}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* ROW 2: Service name + contract price */}
       <View style={styles.row2}>
@@ -339,6 +356,24 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   phoneLabel: {
+    ...theme.typography.caption,
+    color: theme.color.primary,
+    textDecorationLine: 'underline',
+  },
+
+  cityChip: {
+    alignSelf: 'flex-end',
+    backgroundColor: theme.color.bgBase,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.space2,
+    paddingVertical: 2,
+    marginTop: theme.spacing.space1,
+    marginBottom: theme.spacing.space1,
+    maxWidth: '60%',
+  },
+  cityChipText: {
     ...theme.typography.caption,
     color: theme.color.primary,
     textDecorationLine: 'underline',
