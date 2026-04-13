@@ -50,6 +50,8 @@ export default function ServiceStagesScreen() {
   const [pickerQuery, setPickerQuery] = useState('');
   const [newMiniName, setNewMiniName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [stageDirectorySearch, setStageDirectorySearch] = useState('');
+  const [deletingMiniId, setDeletingMiniId] = useState<string | null>(null);
 
   // Inline rename
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -85,9 +87,10 @@ export default function ServiceStagesScreen() {
     (m) => !stages.find((s) => s.ministry_id === m.id)
   );
 
-  const filteredMinistries = pickerQuery
+  const filteredMinistries = [...(pickerQuery
     ? availableMinistries.filter((m) => m.name.toLowerCase().includes(pickerQuery.toLowerCase()))
-    : availableMinistries;
+    : availableMinistries
+  )].sort((a, b) => a.name.localeCompare(b.name, ['ar', 'en'], { sensitivity: 'base' }));
 
   const addExistingMinistry = async (ministry: Ministry) => {
     setAdding(true);
@@ -106,6 +109,13 @@ export default function ServiceStagesScreen() {
 
   const addNewMinistry = async () => {
     if (!newMiniName.trim()) return;
+    const duplicate = allMinistries.find(
+      (m) => m.name.trim().toLowerCase() === newMiniName.trim().toLowerCase()
+    );
+    if (duplicate) {
+      Alert.alert('Already exists', `A stage named "${duplicate.name}" already exists. Select it from the list above.`);
+      return;
+    }
     setAdding(true);
     const { data: mData, error: mErr } = await supabase
       .from('ministries')
@@ -139,6 +149,25 @@ export default function ServiceStagesScreen() {
         },
       },
     ]);
+  };
+
+  const deleteMinistryFromDirectory = (ministry: Ministry) => {
+    Alert.alert(
+      'Delete Stage',
+      `Permanently delete "${ministry.name}" from the stages directory? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            setDeletingMiniId(ministry.id);
+            await supabase.from('ministries').delete().eq('id', ministry.id);
+            setAllMinistries((prev) => prev.filter((m) => m.id !== ministry.id));
+            setDeletingMiniId(null);
+          },
+        },
+      ]
+    );
   };
 
   const moveStage = async (idx: number, dir: -1 | 1) => {
@@ -291,10 +320,23 @@ export default function ServiceStagesScreen() {
                 </Text>
               }
               renderItem={({ item }) => (
-                <TouchableOpacity style={p.item} onPress={() => addExistingMinistry(item)}>
-                  <Text style={p.itemText}>{item.name}</Text>
-                  <Text style={p.itemAdd}>+</Text>
-                </TouchableOpacity>
+                <View style={p.item}>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => addExistingMinistry(item)}>
+                    <Text style={p.itemText}>{item.name}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={p.itemDeleteBtn}
+                    onPress={() => deleteMinistryFromDirectory(item)}
+                    disabled={deletingMiniId === item.id}
+                  >
+                    {deletingMiniId === item.id
+                      ? <ActivityIndicator size="small" color={theme.color.danger} />
+                      : <Text style={p.itemDeleteText}>🗑</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => addExistingMinistry(item)}>
+                    <Text style={p.itemAdd}>+</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             />
 
@@ -400,6 +442,8 @@ const p = StyleSheet.create({
   },
   itemText: { flex: 1, color: theme.color.textPrimary, fontSize: theme.typography.body.fontSize, fontWeight: '600' },
   itemAdd:  { color: theme.color.primary, fontSize: 22, fontWeight: '300' },
+  itemDeleteBtn: { paddingHorizontal: 8, paddingVertical: 4, justifyContent: 'center', alignItems: 'center' },
+  itemDeleteText: { fontSize: 15 },
   createSection: { padding: theme.spacing.space4, borderTopWidth: 1, borderTopColor: theme.color.border, marginTop: 4 },
   createLabel:   { ...theme.typography.sectionDivider, letterSpacing: 0.5, marginBottom: 10 },
   createRow:     { flexDirection: 'row', alignItems: 'center' },

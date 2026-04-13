@@ -179,6 +179,7 @@ export default function TaskDetailScreen() {
   const [newStageName, setNewStageName] = useState('');
   const [savingNewStage, setSavingNewStage] = useState(false);
   const [showNewStageInEdit, setShowNewStageInEdit] = useState(false);
+  const [editStageSearch, setEditStageSearch] = useState('');
 
   // Edit task states
   const [allServices, setAllServices] = useState<Service[]>([]);
@@ -449,6 +450,13 @@ export default function TaskDetailScreen() {
   const handleCreateStageInEdit = async () => {
     if (!newStageName.trim()) {
       Alert.alert('Required', 'Stage name is required.');
+      return;
+    }
+    const duplicate = allStages.find(
+      (m) => m.name.trim().toLowerCase() === newStageName.trim().toLowerCase()
+    );
+    if (duplicate) {
+      Alert.alert('Already exists', `A stage named "${duplicate.name}" already exists. Select it from the list below.`);
       return;
     }
     setSavingNewStage(true);
@@ -1827,7 +1835,7 @@ export default function TaskDetailScreen() {
         visible={showEditStages}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowEditStages(false)}
+        onRequestClose={() => { setShowEditStages(false); setEditStageSearch(''); }}
       >
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView
@@ -1837,7 +1845,7 @@ export default function TaskDetailScreen() {
           <View style={[s.modalSheet, { maxHeight: '90%' }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Edit Stages</Text>
-              <TouchableOpacity onPress={() => setShowEditStages(false)}>
+              <TouchableOpacity onPress={() => { setShowEditStages(false); setEditStageSearch(''); }}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -1876,18 +1884,35 @@ export default function TaskDetailScreen() {
 
               {/* All available stages to add */}
               <Text style={[s.editStagesSubtitle, { marginTop: 16 }]}>ADD STAGES</Text>
-              {allStages
-                .filter((s) => !editingStops.find((e) => e.id === s.id))
+              <TextInput
+                style={s.editStageSearchInput}
+                value={editStageSearch}
+                onChangeText={setEditStageSearch}
+                placeholder="Search stages..."
+                placeholderTextColor={theme.color.textMuted}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {[...allStages]
+                .filter((st) => !editingStops.find((e) => e.id === st.id))
+                .filter((st) => !editStageSearch || st.name.toLowerCase().includes(editStageSearch.toLowerCase()))
+                .sort((a, b) => a.name.localeCompare(b.name, ['ar', 'en'], { sensitivity: 'base' }))
                 .map((stage) => (
                   <TouchableOpacity
                     key={stage.id}
                     style={s.addStageRow}
-                    onPress={() => toggleEditStage(stage)}
+                    onPress={() => { toggleEditStage(stage); setEditStageSearch(''); }}
                   >
                     <Text style={s.addStageName}>{stage.name}</Text>
                     <Text style={s.addStageIcon}>+</Text>
                   </TouchableOpacity>
                 ))}
+              {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length === 0 && (
+                <Text style={s.editStagesEmpty}>All stages are already added.</Text>
+              )}
+              {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length > 0 && (
+                <Text style={s.editStagesEmpty}>No stages match "{editStageSearch}"</Text>
+              )}
 
               {/* Create new stage */}
               <TouchableOpacity
@@ -2708,6 +2733,17 @@ const s = StyleSheet.create({
   editStagesScroll:   { padding: theme.spacing.space4, gap: theme.spacing.space2, paddingBottom: theme.spacing.space2 },
   editStagesSubtitle: { ...theme.typography.sectionDivider, letterSpacing: 1, marginBottom: 4 },
   editStagesEmpty:    { ...theme.typography.body, color: theme.color.border, textAlign: 'center', paddingVertical: theme.spacing.space2 },
+  editStageSearchInput: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 8,
+    color: theme.color.textPrimary,
+    fontSize: theme.typography.body.fontSize,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    marginBottom: theme.spacing.space2,
+  },
   editStageRow: {
     flexDirection:   'row',
     alignItems:      'center',
