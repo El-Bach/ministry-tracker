@@ -29,6 +29,7 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
@@ -191,6 +192,7 @@ export default function TaskDetailScreen() {
   const [allCities, setAllCities] = useState<City[]>([]);
   const [citySearch, setCitySearch] = useState('');
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [pinnedCityIds, setPinnedCityIds] = useState<string[]>([]);
   const [savingCity, setSavingCity] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -554,6 +556,28 @@ export default function TaskDetailScreen() {
     setSavingCity(false);
     fetchTask();
   };
+
+  // ── City pin helpers (stored locally per device) ─────────────────────────
+  const PINNED_KEY = '@pinned_city_ids';
+
+  useEffect(() => {
+    AsyncStorage.getItem(PINNED_KEY).then(raw => {
+      if (raw) setPinnedCityIds(JSON.parse(raw));
+    });
+  }, []);
+
+  const togglePinCity = async (cityId: string) => {
+    const next = pinnedCityIds.includes(cityId)
+      ? pinnedCityIds.filter(id => id !== cityId)
+      : [cityId, ...pinnedCityIds];
+    setPinnedCityIds(next);
+    await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+  };
+
+  const sortedCities = (list: typeof allCities) => [
+    ...list.filter(c => pinnedCityIds.includes(c.id)),
+    ...list.filter(c => !pinnedCityIds.includes(c.id)),
+  ];
 
   const handleSaveEdit = async () => {
     if (!editServiceId) {
@@ -1102,27 +1126,57 @@ export default function TaskDetailScreen() {
                 autoFocus
               />
               <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
-                {allCities
-                  .filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
-                  .map(city => (
-                    <TouchableOpacity
-                      key={city.id}
-                      style={[s.cityDropdownItem, task.city_id === city.id && s.cityDropdownItemActive]}
-                      onPress={() => { handleSetCity(city.id); setCitySearch(''); setCityDropdownOpen(false); }}
-                      disabled={savingCity}
-                    >
-                      <Text style={[s.cityDropdownItemText, task.city_id === city.id && { color: theme.color.primaryText, fontWeight: '600' }]}>
-                        {city.name}
+                {(() => {
+                  const filtered = sortedCities(
+                    allCities.filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
+                  );
+                  const pinnedCount = filtered.filter(c => pinnedCityIds.includes(c.id)).length;
+                  if (filtered.length === 0) {
+                    return (
+                      <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>
+                        No cities match "{citySearch}"
                       </Text>
-                      {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-                    </TouchableOpacity>
-                  ))
-                }
-                {allCities.filter(c => !citySearch.trim() || c.name.includes(citySearch.trim())).length === 0 && (
-                  <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>
-                    No cities match "{citySearch}"
-                  </Text>
-                )}
+                    );
+                  }
+                  return filtered.map((city, idx) => (
+                    <React.Fragment key={city.id}>
+                      {/* Section headers — only when not searching */}
+                      {!citySearch.trim() && pinnedCount > 0 && idx === 0 && (
+                        <View style={s.cityPinnedDivider}>
+                          <Text style={s.cityPinnedDividerText}>PINNED</Text>
+                        </View>
+                      )}
+                      {pinnedCount > 0 && idx === pinnedCount && (
+                        <View style={s.cityPinnedDivider}>
+                          <Text style={s.cityPinnedDividerText}>ALL CITIES</Text>
+                        </View>
+                      )}
+                      <View style={[s.cityDropdownItem, task.city_id === city.id && s.cityDropdownItemActive]}>
+                        {/* Select city */}
+                        <TouchableOpacity
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                          onPress={() => { handleSetCity(city.id); setCitySearch(''); setCityDropdownOpen(false); }}
+                          disabled={savingCity}
+                        >
+                            <Text style={[s.cityDropdownItemText, task.city_id === city.id && { color: theme.color.primaryText, fontWeight: '600' }]}>
+                            {city.name}
+                          </Text>
+                          {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+                        </TouchableOpacity>
+                        {/* Pin toggle */}
+                        <TouchableOpacity
+                          onPress={() => togglePinCity(city.id)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={s.cityPinBtn}
+                        >
+                          <Text style={[s.cityPinBtnText, pinnedCityIds.includes(city.id) && s.cityPinBtnActive]}>
+                            {pinnedCityIds.includes(city.id) ? '📌' : '📍'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </React.Fragment>
+                  ));
+                })()}
               </ScrollView>
             </View>
           )}
@@ -2656,6 +2710,34 @@ const s = StyleSheet.create({
   cityDropdownItemText: {
     fontSize: 14,
     color:    theme.color.textPrimary,
+    flex:     1,
+  },
+  cityPinnedDivider: {
+    backgroundColor:   theme.color.bgBase,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  cityPinnedDividerText: {
+    ...theme.typography.caption,
+    color:      theme.color.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  cityPinIndicator: {
+    fontSize: 11,
+  },
+  cityPinBtn: {
+    paddingHorizontal: theme.spacing.space2,
+    paddingVertical:   2,
+  },
+  cityPinBtnText: {
+    fontSize: 14,
+    opacity:  0.35,
+  },
+  cityPinBtnActive: {
+    opacity: 1,
   },
   memberOption: {
     flexDirection:   'row',
