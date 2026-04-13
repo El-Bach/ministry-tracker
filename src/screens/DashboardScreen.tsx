@@ -984,7 +984,7 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowClientForm(false)}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[styles.modalSheet, { maxHeight: '92%' }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>New Client</Text>
@@ -1246,7 +1246,7 @@ export default function DashboardScreen() {
         onRequestClose={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); }}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[styles.modalSheet, { maxHeight: '90%' }]}>
               <View style={styles.modalHeader}>
                 <View>
@@ -1346,7 +1346,7 @@ export default function DashboardScreen() {
         onRequestClose={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); }}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[styles.modalSheet, { maxHeight: '90%' }]}>
               <View style={styles.modalHeader}>
                 <View>
@@ -1431,7 +1431,7 @@ export default function DashboardScreen() {
       >
         <KeyboardAvoidingView
           style={styles.qfOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           <View style={styles.qfSheet}>
             {/* Header */}

@@ -15,7 +15,6 @@ import {
  FlatList,
  Switch,
  KeyboardAvoidingView,
- Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -474,7 +473,7 @@ function PickerModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={ms.overlay}
       >
         <View style={ms.sheet}>
@@ -1238,6 +1237,7 @@ export default function NewTaskScreen() {
    keyboardShouldPersistTaps="handled"
    enableOnAndroid={true}
    enableAutomaticScroll={true}
+   enableResetScrollToCoords={false}
    extraScrollHeight={120}
    extraHeight={120}
  >
@@ -1628,7 +1628,7 @@ export default function NewTaskScreen() {
         onRequestClose={() => { setShowAssigneeModal(false); setShowCreateExtForm(false); }}
       >
         <View style={{ flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior="padding" style={{ justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: theme.color.bgSurface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: theme.spacing.space5, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
@@ -1765,7 +1765,7 @@ export default function NewTaskScreen() {
         onRequestClose={() => { setShowFieldPicker(false); setShowCreateField(false); }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={fp.overlay}
         >
           <View style={fp.sheet}>
@@ -1906,7 +1906,7 @@ export default function NewTaskScreen() {
  onRequestClose={() => setShowFieldTypePicker(false)}
  >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
           style={fp.overlay}
         >
           <View style={fp.sheet}>
