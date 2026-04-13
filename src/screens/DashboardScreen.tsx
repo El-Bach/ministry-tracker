@@ -904,7 +904,8 @@ export default function DashboardScreen() {
         animationType="slide"
         onRequestClose={() => { setManageSection(null); setClientSearch(''); }}
       >
-        <View style={[styles.modalOverlay, { justifyContent: 'flex-end' }]}>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
           <View style={[styles.modalSheet, { maxHeight: '82%' }]}>
             <View style={styles.modalHeader}>
               <View>
@@ -973,6 +974,7 @@ export default function DashboardScreen() {
               ))}
             </ScrollView>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
