@@ -190,6 +190,7 @@ export default function TaskDetailScreen() {
   const [editServiceId, setEditServiceId] = useState('');
   const [allCities, setAllCities] = useState<City[]>([]);
   const [citySearch, setCitySearch] = useState('');
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [savingCity, setSavingCity] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -1060,49 +1061,72 @@ export default function TaskDetailScreen() {
             {savingCity && <ActivityIndicator size="small" color={theme.color.primary} style={{ marginStart: 8 }} />}
           </View>
 
-          {/* Current city */}
-          {task.city?.name ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.space3 }}>
-              <Text style={{ color: theme.color.primary, fontSize: 15, fontWeight: '600', flex: 1 }}>
-                📍 {task.city.name}
-              </Text>
-              <TouchableOpacity onPress={() => handleSetCity(null)} disabled={savingCity}
-                style={{ paddingHorizontal: theme.spacing.space2 }}>
-                <Text style={{ color: theme.color.danger, fontSize: 13 }}>✕ Remove</Text>
-              </TouchableOpacity>
+          {/* City picker row: current value + dropdown toggle */}
+          <TouchableOpacity
+            style={s.cityPickerRow}
+            onPress={() => { setCityDropdownOpen(v => !v); setCitySearch(''); }}
+            activeOpacity={0.8}
+          >
+            {/* Left: current city or placeholder */}
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+              {task.city?.name ? (
+                <>
+                  <Text style={s.cityValue} numberOfLines={1}>📍 {task.city.name}</Text>
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); handleSetCity(null); setCitySearch(''); setCityDropdownOpen(false); }}
+                    disabled={savingCity}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Text style={s.cityRemove}>✕</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={s.cityPlaceholder}>No city assigned</Text>
+              )}
             </View>
-          ) : (
-            <Text style={{ color: theme.color.textMuted, fontSize: 13, marginBottom: theme.spacing.space3 }}>
-              No city assigned
-            </Text>
+            {/* Dropdown chevron */}
+            <Text style={s.cityDropdownBtnText}>{cityDropdownOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+
+          {/* Expanded: search + list */}
+          {cityDropdownOpen && (
+            <View style={s.cityDropdownList}>
+              <TextInput
+                style={s.citySearchInner}
+                value={citySearch}
+                onChangeText={setCitySearch}
+                placeholder="Search city..."
+                placeholderTextColor={theme.color.textMuted}
+                clearButtonMode="while-editing"
+                autoCorrect={false}
+                autoFocus
+              />
+              <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                {allCities
+                  .filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
+                  .map(city => (
+                    <TouchableOpacity
+                      key={city.id}
+                      style={[s.cityDropdownItem, task.city_id === city.id && s.cityDropdownItemActive]}
+                      onPress={() => { handleSetCity(city.id); setCitySearch(''); setCityDropdownOpen(false); }}
+                      disabled={savingCity}
+                    >
+                      <Text style={[s.cityDropdownItemText, task.city_id === city.id && { color: theme.color.primaryText, fontWeight: '600' }]}>
+                        {city.name}
+                      </Text>
+                      {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+                    </TouchableOpacity>
+                  ))
+                }
+                {allCities.filter(c => !citySearch.trim() || c.name.includes(citySearch.trim())).length === 0 && (
+                  <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>
+                    No cities match "{citySearch}"
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
           )}
 
-          {/* Search input */}
-          <TextInput
-            style={s.newMemberInput}
-            value={citySearch}
-            onChangeText={setCitySearch}
-            placeholder="Search city..."
-            placeholderTextColor={theme.color.textMuted}
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-          />
-
-          {/* Filtered city list */}
-          {allCities
-            .filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
-            .map(city => (
-              <TouchableOpacity
-                key={city.id}
-                style={[s.memberOption, task.city_id === city.id && s.memberOptionActive]}
-                onPress={() => { handleSetCity(city.id); setCitySearch(''); }}
-                disabled={savingCity}
-              >
-                <Text style={[s.memberName, { fontSize: 14 }]}>{city.name}</Text>
-                {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-              </TouchableOpacity>
-            ))
-          }
         </View>
 
         {/* ── ASSIGNMENT CARD ── */}
@@ -2567,6 +2591,72 @@ const s = StyleSheet.create({
   optionDot:       { width: 10, height: 10, borderRadius: 5 },
   optionText:      { flex: 1, fontSize: 15, fontWeight: '600' },
   checkmark:       { color: theme.color.success, fontSize: 18 },
+
+  // City picker
+  cityPickerRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    gap:             theme.spacing.space2,
+  },
+  cityValue: {
+    ...theme.typography.body,
+    color:      theme.color.primaryText,
+    fontWeight: '600',
+    flex:       1,
+  },
+  cityPlaceholder: {
+    ...theme.typography.body,
+    color: theme.color.textMuted,
+  },
+  cityRemove: {
+    color:      theme.color.danger,
+    fontSize:   13,
+    marginStart: theme.spacing.space2,
+  },
+  citySearchInner: {
+    fontSize:          14,
+    color:             theme.color.textPrimary,
+    backgroundColor:   theme.color.bgBase,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+  },
+  cityDropdownBtnText: {
+    color:    theme.color.textMuted,
+    fontSize: 12,
+  },
+  cityDropdownList: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    marginTop:       theme.spacing.space1,
+    maxHeight:       260,
+    overflow:        'hidden',
+  },
+  cityDropdownItem: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgBase,
+  },
+  cityDropdownItemActive: {
+    backgroundColor: theme.color.primary + '11',
+  },
+  cityDropdownItemText: {
+    fontSize: 14,
+    color:    theme.color.textPrimary,
+  },
   memberOption: {
     flexDirection:   'row',
     alignItems:      'center',
