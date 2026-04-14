@@ -163,6 +163,11 @@ export default function CalendarScreen() {
                   />
                 </View>
                 <Text style={s.eventService}>{task.service?.name}</Text>
+                {task.due_date && (
+                  <Text style={s.eventDue}>
+                    Due: {new Date(task.due_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </Text>
+                )}
                 <Text style={s.eventAssignee}>
                   Assigned: {task.assignee?.name ?? 'Unassigned'}
                 </Text>
@@ -222,5 +227,6 @@ const s = StyleSheet.create({
   },
   eventClient:   { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 15, fontWeight: '700', flex: 1 },
   eventService:  { ...theme.typography.body, color: theme.color.textSecondary },
+  eventDue:      { ...theme.typography.label, color: theme.color.warning, fontWeight: '600' },
   eventAssignee: { ...theme.typography.label, color: theme.color.textMuted },
 });

@@ -16,6 +16,7 @@ interface Props {
   onPress: () => void;
   onClientPress?: () => void;
   onCityPress?: (cityId: string) => void;
+  onServicePress?: () => void;
   allStatusColors?: Record<string, string>;
   cardStyle?: object;
   loading?: boolean;
@@ -86,6 +87,7 @@ function TaskCard({
   onPress,
   onClientPress,
   onCityPress,
+  onServicePress,
   allStatusColors = {},
   cardStyle,
   loading = false,
@@ -208,7 +210,7 @@ function TaskCard({
           </Text>
           {!!task.client?.reference_name && (
             <Text style={styles.referenceLabel} numberOfLines={1}>
-              via {task.client.reference_name}
+              عبر {task.client.reference_name}
             </Text>
           )}
           {!!task.client?.phone && (
@@ -255,17 +257,24 @@ function TaskCard({
 
       {/* ROW 2: Service name + contract price */}
       <View style={styles.row2}>
-        <Text style={styles.serviceName} numberOfLines={1}>
-          {task.service?.name ?? '—'}
-        </Text>
+        <TouchableOpacity
+          onPress={onServicePress}
+          disabled={!onServicePress}
+          activeOpacity={onServicePress ? 0.7 : 1}
+          style={{ flex: 1 }}
+        >
+          <Text style={styles.serviceName} numberOfLines={1}>
+            {task.service?.name ?? '—'}
+          </Text>
+        </TouchableOpacity>
         {(task.price_usd ?? 0) > 0 && (
           <Text
             style={styles.contractPrice}
             accessibilityLabel={`Contract price $${task.price_usd}`}
           >
             ${(task.price_usd!).toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
             })}
           </Text>
         )}
@@ -307,6 +316,18 @@ function TaskCard({
           </Text>
         )}
       </View>
+
+      {/* COMPLETION INFO — archived cards: start → end • Xd */}
+      {allDone && (() => {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const fmt = (iso: string) => { const d = new Date(iso); return `${d.getDate()} ${months[d.getMonth()]}`; };
+        const days = Math.max(1, Math.round((Date.parse(task.updated_at) - Date.parse(task.created_at)) / 86400000));
+        return (
+          <Text style={styles.completionRow}>
+            📅 {fmt(task.created_at)} → {fmt(task.updated_at)}  •  {days}d
+          </Text>
+        );
+      })()}
 
       {/* FINANCIAL SUMMARY — archived cards only */}
       {hasFinancials && (
@@ -406,8 +427,7 @@ const styles = StyleSheet.create({
     fontSize: 15, // slightly tighter than heading on card
   },
   clientNameLink: {
-    color:               theme.color.primaryText,
-    textDecorationLine:  'underline',
+    color: theme.color.primaryText,
   },
   referenceLabel: {
     ...theme.typography.caption,
@@ -416,7 +436,6 @@ const styles = StyleSheet.create({
   phoneLabel: {
     ...theme.typography.caption,
     color: theme.color.primary,
-    textDecorationLine: 'underline',
   },
 
   cityChip: {
@@ -434,7 +453,6 @@ const styles = StyleSheet.create({
   cityChipText: {
     ...theme.typography.caption,
     color: theme.color.primary,
-    textDecorationLine: 'underline',
   },
 
   // Row 2
@@ -446,8 +464,12 @@ const styles = StyleSheet.create({
   },
   serviceName: {
     ...theme.typography.body,
+    color: theme.color.warning,
+  },
+  completionRow: {
+    ...theme.typography.caption,
     color: theme.color.textMuted,
-    flex:  1,
+    marginTop: 2,
   },
   contractPrice: {
     ...theme.typography.label,

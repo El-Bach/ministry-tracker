@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 16 (documents: separate Scan/Add buttons; camera saves full photo no crop; library upload no A4 crop; image preview at natural aspect ratio; rename document ✎ button per row)
+> Last updated: session 18 (dashboard filter simplification: city/client/service only, dynamic options from tasks; underlines removed from client name/phone/cities; service name yellow+link to stages; "via"→"عبر"; archive cards show completion date range + days; TaskDetail reordered: header→comments→documents→stages→financials; financials table aligned columns no decimals "RECEIVED"; green "+Add Stage" button; team member edit modal with Arabic support; calendar shows due date; keyboard fix in DocumentScannerModal preview; requirements always load in library mode)
 
 ---
 

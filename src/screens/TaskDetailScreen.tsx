@@ -876,7 +876,7 @@ export default function TaskDetailScreen() {
   const balanceLBP = totalRevenueLBP - totalExpenseLBP;
   const outstandingLBP = contractPriceLBP - totalRevenueLBP;
 
-  const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
   return (
@@ -965,12 +965,174 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
+        {/* ── COMMENTS ── */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>COMMENTS & ACTIVITY</Text>
+          {comments.length === 0 && (
+            <Text style={s.emptyText}>No comments yet.</Text>
+          )}
+          {comments.map((c) => (
+            <View key={c.id} style={s.commentRow}>
+              <View style={s.commentAvatar}>
+                <Text style={s.commentAvatarText}>
+                  {(c.author?.name ?? '?').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <View style={s.commentHeader}>
+                  <Text style={s.commentAuthor}>{c.author?.name ?? 'Unknown'}</Text>
+                  <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
+                  {editingCommentId !== c.id && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
+                        <Text style={s.commentEditBtn}>✎</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
+                        <Text style={s.commentDeleteBtn}>🗑</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                {editingCommentId === c.id ? (
+                  <View style={s.commentEditRow}>
+                    <TextInput
+                      style={s.commentEditInput}
+                      value={editingCommentBody}
+                      onChangeText={setEditingCommentBody}
+                      multiline
+                      autoFocus
+                      placeholderTextColor={theme.color.textMuted}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                      <TouchableOpacity style={s.commentSaveBtn} onPress={handleSaveEditComment} disabled={savingEditComment}>
+                        {savingEditComment
+                          ? <ActivityIndicator size="small" color={theme.color.white} />
+                          : <Text style={s.commentSaveBtnText}>Save</Text>}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.commentCancelBtn} onPress={() => { setEditingCommentId(null); setEditingCommentBody(''); }}>
+                        <Text style={s.commentCancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={s.commentBody}>{c.body}</Text>
+                )}
+              </View>
+            </View>
+          ))}
+          <View style={s.commentInput}>
+            <TextInput
+              style={s.commentTextInput}
+              value={newComment}
+              onChangeText={setNewComment}
+              placeholder="Add a comment..."
+              placeholderTextColor={theme.color.textMuted}
+              multiline
+            />
+            <TouchableOpacity
+              style={[s.commentSendBtn, postingComment && s.disabledBtn]}
+              onPress={handlePostComment}
+              disabled={postingComment}
+            >
+              {postingComment ? (
+                <ActivityIndicator color={theme.color.white} size="small" />
+              ) : (
+                <Text style={s.commentSendBtnText}>Post</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── DOCUMENTS ── */}
+        <View style={s.section}>
+          <View style={s.sectionTitleRow}>
+            <Text style={s.sectionTitle}>DOCUMENTS ({documents.length})</Text>
+            <View style={s.docBtnRow}>
+              <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
+                <Text style={s.scanDocBtnText}>📷 Scan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
+                <Text style={s.addDocBtnText}>📎 Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {documents.length === 0 ? (
+            <View style={s.docEmpty}>
+              <Text style={s.docEmptyIcon}>📄</Text>
+              <Text style={s.docEmptyText}>No documents yet</Text>
+              <View style={s.docEmptyBtnRow}>
+                <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
+                  <Text style={s.scanDocBtnText}>📷 Scan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
+                  <Text style={s.addDocBtnText}>📎 Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            documents.map((doc) => {
+              const isPDF  = /application\/pdf/i.test(doc.file_type) || /\.pdf$/i.test(doc.file_url);
+              const isImage = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
+              const label  = doc.display_name || doc.file_name;
+              return (
+                <View key={doc.id} style={s.docRow}>
+                  {/* Icon */}
+                  <View style={s.docRowIcon}>
+                    <Text style={s.docRowIconText}>{isPDF ? '📄' : '🖼'}</Text>
+                  </View>
+
+                  {/* Info — tap name to view */}
+                  <TouchableOpacity style={{ flex: 1, gap: 3 }} onPress={() => handleOpenDoc(doc)} activeOpacity={0.7}>
+                    <Text style={[s.docRowName, s.docRowNameTappable]} numberOfLines={1}>{label}</Text>
+                    {doc.requirement?.title && (
+                      <View style={s.docReqTag}>
+                        <Text style={s.docReqTagText}>📋 {doc.requirement.title}</Text>
+                      </View>
+                    )}
+                    <Text style={s.docRowMeta}>
+                      {isPDF ? 'PDF' : isImage ? 'Image' : 'File'}
+                      {doc.uploader?.name ? `  ·  ${doc.uploader.name}` : ''}
+                      {`  ·  ${formatDate(doc.created_at)}`}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Rename + Delete buttons */}
+                  <View style={s.docActionBtns}>
+                    <TouchableOpacity
+                      onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={s.docRenameBtn}
+                    >
+                      <Text style={s.docRenameBtnText}>✎</Text>
+                    </TouchableOpacity>
+                    {deletingDocId === doc.id ? (
+                      <ActivityIndicator size="small" color={theme.color.danger} />
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteDocument(doc)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={s.docDeleteBtn}
+                      >
+                        <Text style={s.docDeleteBtnText}>🗑</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+
         {/* ── STAGES ROUTE ── */}
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>STAGES</Text>
+            <TouchableOpacity style={s.addStageBtn} onPress={openEditStages}>
+              <Text style={s.addStageBtnText}>+ Add Stage</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={s.editStagesBtn} onPress={openEditStages}>
-              <Text style={s.editStagesBtnText}>✎ Edit Stages</Text>
+              <Text style={s.editStagesBtnText}>✎ Edit</Text>
             </TouchableOpacity>
           </View>
           <View style={s.routeContainer}>
@@ -1305,45 +1467,31 @@ export default function TaskDetailScreen() {
           {/* P&L summary */}
           <View style={s.balanceSummary}>
             <View style={s.balanceRow}>
-              <Text style={s.balanceLabel}>PAYMENTS RECEIVED</Text>
-              <View style={s.balanceAmounts}>
-                <Text style={s.balanceRevenue}>{fmtUSD(totalRevenueUSD)}</Text>
-                <Text style={s.balanceRevenueLBP}>{fmtLBP(totalRevenueLBP)}</Text>
-              </View>
+              <Text style={s.balanceLabel}>RECEIVED</Text>
+              <Text style={[s.balanceCol, s.balanceRevenue]}>{fmtUSD(totalRevenueUSD)}</Text>
+              <Text style={[s.balanceColLBP, s.balanceRevenueLBP]}>{fmtLBP(totalRevenueLBP)}</Text>
             </View>
             {contractPriceUSD > 0 && (
               <View style={s.balanceRow}>
                 <Text style={s.balanceLabel}>DUE</Text>
-                <View style={s.balanceAmounts}>
-                  <Text style={[s.balanceRevenue, outstandingUSD > 0 ? s.negative : s.positive]}>
-                    {fmtUSD(outstandingUSD)}
-                  </Text>
-                  {contractPriceLBP > 0 && (
-                    <Text style={[s.balanceRevenueLBP, outstandingLBP > 0 ? s.negative : s.positive]}>
-                      {fmtLBP(outstandingLBP)}
-                    </Text>
-                  )}
-                </View>
+                <Text style={[s.balanceCol, outstandingUSD > 0 ? s.negative : s.positive]}>{fmtUSD(outstandingUSD)}</Text>
+                <Text style={[s.balanceColLBP, contractPriceLBP > 0 ? (outstandingLBP > 0 ? s.negative : s.positive) : s.balanceRevenueLBP]}>{fmtLBP(outstandingLBP)}</Text>
               </View>
             )}
             <View style={s.balanceRow}>
               <Text style={s.balanceLabel}>EXPENSES</Text>
-              <View style={s.balanceAmounts}>
-                <Text style={s.balanceExpense}>- {fmtUSD(totalExpenseUSD)}</Text>
-                <Text style={s.balanceExpenseLBP}>- {fmtLBP(totalExpenseLBP)}</Text>
-              </View>
+              <Text style={[s.balanceCol, s.balanceExpense]}>- {fmtUSD(totalExpenseUSD)}</Text>
+              <Text style={[s.balanceColLBP, s.balanceExpenseLBP]}>- {fmtLBP(totalExpenseLBP)}</Text>
             </View>
             <View style={s.balanceDivider} />
             <View style={s.balanceRow}>
               <Text style={s.balanceTotalLabel}>NET (P&L)</Text>
-              <View style={s.balanceAmounts}>
-                <Text style={[s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
-                  {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
-                </Text>
-                <Text style={[s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}>
-                  {balanceLBP >= 0 ? '+' : '-'} {fmtLBP(balanceLBP)}
-                </Text>
-              </View>
+              <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
+                {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
+              </Text>
+              <Text style={[s.balanceColLBP, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}>
+                {balanceLBP >= 0 ? '+' : '-'} {fmtLBP(balanceLBP)}
+              </Text>
             </View>
           </View>
 
@@ -1572,164 +1720,6 @@ export default function TaskDetailScreen() {
           )}
         </View>
 
-        {/* ── DOCUMENTS ── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>DOCUMENTS ({documents.length})</Text>
-            <View style={s.docBtnRow}>
-              <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
-                <Text style={s.scanDocBtnText}>📷 Scan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                <Text style={s.addDocBtnText}>📎 Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {documents.length === 0 ? (
-            <View style={s.docEmpty}>
-              <Text style={s.docEmptyIcon}>📄</Text>
-              <Text style={s.docEmptyText}>No documents yet</Text>
-              <View style={s.docEmptyBtnRow}>
-                <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
-                  <Text style={s.scanDocBtnText}>📷 Scan</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                  <Text style={s.addDocBtnText}>📎 Add</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            documents.map((doc) => {
-              const isPDF  = /application\/pdf/i.test(doc.file_type) || /\.pdf$/i.test(doc.file_url);
-              const isImage = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
-              const label  = doc.display_name || doc.file_name;
-              return (
-                <View key={doc.id} style={s.docRow}>
-                  {/* Icon */}
-                  <View style={s.docRowIcon}>
-                    <Text style={s.docRowIconText}>{isPDF ? '📄' : '🖼'}</Text>
-                  </View>
-
-                  {/* Info — tap name to view */}
-                  <TouchableOpacity style={{ flex: 1, gap: 3 }} onPress={() => handleOpenDoc(doc)} activeOpacity={0.7}>
-                    <Text style={[s.docRowName, s.docRowNameTappable]} numberOfLines={1}>{label}</Text>
-                    {doc.requirement?.title && (
-                      <View style={s.docReqTag}>
-                        <Text style={s.docReqTagText}>📋 {doc.requirement.title}</Text>
-                      </View>
-                    )}
-                    <Text style={s.docRowMeta}>
-                      {isPDF ? 'PDF' : isImage ? 'Image' : 'File'}
-                      {doc.uploader?.name ? `  ·  ${doc.uploader.name}` : ''}
-                      {`  ·  ${formatDate(doc.created_at)}`}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Rename + Delete buttons */}
-                  <View style={s.docActionBtns}>
-                    <TouchableOpacity
-                      onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={s.docRenameBtn}
-                    >
-                      <Text style={s.docRenameBtnText}>✎</Text>
-                    </TouchableOpacity>
-                    {deletingDocId === doc.id ? (
-                      <ActivityIndicator size="small" color={theme.color.danger} />
-                    ) : (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteDocument(doc)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={s.docDeleteBtn}
-                      >
-                        <Text style={s.docDeleteBtnText}>🗑</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </View>
-
-        {/* ── COMMENTS ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>COMMENTS & ACTIVITY</Text>
-          {comments.length === 0 && (
-            <Text style={s.emptyText}>No comments yet.</Text>
-          )}
-          {comments.map((c) => (
-            <View key={c.id} style={s.commentRow}>
-              <View style={s.commentAvatar}>
-                <Text style={s.commentAvatarText}>
-                  {(c.author?.name ?? '?').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1, gap: 3 }}>
-                <View style={s.commentHeader}>
-                  <Text style={s.commentAuthor}>{c.author?.name ?? 'Unknown'}</Text>
-                  <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
-                  {editingCommentId !== c.id && (
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
-                        <Text style={s.commentEditBtn}>✎</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
-                        <Text style={s.commentDeleteBtn}>🗑</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-                {editingCommentId === c.id ? (
-                  <View style={s.commentEditRow}>
-                    <TextInput
-                      style={s.commentEditInput}
-                      value={editingCommentBody}
-                      onChangeText={setEditingCommentBody}
-                      multiline
-                      autoFocus
-                      placeholderTextColor={theme.color.textMuted}
-                    />
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                      <TouchableOpacity style={s.commentSaveBtn} onPress={handleSaveEditComment} disabled={savingEditComment}>
-                        {savingEditComment
-                          ? <ActivityIndicator size="small" color={theme.color.white} />
-                          : <Text style={s.commentSaveBtnText}>Save</Text>}
-                      </TouchableOpacity>
-                      <TouchableOpacity style={s.commentCancelBtn} onPress={() => { setEditingCommentId(null); setEditingCommentBody(''); }}>
-                        <Text style={s.commentCancelBtnText}>Cancel</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={s.commentBody}>{c.body}</Text>
-                )}
-              </View>
-            </View>
-          ))}
-          <View style={s.commentInput}>
-            <TextInput
-              style={s.commentTextInput}
-              value={newComment}
-              onChangeText={setNewComment}
-              placeholder="Add a comment..."
-              placeholderTextColor={theme.color.textMuted}
-              multiline
-            />
-            <TouchableOpacity
-              style={[s.commentSendBtn, postingComment && s.disabledBtn]}
-              onPress={handlePostComment}
-              disabled={postingComment}
-            >
-              {postingComment ? (
-                <ActivityIndicator color={theme.color.white} size="small" />
-              ) : (
-                <Text style={s.commentSendBtnText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
       </KeyboardAwareScrollView>
 
       {/* ── EDIT CONTRACT PRICE MODAL ── */}
@@ -2497,6 +2487,8 @@ const s = StyleSheet.create({
   priceHistoryRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space2, marginBottom: 6 },
   balanceTotalLabel:   { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '800', letterSpacing: 0.8 },
   balanceAmounts:      { flexDirection: 'row', gap: theme.spacing.space3 },
+  balanceCol:    { minWidth: 80, textAlign: 'right', ...theme.typography.label, fontWeight: '700' },
+  balanceColLBP: { minWidth: 120, textAlign: 'right', ...theme.typography.caption, color: theme.color.textSecondary },
   balanceRevenue:      { color: theme.color.success, fontSize: 13, fontWeight: '700' },
   balanceRevenueLBP:   { color: theme.color.success + 'BB', fontSize: 11, fontWeight: '600' },
   balanceExpenseLBP:   { color: theme.color.danger + 'BB', fontSize: 11, fontWeight: '600' },
@@ -2601,6 +2593,8 @@ const s = StyleSheet.create({
     alignItems:     'center',
     justifyContent: 'space-between',
   },
+  addStageBtn:     { backgroundColor: theme.color.success, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5 },
+  addStageBtnText: { color: theme.color.white, fontSize: 12, fontWeight: '700' },
   editStagesBtn: {
     backgroundColor: theme.color.primary + '11',
     borderRadius:    theme.radius.sm,

@@ -10,6 +10,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -37,6 +42,12 @@ export default function TeamScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Edit member state
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchData = useCallback(async () => {
     const [membersRes, tasksRes, labelsRes] = await Promise.all([
@@ -69,6 +80,27 @@ export default function TeamScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    fetchData();
+  };
+
+  const openEditMember = (member: TeamMember) => {
+    setEditingMember(member);
+    setEditName(member.name);
+    setEditRole(member.role);
+  };
+
+  const handleSaveEditMember = async () => {
+    if (!editingMember || !editName.trim()) {
+      Alert.alert('Required', 'Name cannot be empty.');
+      return;
+    }
+    setSavingEdit(true);
+    await supabase
+      .from('team_members')
+      .update({ name: editName.trim(), role: editRole.trim() })
+      .eq('id', editingMember.id);
+    setSavingEdit(false);
+    setEditingMember(null);
     fetchData();
   };
 
@@ -154,6 +186,15 @@ export default function TeamScreen() {
                 </View>
               </TouchableOpacity>
 
+              {/* Edit button */}
+              <TouchableOpacity
+                style={s.editMemberBtn}
+                onPress={() => openEditMember(member)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={s.editMemberBtnText}>✎</Text>
+              </TouchableOpacity>
+
               {/* Progress bar for workload */}
               <View style={s.progressTrack}>
                 <View
@@ -205,6 +246,59 @@ export default function TeamScreen() {
           );
         })}
       </ScrollView>
+
+      {/* ── EDIT MEMBER MODAL ── */}
+      <Modal
+        visible={!!editingMember}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingMember(null)}
+      >
+        <KeyboardAvoidingView
+          style={s.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={s.modalSheet}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>Edit Member</Text>
+              <TouchableOpacity onPress={() => setEditingMember(null)}>
+                <Text style={s.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.modalBody}>
+              <Text style={s.fieldLabel}>NAME</Text>
+              <TextInput
+                style={s.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Full name"
+                placeholderTextColor={theme.color.textMuted}
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+              <Text style={[s.fieldLabel, { marginTop: 12 }]}>POSITION / ROLE</Text>
+              <TextInput
+                style={s.modalInput}
+                value={editRole}
+                onChangeText={setEditRole}
+                placeholder="Role or title"
+                placeholderTextColor={theme.color.textMuted}
+                autoCorrect={false}
+                autoCapitalize="words"
+              />
+              <TouchableOpacity
+                style={[s.saveBtn, savingEdit && s.saveBtnDisabled]}
+                onPress={handleSaveEditMember}
+                disabled={savingEdit}
+              >
+                {savingEdit
+                  ? <ActivityIndicator color={theme.color.white} size="small" />
+                  : <Text style={s.saveBtnText}>Save Changes</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -309,4 +403,56 @@ const s = StyleSheet.create({
   taskClient:  { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '700' },
   taskService: { ...theme.typography.label, color: theme.color.textSecondary },
   taskDue:     { ...theme.typography.caption, color: theme.color.textMuted },
+
+  editMemberBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  editMemberBtnText: { color: theme.color.primary, fontSize: 14, fontWeight: '700' },
+
+  modalOverlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: theme.color.bgSurface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.space4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgBase,
+  },
+  modalTitle: { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 16, fontWeight: '700' },
+  modalClose: { color: theme.color.textMuted, fontSize: 18, padding: 4 },
+  modalBody:  { padding: theme.spacing.space4, gap: 4 },
+  fieldLabel: { ...theme.typography.sectionDivider, marginBottom: 4 },
+  modalInput: {
+    backgroundColor: theme.color.bgBase,
+    color: theme.color.textPrimary,
+    borderRadius: theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: theme.spacing.space3,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  saveBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius: theme.radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: theme.spacing.space4,
+  },
+  saveBtnDisabled: { opacity: 0.6 },
+  saveBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
 });

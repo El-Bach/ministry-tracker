@@ -2,6 +2,7 @@
 // Main dashboard: filterable task list with realtime updates
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -52,6 +53,7 @@ function SwipeableTaskRow({
   onPress,
   onClientPress,
   onCityPress,
+  onServicePress,
   onEdit,
   onDelete,
   onUnarchive,
@@ -64,6 +66,7 @@ function SwipeableTaskRow({
   onPress: () => void;
   onClientPress: () => void;
   onCityPress: (cityId: string) => void;
+  onServicePress: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onUnarchive: () => void;
@@ -170,6 +173,7 @@ function SwipeableTaskRow({
           onPress={() => { if (isOpen.current) { close(); } else { onPress(); } }}
           onClientPress={onClientPress}
           onCityPress={onCityPress}
+          onServicePress={onServicePress}
           cardStyle={{ marginBottom: 0 }}
         />
       </Animated.View>
@@ -238,20 +242,11 @@ const swipeStyles = StyleSheet.create({
 
 interface Filters {
   search: string;
-  teamMemberId: string;
+  serviceId: string;
   ministryId: string;
-  statusLabel: string;
   cityId: string;
-  dateFilter: 'all' | 'overdue' | 'today' | 'week';
   showArchived: boolean;
 }
-
-const DATE_OPTIONS = [
-  { key: 'all', label: 'All' },
-  { key: 'overdue', label: 'Overdue' },
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-] as const;
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -268,11 +263,9 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     search: '',
-    teamMemberId: '',
+    serviceId: '',
     ministryId: '',
-    statusLabel: '',
     cityId: '',
-    dateFilter: 'all',
     showArchived: false,
   });
   const [showFilters, setShowFilters] = useState(false);
@@ -382,6 +375,11 @@ export default function DashboardScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Refresh tasks when navigating back (picks up client profile edits)
+  useFocusEffect(useCallback(() => {
+    fetchData();
+  }, [fetchData]));
+
   // Realtime refresh
   useRealtime(
     useCallback(() => {
@@ -419,8 +417,7 @@ export default function DashboardScreen() {
     ) {
       return false;
     }
-    if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
-    if (filters.statusLabel && task.current_status !== filters.statusLabel) return false;
+    if (filters.serviceId && task.service_id !== filters.serviceId) return false;
     if (filters.cityId) {
       const hasCity = task.route_stops?.some((s) => s.city_id === filters.cityId);
       if (!hasCity) return false;
@@ -428,18 +425,6 @@ export default function DashboardScreen() {
     if (filters.ministryId) {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
-    }
-    if (filters.dateFilter !== 'all') {
-      const due = task.due_date ? new Date(task.due_date) : null;
-      const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const endOfDay = new Date(startOfDay.getTime() + 86400000 - 1);
-      const endOfWeek = new Date(startOfDay.getTime() + 7 * 86400000);
-      if (filters.dateFilter === 'overdue' && (!due || due >= startOfDay)) return false;
-      if (filters.dateFilter === 'today' && (!due || due < startOfDay || due > endOfDay))
-        return false;
-      if (filters.dateFilter === 'week' && (!due || due < startOfDay || due > endOfWeek))
-        return false;
     }
     return true;
   });
@@ -658,12 +643,46 @@ export default function DashboardScreen() {
     fetchData();
   };
 
+  // Compute which cities and services actually appear in the current archive/active set
+  // (before city/service filters, so options don't disappear when one is selected)
+  const tasksInCurrentSet = useMemo(() => tasks.filter((task) => {
+    const stopsTotal = task.route_stops?.length ?? 0;
+    const taskIsArchived =
+      task.is_archived === true ||
+      (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done'));
+    return filters.showArchived ? taskIsArchived : !taskIsArchived;
+  }), [tasks, filters.showArchived]);
+
+  const availableCities = useMemo(() => {
+    const seen = new Set<string>();
+    const result: City[] = [];
+    for (const task of tasksInCurrentSet) {
+      for (const stop of task.route_stops ?? []) {
+        if (stop.city_id && stop.city && !seen.has(stop.city_id)) {
+          seen.add(stop.city_id);
+          result.push(stop.city as City);
+        }
+      }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasksInCurrentSet]);
+
+  const availableServices = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Service[] = [];
+    for (const task of tasksInCurrentSet) {
+      if (task.service_id && task.service && !seen.has(task.service_id)) {
+        seen.add(task.service_id);
+        result.push(task.service as Service);
+      }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasksInCurrentSet]);
+
   const activeFilterCount = [
-    filters.teamMemberId,
+    filters.serviceId,
     filters.ministryId,
-    filters.statusLabel,
     filters.cityId,
-    filters.dateFilter !== 'all',
   ].filter(Boolean).length;
 
   // Stable named renderItem — avoids FlatList re-renders on every state change
@@ -684,6 +703,7 @@ export default function DashboardScreen() {
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
+          onServicePress={() => navigation.navigate('ServiceStages', { serviceId: item.service_id, serviceName: item.service?.name ?? '' })}
           onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
           onDelete={() => handleDeleteTask(item)}
           onUnarchive={() => handleUnarchiveTask(item)}
@@ -743,126 +763,53 @@ export default function DashboardScreen() {
       {/* Expanded filter panel */}
       {showFilters && (
         <View style={styles.filterPanel}>
-          {/* Team member filter */}
-          <Text style={styles.filterSectionLabel}>TEAM MEMBER</Text>
+          {/* Service filter — only services present in current task set */}
+          <Text style={styles.filterSectionLabel}>SERVICE</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             <TouchableOpacity
-              style={[styles.chip, !filters.teamMemberId && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, teamMemberId: '' }))}
+              style={[styles.chip, !filters.serviceId && styles.chipActive]}
+              onPress={() => setFilters((f) => ({ ...f, serviceId: '' }))}
             >
-              <Text style={[styles.chipText, !filters.teamMemberId && styles.chipTextActive]}>
-                All
-              </Text>
+              <Text style={[styles.chipText, !filters.serviceId && styles.chipTextActive]}>All</Text>
             </TouchableOpacity>
-            {teamMembers.map((m) => (
+            {availableServices.map((sv) => (
               <TouchableOpacity
-                key={m.id}
-                style={[styles.chip, filters.teamMemberId === m.id && styles.chipActive]}
-                onPress={() =>
-                  setFilters((f) => ({
-                    ...f,
-                    teamMemberId: f.teamMemberId === m.id ? '' : m.id,
-                  }))
-                }
+                key={sv.id}
+                style={[styles.chip, filters.serviceId === sv.id && styles.chipActive]}
+                onPress={() => setFilters((f) => ({ ...f, serviceId: f.serviceId === sv.id ? '' : sv.id }))}
               >
-                <Text
-                  style={[
-                    styles.chipText,
-                    filters.teamMemberId === m.id && styles.chipTextActive,
-                  ]}
-                >
-                  {m.name}
+                <Text style={[styles.chipText, filters.serviceId === sv.id && styles.chipTextActive]}>
+                  {sv.name}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* Status filter */}
-          <Text style={styles.filterSectionLabel}>STATUS</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, !filters.statusLabel && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, statusLabel: '' }))}
-            >
-              <Text style={[styles.chipText, !filters.statusLabel && styles.chipTextActive]}>
-                All
-              </Text>
-            </TouchableOpacity>
-            {statusLabels.map((s) => (
-              <TouchableOpacity
-                key={s.id}
-                style={[
-                  styles.chip,
-                  filters.statusLabel === s.label && { backgroundColor: s.color + '33' },
-                ]}
-                onPress={() =>
-                  setFilters((f) => ({
-                    ...f,
-                    statusLabel: f.statusLabel === s.label ? '' : s.label,
-                  }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    filters.statusLabel === s.label && { color: s.color, fontWeight: '700' },
-                  ]}
+          {/* City filter — only cities present in current task set */}
+          {availableCities.length > 0 && (
+            <>
+              <Text style={styles.filterSectionLabel}>CITY</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                <TouchableOpacity
+                  style={[styles.chip, !filters.cityId && styles.chipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, cityId: '' }))}
                 >
-                  {s.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* City filter */}
-          <Text style={styles.filterSectionLabel}>CITY</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, !filters.cityId && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, cityId: '' }))}
-            >
-              <Text style={[styles.chipText, !filters.cityId && styles.chipTextActive]}>
-                All
-              </Text>
-            </TouchableOpacity>
-            {cities.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={[styles.chip, filters.cityId === c.id && styles.chipActive]}
-                onPress={() =>
-                  setFilters((f) => ({
-                    ...f,
-                    cityId: f.cityId === c.id ? '' : c.id,
-                  }))
-                }
-              >
-                <Text style={[styles.chipText, filters.cityId === c.id && styles.chipTextActive]}>
-                  {c.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Date filter */}
-          <Text style={styles.filterSectionLabel}>DATE</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {DATE_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.key}
-                style={[styles.chip, filters.dateFilter === opt.key && styles.chipActive]}
-                onPress={() => setFilters((f) => ({ ...f, dateFilter: opt.key }))}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    filters.dateFilter === opt.key && styles.chipTextActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Text style={[styles.chipText, !filters.cityId && styles.chipTextActive]}>All</Text>
+                </TouchableOpacity>
+                {availableCities.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.chip, filters.cityId === c.id && styles.chipActive]}
+                    onPress={() => setFilters((f) => ({ ...f, cityId: f.cityId === c.id ? '' : c.id }))}
+                  >
+                    <Text style={[styles.chipText, filters.cityId === c.id && styles.chipTextActive]}>
+                      {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
         </View>
       )}
 
