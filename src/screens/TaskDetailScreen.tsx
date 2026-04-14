@@ -199,6 +199,8 @@ export default function TaskDetailScreen() {
   const [showCreateCityForm, setShowCreateCityForm] = useState(false);
   const [newCityName, setNewCityName] = useState('');
   const [savingCity, setSavingCity] = useState(false);
+  const [stopDueDatePickerStopId, setStopDueDatePickerStopId] = useState<string | null>(null);
+  const [savingStopDueDate, setSavingStopDueDate] = useState<string | null>(null);
 
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
@@ -785,6 +787,14 @@ export default function TaskDetailScreen() {
   };
 
   // ─── Per-stage city / assignee handlers ─────────────────
+  const handleSetStopDueDate = async (stopId: string, date: string | null) => {
+    setSavingStopDueDate(stopId);
+    await supabase.from('task_route_stops').update({ due_date: date }).eq('id', stopId);
+    setSavingStopDueDate(null);
+    setStopDueDatePickerStopId(null);
+    fetchTask();
+  };
+
   const handleSetStopCity = async (stopId: string, cityId: string | null) => {
     setSavingStopField(stopId);
     await supabase.from('task_route_stops').update({ city_id: cityId }).eq('id', stopId);
@@ -1162,6 +1172,19 @@ export default function TaskDetailScreen() {
 
                     {/* Status badge */}
                     <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
+
+                    {/* Due date chip */}
+                    <TouchableOpacity
+                      style={[s.stopMetaChip, stop.due_date && s.stopDueChipSet]}
+                      onPress={() => setStopDueDatePickerStopId(stop.id)}
+                    >
+                      {savingStopDueDate === stop.id
+                        ? <ActivityIndicator size="small" color={theme.color.warning} />
+                        : <Text style={[s.stopMetaChipText, stop.due_date && { color: theme.color.warning }]}>
+                            {stop.due_date ? `📅 ${formatDateOnly(stop.due_date)}` : '📅 Set due date'}
+                          </Text>
+                      }
+                    </TouchableOpacity>
 
                     {/* 2×2 button grid */}
                     <View style={s.stageBtnGrid}>
@@ -2017,6 +2040,74 @@ export default function TaskDetailScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ── STOP DUE DATE PICKER MODAL ── */}
+      <Modal
+        visible={!!stopDueDatePickerStopId}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setStopDueDatePickerStopId(null)}
+      >
+        <TouchableOpacity
+          style={s.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setStopDueDatePickerStopId(null)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={s.modalSheet}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Stage Due Date</Text>
+                <TouchableOpacity onPress={() => setStopDueDatePickerStopId(null)}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              {stopDueDatePickerStopId &&
+                task?.route_stops?.find((r) => r.id === stopDueDatePickerStopId)?.due_date && (
+                <TouchableOpacity
+                  style={s.clearStopDueDateBtn}
+                  onPress={() => handleSetStopDueDate(stopDueDatePickerStopId, null)}
+                  disabled={!!savingStopDueDate}
+                >
+                  {savingStopDueDate
+                    ? <ActivityIndicator color={theme.color.danger} size="small" />
+                    : <Text style={s.clearStopDueDateBtnText}>✕ Clear Due Date</Text>}
+                </TouchableOpacity>
+              )}
+              <Calendar
+                current={
+                  (stopDueDatePickerStopId &&
+                    task?.route_stops?.find((r) => r.id === stopDueDatePickerStopId)?.due_date) ||
+                  new Date().toISOString().split('T')[0]
+                }
+                onDayPress={(day: { dateString: string }) => {
+                  if (stopDueDatePickerStopId)
+                    handleSetStopDueDate(stopDueDatePickerStopId, day.dateString);
+                }}
+                markedDates={(() => {
+                  const d =
+                    stopDueDatePickerStopId &&
+                    task?.route_stops?.find((r) => r.id === stopDueDatePickerStopId)?.due_date;
+                  return d ? { [d]: { selected: true, selectedColor: theme.color.warning } } : {};
+                })()}
+                theme={{
+                  backgroundColor: theme.color.bgSurface,
+                  calendarBackground: theme.color.bgSurface,
+                  textSectionTitleColor: theme.color.textMuted,
+                  selectedDayBackgroundColor: theme.color.warning,
+                  selectedDayTextColor: theme.color.white,
+                  todayTextColor: theme.color.primaryText,
+                  dayTextColor: theme.color.textSecondary,
+                  textDisabledColor: theme.color.border,
+                  arrowColor: theme.color.primary,
+                  monthTextColor: theme.color.textPrimary,
+                  textDayFontWeight: '600',
+                  textMonthFontWeight: '700',
+                }}
+              />
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── IN-APP PDF VIEWER ── */}
       <Modal
         visible={!!viewingDoc}
@@ -2445,11 +2536,10 @@ const s = StyleSheet.create({
     borderColor:     theme.color.border,
   },
   balanceRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems:    'center',
   },
-  balanceLabel:   { ...theme.typography.sectionDivider, letterSpacing: 0.8 },
+  balanceLabel: { ...theme.typography.sectionDivider, letterSpacing: 0.8, flex: 1 },
   contractPriceRow: {
     flexDirection:   'row',
     alignItems:      'center',
@@ -2485,16 +2575,28 @@ const s = StyleSheet.create({
   priceHistoryLabel:   { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: theme.spacing.space2 },
   priceHistoryEmpty:   { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
   priceHistoryRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space2, marginBottom: 6 },
-  balanceTotalLabel:   { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '800', letterSpacing: 0.8 },
+  balanceTotalLabel:   { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '800', letterSpacing: 0.8, flex: 1 },
   balanceAmounts:      { flexDirection: 'row', gap: theme.spacing.space3 },
-  balanceCol:    { minWidth: 80, textAlign: 'right', ...theme.typography.label, fontWeight: '700' },
-  balanceColLBP: { minWidth: 120, textAlign: 'right', ...theme.typography.caption, color: theme.color.textSecondary },
+  balanceCol:    { width: 80, textAlign: 'right', ...theme.typography.label, fontWeight: '700' },
+  balanceColLBP: { width: 120, textAlign: 'right', ...theme.typography.caption, color: theme.color.textSecondary },
   balanceRevenue:      { color: theme.color.success, fontSize: 13, fontWeight: '700' },
   balanceRevenueLBP:   { color: theme.color.success + 'BB', fontSize: 11, fontWeight: '600' },
   balanceExpenseLBP:   { color: theme.color.danger + 'BB', fontSize: 11, fontWeight: '600' },
   balanceTotalLBP:     { fontSize: 12, fontWeight: '700' },
   txMetaName:          { color: theme.color.textSecondary, fontWeight: '700' },
   balanceExpense:      { color: theme.color.danger, fontSize: 13, fontWeight: '700' },
+  stopDueChipSet: { borderColor: theme.color.warning + '66', backgroundColor: theme.color.warning + '15' },
+  clearStopDueDateBtn: {
+    marginHorizontal: theme.spacing.space4,
+    marginVertical: theme.spacing.space2,
+    padding: 10,
+    backgroundColor: theme.color.danger + '20',
+    borderRadius: theme.radius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.color.danger + '40',
+  },
+  clearStopDueDateBtnText: { color: theme.color.danger, fontWeight: '700', fontSize: 14 },
   balanceDivider:      { height: 1, backgroundColor: theme.color.bgSurface, marginVertical: 2 },
   balanceTotal:        { fontSize: 14, fontWeight: '800' },
   positive:            { color: theme.color.success },

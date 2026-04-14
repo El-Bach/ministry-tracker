@@ -13,6 +13,8 @@ import {
   Animated,
   PanResponder,
 } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -139,6 +141,7 @@ export default function ClientProfileScreen() {
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
   const [fieldValues, setFieldValues] = useState<FieldValue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingStatement, setGeneratingStatement] = useState(false);
 
   const fetchData = useCallback(async () => {
     const [clientRes, tasksRes, labelsRes, fieldsRes] = await Promise.all([
@@ -195,6 +198,81 @@ export default function ClientProfileScreen() {
     ]);
   };
 
+  const handleGenerateStatement = async () => {
+    if (!client) return;
+    setGeneratingStatement(true);
+    try {
+      const taskIds = tasks.map((t) => t.id);
+      const { data: txData } = taskIds.length > 0
+        ? await supabase.from('file_transactions').select('*').in('task_id', taskIds)
+        : { data: [] };
+      const txList = (txData ?? []) as Array<{ task_id: string; type: string; amount_usd: number; amount_lbp: number }>;
+
+      const fmtUSD = (n: number) => n > 0 ? `$${Math.round(n).toLocaleString('en-US')}` : '—';
+      const fmtLBP = (n: number) => n > 0 ? `LBP ${Math.round(n).toLocaleString('en-US')}` : '—';
+
+      let totalContractUSD = 0, totalReceivedUSD = 0, totalContractLBP = 0, totalReceivedLBP = 0;
+
+      const rows = tasks.map((task) => {
+        const taskTx = txList.filter((tx) => tx.task_id === task.id);
+        const recUSD = taskTx.filter((tx) => tx.type === 'revenue').reduce((s, tx) => s + tx.amount_usd, 0);
+        const recLBP = taskTx.filter((tx) => tx.type === 'revenue').reduce((s, tx) => s + tx.amount_lbp, 0);
+        const conUSD = task.price_usd ?? 0;
+        const conLBP = task.price_lbp ?? 0;
+        const balUSD = recUSD - conUSD;
+        const balLBP = recLBP - conLBP;
+        totalContractUSD += conUSD; totalReceivedUSD += recUSD;
+        totalContractLBP += conLBP; totalReceivedLBP += recLBP;
+        const balClass = balUSD >= 0 ? 'pos' : 'neg';
+        return `<tr>
+          <td>${task.service?.name ?? '—'}</td>
+          <td><span class="badge">${task.current_status}</span></td>
+          <td>${task.due_date ?? '—'}</td>
+          <td>${fmtUSD(conUSD)}<br/><small>${fmtLBP(conLBP)}</small></td>
+          <td>${fmtUSD(recUSD)}<br/><small>${fmtLBP(recLBP)}</small></td>
+          <td class="${balClass}">${fmtUSD(Math.abs(balUSD))}<br/><small>${fmtLBP(Math.abs(balLBP))}</small></td>
+        </tr>`;
+      }).join('');
+
+      const totalBalUSD = totalReceivedUSD - totalContractUSD;
+      const totalBalLBP = totalReceivedLBP - totalContractLBP;
+      const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;padding:24px;color:#1e293b;background:#fff}
+  h1{font-size:22px;color:#1e293b;margin-bottom:4px}
+  .meta{color:#64748b;font-size:13px;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{background:#0f172a;color:#fff;padding:9px 7px;text-align:left}
+  td{padding:8px 7px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+  tr:nth-child(even) td{background:#f8fafc}
+  .badge{background:#e0e7ff;color:#4338ca;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:bold}
+  .total td{background:#0f172a;color:#fff;font-weight:bold;padding:9px 7px}
+  .pos{color:#10b981}.neg{color:#ef4444}
+  small{color:#94a3b8;font-size:10px}
+  .footer{margin-top:16px;color:#94a3b8;font-size:10px}
+</style></head><body>
+<h1>${client.name}</h1>
+<div class="meta">ID: ${client.client_id}${client.phone ? ' · ' + client.phone : ''}${client.reference_name ? ' · via ' + client.reference_name : ''}</div>
+<table><thead><tr><th>Service</th><th>Status</th><th>Due</th><th>Contract</th><th>Received</th><th>Balance</th></tr></thead>
+<tbody>${rows}
+<tr class="total"><td colspan="3">TOTAL (${tasks.length} file${tasks.length !== 1 ? 's' : ''})</td>
+<td>${fmtUSD(totalContractUSD)}</td><td>${fmtUSD(totalReceivedUSD)}</td>
+<td class="${totalBalUSD >= 0 ? 'pos' : 'neg'}">${fmtUSD(Math.abs(totalBalUSD))}</td></tr>
+</tbody></table>
+<div class="footer">Generated ${today} · Ministry Tracker</div>
+</body></html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Statement — ${client.name}` });
+    } catch {
+      Alert.alert('Error', 'Could not generate statement. Please try again.');
+    } finally {
+      setGeneratingStatement(false);
+    }
+  };
+
   const goEdit = () =>
     navigation.navigate('EditClient', { clientId });
 
@@ -249,6 +327,16 @@ export default function ClientProfileScreen() {
             <View style={s.headerActions}>
               <TouchableOpacity style={s.editBtn} onPress={goEdit} activeOpacity={0.7}>
                 <Text style={s.editBtnText}>✎ Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.statementBtn}
+                onPress={handleGenerateStatement}
+                disabled={generatingStatement}
+                activeOpacity={0.7}
+              >
+                {generatingStatement
+                  ? <ActivityIndicator color={theme.color.success} size="small" style={{ width: 20 }} />
+                  : <Text style={s.statementBtnText}>📄</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={s.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
                 <Text style={s.deleteBtnText}>✕</Text>
@@ -370,6 +458,18 @@ const s = StyleSheet.create({
     borderColor:     theme.color.primary + '55',
   },
   editBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '700' },
+  statementBtn: {
+    backgroundColor: theme.color.success + '22',
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderWidth:     1,
+    borderColor:     theme.color.success + '55',
+    minWidth:        34,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  statementBtnText: { fontSize: 16 },
   deleteBtn: {
     backgroundColor: theme.color.danger + '20',
     borderRadius:    theme.radius.sm,

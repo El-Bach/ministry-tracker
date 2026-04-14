@@ -70,6 +70,7 @@ export interface TaskRouteStop {
   assignee?: TeamMember | null;
   ext_assignee_id?: string | null;
   ext_assignee?: { id: string; name: string; phone?: string } | null;
+  due_date?: string | null;
 }
 
 export interface TaskComment {
