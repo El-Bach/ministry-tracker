@@ -536,6 +536,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 18 | Dashboard filters: removed team/status/date filters; kept search + service + city; filter chips now show only values present in current active/archive task set (dynamic options); useFocusEffect added so client profile edits reflect immediately on dashboard; TaskCard: underlines removed from client name/phone/city chips (links kept); service name changed to yellow (theme.color.warning) with onServicePress prop navigating to ServiceStages; "via" → "عبر"; archived cards show 📅 start→end • Xd completion; contract price no decimals; CalendarScreen: due date label shown on each event card; TeamScreen: ✎ edit button per member opens modal to edit name + role (Arabic-friendly); TaskDetailScreen: sections reordered to header→comments→documents→stages→financials; financials P&L table uses aligned columns (USD minWidth 80, LBP minWidth 120, right-aligned, no decimals); "PAYMENTS RECEIVED" → "RECEIVED"; green "+ Add Stage" button in stages header opens Edit Stages modal; DocumentScannerModal: KeyboardAwareScrollView in preview step; requirements guaranteed loaded before preview in library mode |
 | 17 | Financial transactions: inline edit form per row — tap ✎ to expand edit form with type toggle, description, USD + LBP fields, Save/Cancel; Supabase UPDATE on save; closes inline on save or cancel |
 | 16 | Documents overhaul: split "Scan / Add" into separate 📷 Scan (camera) and 📎 Add (library) buttons; camera saves full photo without crop (eliminates preview/result mismatch); library upload uses image as-is (no forced A4 crop); preview shows natural aspect ratio with contain resizeMode; startMode prop on DocumentScannerModal; rename ✎ button per document row → bottom-sheet rename modal; autoName prefix: "Scan" for camera, "Upload" for library; removed expo-image-manipulator from scanner |
 | 15 | Per-stage city + assignee: removed city/assignment from NewTaskScreen and TaskDetail task-level; added city_id/assigned_to/ext_assignee_id to task_route_stops (migration_stop_fields.sql); each stage row now has 📍 city chip + 👤 assignee chip with inline searchable dropdowns; auto-complete stage to Done when all requirements ticked (StageRequirementsScreen) with cascade archive; removed + Req quick-add button from stage rows; deleted migration_cities.sql (superseded) |
@@ -556,17 +557,65 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 ---
 
+## Dashboard Filter Rules (session 18)
+
+- **Kept filters**: text search (client name / service name), service chips, city chips
+- **Removed filters**: team member, status label, date range
+- **Dynamic options**: city and service chips derived from `tasksInCurrentSet` (tasks in current active/archive set) — not from global DB lists
+- `useFocusEffect` calls `fetchData()` on every focus so client edits propagate immediately
+
+---
+
+## TaskCard Conventions (session 18)
+
+- **No underlines** on any tappable text (client name, phone, city chips) — links work without decoration
+- **Service name**: `theme.color.warning` (#F59E0B), `onServicePress` prop → navigates to ServiceStages
+- **"عبر"** used instead of "via" for reference names
+- **Archived card completion row**: `📅 {start} → {end}  •  {N}d` — uses `task.created_at` and `task.updated_at`
+- **Contract price on card**: no decimals (`maximumFractionDigits: 0`)
+
+---
+
+## TaskDetailScreen Section Order (session 18)
+
+1. Header card (client name, status, service, due date, opened, notes, ✎ Edit)
+2. Inline due date calendar (conditional)
+3. **Comments & Activity** ← moved here from bottom
+4. **Documents** ← moved here from bottom
+5. Stages route (2×2 button grid per stage: Update Status / Requirements / Set city / Set assignee)
+6. Financials (contract price + history + P&L table + transactions)
+
+---
+
+## Financials P&L Table (session 18)
+
+- Label: `flex: 1`, left-aligned
+- USD column: `minWidth: 80`, right-aligned, `fontWeight: '700'`, no decimals
+- LBP column: `minWidth: 120`, right-aligned, caption style, secondary color
+- Rows: RECEIVED / DUE (if contract price set) / EXPENSES / divider / NET (P&L)
+- `fmtUSD`: `maximumFractionDigits: 0` (no .00)
+- `fmtLBP`: `maximumFractionDigits: 0` (already was 0)
+
+---
+
 ## Suggested Next Improvements (pre-evaluated)
 
 | # | Feature | Effort | Value |
 |---|---|---|---|
-| 1 | Dashboard summary bar (active files, overdue count, total due balance) | Low | High |
+| 1 | Dashboard summary bar (active files count, total balance due, expenses) | Low | High |
 | 2 | Export Financial Report as PDF (expo-print already installed) | Low | High |
-| 3 | WhatsApp share in TaskDetail — send status summary as formatted text message | Low | High |
-| 4 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
-| 5 | Web version (Expo Web) — ✅ Done (session 13: ministry-papers.netlify.app; iOS PWA via Safari Add to Home Screen) | — | — |
-| 6 | File duplication — clone a task with same client + service + stages | Low | High |
+| 3 | WhatsApp share from TaskDetail — send file status as formatted message | Low | High |
+| 4 | File duplication — clone a task with same client + service + stages | Low | High |
+| 5 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
+| 6 | Client statement — printable summary of all files + financial balance per client | Medium | High |
 | 7 | Due date push notification (overdue check on app open) | Medium | Medium |
+| 8 | Notifications inbox / activity feed tab | High | High |
+| 9 | Global search across clients, files, stages, requirements | Medium | Medium |
+| 10 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
+| 11 | Stage deadline per stop (separate from file due date) | Low | Medium |
+| 12 | Offline status updates queue (currently only comments queue offline) | High | Medium |
+| 13 | File tags / labels (color-coded free tags per file for custom grouping) | Low | Medium |
+| 14 | Dashboard summary stats row (total active, overdue, total outstanding $) | Low | High |
 | 8 | Notifications inbox / activity feed tab | High | High |
 | 9 | Global search across clients, files, stages, requirements | Medium | Medium |
 | 10 | Document rename after upload | Low | Medium |
