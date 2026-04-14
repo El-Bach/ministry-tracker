@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 15 (per-stage city+assignee; auto-complete stage on all reqs done; remove task-level city/assignment from NewTask+TaskDetail)
+> Last updated: session 16 (documents: separate Scan/Add buttons; camera saves full photo no crop; library upload no A4 crop; image preview at natural aspect ratio; rename document ✎ button per row)
 
 ---
 
@@ -250,25 +250,25 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 
 Component: `src/components/DocumentScannerModal.tsx`
 
-### Flow
-1. **Camera step** — full-screen live camera (`CameraView` from expo-camera) with:
-   - A4-ratio white-corner frame overlay guiding document alignment
-   - Dark overlay outside the frame
-   - "Library" button top-right for picking from photos
-   - Large capture button at bottom
-2. **Preview step** — after capture/pick:
-   - Cropped image preview (A4 ratio, `resizeMode="stretch"`)
-   - Editable **Document Name** (auto-filled: "Scan DD-MM-YYYY")
-   - **Link to Requirement** (optional) — picker of all stop_requirements for this task's stages; when linked, also updates `stop_requirements.attachment_url`
-   - Save button — stores as **JPEG** (no PDF)
-3. **Processing** — crops image with `expo-image-manipulator` → uploads JPEG via `FileSystem.uploadAsync` MULTIPART → inserts `task_documents` record
+### Two entry points (session 16)
+- **📷 Scan** button → opens camera (`startMode="camera"`)
+- **📎 Add** button → opens library picker immediately (`startMode="library"`)
 
-### No filters
-Filters removed entirely. Documents stored as plain JPEG crops.
+### Camera flow (`startMode="camera"`)
+1. Full-screen live camera (`CameraView`) with A4-ratio frame overlay (visual guide only)
+2. Capture — full photo saved as-is, **no crop** (eliminates preview/result mismatch)
+3. Preview — natural aspect ratio, `resizeMode="contain"`; editable name ("Scan DD-MM-YYYY"); optional requirement link; "Save Scan" button
 
-### Crop math (camera)
-`coverScale = Math.max(SCREEN_W / photoW, SCREEN_H / photoH)` maps A4 frame coords to image pixel coords.
-Library picks: center-crop to A4 ratio.
+### Library flow (`startMode="library"`)
+1. Modal opens → native image picker fires automatically (200ms delay for mount)
+2. If user cancels → modal closes automatically
+3. Preview — same as camera preview; name prefixed "Upload DD-MM-YYYY"; "Upload Document" button
+
+### No cropping (session 16)
+Removed `expo-image-manipulator` and all crop math. Full photo/image used as uploaded. The A4 frame is alignment guidance only.
+
+### Rename
+Each document row has a ✎ rename button → bottom-sheet modal with TextInput + Save.
 
 ### Storage path
 `task-attachments/documents/{taskId}/{display_name}_{timestamp}.jpg`
@@ -536,6 +536,8 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 17 | Financial transactions: inline edit form per row — tap ✎ to expand edit form with type toggle, description, USD + LBP fields, Save/Cancel; Supabase UPDATE on save; closes inline on save or cancel |
+| 16 | Documents overhaul: split "Scan / Add" into separate 📷 Scan (camera) and 📎 Add (library) buttons; camera saves full photo without crop (eliminates preview/result mismatch); library upload uses image as-is (no forced A4 crop); preview shows natural aspect ratio with contain resizeMode; startMode prop on DocumentScannerModal; rename ✎ button per document row → bottom-sheet rename modal; autoName prefix: "Scan" for camera, "Upload" for library; removed expo-image-manipulator from scanner |
 | 15 | Per-stage city + assignee: removed city/assignment from NewTaskScreen and TaskDetail task-level; added city_id/assigned_to/ext_assignee_id to task_route_stops (migration_stop_fields.sql); each stage row now has 📍 city chip + 👤 assignee chip with inline searchable dropdowns; auto-complete stage to Done when all requirements ticked (StageRequirementsScreen) with cascade archive; removed + Req quick-add button from stage rows; deleted migration_cities.sql (superseded) |
 | 14 | graphify knowledge graph incremental update (2 source files re-extracted: NewTaskScreen + StageRequirementsScreen); npm ci clean (728 packages, 0 vulnerabilities); EAS preview APK built successfully (`eas build --platform android --profile preview`) |
 | 13 | StageRequirementsScreen modal fix (height:85% so form fields visible); TaskCard status color fallback fixed (primary instead of current_status color); NewTaskScreen Assign To now supports external assignees + inline create; Android adaptive icon removed (icon.png used directly); iOS PWA deployed to ministry-papers.netlify.app (Safari Add to Home Screen); full-bleed icon-fullbleed.png generated for PWA apple-touch-icon; GitHub backup set up (github.com/El-Bach/ministry-tracker) |

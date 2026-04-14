@@ -1,5 +1,5 @@
 // src/components/DocumentScannerModal.tsx
-// Document scanner: live camera → crop to A4 frame → upload JPEG directly (no PDF)
+// Document scanner: camera scan OR library upload → preview → rename → upload JPEG
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
@@ -18,15 +18,14 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const A4_RATIO  = 297 / 210; // height / width
-const FRAME_W   = SCREEN_W * 0.84;
-const FRAME_H   = FRAME_W * A4_RATIO;
+const A4_RATIO   = 297 / 210; // height / width — used for frame overlay only
+const FRAME_W    = SCREEN_W * 0.84;
+const FRAME_H    = FRAME_W * A4_RATIO;
 const FRAME_TOP  = (SCREEN_H - FRAME_H) / 2 - 40;
 const FRAME_LEFT = (SCREEN_W - FRAME_W) / 2;
 
@@ -36,25 +35,32 @@ interface Props {
   visible: boolean;
   taskId: string;
   uploadedBy?: string;
+  startMode?: 'camera' | 'library'; // which flow to open first
   onClose: () => void;
   onSuccess: () => void;
 }
 
 type Step = 'camera' | 'preview' | 'processing';
 
-export default function DocumentScannerModal({ visible, taskId, uploadedBy, onClose, onSuccess }: Props) {
+export default function DocumentScannerModal({
+  visible, taskId, uploadedBy, startMode = 'camera', onClose, onSuccess,
+}: Props) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  const [step, setStep]               = useState<Step>('camera');
-  const [croppedUri, setCroppedUri]   = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState('');
-  const [statusText, setStatusText]   = useState('');
-  const [capturing, setCapturing]     = useState(false);
+  const [step, setStep]                       = useState<Step>('camera');
+  const [capturedUri, setCapturedUri]         = useState<string | null>(null);
+  const [imageAspectRatio, setImageAspectRatio] = useState(A4_RATIO);
+  const [displayName, setDisplayName]         = useState('');
+  const [statusText, setStatusText]           = useState('');
+  const [capturing, setCapturing]             = useState(false);
 
-  const [requirements, setRequirements]   = useState<ReqItem[]>([]);
-  const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
-  const [showReqPicker, setShowReqPicker] = useState(false);
+  const [requirements, setRequirements]       = useState<ReqItem[]>([]);
+  const [selectedReqId, setSelectedReqId]     = useState<string | null>(null);
+  const [showReqPicker, setShowReqPicker]     = useState(false);
+
+  // Track whether current capture came from camera or library (for naming)
+  const sourceRef = useRef<'camera' | 'library'>('camera');
 
   const loadRequirements = useCallback(async () => {
     try {
@@ -73,49 +79,52 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
   }, [taskId]);
 
   useEffect(() => {
-    if (visible) { loadRequirements(); setStep('camera'); }
-  }, [visible, loadRequirements]);
+    if (visible) {
+      loadRequirements();
+      if (startMode === 'library') {
+        // Small delay so the modal can mount before native picker opens
+        const t = setTimeout(() => pickFromLibraryAuto(), 200);
+        return () => clearTimeout(t);
+      } else {
+        setStep('camera');
+      }
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function reset() {
-    setCroppedUri(null); setDisplayName(''); setSelectedReqId(null);
+    setCapturedUri(null); setDisplayName(''); setSelectedReqId(null);
     setStatusText(''); setCapturing(false); setStep('camera');
+    setImageAspectRatio(A4_RATIO);
   }
   function handleClose() { reset(); onClose(); }
 
-  function autoName() {
-    const t = new Date();
-    return `Scan ${t.getDate().toString().padStart(2,'0')}-${(t.getMonth()+1).toString().padStart(2,'0')}-${t.getFullYear()}`;
+  function autoName(source: 'camera' | 'library') {
+    const t   = new Date();
+    const dd  = t.getDate().toString().padStart(2, '0');
+    const mm  = (t.getMonth() + 1).toString().padStart(2, '0');
+    const yy  = t.getFullYear();
+    const prefix = source === 'library' ? 'Upload' : 'Scan';
+    return `${prefix} ${dd}-${mm}-${yy}`;
   }
 
-  // Crop photo to the exact frame region (cover-scale math)
-  async function cropToFrame(uri: string, photoW: number, photoH: number): Promise<string> {
-    const coverScale = Math.max(SCREEN_W / photoW, SCREEN_H / photoH);
-    const imgLeft    = (SCREEN_W - photoW * coverScale) / 2;
-    const imgTop     = (SCREEN_H - photoH * coverScale) / 2;
-
-    const originX = Math.max(0, Math.round((FRAME_LEFT - imgLeft) / coverScale));
-    const originY = Math.max(0, Math.round((FRAME_TOP  - imgTop)  / coverScale));
-    const cropW   = Math.min(Math.round(FRAME_W / coverScale), photoW - originX);
-    const cropH   = Math.min(Math.round(FRAME_H / coverScale), photoH - originY);
-
-    const r = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ crop: { originX, originY, width: cropW, height: cropH } }],
-      { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    return r.uri;
-  }
-
+  // ─── Camera capture ──────────────────────────────────────────────────────────
+  // No cropping: use the full photo as captured to avoid preview/result mismatch.
+  // The A4 frame is a visual alignment guide only.
   async function capturePhoto() {
     if (!cameraRef.current || capturing) return;
     setCapturing(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.95, skipProcessing: false });
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.92,
+        skipProcessing: false, // apply EXIF rotation
+      });
       if (!photo) return;
-      const w = photo.width ?? 0, h = photo.height ?? 0;
-      const uri = (w > 0 && h > 0) ? await cropToFrame(photo.uri, w, h) : photo.uri;
-      setCroppedUri(uri);
-      setDisplayName(autoName());
+      sourceRef.current = 'camera';
+      const w = photo.width ?? 0;
+      const h = photo.height ?? 0;
+      setCapturedUri(photo.uri);
+      setImageAspectRatio(w > 0 && h > 0 ? h / w : A4_RATIO);
+      setDisplayName(autoName('camera'));
       setStep('preview');
     } catch (e: any) {
       Alert.alert('Capture failed', e.message ?? 'Could not take photo.');
@@ -124,49 +133,68 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
     }
   }
 
+  // ─── Library picker (manual — from camera screen Library button) ─────────────
   async function pickFromLibrary() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow access to your photo library.'); return; }
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow access to your photo library.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: false, quality: 0.95, mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.95,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
     });
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
-      const w = asset.width ?? 0, h = asset.height ?? 0;
-      let uri = asset.uri;
-      if (w > 0 && h > 0) {
-        // Center-crop to A4 ratio
-        const imageRatio = h / w;
-        let cropW = w, cropH = h, originX = 0, originY = 0;
-        if (imageRatio > A4_RATIO) {
-          cropH   = Math.round(w * A4_RATIO);
-          originY = Math.round((h - cropH) / 2);
-        } else {
-          cropW   = Math.round(h / A4_RATIO);
-          originX = Math.round((w - cropW) / 2);
-        }
-        const r = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [{ crop: { originX, originY, width: cropW, height: cropH } }],
-          { compress: 0.95, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        uri = r.uri;
-      }
-      setCroppedUri(uri);
-      setDisplayName(autoName());
+      sourceRef.current = 'library';
+      const w = asset.width ?? 0;
+      const h = asset.height ?? 0;
+      setCapturedUri(asset.uri);
+      setImageAspectRatio(w > 0 && h > 0 ? h / w : A4_RATIO);
+      setDisplayName(autoName('library'));
       setStep('preview');
+    }
+    // If canceled, stay on camera step
+  }
+
+  // ─── Library picker (auto — triggered when startMode='library') ──────────────
+  async function pickFromLibraryAuto() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow access to your photo library.');
+      handleClose();
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      quality: 0.95,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      sourceRef.current = 'library';
+      const w = asset.width ?? 0;
+      const h = asset.height ?? 0;
+      setCapturedUri(asset.uri);
+      setImageAspectRatio(w > 0 && h > 0 ? h / w : A4_RATIO);
+      setDisplayName(autoName('library'));
+      setStep('preview');
+    } else {
+      // User cancelled picker — close the modal
+      handleClose();
     }
   }
 
+  // ─── Save / upload ───────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!croppedUri) return;
+    if (!capturedUri) return;
     const docName = displayName.trim() || `Document_${Date.now()}`;
     setStep('processing');
 
     try {
       setStatusText('Uploading...');
 
-      // Upload JPEG directly — no PDF generation at all
       const fileName = `${docName.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.jpg`;
       const filePath = `documents/${taskId}/${fileName}`;
 
@@ -175,7 +203,7 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
       const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI';
       const uploadUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/task-attachments/${filePath}`;
 
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, croppedUri, {
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, capturedUri, {
         httpMethod: 'POST',
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: 'file',
@@ -193,11 +221,11 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
       const publicUrl = urlData.publicUrl;
 
       const { error: dbError } = await supabase.from('task_documents').insert({
-        task_id: taskId,
-        file_name: docName,
-        file_url: publicUrl,
-        file_type: 'image/jpeg',
-        uploaded_by: uploadedBy ?? null,
+        task_id:      taskId,
+        file_name:    docName,
+        file_url:     publicUrl,
+        file_type:    'image/jpeg',
+        uploaded_by:  uploadedBy ?? null,
         requirement_id: selectedReqId ?? null,
         display_name: docName,
       });
@@ -220,8 +248,8 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
 
   const selectedReq = requirements.find(r => r.id === selectedReqId);
 
-  // Permission screen
-  if (visible && step === 'camera' && !cameraPermission?.granted) {
+  // ─── Permission screen ───────────────────────────────────────────────────────
+  if (visible && startMode === 'camera' && step === 'camera' && !cameraPermission?.granted) {
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
         <View style={s.permScreen}>
@@ -231,7 +259,7 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
           <TouchableOpacity style={s.permBtn} onPress={requestCameraPermission}>
             <Text style={s.permBtnText}>Allow Camera</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.permLibBtn} onPress={pickFromLibrary}>
+          <TouchableOpacity style={s.permLibBtn} onPress={() => { pickFromLibrary(); }}>
             <Text style={s.permLibBtnText}>Use Photo Library Instead</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleClose} style={{ marginTop: 16 }}>
@@ -242,11 +270,15 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
     );
   }
 
+  // Preview image dimensions
+  const previewW = SCREEN_W - 32;
+  const previewH = previewW * imageAspectRatio;
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
 
       {/* ── CAMERA ── */}
-      {step === 'camera' && (
+      {step === 'camera' && startMode === 'camera' && (
         <View style={s.cameraScreen}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
 
@@ -266,7 +298,7 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
             <View style={[s.overlay, { flex: 1 }]} />
           </View>
 
-          {/* A4 label */}
+          {/* A4 hint label */}
           <View pointerEvents="none" style={[s.frameLabel, { top: FRAME_TOP + 8, left: FRAME_LEFT + 10 }]}>
             <Text style={s.frameLabelText}>A4</Text>
           </View>
@@ -275,7 +307,7 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
             <TouchableOpacity onPress={handleClose} style={s.camCloseBtn}>
               <Text style={s.camCloseBtnText}>✕</Text>
             </TouchableOpacity>
-            <Text style={s.camHint}>Place document inside the frame</Text>
+            <Text style={s.camHint}>Align document inside frame</Text>
             <TouchableOpacity onPress={pickFromLibrary} style={s.camLibBtn}>
               <Text style={s.camLibBtnText}>Library</Text>
             </TouchableOpacity>
@@ -284,33 +316,53 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
           <View style={s.camBottomBar}>
             <TouchableOpacity
               style={[s.captureBtn, capturing && s.captureBtnDisabled]}
-              onPress={capturePhoto} disabled={capturing} activeOpacity={0.8}
+              onPress={capturePhoto}
+              disabled={capturing}
+              activeOpacity={0.8}
             >
-              {capturing ? <ActivityIndicator color={theme.color.white} /> : <View style={s.captureBtnInner} />}
+              {capturing
+                ? <ActivityIndicator color={theme.color.white} />
+                : <View style={s.captureBtnInner} />}
             </TouchableOpacity>
           </View>
         </View>
       )}
 
+      {/* ── LIBRARY LOADING (auto mode, while picker is open) ── */}
+      {step === 'camera' && startMode === 'library' && (
+        <View style={s.processingScreen}>
+          <ActivityIndicator size="large" color={theme.color.primary} />
+          <Text style={s.processingText}>Opening library...</Text>
+        </View>
+      )}
+
       {/* ── PREVIEW ── */}
-      {step === 'preview' && croppedUri && (
+      {step === 'preview' && capturedUri && (
         <View style={s.previewScreen}>
           <View style={s.previewHeader}>
-            <TouchableOpacity onPress={() => setStep('camera')} style={s.backBtn}>
-              <Text style={s.backBtnText}>‹ Retake</Text>
-            </TouchableOpacity>
-            <Text style={s.previewHeaderTitle}>Preview</Text>
-            <View style={{ width: 70 }} />
+            {startMode === 'camera' ? (
+              <TouchableOpacity onPress={() => setStep('camera')} style={s.backBtn}>
+                <Text style={s.backBtnText}>‹ Retake</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={handleClose} style={s.backBtn}>
+                <Text style={s.backBtnText}>✕ Cancel</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={s.previewHeaderTitle}>
+              {startMode === 'camera' ? 'Scan Preview' : 'Upload Preview'}
+            </Text>
+            <View style={{ width: 80 }} />
           </View>
 
           <ScrollView contentContainerStyle={s.previewScroll} keyboardShouldPersistTaps="handled">
 
-            {/* A4-ratio preview — exactly what will be saved */}
-            <View style={s.previewImageWrap}>
+            {/* Image preview — natural aspect ratio, no forced crop */}
+            <View style={[s.previewImageWrap, { height: Math.min(previewH, SCREEN_H * 0.55) }]}>
               <Image
-                source={{ uri: croppedUri }}
+                source={{ uri: capturedUri }}
                 style={StyleSheet.absoluteFill}
-                resizeMode="stretch"
+                resizeMode="contain"
               />
             </View>
 
@@ -319,7 +371,7 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
               style={s.nameInput}
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="Scan 01-01-2025"
+              placeholder="Document name"
               placeholderTextColor={theme.color.textMuted}
               returnKeyType="done"
             />
@@ -335,19 +387,26 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
                     {selectedReq ? `${selectedReq.stopName} › ${selectedReq.title}` : 'Select a requirement...'}
                   </Text>
                   {selectedReqId ? (
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); setSelectedReqId(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity
+                      onPress={(e) => { e.stopPropagation(); setSelectedReqId(null); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
                       <Text style={s.reqClearBtn}>✕</Text>
                     </TouchableOpacity>
                   ) : (
                     <Text style={s.reqPickerArrow}>▼</Text>
                   )}
                 </TouchableOpacity>
-                {selectedReq && <Text style={s.reqLinkedHint}>This document will be attached to the requirement.</Text>}
+                {selectedReq && (
+                  <Text style={s.reqLinkedHint}>This document will be attached to the requirement.</Text>
+                )}
               </>
             )}
 
             <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
-              <Text style={s.saveBtnText}>Save Document</Text>
+              <Text style={s.saveBtnText}>
+                {startMode === 'camera' ? 'Save Scan' : 'Upload Document'}
+              </Text>
             </TouchableOpacity>
             <View style={{ height: 32 }} />
           </ScrollView>
@@ -376,7 +435,9 @@ export default function DocumentScannerModal({ visible, taskId, uploadedBy, onCl
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={s.reqPickerStageName}>{req.stopName}</Text>
-                    <Text style={[s.reqPickerReqTitle, selectedReqId === req.id && s.reqPickerReqTitleActive]}>{req.title}</Text>
+                    <Text style={[s.reqPickerReqTitle, selectedReqId === req.id && s.reqPickerReqTitleActive]}>
+                      {req.title}
+                    </Text>
                   </View>
                   {selectedReqId === req.id && <Text style={s.reqPickerCheck}>✓</Text>}
                 </TouchableOpacity>
@@ -423,7 +484,7 @@ const s = StyleSheet.create({
   camLibBtn:       { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 6 },
   camLibBtnText:   { color: theme.color.white, fontSize: 13, fontWeight: '600' },
   camBottomBar:    { position: 'absolute', bottom: Platform.OS === 'ios' ? 48 : 32, left: 0, right: 0, alignItems: 'center' },
-  captureBtn:      { width: 74, height: 74, borderRadius: 37, backgroundColor: 'rgba(255,255,255,0.25)', borderWidth: 3, borderColor: theme.color.white, alignItems: 'center', justifyContent: 'center' },
+  captureBtn:         { width: 74, height: 74, borderRadius: 37, backgroundColor: 'rgba(255,255,255,0.25)', borderWidth: 3, borderColor: theme.color.white, alignItems: 'center', justifyContent: 'center' },
   captureBtnDisabled: { opacity: 0.5 },
   captureBtnInner:    { width: 56, height: 56, borderRadius: 28, backgroundColor: theme.color.white },
 
@@ -440,12 +501,11 @@ const s = StyleSheet.create({
 
   previewImageWrap: {
     width:           SCREEN_W - 32,
-    height:          (SCREEN_W - 32) * A4_RATIO,
     borderRadius:    6,
     overflow:        'hidden',
     borderWidth:     1,
     borderColor:     theme.color.border,
-    backgroundColor: theme.color.white,
+    backgroundColor: theme.color.bgSurface,
   },
 
   fieldLabel:  { ...theme.typography.sectionDivider, marginBottom: 4, marginTop: 2, alignSelf: 'flex-start' },
@@ -456,13 +516,13 @@ const s = StyleSheet.create({
     fontSize:        15, borderWidth: 1, borderColor: theme.color.border, width: '100%',
   },
 
-  reqPickerBtn:              { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, padding: theme.spacing.space3, borderWidth: 1, borderColor: theme.color.border, gap: theme.spacing.space2, width: '100%' },
-  reqPickerBtnIcon:          { fontSize: 16 },
-  reqPickerBtnText:          { flex: 1, color: theme.color.textMuted, fontSize: theme.typography.body.fontSize },
-  reqPickerBtnTextSelected:  { color: theme.color.textPrimary, fontWeight: '600' },
-  reqPickerArrow:            { color: theme.color.textMuted, fontSize: 12 },
-  reqClearBtn:               { color: theme.color.danger, fontSize: 14, padding: 2 },
-  reqLinkedHint:             { color: theme.color.success, fontSize: theme.typography.label.fontSize, lineHeight: 16, alignSelf: 'flex-start' },
+  reqPickerBtn:             { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, padding: theme.spacing.space3, borderWidth: 1, borderColor: theme.color.border, gap: theme.spacing.space2, width: '100%' },
+  reqPickerBtnIcon:         { fontSize: 16 },
+  reqPickerBtnText:         { flex: 1, color: theme.color.textMuted, fontSize: theme.typography.body.fontSize },
+  reqPickerBtnTextSelected: { color: theme.color.textPrimary, fontWeight: '600' },
+  reqPickerArrow:           { color: theme.color.textMuted, fontSize: 12 },
+  reqClearBtn:              { color: theme.color.danger, fontSize: 14, padding: 2 },
+  reqLinkedHint:            { color: theme.color.success, fontSize: theme.typography.label.fontSize, lineHeight: 16, alignSelf: 'flex-start' },
 
   saveBtn:     { backgroundColor: theme.color.primary, borderRadius: theme.radius.lg, paddingVertical: 15, alignItems: 'center', marginTop: theme.spacing.space2, width: '100%' },
   saveBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
@@ -473,10 +533,10 @@ const s = StyleSheet.create({
   reqPickerOverlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' },
   reqPickerSheet:   { backgroundColor: theme.color.bgSurface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%', paddingBottom: Platform.OS === 'ios' ? 36 : 20, ...theme.shadow.modal, zIndex: theme.zIndex.modal },
   reqPickerTitle:   { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 16, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
-  reqPickerRow:              { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: theme.color.bgBase },
-  reqPickerRowActive:        { backgroundColor: theme.color.primary + '10', borderRadius: theme.radius.md },
-  reqPickerStageName:        { ...theme.typography.sectionDivider, color: theme.color.primary, marginBottom: 3 },
-  reqPickerReqTitle:         { ...theme.typography.body, color: theme.color.textSecondary },
-  reqPickerReqTitleActive:   { color: theme.color.textPrimary, fontWeight: '600' },
-  reqPickerCheck:            { color: theme.color.primary, fontSize: 18, fontWeight: '700', marginStart: theme.spacing.space3 },
+  reqPickerRow:            { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: theme.color.bgBase },
+  reqPickerRowActive:      { backgroundColor: theme.color.primary + '10', borderRadius: theme.radius.md },
+  reqPickerStageName:      { ...theme.typography.sectionDivider, color: theme.color.primary, marginBottom: 3 },
+  reqPickerReqTitle:       { ...theme.typography.body, color: theme.color.textSecondary },
+  reqPickerReqTitleActive: { color: theme.color.textPrimary, fontWeight: '600' },
+  reqPickerCheck:          { color: theme.color.primary, fontSize: 18, fontWeight: '700', marginStart: theme.spacing.space3 },
 });

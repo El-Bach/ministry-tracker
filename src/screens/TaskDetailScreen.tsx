@@ -1,5 +1,5 @@
 // src/screens/TaskDetailScreen.tsx
-// Full task detail: route, GPS status updates, comments, assignment with history
+// Full task detail: route, status updates, comments, assignment, financials with edit
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -136,6 +136,13 @@ export default function TaskDetailScreen() {
   const [txAmountLBP, setTxAmountLBP] = useState('');
   const [savingTx, setSavingTx] = useState(false);
   const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+  // Edit transaction
+  const [editingTx, setEditingTx] = useState<FileTransaction | null>(null);
+  const [editTxType, setEditTxType] = useState<'expense' | 'revenue'>('expense');
+  const [editTxDescription, setEditTxDescription] = useState('');
+  const [editTxAmountUSD, setEditTxAmountUSD] = useState('');
+  const [editTxAmountLBP, setEditTxAmountLBP] = useState('');
+  const [savingEditTx, setSavingEditTx] = useState(false);
 
   // Contract price states
   const [contractPriceUSD, setContractPriceUSD] = useState(0);
@@ -168,8 +175,10 @@ export default function TaskDetailScreen() {
 
   // Document archive states
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
-  const [showScanner, setShowScanner] = useState(false);
+  const [scanMode, setScanMode] = useState<'camera' | 'library' | null>(null);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [renamingDoc, setRenamingDoc] = useState<TaskDocument | null>(null);
+  const [renameText, setRenameText] = useState('');
   const [printingDoc, setPrintingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<TaskDocument | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
@@ -334,6 +343,34 @@ export default function TaskDetailScreen() {
     setTxAmountLBP('');
     setTxType('expense');
     setShowAddTransaction(false);
+    fetchTask();
+  };
+
+  // ─── Edit transaction ────────────────────────────────────
+  const handleEditTransaction = async () => {
+    if (!editingTx) return;
+    if (!editTxDescription.trim()) {
+      Alert.alert('Required', 'Please enter a description.');
+      return;
+    }
+    const usd = parseFloat(editTxAmountUSD) || 0;
+    const lbp = parseFloat(editTxAmountLBP.replace(/,/g, '')) || 0;
+    if (usd === 0 && lbp === 0) {
+      Alert.alert('Required', 'Enter at least one amount (USD or LBP).');
+      return;
+    }
+    setSavingEditTx(true);
+    const { error } = await supabase.from('file_transactions')
+      .update({
+        type:        editTxType,
+        description: editTxDescription.trim(),
+        amount_usd:  usd,
+        amount_lbp:  lbp,
+      })
+      .eq('id', editingTx.id);
+    setSavingEditTx(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setEditingTx(null);
     fetchTask();
   };
 
@@ -581,6 +618,14 @@ export default function TaskDetailScreen() {
       setStatusMsg('');
       Alert.alert('Share failed', e.message ?? 'Could not share document.');
     }
+  };
+
+  // ─── Document rename ──────────────────────────────────────────
+  const handleRenameDoc = async (doc: TaskDocument, newName: string) => {
+    const name = newName.trim();
+    if (!name) return;
+    await supabase.from('task_documents').update({ display_name: name, file_name: name }).eq('id', doc.id);
+    fetchTask();
   };
 
   // ─── Document archive ────────────────────────────────────────
@@ -1365,40 +1410,145 @@ export default function TaskDetailScreen() {
           {transactions.length === 0 ? (
             <Text style={s.emptyText}>No transactions yet</Text>
           ) : (
-            transactions.map((tx) => (
-              <View key={tx.id} style={[s.txRow, tx.type === 'expense' ? s.txRowExpense : s.txRowRevenue]}>
-                <View style={[s.txTypeDot, tx.type === 'expense' ? s.txDotExpense : s.txDotRevenue]} />
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={s.txDesc}>{tx.description}</Text>
-                  <View style={s.txAmountDisplay}>
-                    {tx.amount_usd > 0 && (
-                      <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
-                        {tx.type === 'expense' ? '- ' : '+ '}{fmtUSD(tx.amount_usd)}
-                      </Text>
-                    )}
-                    {tx.amount_lbp > 0 && (
-                      <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
-                        {tx.type === 'expense' ? '- ' : '+ '}{fmtLBP(tx.amount_lbp)}
-                      </Text>
-                    )}
+            transactions.map((tx) => {
+              // ── Inline edit form ──
+              if (editingTx?.id === tx.id) {
+                return (
+                  <View key={tx.id} style={s.txEditForm}>
+                    {/* Type toggle */}
+                    <View style={s.txTypeRow}>
+                      <TouchableOpacity
+                        style={[s.txTypeBtn, editTxType === 'expense' && s.txTypeBtnExpense]}
+                        onPress={() => setEditTxType('expense')}
+                      >
+                        <Text style={[s.txTypeBtnText, editTxType === 'expense' && s.txTypeBtnTextExpense]}>
+                          ↑ Expense
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.txTypeBtn, editTxType === 'revenue' && s.txTypeBtnRevenue]}
+                        onPress={() => setEditTxType('revenue')}
+                      >
+                        <Text style={[s.txTypeBtnText, editTxType === 'revenue' && s.txTypeBtnTextRevenue]}>
+                          ↓ Revenue
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {/* Description */}
+                    <TextInput
+                      style={s.txInput}
+                      value={editTxDescription}
+                      onChangeText={setEditTxDescription}
+                      placeholder="Description"
+                      placeholderTextColor={theme.color.textMuted}
+                      returnKeyType="done"
+                    />
+                    {/* Amounts */}
+                    <View style={s.txAmountsRow}>
+                      <View style={s.txAmountField}>
+                        <Text style={s.txAmountLabel}>USD</Text>
+                        <TextInput
+                          style={s.txInput}
+                          value={editTxAmountUSD}
+                          onChangeText={setEditTxAmountUSD}
+                          placeholder="0.00"
+                          placeholderTextColor={theme.color.textMuted}
+                          keyboardType="decimal-pad"
+                        />
+                      </View>
+                      <View style={s.txAmountField}>
+                        <Text style={s.txAmountLabel}>LBP</Text>
+                        <TextInput
+                          style={s.txInput}
+                          value={editTxAmountLBP}
+                          onChangeText={(v) => {
+                            const raw = v.replace(/,/g, '');
+                            const n   = parseInt(raw, 10);
+                            setEditTxAmountLBP(isNaN(n) ? '' : n.toLocaleString('en-US'));
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={theme.color.textMuted}
+                          keyboardType="number-pad"
+                        />
+                      </View>
+                    </View>
+                    {/* Save / Cancel */}
+                    <View style={s.txEditActions}>
+                      <TouchableOpacity
+                        style={s.txCancelBtn}
+                        onPress={() => setEditingTx(null)}
+                      >
+                        <Text style={s.txCancelBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.txSaveBtn, editTxType === 'expense' ? s.txSaveBtnExpense : s.txSaveBtnRevenue, savingEditTx && s.disabledBtn, { flex: 1 }]}
+                        onPress={handleEditTransaction}
+                        disabled={savingEditTx}
+                      >
+                        {savingEditTx ? (
+                          <ActivityIndicator color={theme.color.white} size="small" />
+                        ) : (
+                          <Text style={s.txSaveBtnText}>
+                            Save {editTxType === 'expense' ? 'Expense' : 'Revenue'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text style={s.txMeta}>
-                    Added by <Text style={s.txMetaName}>{tx.creator?.name ?? 'Unknown'}</Text>
-                    {' · '}{formatDate(tx.created_at)}
-                  </Text>
+                );
+              }
+
+              // ── Normal display row ──
+              return (
+                <View key={tx.id} style={[s.txRow, tx.type === 'expense' ? s.txRowExpense : s.txRowRevenue]}>
+                  <View style={[s.txTypeDot, tx.type === 'expense' ? s.txDotExpense : s.txDotRevenue]} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={s.txDesc}>{tx.description}</Text>
+                    <View style={s.txAmountDisplay}>
+                      {tx.amount_usd > 0 && (
+                        <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
+                          {tx.type === 'expense' ? '- ' : '+ '}{fmtUSD(tx.amount_usd)}
+                        </Text>
+                      )}
+                      {tx.amount_lbp > 0 && (
+                        <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
+                          {tx.type === 'expense' ? '- ' : '+ '}{fmtLBP(tx.amount_lbp)}
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={s.txMeta}>
+                      Added by <Text style={s.txMetaName}>{tx.creator?.name ?? 'Unknown'}</Text>
+                      {' · '}{formatDate(tx.created_at)}
+                    </Text>
+                  </View>
+                  <View style={s.txRowActions}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingTx(tx);
+                        setEditTxType(tx.type);
+                        setEditTxDescription(tx.description);
+                        setEditTxAmountUSD(tx.amount_usd > 0 ? tx.amount_usd.toString() : '');
+                        setEditTxAmountLBP(tx.amount_lbp > 0 ? tx.amount_lbp.toLocaleString('en-US') : '');
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={s.txEdit}>✎</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteTransaction(tx)}
+                      disabled={deletingTxId === tx.id}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {deletingTxId === tx.id ? (
+                        <ActivityIndicator size="small" color={theme.color.danger} />
+                      ) : (
+                        <Text style={s.txDelete}>✕</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <TouchableOpacity
-                  onPress={() => handleDeleteTransaction(tx)}
-                  disabled={deletingTxId === tx.id}
-                >
-                  {deletingTxId === tx.id ? (
-                    <ActivityIndicator size="small" color={theme.color.danger} />
-                  ) : (
-                    <Text style={s.txDelete}>✕</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
@@ -1406,17 +1556,29 @@ export default function TaskDetailScreen() {
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>DOCUMENTS ({documents.length})</Text>
-            <TouchableOpacity style={s.addDocBtn} onPress={() => setShowScanner(true)}>
-              <Text style={s.addDocBtnText}>+ Scan / Add</Text>
-            </TouchableOpacity>
+            <View style={s.docBtnRow}>
+              <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
+                <Text style={s.scanDocBtnText}>📷 Scan</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
+                <Text style={s.addDocBtnText}>📎 Add</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {documents.length === 0 ? (
-            <TouchableOpacity style={s.docEmpty} onPress={() => setShowScanner(true)}>
+            <View style={s.docEmpty}>
               <Text style={s.docEmptyIcon}>📄</Text>
               <Text style={s.docEmptyText}>No documents yet</Text>
-              <Text style={s.docEmptyHint}>Tap to scan or upload a document</Text>
-            </TouchableOpacity>
+              <View style={s.docEmptyBtnRow}>
+                <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
+                  <Text style={s.scanDocBtnText}>📷 Scan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
+                  <Text style={s.addDocBtnText}>📎 Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : (
             documents.map((doc) => {
               const isPDF  = /application\/pdf/i.test(doc.file_type) || /\.pdf$/i.test(doc.file_url);
@@ -1444,18 +1606,27 @@ export default function TaskDetailScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Delete button */}
-                  {deletingDocId === doc.id ? (
-                    <ActivityIndicator size="small" color={theme.color.danger} />
-                  ) : (
+                  {/* Rename + Delete buttons */}
+                  <View style={s.docActionBtns}>
                     <TouchableOpacity
-                      onPress={() => handleDeleteDocument(doc)}
+                      onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={s.docDeleteBtn}
+                      style={s.docRenameBtn}
                     >
-                      <Text style={s.docDeleteBtnText}>🗑</Text>
+                      <Text style={s.docRenameBtnText}>✎</Text>
                     </TouchableOpacity>
-                  )}
+                    {deletingDocId === doc.id ? (
+                      <ActivityIndicator size="small" color={theme.color.danger} />
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteDocument(doc)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={s.docDeleteBtn}
+                      >
+                        <Text style={s.docDeleteBtnText}>🗑</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               );
             })
@@ -1775,17 +1946,66 @@ export default function TaskDetailScreen() {
         </View>
       </Modal>
 
-      {/* ── DOCUMENT SCANNER MODAL ── */}
+      {/* ── DOCUMENT SCANNER / UPLOAD MODAL ── */}
       <DocumentScannerModal
-        visible={showScanner}
+        visible={scanMode !== null}
+        startMode={scanMode ?? 'camera'}
         taskId={taskId}
         uploadedBy={teamMember?.id}
-        onClose={() => setShowScanner(false)}
+        onClose={() => setScanMode(null)}
         onSuccess={() => {
-          setShowScanner(false);
+          setScanMode(null);
           fetchTask();
         }}
       />
+
+      {/* ── RENAME DOCUMENT MODAL ── */}
+      <Modal
+        visible={renamingDoc !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenamingDoc(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity style={s.renameOverlay} activeOpacity={1} onPress={() => setRenamingDoc(null)}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={s.renameSheet}>
+                <Text style={s.renameTitle}>Rename Document</Text>
+                <TextInput
+                  style={s.renameInput}
+                  value={renameText}
+                  onChangeText={setRenameText}
+                  placeholder="Document name"
+                  placeholderTextColor={theme.color.textMuted}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (renamingDoc) handleRenameDoc(renamingDoc, renameText);
+                    setRenamingDoc(null);
+                  }}
+                />
+                <View style={s.renameBtnRow}>
+                  <TouchableOpacity style={s.renameCancelBtn} onPress={() => setRenamingDoc(null)}>
+                    <Text style={s.renameCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.renameSaveBtn}
+                    onPress={() => {
+                      if (renamingDoc) handleRenameDoc(renamingDoc, renameText);
+                      setRenamingDoc(null);
+                    }}
+                  >
+                    <Text style={s.renameSaveText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── IN-APP PDF VIEWER ── */}
       <Modal
@@ -2330,7 +2550,30 @@ const s = StyleSheet.create({
   txAmtExpense:    { color: theme.color.danger },
   txAmtRevenue:    { color: theme.color.success },
   txMeta:          { ...theme.typography.caption, color: theme.color.textMuted },
+  txRowActions:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  txEdit:          { color: theme.color.primary, fontSize: 16, padding: 4 },
   txDelete:        { color: theme.color.textMuted, fontSize: 16, padding: 4 },
+  txEditForm: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.lg,
+    padding:         theme.spacing.space3,
+    gap:             10,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '44',
+    marginVertical:  2,
+  },
+  txEditActions:  { flexDirection: 'row', gap: 8 },
+  txCancelBtn: {
+    flex:            0,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: theme.spacing.space3,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.bgSurface,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    alignItems:      'center',
+  },
+  txCancelBtnText: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
 
   // Section title row with edit button
   sectionTitleRow: {
@@ -2513,6 +2756,16 @@ const s = StyleSheet.create({
   stopHistoryMeta:  { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
 
   // Documents section
+  docBtnRow:      { flexDirection: 'row', gap: 6 },
+  scanDocBtn: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    7,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 6,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  scanDocBtnText: { ...theme.typography.label, color: theme.color.textPrimary, fontWeight: '700' },
   addDocBtn: {
     backgroundColor: theme.color.primary,
     borderRadius:    7,
@@ -2523,10 +2776,11 @@ const s = StyleSheet.create({
   docEmpty: {
     alignItems:    'center',
     paddingVertical: 24,
+    gap:           12,
   },
-  docEmptyIcon:   { fontSize: 32, marginBottom: theme.spacing.space2 },
+  docEmptyBtnRow: { flexDirection: 'row', gap: 8 },
+  docEmptyIcon:   { fontSize: 32 },
   docEmptyText:   { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
-  docEmptyHint:   { ...theme.typography.label, color: theme.color.border, marginTop: theme.spacing.space1 },
   docRow: {
     flexDirection:   'row',
     alignItems:      'center',
@@ -2606,8 +2860,34 @@ const s = StyleSheet.create({
   },
   viewerStatusMsgText: { ...theme.typography.body, color: theme.color.textSecondary },
 
+  docActionBtns:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  docRenameBtn:     { padding: 4 },
+  docRenameBtnText: { fontSize: 18, color: theme.color.primary },
   docDeleteBtn:     { padding: 4 },
   docDeleteBtnText: { fontSize: 18 },
+
+  // Rename document modal
+  renameOverlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' },
+  renameSheet: {
+    backgroundColor:   theme.color.bgSurface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding:           theme.spacing.space5,
+    paddingBottom:     Platform.OS === 'ios' ? 40 : theme.spacing.space5,
+    gap:               theme.spacing.space4,
+    ...theme.shadow.modal,
+  },
+  renameTitle:      { ...theme.typography.heading, color: theme.color.textPrimary, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  renameInput: {
+    backgroundColor: theme.color.bgBase, color: theme.color.textPrimary,
+    borderRadius:    theme.radius.lg, paddingHorizontal: 14, paddingVertical: theme.spacing.space3,
+    fontSize:        15, borderWidth: 1, borderColor: theme.color.border,
+  },
+  renameBtnRow:     { flexDirection: 'row', gap: theme.spacing.space3 },
+  renameCancelBtn:  { flex: 1, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.lg, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: theme.color.border },
+  renameCancelText: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
+  renameSaveBtn:    { flex: 1, backgroundColor: theme.color.primary, borderRadius: theme.radius.lg, paddingVertical: 13, alignItems: 'center' },
+  renameSaveText:   { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
 
   // Per-stage city + assignee
   stopMetaRow:      { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space2, marginTop: theme.spacing.space2, flexWrap: 'wrap' },
