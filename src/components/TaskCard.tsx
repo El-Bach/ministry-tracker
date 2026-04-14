@@ -115,6 +115,8 @@ function TaskCard({
   const dueUSD       = (task.price_usd ?? 0) - totalRevUSD;
   const dueLBP       = (task.price_lbp ?? 0) - totalRevLBP;
   const hasFinancials = allDone && (task.price_usd > 0 || task.price_lbp > 0 || txs.length > 0);
+  // Show LBP line in both chips whenever any LBP amount exists anywhere
+  const hasLBP = (task.price_lbp ?? 0) > 0 || totalRevLBP > 0 || totalExpLBP > 0;
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -314,7 +316,7 @@ function TaskCard({
             <Text style={[styles.finValue, balanceUSD >= 0 ? styles.finPos : styles.finNeg]}>
               {balanceUSD >= 0 ? '+' : '-'}{fmtUSD(balanceUSD)}
             </Text>
-            {balanceLBP !== 0 && (
+            {hasLBP && (
               <Text style={[styles.finValueSmall, balanceLBP >= 0 ? styles.finPos : styles.finNeg]}>
                 {balanceLBP >= 0 ? '+' : '-'}{fmtLBP(balanceLBP)}
               </Text>
@@ -326,9 +328,9 @@ function TaskCard({
             <Text style={[styles.finValue, dueUSD <= 0 ? styles.finPos : styles.finNeg]}>
               {dueUSD <= 0 ? '✓ ' : ''}{fmtUSD(dueUSD)}
             </Text>
-            {dueLBP !== 0 && (
+            {hasLBP && (
               <Text style={[styles.finValueSmall, dueLBP <= 0 ? styles.finPos : styles.finNeg]}>
-                {fmtLBP(dueLBP)}
+                {dueLBP <= 0 ? '✓ ' : ''}{fmtLBP(dueLBP)}
               </Text>
             )}
           </View>
