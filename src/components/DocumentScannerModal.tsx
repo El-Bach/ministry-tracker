@@ -196,23 +196,33 @@ export default function DocumentScannerModal({
       const fileName = `${docName.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.jpg`;
       const filePath = `documents/${taskId}/${fileName}`;
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI';
-      const uploadUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/task-attachments/${filePath}`;
-
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, capturedUri, {
-        httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-        fieldName: 'file',
-        mimeType: 'image/jpeg',
-        headers: {
-          'apikey': ANON_KEY,
-          'Authorization': `Bearer ${accessToken ?? ANON_KEY}`,
-        },
-      });
-      if (uploadResult.status < 200 || uploadResult.status >= 300) {
-        throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
+      if (Platform.OS === 'web') {
+        // Web: fetch the image blob and upload via Supabase client directly
+        const response = await fetch(capturedUri);
+        const blob = await response.blob();
+        const { error: uploadError } = await supabase.storage
+          .from('task-attachments')
+          .upload(filePath, blob, { contentType: 'image/jpeg', upsert: false });
+        if (uploadError) throw uploadError;
+      } else {
+        // Native: use FileSystem.uploadAsync (not available on web)
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI';
+        const uploadUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/task-attachments/${filePath}`;
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, capturedUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          mimeType: 'image/jpeg',
+          headers: {
+            'apikey': ANON_KEY,
+            'Authorization': `Bearer ${accessToken ?? ANON_KEY}`,
+          },
+        });
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
+        }
       }
 
       const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
