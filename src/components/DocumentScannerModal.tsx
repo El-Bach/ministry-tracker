@@ -16,6 +16,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -175,6 +176,7 @@ export default function DocumentScannerModal({
       setCapturedUri(asset.uri);
       setImageAspectRatio(w > 0 && h > 0 ? h / w : A4_RATIO);
       setDisplayName(autoName('library'));
+      await loadRequirements(); // ensure requirements are ready before preview renders
       setStep('preview');
     } else {
       // User cancelled picker — close the modal
@@ -330,7 +332,13 @@ export default function DocumentScannerModal({
             <View style={{ width: 80 }} />
           </View>
 
-          <ScrollView contentContainerStyle={s.previewScroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView
+            contentContainerStyle={s.previewScroll}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
+            extraScrollHeight={80}
+          >
 
             {/* Image preview — natural aspect ratio, no forced crop */}
             <View style={[s.previewImageWrap, { height: Math.min(previewH, SCREEN_H * 0.55) }]}>
@@ -384,7 +392,7 @@ export default function DocumentScannerModal({
               </Text>
             </TouchableOpacity>
             <View style={{ height: 32 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       )}
 
