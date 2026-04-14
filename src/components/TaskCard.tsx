@@ -209,20 +209,33 @@ function TaskCard({
         </TouchableOpacity>
       </View>
 
-      {/* City chip — right of ROW 1 */}
-      {!!task.city?.name && (
-        <TouchableOpacity
-          style={styles.cityChip}
-          onPress={() => task.city_id && onCityPress?.(task.city_id)}
-          activeOpacity={onCityPress ? 0.65 : 1}
-          disabled={!onCityPress}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          accessibilityRole="button"
-          accessibilityLabel={`Filter by city ${task.city.name}`}
-        >
-          <Text style={styles.cityChipText} numberOfLines={1}>📍 {task.city.name}</Text>
-        </TouchableOpacity>
-      )}
+      {/* City chips — unique cities from route stops */}
+      {(() => {
+        const seen = new Set<string>();
+        const stopCities = (task.route_stops ?? []).filter((s) => {
+          if (!s.city_id || !s.city?.name) return false;
+          if (seen.has(s.city_id)) return false;
+          seen.add(s.city_id);
+          return true;
+        });
+        if (!stopCities.length) return null;
+        return (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+            {stopCities.map((s) => (
+              <TouchableOpacity
+                key={s.city_id}
+                style={styles.cityChip}
+                onPress={() => onCityPress?.(s.city_id!)}
+                activeOpacity={onCityPress ? 0.65 : 1}
+                disabled={!onCityPress}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={styles.cityChipText} numberOfLines={1}>📍 {s.city!.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+      })()}
 
       {/* ROW 2: Service name + contract price */}
       <View style={styles.row2}>

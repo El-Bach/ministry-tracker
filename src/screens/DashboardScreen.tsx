@@ -356,7 +356,7 @@ export default function DashboardScreen() {
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*)), city:cities(id,name)`
+          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name))`
         )
         .order('created_at', { ascending: false }),
       supabase.from('status_labels').select('*').order('sort_order'),
@@ -421,7 +421,10 @@ export default function DashboardScreen() {
     }
     if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
     if (filters.statusLabel && task.current_status !== filters.statusLabel) return false;
-    if (filters.cityId && task.city_id !== filters.cityId) return false;
+    if (filters.cityId) {
+      const hasCity = task.route_stops?.some((s) => s.city_id === filters.cityId);
+      if (!hasCity) return false;
+    }
     if (filters.ministryId) {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
@@ -659,6 +662,7 @@ export default function DashboardScreen() {
     filters.teamMemberId,
     filters.ministryId,
     filters.statusLabel,
+    filters.cityId,
     filters.dateFilter !== 'all',
   ].filter(Boolean).length;
 
