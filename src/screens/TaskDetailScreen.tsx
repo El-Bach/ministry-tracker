@@ -172,6 +172,11 @@ export default function TaskDetailScreen() {
   const [stopCitySearch, setStopCitySearch] = useState('');
   const [openAssigneeStopId, setOpenAssigneeStopId] = useState<string | null>(null);
   const [savingStopField, setSavingStopField] = useState<string | null>(null);
+  const [showCreateExtForm, setShowCreateExtForm] = useState(false);
+  const [newExtName, setNewExtName] = useState('');
+  const [newExtPhone, setNewExtPhone] = useState('');
+  const [newExtReference, setNewExtReference] = useState('');
+  const [savingExtAssignee, setSavingExtAssignee] = useState(false);
 
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
@@ -740,6 +745,22 @@ export default function TaskDetailScreen() {
     fetchTask();
   };
 
+  const handleCreateExtAssigneeForStop = async (stopId: string) => {
+    if (!newExtName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+    setSavingExtAssignee(true);
+    const { data, error } = await supabase
+      .from('assignees')
+      .insert({ name: newExtName.trim(), phone: newExtPhone.trim() || null, reference: newExtReference.trim() || null, created_by: teamMember?.id })
+      .select('*, creator:team_members!created_by(name)')
+      .single();
+    setSavingExtAssignee(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setExtAssignees(prev => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
+    setShowCreateExtForm(false);
+    await handleSetStopAssignee(stopId, null, (data as any).id);
+  };
+
   const handleDeleteComment = (commentId: string) => {
     Alert.alert('Delete Comment', 'Delete this comment?', [
       { text: 'Cancel', style: 'cancel' },
@@ -903,7 +924,7 @@ export default function TaskDetailScreen() {
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.stopMetaChip}
-                      onPress={() => setOpenAssigneeStopId(v => v === stop.id ? null : stop.id)}>
+                      onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}>
                       <Text style={s.stopMetaChipText}>
                         {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
                       </Text>
@@ -937,7 +958,7 @@ export default function TaskDetailScreen() {
                   {/* Assignee dropdown */}
                   {openAssigneeStopId === stop.id && (
                     <View style={s.stopDropdown}>
-                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                      <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
                         {(stop.assigned_to || stop.ext_assignee_id) && (
                           <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopAssignee(stop.id, null, null)}>
                             <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove assignee</Text>
@@ -959,6 +980,32 @@ export default function TaskDetailScreen() {
                             {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
                           </TouchableOpacity>
                         ))}
+                        {/* Create new external assignee */}
+                        <TouchableOpacity style={s.cityDropdownItem}
+                          onPress={() => setShowCreateExtForm(v => !v)}>
+                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                            {showCreateExtForm ? '− Cancel' : '+ Create New Assignee'}
+                          </Text>
+                        </TouchableOpacity>
+                        {showCreateExtForm && (
+                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
+                            <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
+                              placeholder="Full name *" placeholderTextColor={theme.color.textMuted} autoFocus />
+                            <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone}
+                              placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                            <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference}
+                              placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
+                            <TouchableOpacity
+                              style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
+                              onPress={() => handleCreateExtAssigneeForStop(stop.id)}
+                              disabled={savingExtAssignee}
+                            >
+                              {savingExtAssignee
+                                ? <ActivityIndicator color={theme.color.white} size="small" />
+                                : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </ScrollView>
                     </View>
                   )}
