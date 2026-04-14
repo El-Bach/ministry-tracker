@@ -1223,8 +1223,8 @@ export default function TaskDetailScreen() {
                     </View>
                   )}
 
-                  </View>{/* end stageContent */}
-                </View>{/* end stageRow */}
+                  </View>
+                </View>
               );
             })}
           </View>
