@@ -174,14 +174,41 @@ export default function StageRequirementsScreen() {
   }
 
   async function toggleCompleted(req: StopRequirement) {
+    const newVal = !req.is_completed;
     const { error } = await supabase
       .from('stop_requirements')
-      .update({ is_completed: !req.is_completed, updated_at: new Date().toISOString() })
+      .update({ is_completed: newVal, updated_at: new Date().toISOString() })
       .eq('id', req.id);
-    if (!error) {
-      setRequirements((prev) =>
-        prev.map((r) => r.id === req.id ? { ...r, is_completed: !r.is_completed } : r)
-      );
+    if (error) return;
+
+    const updated = requirements.map(r => r.id === req.id ? { ...r, is_completed: newVal } : r);
+    setRequirements(updated);
+
+    // Auto-complete: if ALL requirements are now done → mark stage Done
+    if (newVal && updated.length > 0 && updated.every(r => r.is_completed)) {
+      const now = new Date().toISOString();
+      await supabase.from('task_route_stops')
+        .update({ status: 'Done', updated_at: now })
+        .eq('id', stopId);
+
+      await supabase.from('status_updates').insert({
+        task_id: taskId,
+        stop_id: stopId,
+        new_status: 'Done',
+      });
+
+      // Check if ALL stops are done → archive task
+      const { data: allStops } = await supabase
+        .from('task_route_stops').select('id,status').eq('task_id', taskId);
+      const allDone = allStops?.every(s => s.id === stopId ? true : s.status === 'Done') ?? false;
+      if (allDone) {
+        await supabase.from('tasks')
+          .update({ current_status: 'Done', is_archived: true, updated_at: now })
+          .eq('id', taskId);
+        Alert.alert('Stage Complete', 'All requirements done — stage marked Done.\nAll stages complete, file archived.');
+      } else {
+        Alert.alert('Stage Complete', 'All requirements done — stage automatically marked Done.');
+      }
     }
   }
 

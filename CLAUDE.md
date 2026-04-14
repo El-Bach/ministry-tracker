@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 14 (graphify knowledge graph update; npm ci clean; EAS preview APK build succeeded)
+> Last updated: session 15 (per-stage city+assignee; auto-complete stage on all reqs done; remove task-level city/assignment from NewTask+TaskDetail)
 
 ---
 
@@ -150,7 +150,8 @@ ministry-tracker/
 | `services` | id, name, ministry_id, estimated_duration_days, base_price_usd, base_price_lbp | duration always 0 (unused) |
 | `status_labels` | id, label, color (hex), sort_order | user-defined |
 | `tasks` | id, client_id, service_id, assigned_to (nullable), ext_assignee_id (nullable), current_status, due_date, notes, price_usd, price_lbp, is_archived, created_at, updated_at | ext_assignee_id + is_archived added session 12 |
-| `task_route_stops` | id, task_id, ministry_id, stop_order, status, updated_by | called "stages" in UI |
+| `task_route_stops` | id, task_id, ministry_id, stop_order, status, updated_by, city_id, assigned_to, ext_assignee_id | called "stages" in UI; per-stage city+assignee added session 15 |
+| `cities` | id, name, created_at | Lebanese cities (57 Arabic names); linked to task_route_stops.city_id |
 | `task_comments` | id, task_id, author_id, body, gps_lat, gps_lng | gps columns exist in DB but GPS no longer collected or displayed (session 12) |
 | `status_updates` | id, task_id, stop_id, updated_by, old_status, new_status | audit log |
 | `assignment_history` | id, task_id, assigned_to, assigned_by, created_at | |
@@ -179,6 +180,7 @@ ministry-tracker/
 12. `supabase/migration_client_reference.sql`
 13. `supabase/migration_assignees.sql`
 14. `supabase/migration_archive.sql`
+15. `supabase/migration_stop_fields.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
@@ -534,6 +536,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 15 | Per-stage city + assignee: removed city/assignment from NewTaskScreen and TaskDetail task-level; added city_id/assigned_to/ext_assignee_id to task_route_stops (migration_stop_fields.sql); each stage row now has 📍 city chip + 👤 assignee chip with inline searchable dropdowns; auto-complete stage to Done when all requirements ticked (StageRequirementsScreen) with cascade archive; removed + Req quick-add button from stage rows; deleted migration_cities.sql (superseded) |
 | 14 | graphify knowledge graph incremental update (2 source files re-extracted: NewTaskScreen + StageRequirementsScreen); npm ci clean (728 packages, 0 vulnerabilities); EAS preview APK built successfully (`eas build --platform android --profile preview`) |
 | 13 | StageRequirementsScreen modal fix (height:85% so form fields visible); TaskCard status color fallback fixed (primary instead of current_status color); NewTaskScreen Assign To now supports external assignees + inline create; Android adaptive icon removed (icon.png used directly); iOS PWA deployed to ministry-papers.netlify.app (Safari Add to Home Screen); full-bleed icon-fullbleed.png generated for PWA apple-touch-icon; GitHub backup set up (github.com/El-Bach/ministry-tracker) |
 | 12 | EAS build fixed (lockfile regenerated without --legacy-peer-deps, lucide-react-native removed); custom app icon (assets/icon.png + adaptive-icon.png); Android tab bar safe area (useSafeAreaInsets); external assignees (assignees table + ext_assignee_id, inline create in TaskDetail); archive system (is_archived on tasks, auto-set when all stages Done, Active/Archive toggle on dashboard + FinancialReport); phone call + WhatsApp from TaskCard phone number; edit/delete comments (all users); "+ Req" quick-add requirement per stage in TaskDetail; swipe ghost fix (animated opacity); calendar month/year quick-jump picker; GPS fully removed from comments; ل.ل→LBP, Outstanding→Due; contract price history always visible |

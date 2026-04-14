@@ -29,7 +29,6 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
@@ -54,16 +53,6 @@ import DocumentScannerModal from '../components/DocumentScannerModal';
 
 type DetailRoute = RouteProp<DashboardStackParamList, 'TaskDetail'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
-
-interface AssignmentHistory {
-  id: string;
-  task_id: string;
-  assigned_to?: string;
-  assignee?: TeamMember;
-  assigned_by?: string;
-  assigner?: TeamMember;
-  created_at: string;
-}
 
 interface FileTransaction {
   id: string;
@@ -113,30 +102,7 @@ export default function TaskDetailScreen() {
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
   const [allMembers, setAllMembers] = useState<TeamMember[]>([]);
-  const [assignmentHistory, setAssignmentHistory] = useState<AssignmentHistory[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Assign states
-  const [assigningMe, setAssigningMe] = useState(false);
-  const [showAssignPicker, setShowAssignPicker] = useState(false);
-  const [assigning, setAssigning] = useState(false);
-
-  // New team member creation (existing)
-  const [showNewAssigneeForm, setShowNewAssigneeForm] = useState(false);
-  const [newAssigneeName, setNewAssigneeName] = useState('');
-  const [newAssigneeRole, setNewAssigneeRole] = useState('');
-  const [newAssigneeEmail, setNewAssigneeEmail] = useState('');
-  const [savingAssignee, setSavingAssignee] = useState(false);
-
-  // External assignees (new)
-  const [extAssignees, setExtAssignees] = useState<Array<{id:string;name:string;phone?:string;reference?:string;notes?:string;created_by?:string;creator?:{name:string};created_at:string}>>([]);
-  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
-  const [showCreateAssigneeForm, setShowCreateAssigneeForm] = useState(false);
-  const [newExtName, setNewExtName] = useState('');
-  const [newExtPhone, setNewExtPhone] = useState('');
-  const [newExtReference, setNewExtReference] = useState('');
-  const [newExtNotes, setNewExtNotes] = useState('');
-  const [savingExtAssignee, setSavingExtAssignee] = useState(false);
 
   // Status update states
   const [selectedStop, setSelectedStop] = useState<TaskRouteStop | null>(null);
@@ -189,19 +155,7 @@ export default function TaskDetailScreen() {
   const [editNotes, setEditNotes] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
   const [editServiceId, setEditServiceId] = useState('');
-  const [allCities, setAllCities] = useState<City[]>([]);
-  const [citySearch, setCitySearch] = useState('');
-  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
-  const [pinnedCityIds, setPinnedCityIds] = useState<string[]>([]);
-  const [savingCity, setSavingCity] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
-
-  // Quick add requirement states
-  const [showQuickReq, setShowQuickReq] = useState(false);
-  const [quickReqStopId, setQuickReqStopId] = useState('');
-  const [quickReqStageName, setQuickReqStageName] = useState('');
-  const [quickReqTitle, setQuickReqTitle] = useState('');
-  const [savingQuickReq, setSavingQuickReq] = useState(false);
 
   // Document archive states
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
@@ -211,15 +165,21 @@ export default function TaskDetailScreen() {
   const [viewingDoc, setViewingDoc] = useState<TaskDocument | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
 
+  // Per-stage city / assignee
+  const [allCities, setAllCities] = useState<City[]>([]);
+  const [extAssignees, setExtAssignees] = useState<any[]>([]);
+  const [openCityStopId, setOpenCityStopId] = useState<string | null>(null);
+  const [stopCitySearch, setStopCitySearch] = useState('');
+  const [openAssigneeStopId, setOpenAssigneeStopId] = useState<string | null>(null);
+  const [savingStopField, setSavingStopField] = useState<string | null>(null);
+
   const fetchTask = useCallback(async () => {
-    const [taskRes, commentsRes, labelsRes, membersRes, historyRes, citiesRes] = await Promise.all([
+    const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*),
-           ext_assignee:assignees!ext_assignee_id(*, creator:team_members!created_by(name)),
-           route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*)),
-           city:cities(id,name)`
+          `*, client:clients(*), service:services(*),
+           route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*), city:cities(id,name), assignee:team_members!assigned_to(id,name,role,push_token), ext_assignee:assignees!ext_assignee_id(id,name,phone))`
         )
         .eq('id', taskId)
         .single(),
@@ -230,15 +190,12 @@ export default function TaskDetailScreen() {
         .order('created_at', { ascending: true }),
       supabase.from('status_labels').select('*').order('sort_order'),
       supabase.from('team_members').select('*').order('name'),
-      supabase
-        .from('assignment_history')
-        .select('*, assignee:team_members!assigned_to(*), assigner:team_members!assigned_by(*)')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: false }),
       supabase.from('cities').select('*').order('name'),
+      supabase.from('assignees').select('*, creator:team_members!created_by(name)').order('name'),
     ]);
 
     if (citiesRes.data) setAllCities(citiesRes.data as City[]);
+    if (assigneesRes.data) setExtAssignees(assigneesRes.data as any[]);
     if (taskRes.data) {
       const t = taskRes.data as Task;
       if (t.route_stops) {
@@ -251,7 +208,6 @@ export default function TaskDetailScreen() {
     if (commentsRes.data) setComments(commentsRes.data as TaskComment[]);
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
     if (membersRes.data) setAllMembers(membersRes.data as TeamMember[]);
-    if (historyRes.data) setAssignmentHistory(historyRes.data as AssignmentHistory[]);
 
     // Fetch status update history per stop
     const { data: statusHistData } = await supabase
@@ -293,13 +249,6 @@ export default function TaskDetailScreen() {
       .eq('task_id', taskId)
       .order('created_at', { ascending: false });
     if (docsData) setDocuments(docsData as TaskDocument[]);
-
-    // Load all external assignees
-    const { data: assigneesData } = await supabase
-      .from('assignees')
-      .select('*, creator:team_members!created_by(name)')
-      .order('name');
-    if (assigneesData) setExtAssignees(assigneesData as any[]);
 
     // Load all available stages
     const { data: stagesData } = await supabase
@@ -547,38 +496,6 @@ export default function TaskDetailScreen() {
     setShowEditTask(true);
   };
 
-  const handleSetCity = async (cityId: string | null) => {
-    setSavingCity(true);
-    await supabase
-      .from('tasks')
-      .update({ city_id: cityId, updated_at: new Date().toISOString() })
-      .eq('id', taskId);
-    setSavingCity(false);
-    fetchTask();
-  };
-
-  // ── City pin helpers (stored locally per device) ─────────────────────────
-  const PINNED_KEY = '@pinned_city_ids';
-
-  useEffect(() => {
-    AsyncStorage.getItem(PINNED_KEY).then(raw => {
-      if (raw) setPinnedCityIds(JSON.parse(raw));
-    });
-  }, []);
-
-  const togglePinCity = async (cityId: string) => {
-    const next = pinnedCityIds.includes(cityId)
-      ? pinnedCityIds.filter(id => id !== cityId)
-      : [cityId, ...pinnedCityIds];
-    setPinnedCityIds(next);
-    await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
-  };
-
-  const sortedCities = (list: typeof allCities) => [
-    ...list.filter(c => pinnedCityIds.includes(c.id)),
-    ...list.filter(c => !pinnedCityIds.includes(c.id)),
-  ];
-
   const handleSaveEdit = async () => {
     if (!editServiceId) {
       Alert.alert('Required', 'Please select a service.');
@@ -664,159 +581,6 @@ export default function TaskDetailScreen() {
         },
       },
     ]);
-  };
-
-  // ─── Core assign function (saves history) ─────────────────
-  const assignToMember = async (memberId: string | null) => {
-    const { error } = await supabase
-      .from('tasks')
-      .update({ assigned_to: memberId, updated_at: new Date().toISOString() })
-      .eq('id', taskId);
-
-    if (error) { Alert.alert('Error', error.message); return false; }
-
-    // Save to assignment history
-    await supabase.from('assignment_history').insert({
-      task_id: taskId,
-      assigned_to: memberId,
-      assigned_by: teamMember?.id,
-    });
-
-    // Notify newly assigned member if it's not the current user
-    if (memberId && memberId !== teamMember?.id) {
-      const assignedMember = allMembers.find((m) => m.id === memberId);
-      if (assignedMember?.push_token) {
-        sendPushNotification(
-          assignedMember.push_token,
-          'File Assigned to You',
-          `${task?.client?.name} — ${task?.service?.name}`,
-          { taskId }
-        );
-      }
-    }
-
-    fetchTask();
-    return true;
-  };
-
-  // ─── Assign me ────────────────────────────────────────────
-  const handleAssignMe = async () => {
-    if (!teamMember) return;
-    setAssigningMe(true);
-    await assignToMember(teamMember.id);
-    setAssigningMe(false);
-  };
-
-  // ─── Assign specific member ───────────────────────────────
-  const handleAssignMember = async (member: TeamMember) => {
-    setAssigning(true);
-    await assignToMember(member.id);
-    setAssigning(false);
-    setShowAssignPicker(false);
-  };
-
-  // ─── Unassign ─────────────────────────────────────────────
-  const handleUnassign = () => {
-    Alert.alert('Unassign', 'Remove current assignment?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unassign',
-        style: 'destructive',
-        onPress: async () => {
-          await assignToMember(null);
-        },
-      },
-    ]);
-  };
-
-  // ─── External assignee operations ────────────────────────
-  const handleAssignExternal = async (assigneeId: string) => {
-    const { error } = await supabase
-      .from('tasks')
-      .update({ ext_assignee_id: assigneeId, updated_at: new Date().toISOString() })
-      .eq('id', taskId);
-    if (error) { Alert.alert('Error', error.message); return; }
-    setShowAssigneePicker(false);
-    fetchTask();
-  };
-
-  const handleUnassignExternal = () => {
-    Alert.alert('Remove Assignee', 'Remove the current assignee?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => {
-        await supabase.from('tasks').update({ ext_assignee_id: null, updated_at: new Date().toISOString() }).eq('id', taskId);
-        fetchTask();
-      }},
-    ]);
-  };
-
-  const handleCreateExternalAssignee = async () => {
-    if (!newExtName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
-    setSavingExtAssignee(true);
-    const { data, error } = await supabase
-      .from('assignees')
-      .insert({
-        name: newExtName.trim(),
-        phone: newExtPhone.trim() || null,
-        reference: newExtReference.trim() || null,
-        notes: newExtNotes.trim() || null,
-        created_by: teamMember?.id,
-      })
-      .select('*, creator:team_members!created_by(name)')
-      .single();
-    setSavingExtAssignee(false);
-    if (error) { Alert.alert('Error', error.message); return; }
-    const newAssignee = data as any;
-    setExtAssignees((prev) => [...prev, newAssignee].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setNewExtNotes('');
-    setShowCreateAssigneeForm(false);
-    // Auto-assign to this task
-    await handleAssignExternal(newAssignee.id);
-  };
-
-  // ─── Create new team member assignee ──────────────────────────────────
-  const handleCreateAssignee = async () => {
-    if (!newAssigneeName.trim()) {
-      Alert.alert('Required', 'Name is required.');
-      return;
-    }
-    if (!newAssigneeEmail.trim()) {
-      Alert.alert('Required', 'Email is required.');
-      return;
-    }
-    setSavingAssignee(true);
-    const { data, error } = await supabase
-      .from('team_members')
-      .insert({
-        name: newAssigneeName.trim(),
-        role: newAssigneeRole.trim() || 'Agent',
-        email: newAssigneeEmail.trim().toLowerCase(),
-      })
-      .select()
-      .single();
-    setSavingAssignee(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-      return;
-    }
-
-    const newMember = data as TeamMember;
-    setAllMembers((prev) => [...prev, newMember].sort((a, b) => a.name.localeCompare(b.name)));
-
-    // Auto-assign the newly created member
-    await assignToMember(newMember.id);
-
-    setShowNewAssigneeForm(false);
-    setNewAssigneeName('');
-    setNewAssigneeRole('');
-    setNewAssigneeEmail('');
-    setShowAssignPicker(false);
-
-    Alert.alert(
-      'Member Added',
-      `${newMember.name} has been added and assigned to this task.\n\nRemember to create their Supabase Auth account so they can log in.`
-    );
   };
 
   // ─── Status update ────────────────────────────────────────
@@ -958,33 +722,22 @@ export default function TaskDetailScreen() {
     fetchTask();
   };
 
-  // ─── Quick add requirement ────────────────────────────────
-  const handleSaveQuickReq = async () => {
-    if (!quickReqTitle.trim()) {
-      Alert.alert('Required', 'Requirement title is required.');
-      return;
-    }
-    setSavingQuickReq(true);
-    const { data: existing } = await supabase
-      .from('stop_requirements')
-      .select('sort_order')
-      .eq('stop_id', quickReqStopId)
-      .order('sort_order', { ascending: false })
-      .limit(1);
-    const nextOrder = (existing?.[0]?.sort_order ?? 0) + 1;
-    const { error } = await supabase.from('stop_requirements').insert({
-      stop_id: quickReqStopId,
-      title: quickReqTitle.trim(),
-      req_type: 'document',
-      is_completed: false,
-      sort_order: nextOrder,
-      created_by: teamMember?.id,
-    });
-    setSavingQuickReq(false);
-    if (error) { Alert.alert('Error', error.message); return; }
-    setShowQuickReq(false);
-    setQuickReqTitle('');
-    Alert.alert('Added', `Requirement added to ${quickReqStageName}.`);
+  // ─── Per-stage city / assignee handlers ─────────────────
+  const handleSetStopCity = async (stopId: string, cityId: string | null) => {
+    setSavingStopField(stopId);
+    await supabase.from('task_route_stops').update({ city_id: cityId }).eq('id', stopId);
+    setSavingStopField(null);
+    setOpenCityStopId(null);
+    setStopCitySearch('');
+    fetchTask();
+  };
+
+  const handleSetStopAssignee = async (stopId: string, memberId: string | null, extId: string | null) => {
+    setSavingStopField(stopId);
+    await supabase.from('task_route_stops').update({ assigned_to: memberId, ext_assignee_id: extId }).eq('id', stopId);
+    setSavingStopField(null);
+    setOpenAssigneeStopId(null);
+    fetchTask();
   };
 
   const handleDeleteComment = (commentId: string) => {
@@ -1006,7 +759,6 @@ export default function TaskDetailScreen() {
   }
 
   const mainStatusColor = getStatusColor(task.current_status);
-  const isAssignedToMe = task.assigned_to === teamMember?.id;
 
   // Compute balances — contract price is NOT revenue, it's the agreed billing amount
   const totalRevenueUSD = transactions.filter((t) => t.type === 'revenue').reduce((sum, t) => sum + t.amount_usd, 0);
@@ -1078,224 +830,6 @@ export default function TaskDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── CITY ── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>CITY</Text>
-            {savingCity && <ActivityIndicator size="small" color={theme.color.primary} style={{ marginStart: 8 }} />}
-          </View>
-
-          {/* City picker row: current value + dropdown toggle */}
-          <TouchableOpacity
-            style={s.cityPickerRow}
-            onPress={() => { setCityDropdownOpen(v => !v); setCitySearch(''); }}
-            activeOpacity={0.8}
-          >
-            {/* Left: current city or placeholder */}
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-              {task.city?.name ? (
-                <>
-                  <Text style={s.cityValue} numberOfLines={1}>📍 {task.city.name}</Text>
-                  <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation?.(); handleSetCity(null); setCitySearch(''); setCityDropdownOpen(false); }}
-                    disabled={savingCity}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <Text style={s.cityRemove}>✕</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={s.cityPlaceholder}>No city assigned</Text>
-              )}
-            </View>
-            {/* Dropdown chevron */}
-            <Text style={s.cityDropdownBtnText}>{cityDropdownOpen ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
-
-          {/* Expanded: search + list */}
-          {cityDropdownOpen && (
-            <View style={s.cityDropdownList}>
-              <TextInput
-                style={s.citySearchInner}
-                value={citySearch}
-                onChangeText={setCitySearch}
-                placeholder="Search city..."
-                placeholderTextColor={theme.color.textMuted}
-                clearButtonMode="while-editing"
-                autoCorrect={false}
-                autoFocus
-              />
-              <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
-                {(() => {
-                  const filtered = sortedCities(
-                    allCities.filter(c => !citySearch.trim() || c.name.includes(citySearch.trim()))
-                  );
-                  const pinnedCount = filtered.filter(c => pinnedCityIds.includes(c.id)).length;
-                  if (filtered.length === 0) {
-                    return (
-                      <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>
-                        No cities match "{citySearch}"
-                      </Text>
-                    );
-                  }
-                  return filtered.map((city, idx) => (
-                    <React.Fragment key={city.id}>
-                      {/* Section headers — only when not searching */}
-                      {!citySearch.trim() && pinnedCount > 0 && idx === 0 && (
-                        <View style={s.cityPinnedDivider}>
-                          <Text style={s.cityPinnedDividerText}>PINNED</Text>
-                        </View>
-                      )}
-                      {pinnedCount > 0 && idx === pinnedCount && (
-                        <View style={s.cityPinnedDivider}>
-                          <Text style={s.cityPinnedDividerText}>ALL CITIES</Text>
-                        </View>
-                      )}
-                      <View style={[s.cityDropdownItem, task.city_id === city.id && s.cityDropdownItemActive]}>
-                        {/* Select city */}
-                        <TouchableOpacity
-                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                          onPress={() => { handleSetCity(city.id); setCitySearch(''); setCityDropdownOpen(false); }}
-                          disabled={savingCity}
-                        >
-                            <Text style={[s.cityDropdownItemText, task.city_id === city.id && { color: theme.color.primaryText, fontWeight: '600' }]}>
-                            {city.name}
-                          </Text>
-                          {task.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-                        </TouchableOpacity>
-                        {/* Pin toggle */}
-                        <TouchableOpacity
-                          onPress={() => togglePinCity(city.id)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          style={s.cityPinBtn}
-                        >
-                          <Text style={[s.cityPinBtnText, pinnedCityIds.includes(city.id) && s.cityPinBtnActive]}>
-                            {pinnedCityIds.includes(city.id) ? '📌' : '📍'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </React.Fragment>
-                  ));
-                })()}
-              </ScrollView>
-            </View>
-          )}
-
-        </View>
-
-        {/* ── ASSIGNMENT CARD ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>ASSIGNMENT</Text>
-
-          {/* Current assignee */}
-          <View style={s.assignRow}>
-            <View style={s.assignAvatar}>
-              <Text style={s.assignAvatarText}>
-                {task.assignee ? task.assignee.name.charAt(0).toUpperCase() : '?'}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.assignName}>
-                {task.assignee?.name ?? 'Unassigned'}
-                {isAssignedToMe && <Text style={s.youTag}> (you)</Text>}
-              </Text>
-              {task.assignee?.role && (
-                <Text style={s.assignRole}>{task.assignee.role}</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Action buttons */}
-          <View style={s.assignBtns}>
-            {!isAssignedToMe && (
-              <TouchableOpacity
-                style={[s.assignMeBtn, assigningMe && s.disabledBtn]}
-                onPress={handleAssignMe}
-                disabled={assigningMe}
-              >
-                {assigningMe ? (
-                  <ActivityIndicator color={theme.color.white} size="small" />
-                ) : (
-                  <Text style={s.assignMeBtnText}>⚡ Assign to Me</Text>
-                )}
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={s.assignPickerBtn}
-              onPress={() => setShowAssignPicker(true)}
-            >
-              <Text style={s.assignPickerBtnText}>
-                {task.assigned_to ? '↺ Reassign' : '+ Assign Member'}
-              </Text>
-            </TouchableOpacity>
-            {task.assigned_to && (
-              <TouchableOpacity style={s.unassignBtn} onPress={handleUnassign}>
-                <Text style={s.unassignBtnText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* External Assignee subsection */}
-          <View style={s.extAssigneeSection}>
-            <Text style={s.extAssigneeSectionLabel}>ASSIGNEE</Text>
-            {task.ext_assignee ? (
-              <View style={s.extAssigneeCard}>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={s.extAssigneeName}>{task.ext_assignee.name}</Text>
-                  {(task.ext_assignee as any).phone ? (
-                    <Text style={s.extAssigneeMeta}>📞 {(task.ext_assignee as any).phone}</Text>
-                  ) : null}
-                  {(task.ext_assignee as any).reference ? (
-                    <Text style={s.extAssigneeMeta}>Ref: {(task.ext_assignee as any).reference}</Text>
-                  ) : null}
-                  {(task.ext_assignee as any).notes ? (
-                    <Text style={s.extAssigneeMeta}>📝 {(task.ext_assignee as any).notes}</Text>
-                  ) : null}
-                  {(task.ext_assignee as any).creator?.name ? (
-                    <Text style={s.extAssigneeCreatedBy}>Added by {(task.ext_assignee as any).creator.name}</Text>
-                  ) : null}
-                </View>
-                <View style={{ gap: 6 }}>
-                  <TouchableOpacity style={s.extReassignBtn} onPress={() => setShowAssigneePicker(true)}>
-                    <Text style={s.extReassignBtnText}>↺ Change</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.extRemoveBtn} onPress={handleUnassignExternal}>
-                    <Text style={s.extRemoveBtnText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity style={s.extAssignBtn} onPress={() => setShowAssigneePicker(true)}>
-                <Text style={s.extAssignBtnText}>+ Assign Assignee</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Assignment history */}
-          {assignmentHistory.length > 0 && (
-            <View style={s.historyBlock}>
-              <Text style={s.historyTitle}>ASSIGNMENT HISTORY</Text>
-              {assignmentHistory.map((h) => (
-                <View key={h.id} style={s.historyRow}>
-                  <View style={s.historyDot} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.historyText}>
-                      {h.assignee
-                        ? <Text style={s.historyName}>{h.assignee.name}</Text>
-                        : <Text style={s.historyUnassigned}>Unassigned</Text>
-                      }
-                      {h.assigner && (
-                        <Text style={s.historyBy}> · by {h.assigner.name}</Text>
-                      )}
-                    </Text>
-                    <Text style={s.historyDate}>{formatDate(h.created_at)}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
         {/* ── STAGES ROUTE ── */}
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
@@ -1346,18 +880,6 @@ export default function TaskDetailScreen() {
                       <Text style={s.reqStopBtnText}>📋 Requirements</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={s.addReqBtn}
-                      onPress={() => {
-                        setQuickReqStopId(stop.id);
-                        setQuickReqStageName(stop.ministry?.name ?? 'Stage');
-                        setQuickReqTitle('');
-                        setShowQuickReq(true);
-                      }}
-                    >
-                      <Text style={s.addReqBtnText}>+ Req</Text>
-                    </TouchableOpacity>
-
                     {stopHistory.length > 0 && (
                       <TouchableOpacity
                         style={s.historyToggleBtn}
@@ -1371,6 +893,75 @@ export default function TaskDetailScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+
+                  {/* Per-stage city + assignee chips */}
+                  <View style={s.stopMetaRow}>
+                    <TouchableOpacity style={s.stopMetaChip}
+                      onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); }}>
+                      <Text style={s.stopMetaChipText}>
+                        {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.stopMetaChip}
+                      onPress={() => setOpenAssigneeStopId(v => v === stop.id ? null : stop.id)}>
+                      <Text style={s.stopMetaChipText}>
+                        {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
+                      </Text>
+                    </TouchableOpacity>
+                    {savingStopField === stop.id && <ActivityIndicator size="small" color={theme.color.primary} />}
+                  </View>
+
+                  {/* City dropdown */}
+                  {openCityStopId === stop.id && (
+                    <View style={s.stopDropdown}>
+                      <TextInput style={s.citySearchInner} value={stopCitySearch} onChangeText={setStopCitySearch}
+                        placeholder="Search city..." placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
+                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                        {stop.city_id && (
+                          <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopCity(stop.id, null)}>
+                            <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove city</Text>
+                          </TouchableOpacity>
+                        )}
+                        {allCities.filter(c => !stopCitySearch.trim() || c.name.includes(stopCitySearch.trim())).map(city => (
+                          <TouchableOpacity key={city.id}
+                            style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}
+                            onPress={() => handleSetStopCity(stop.id, city.id)}>
+                            <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
+                            {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {/* Assignee dropdown */}
+                  {openAssigneeStopId === stop.id && (
+                    <View style={s.stopDropdown}>
+                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                        {(stop.assigned_to || stop.ext_assignee_id) && (
+                          <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopAssignee(stop.id, null, null)}>
+                            <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove assignee</Text>
+                          </TouchableOpacity>
+                        )}
+                        {allMembers.map(m => (
+                          <TouchableOpacity key={m.id}
+                            style={[s.cityDropdownItem, stop.assigned_to === m.id && s.cityDropdownItemActive]}
+                            onPress={() => handleSetStopAssignee(stop.id, m.id, null)}>
+                            <Text style={s.cityDropdownItemText}>{m.name} · {m.role}</Text>
+                            {stop.assigned_to === m.id && <Text style={s.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        ))}
+                        {extAssignees.map((a: any) => (
+                          <TouchableOpacity key={a.id}
+                            style={[s.cityDropdownItem, stop.ext_assignee_id === a.id && s.cityDropdownItemActive]}
+                            onPress={() => handleSetStopAssignee(stop.id, null, a.id)}>
+                            <Text style={s.cityDropdownItemText}>{a.name} (ext)</Text>
+                            {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
 
                   {/* Status history for this stop */}
                   {isHistoryExpanded && stopHistory.length > 0 && (
@@ -1875,108 +1466,6 @@ export default function TaskDetailScreen() {
         </View>
       </Modal>
 
-      {/* ── ASSIGN MEMBER MODAL ── */}
-      <Modal
-        visible={showAssignPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowAssignPicker(false); setShowNewAssigneeForm(false); }}
-      >
-        <View style={s.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-          >
-          <View style={s.modalSheet}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Assign to Member</Text>
-              <TouchableOpacity onPress={() => { setShowAssignPicker(false); setShowNewAssigneeForm(false); }}>
-                <Text style={s.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 500 }}>
-              {/* Existing members */}
-              {allMembers.map((member) => {
-                const isCurrentAssignee = task.assigned_to === member.id;
-                const isMe = member.id === teamMember?.id;
-                return (
-                  <TouchableOpacity
-                    key={member.id}
-                    style={[s.memberOption, isCurrentAssignee && s.memberOptionActive]}
-                    onPress={() => handleAssignMember(member)}
-                    disabled={assigning}
-                  >
-                    <View style={s.memberAvatar}>
-                      <Text style={s.memberAvatarText}>
-                        {member.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.memberName}>
-                        {member.name}{isMe ? ' (you)' : ''}
-                      </Text>
-                      <Text style={s.memberRole}>{member.role}</Text>
-                    </View>
-                    {isCurrentAssignee && <Text style={s.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* Create new assignee toggle */}
-              <TouchableOpacity
-                style={s.createMemberBtn}
-                onPress={() => setShowNewAssigneeForm((v) => !v)}
-              >
-                <Text style={s.createMemberBtnText}>
-                  {showNewAssigneeForm ? '− Cancel' : '+ Create New Member'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* New assignee form */}
-              {showNewAssigneeForm && (
-                <View style={s.newMemberForm}>
-                  <TextInput
-                    style={s.newMemberInput}
-                    value={newAssigneeName}
-                    onChangeText={setNewAssigneeName}
-                    placeholder="Full name *"
-                    placeholderTextColor={theme.color.textMuted}
-                  />
-                  <TextInput
-                    style={s.newMemberInput}
-                    value={newAssigneeRole}
-                    onChangeText={setNewAssigneeRole}
-                    placeholder="Role"
-                    placeholderTextColor={theme.color.textMuted}
-                  />
-                  <TextInput
-                    style={s.newMemberInput}
-                    value={newAssigneeEmail}
-                    onChangeText={setNewAssigneeEmail}
-                    placeholder="Email *"
-                    placeholderTextColor={theme.color.textMuted}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    style={[s.newMemberSaveBtn, savingAssignee && s.disabledBtn]}
-                    onPress={handleCreateAssignee}
-                    disabled={savingAssignee}
-                  >
-                    {savingAssignee ? (
-                      <ActivityIndicator color={theme.color.white} size="small" />
-                    ) : (
-                      <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
       {/* ── EDIT STAGES MODAL ── */}
       <Modal
         visible={showEditStages}
@@ -2112,116 +1601,6 @@ export default function TaskDetailScreen() {
           </View>
           </KeyboardAvoidingView>
         </View>
-      </Modal>
-
-      {/* ── ASSIGNEE PICKER MODAL ── */}
-      <Modal
-        visible={showAssigneePicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => { setShowAssigneePicker(false); setShowCreateAssigneeForm(false); }}
-      >
-        <View style={s.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <View style={[s.modalSheet, { maxHeight: '85%' }]}>
-              <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Select Assignee</Text>
-                <TouchableOpacity onPress={() => { setShowAssigneePicker(false); setShowCreateAssigneeForm(false); }}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
-                {extAssignees.length === 0 && !showCreateAssigneeForm && (
-                  <Text style={s.emptyText}>No assignees yet. Create one below.</Text>
-                )}
-                {extAssignees.map((a) => (
-                  <TouchableOpacity
-                    key={a.id}
-                    style={[s.memberOption, task.ext_assignee_id === a.id && s.memberOptionActive]}
-                    onPress={() => handleAssignExternal(a.id)}
-                  >
-                    <View style={s.memberAvatar}>
-                      <Text style={s.memberAvatarText}>{a.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={s.memberName}>{a.name}</Text>
-                      {a.phone ? <Text style={s.memberRole}>{a.phone}</Text> : null}
-                      {a.reference ? <Text style={s.memberRole}>Ref: {a.reference}</Text> : null}
-                      {a.creator?.name ? <Text style={[s.memberRole, { color: theme.color.textMuted }]}>Added by {a.creator.name}</Text> : null}
-                    </View>
-                    {task.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
-
-                {/* Create new assignee form toggle */}
-                <TouchableOpacity style={s.createMemberBtn} onPress={() => setShowCreateAssigneeForm((v) => !v)}>
-                  <Text style={s.createMemberBtnText}>
-                    {showCreateAssigneeForm ? '− Cancel' : '+ Create New Assignee'}
-                  </Text>
-                </TouchableOpacity>
-
-                {showCreateAssigneeForm && (
-                  <View style={s.newMemberForm}>
-                    <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName} placeholder="Full name *" placeholderTextColor={theme.color.textMuted} />
-                    <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone} placeholder="Phone number" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
-                    <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference} placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
-                    <TextInput style={[s.newMemberInput, { minHeight: 60, textAlignVertical: 'top' }]} value={newExtNotes} onChangeText={setNewExtNotes} placeholder="Notes" placeholderTextColor={theme.color.textMuted} multiline />
-                    <TouchableOpacity
-                      style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
-                      onPress={handleCreateExternalAssignee}
-                      disabled={savingExtAssignee}
-                    >
-                      {savingExtAssignee
-                        ? <ActivityIndicator color={theme.color.white} size="small" />
-                        : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
-
-      {/* ── QUICK ADD REQUIREMENT MODAL ── */}
-      <Modal
-        visible={showQuickReq}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowQuickReq(false)}
-      >
-        <KeyboardAvoidingView
-          style={s.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={s.modalSheet}>
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Add Requirement — {quickReqStageName}</Text>
-              <TouchableOpacity onPress={() => setShowQuickReq(false)}>
-                <Text style={s.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={s.modalBody}>
-              <TextInput
-                style={s.txInput}
-                value={quickReqTitle}
-                onChangeText={setQuickReqTitle}
-                placeholder="Requirement title *"
-                placeholderTextColor={theme.color.textMuted}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={[s.txSaveBtn, s.txSaveBtnRevenue, savingQuickReq && s.disabledBtn]}
-                onPress={handleSaveQuickReq}
-                disabled={savingQuickReq}
-              >
-                {savingQuickReq
-                  ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.txSaveBtnText}>Add Requirement</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── DOCUMENT SCANNER MODAL ── */}
@@ -2440,69 +1819,6 @@ const s = StyleSheet.create({
   },
   sectionTitle: { ...theme.typography.sectionDivider },
 
-  // Assignment
-  assignRow:       { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space3 },
-  assignAvatar: {
-    width:           40,
-    height:          40,
-    borderRadius:    20,
-    backgroundColor: theme.color.border,
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  assignAvatarText: { ...theme.typography.body, color: theme.color.textSecondary, fontSize: 16, fontWeight: '700' },
-  assignName:       { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 15, fontWeight: '700' },
-  youTag:           { ...theme.typography.body, color: theme.color.primaryText },
-  assignRole:       { ...theme.typography.caption, color: theme.color.textSecondary, marginTop: 2 },
-  assignBtns:       { flexDirection: 'row', gap: theme.spacing.space2, flexWrap: 'wrap' },
-  assignMeBtn: {
-    backgroundColor: theme.color.primary,
-    borderRadius:    theme.radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  assignMeBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
-  assignPickerBtn: {
-    backgroundColor: theme.color.primaryDim,
-    borderRadius:    theme.radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderWidth:     1,
-    borderColor:     theme.color.primary + '55',
-  },
-  assignPickerBtnText: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
-  unassignBtn: {
-    backgroundColor: theme.color.danger + '22',
-    borderRadius:    theme.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderWidth:     1,
-    borderColor:     theme.color.danger + '55',
-  },
-  unassignBtnText: { ...theme.typography.body, color: theme.color.danger, fontWeight: '700' },
-
-  // Assignment history
-  historyBlock: {
-    borderTopWidth:  1,
-    borderTopColor:  theme.color.border,
-    paddingTop:      theme.spacing.space3,
-    gap:             theme.spacing.space2,
-  },
-  historyTitle:      { ...theme.typography.sectionDivider },
-  historyRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  historyDot: {
-    width:           8,
-    height:          8,
-    borderRadius:    4,
-    backgroundColor: theme.color.border,
-    marginTop:       4,
-  },
-  historyText:       { ...theme.typography.label, color: theme.color.textSecondary },
-  historyName:       { color: theme.color.textSecondary, fontWeight: '700' },
-  historyUnassigned: { color: theme.color.textMuted, fontStyle: 'italic' },
-  historyBy:         { color: theme.color.textMuted },
-  historyDate:       { ...theme.typography.caption, color: theme.color.border, marginTop: 1 },
-
   // Route
   routeContainer: { gap: theme.spacing.space1 },
   updateStopBtn: {
@@ -2523,15 +1839,6 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   reqStopBtnText: { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
-  addReqBtn: {
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical:   theme.spacing.space2,
-    borderRadius:      theme.radius.sm,
-    backgroundColor:   theme.color.success + '22',
-    borderWidth:       1,
-    borderColor:       theme.color.success + '55',
-  },
-  addReqBtnText: { ...theme.typography.label, color: theme.color.success, fontWeight: '600' },
 
   // Comments
   emptyText: { ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', paddingVertical: theme.spacing.space2 },
@@ -2646,33 +1953,7 @@ const s = StyleSheet.create({
   optionText:      { flex: 1, fontSize: 15, fontWeight: '600' },
   checkmark:       { color: theme.color.success, fontSize: 18 },
 
-  // City picker
-  cityPickerRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    backgroundColor: theme.color.bgSurface,
-    borderRadius:    theme.radius.md,
-    borderWidth:     1,
-    borderColor:     theme.color.border,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical:   theme.spacing.space2,
-    gap:             theme.spacing.space2,
-  },
-  cityValue: {
-    ...theme.typography.body,
-    color:      theme.color.primaryText,
-    fontWeight: '600',
-    flex:       1,
-  },
-  cityPlaceholder: {
-    ...theme.typography.body,
-    color: theme.color.textMuted,
-  },
-  cityRemove: {
-    color:      theme.color.danger,
-    fontSize:   13,
-    marginStart: theme.spacing.space2,
-  },
+  // City picker (reused by per-stage dropdowns)
   citySearchInner: {
     fontSize:          14,
     color:             theme.color.textPrimary,
@@ -2681,19 +1962,6 @@ const s = StyleSheet.create({
     borderBottomColor: theme.color.border,
     paddingHorizontal: theme.spacing.space3,
     paddingVertical:   theme.spacing.space2,
-  },
-  cityDropdownBtnText: {
-    color:    theme.color.textMuted,
-    fontSize: 12,
-  },
-  cityDropdownList: {
-    backgroundColor: theme.color.bgSurface,
-    borderRadius:    theme.radius.md,
-    borderWidth:     1,
-    borderColor:     theme.color.border,
-    marginTop:       theme.spacing.space1,
-    maxHeight:       260,
-    overflow:        'hidden',
   },
   cityDropdownItem: {
     flexDirection:     'row',
@@ -2711,33 +1979,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     color:    theme.color.textPrimary,
     flex:     1,
-  },
-  cityPinnedDivider: {
-    backgroundColor:   theme.color.bgBase,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical:   4,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
-  },
-  cityPinnedDividerText: {
-    ...theme.typography.caption,
-    color:      theme.color.textMuted,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  cityPinIndicator: {
-    fontSize: 11,
-  },
-  cityPinBtn: {
-    paddingHorizontal: theme.spacing.space2,
-    paddingVertical:   2,
-  },
-  cityPinBtnText: {
-    fontSize: 14,
-    opacity:  0.35,
-  },
-  cityPinBtnActive: {
-    opacity: 1,
   },
   memberOption: {
     flexDirection:   'row',
@@ -2849,18 +2090,6 @@ const s = StyleSheet.create({
     paddingVertical: 5,
   },
   priceHistoryBtnText: { ...theme.typography.caption, color: theme.color.textSecondary },
-  extAssigneeSection: { marginTop: theme.spacing.space3, paddingTop: theme.spacing.space3, borderTopWidth: 1, borderTopColor: theme.color.border },
-  extAssigneeSectionLabel: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: theme.spacing.space2 },
-  extAssigneeCard: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space3, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space3 },
-  extAssigneeName: { ...theme.typography.body, fontWeight: '700' },
-  extAssigneeMeta: { ...theme.typography.caption, color: theme.color.textSecondary },
-  extAssigneeCreatedBy: { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
-  extAssignBtn: { paddingVertical: theme.spacing.space2, paddingHorizontal: theme.spacing.space3, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, alignSelf: 'flex-start' },
-  extAssignBtnText: { ...theme.typography.label, color: theme.color.textSecondary },
-  extReassignBtn: { paddingVertical: theme.spacing.space1, paddingHorizontal: theme.spacing.space2, borderRadius: theme.radius.sm, backgroundColor: theme.color.primary + '22' },
-  extReassignBtnText: { ...theme.typography.caption, color: theme.color.primaryText, fontWeight: '600' },
-  extRemoveBtn: { paddingVertical: theme.spacing.space1, paddingHorizontal: theme.spacing.space2, borderRadius: theme.radius.sm, backgroundColor: theme.color.danger + '22' },
-  extRemoveBtnText: { ...theme.typography.caption, color: theme.color.danger, fontWeight: '600' },
   priceHistoryBlock:   { marginTop: theme.spacing.space3, marginBottom: theme.spacing.space2, paddingStart: theme.spacing.space3, borderStartWidth: 2, borderStartColor: theme.color.primary + '44' },
   priceHistoryLabel:   { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: theme.spacing.space2 },
   priceHistoryEmpty:   { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
@@ -3218,4 +2447,10 @@ const s = StyleSheet.create({
 
   docDeleteBtn:     { padding: 4 },
   docDeleteBtnText: { fontSize: 18 },
+
+  // Per-stage city + assignee
+  stopMetaRow:      { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space2, marginTop: theme.spacing.space2, flexWrap: 'wrap' },
+  stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border },
+  stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary },
+  stopDropdown:     { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: theme.spacing.space1, overflow: 'hidden' },
 });

@@ -63,6 +63,13 @@ export interface TaskRouteStop {
   gps_lng?: number;
   notes?: string;
   created_at: string;
+  // per-stage fields (added migration_stop_fields.sql)
+  city_id?: string | null;
+  city?: City | null;
+  assigned_to?: string | null;
+  assignee?: TeamMember | null;
+  ext_assignee_id?: string | null;
+  ext_assignee?: { id: string; name: string; phone?: string } | null;
 }
 
 export interface TaskComment {
