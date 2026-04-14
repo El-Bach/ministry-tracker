@@ -23,11 +23,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const A4_RATIO   = 297 / 210; // height / width — used for frame overlay only
-const FRAME_W    = SCREEN_W * 0.84;
-const FRAME_H    = FRAME_W * A4_RATIO;
-const FRAME_TOP  = (SCREEN_H - FRAME_H) / 2 - 40;
-const FRAME_LEFT = (SCREEN_W - FRAME_W) / 2;
+const A4_RATIO = 297 / 210; // height / width — used for preview only
 
 interface ReqItem { id: string; title: string; stopName: string; }
 
@@ -282,32 +278,11 @@ export default function DocumentScannerModal({
         <View style={s.cameraScreen}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
 
-          {/* Dark overlay outside frame */}
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <View style={[s.overlay, { height: FRAME_TOP }]} />
-            <View style={{ height: FRAME_H, flexDirection: 'row' }}>
-              <View style={[s.overlay, { flex: 1 }]} />
-              <View style={{ width: FRAME_W, height: FRAME_H }}>
-                <View style={[s.corner, s.cornerTL]} />
-                <View style={[s.corner, s.cornerTR]} />
-                <View style={[s.corner, s.cornerBL]} />
-                <View style={[s.corner, s.cornerBR]} />
-              </View>
-              <View style={[s.overlay, { flex: 1 }]} />
-            </View>
-            <View style={[s.overlay, { flex: 1 }]} />
-          </View>
-
-          {/* A4 hint label */}
-          <View pointerEvents="none" style={[s.frameLabel, { top: FRAME_TOP + 8, left: FRAME_LEFT + 10 }]}>
-            <Text style={s.frameLabelText}>A4</Text>
-          </View>
-
           <View style={s.camTopBar}>
             <TouchableOpacity onPress={handleClose} style={s.camCloseBtn}>
               <Text style={s.camCloseBtnText}>✕</Text>
             </TouchableOpacity>
-            <Text style={s.camHint}>Align document inside frame</Text>
+            <Text style={s.camHint}>Take a photo</Text>
             <TouchableOpacity onPress={pickFromLibrary} style={s.camLibBtn}>
               <Text style={s.camLibBtnText}>Library</Text>
             </TouchableOpacity>
@@ -451,9 +426,6 @@ export default function DocumentScannerModal({
   );
 }
 
-const CORNER = 24;
-const THICK  = 3;
-
 const s = StyleSheet.create({
   permScreen:     { flex: 1, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center', padding: 32, gap: theme.spacing.space4 },
   permIcon:       { fontSize: 48 },
@@ -465,14 +437,6 @@ const s = StyleSheet.create({
   permLibBtnText: { ...theme.typography.body, color: theme.color.primary, fontWeight: '600' },
 
   cameraScreen: { flex: 1, backgroundColor: '#000000' },
-  overlay:      { backgroundColor: 'rgba(0,0,0,0.65)' },
-  corner:       { position: 'absolute', width: CORNER, height: CORNER, borderColor: theme.color.white },
-  cornerTL:     { top: 0, left: 0, borderTopWidth: THICK, borderLeftWidth: THICK },
-  cornerTR:     { top: 0, right: 0, borderTopWidth: THICK, borderRightWidth: THICK },
-  cornerBL:     { bottom: 0, left: 0, borderBottomWidth: THICK, borderLeftWidth: THICK },
-  cornerBR:     { bottom: 0, right: 0, borderBottomWidth: THICK, borderRightWidth: THICK },
-  frameLabel:     { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: theme.radius.sm - 2, paddingHorizontal: 7, paddingVertical: 2 },
-  frameLabelText: { color: theme.color.white, fontSize: theme.typography.sectionDivider.fontSize, fontWeight: '800' },
 
   camTopBar: {
     position: 'absolute', top: Platform.OS === 'ios' ? 56 : theme.spacing.space4, left: 0, right: 0,
