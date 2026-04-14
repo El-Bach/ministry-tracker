@@ -93,6 +93,13 @@ function formatDate(iso: string) {
   });
 }
 
+// For date-only fields (YYYY-MM-DD) — parse without timezone to avoid day-shift
+function formatDateOnly(iso: string) {
+  const [y, m, d] = iso.split('T')[0].split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)} ${months[parseInt(m) - 1]} ${parseInt(y)}`;
+}
+
 export default function TaskDetailScreen() {
   const route = useRoute<DetailRoute>();
   const navigation = useNavigation<Nav>();
@@ -864,7 +871,7 @@ export default function TaskDetailScreen() {
             <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
               <Text style={s.metaLabel}>DUE DATE ✎</Text>
               <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
-                {task.due_date ? formatDate(task.due_date) : 'Tap to set'}
+                {task.due_date ? formatDateOnly(task.due_date) : 'Tap to set'}
               </Text>
             </TouchableOpacity>
             <View style={s.metaCell}>
