@@ -356,7 +356,7 @@ export default function DashboardScreen() {
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name))`
+          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name)), transactions:file_transactions(type,amount_usd,amount_lbp)`
         )
         .order('created_at', { ascending: false }),
       supabase.from('status_labels').select('*').order('sort_order'),

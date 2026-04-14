@@ -104,6 +104,20 @@ function TaskCard({
   const stopsDone  = task.route_stops?.filter((s) => s.status === 'Done').length ?? 0;
   const allDone    = stopsTotal > 0 && stopsDone === stopsTotal;
 
+  // Financial summary — only computed for archived (allDone) cards
+  const txs = task.transactions ?? [];
+  const totalRevUSD  = txs.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount_usd, 0);
+  const totalExpUSD  = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_usd, 0);
+  const totalRevLBP  = txs.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount_lbp, 0);
+  const totalExpLBP  = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_lbp, 0);
+  const balanceUSD   = totalRevUSD - totalExpUSD;
+  const balanceLBP   = totalRevLBP - totalExpLBP;
+  const dueUSD       = (task.price_usd ?? 0) - totalRevUSD;
+  const dueLBP       = (task.price_lbp ?? 0) - totalRevLBP;
+  const hasFinancials = allDone && (task.price_usd > 0 || task.price_lbp > 0 || txs.length > 0);
+  const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
   // Status logic: show urgentStatus if different from current_status, else current_status
   const nonDoneStatuses = task.route_stops
     ?.filter((s) => s.status !== 'Done')
@@ -291,6 +305,35 @@ function TaskCard({
           </Text>
         )}
       </View>
+
+      {/* FINANCIAL SUMMARY — archived cards only */}
+      {hasFinancials && (
+        <View style={styles.finRow}>
+          <View style={styles.finChip}>
+            <Text style={styles.finLabel}>BAL</Text>
+            <Text style={[styles.finValue, balanceUSD >= 0 ? styles.finPos : styles.finNeg]}>
+              {balanceUSD >= 0 ? '+' : '-'}{fmtUSD(balanceUSD)}
+            </Text>
+            {balanceLBP !== 0 && (
+              <Text style={[styles.finValueSmall, balanceLBP >= 0 ? styles.finPos : styles.finNeg]}>
+                {balanceLBP >= 0 ? '+' : '-'}{fmtLBP(balanceLBP)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.finDivider} />
+          <View style={styles.finChip}>
+            <Text style={styles.finLabel}>DUE</Text>
+            <Text style={[styles.finValue, dueUSD <= 0 ? styles.finPos : styles.finNeg]}>
+              {dueUSD <= 0 ? '✓ ' : ''}{fmtUSD(dueUSD)}
+            </Text>
+            {dueLBP !== 0 && (
+              <Text style={[styles.finValueSmall, dueLBP <= 0 ? styles.finPos : styles.finNeg]}>
+                {fmtLBP(dueLBP)}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -437,6 +480,44 @@ const styles = StyleSheet.create({
   dueTextUrgent: {
     color: theme.color.warning,
   },
+
+  // Financial summary row (archive only)
+  finRow: {
+    flexDirection:   'row',
+    alignItems:      'stretch',
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    overflow:        'hidden',
+    marginTop:       2,
+  },
+  finChip: {
+    flex:            1,
+    paddingVertical: 5,
+    paddingHorizontal: theme.spacing.space2,
+    gap:             1,
+  },
+  finDivider: {
+    width:           1,
+    backgroundColor: theme.color.border,
+  },
+  finLabel: {
+    ...theme.typography.sectionDivider,
+    fontSize:   9,
+    letterSpacing: 0.6,
+    color:      theme.color.textMuted,
+  },
+  finValue: {
+    fontSize:   12,
+    fontWeight: '700',
+  },
+  finValueSmall: {
+    fontSize:   10,
+    fontWeight: '600',
+  },
+  finPos: { color: theme.color.success },
+  finNeg: { color: theme.color.danger },
 
   // Error state
   errorText: {

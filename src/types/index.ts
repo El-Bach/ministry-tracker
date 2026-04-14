@@ -136,6 +136,7 @@ export interface Task {
   // joined relations
   route_stops?: TaskRouteStop[];
   comments?: TaskComment[];
+  transactions?: Array<{ type: 'expense' | 'revenue'; amount_usd: number; amount_lbp: number }>;
 }
 
 export interface TaskPriceHistory {
