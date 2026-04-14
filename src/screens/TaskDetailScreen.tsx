@@ -29,6 +29,7 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
@@ -177,6 +178,10 @@ export default function TaskDetailScreen() {
   const [newExtPhone, setNewExtPhone] = useState('');
   const [newExtReference, setNewExtReference] = useState('');
   const [savingExtAssignee, setSavingExtAssignee] = useState(false);
+  const [pinnedCityIds, setPinnedCityIds] = useState<string[]>([]);
+  const [showCreateCityForm, setShowCreateCityForm] = useState(false);
+  const [newCityName, setNewCityName] = useState('');
+  const [savingCity, setSavingCity] = useState(false);
 
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
@@ -761,6 +766,33 @@ export default function TaskDetailScreen() {
     await handleSetStopAssignee(stopId, null, (data as any).id);
   };
 
+  const PINNED_KEY = '@pinned_city_ids';
+
+  useEffect(() => {
+    AsyncStorage.getItem(PINNED_KEY).then(raw => { if (raw) setPinnedCityIds(JSON.parse(raw)); });
+  }, []);
+
+  const togglePinCity = async (cityId: string) => {
+    const next = pinnedCityIds.includes(cityId)
+      ? pinnedCityIds.filter(id => id !== cityId)
+      : [cityId, ...pinnedCityIds];
+    setPinnedCityIds(next);
+    await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+  };
+
+  const handleCreateCity = async (stopId: string) => {
+    if (!newCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    setSavingCity(true);
+    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim() }).select().single();
+    setSavingCity(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    const created = data as City;
+    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewCityName('');
+    setShowCreateCityForm(false);
+    await handleSetStopCity(stopId, created.id);
+  };
+
   const handleDeleteComment = (commentId: string) => {
     Alert.alert('Delete Comment', 'Delete this comment?', [
       { text: 'Cancel', style: 'cancel' },
@@ -918,7 +950,7 @@ export default function TaskDetailScreen() {
                   {/* Per-stage city + assignee chips */}
                   <View style={s.stopMetaRow}>
                     <TouchableOpacity style={s.stopMetaChip}
-                      onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); }}>
+                      onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}>
                       <Text style={s.stopMetaChipText}>
                         {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
                       </Text>
@@ -937,20 +969,76 @@ export default function TaskDetailScreen() {
                     <View style={s.stopDropdown}>
                       <TextInput style={s.citySearchInner} value={stopCitySearch} onChangeText={setStopCitySearch}
                         placeholder="Search city..." placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
-                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                      <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
+                        {/* Remove current city */}
                         {stop.city_id && (
                           <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopCity(stop.id, null)}>
                             <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove city</Text>
                           </TouchableOpacity>
                         )}
-                        {allCities.filter(c => !stopCitySearch.trim() || c.name.includes(stopCitySearch.trim())).map(city => (
-                          <TouchableOpacity key={city.id}
-                            style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}
-                            onPress={() => handleSetStopCity(stop.id, city.id)}>
-                            <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
-                            {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-                          </TouchableOpacity>
+                        {/* Pinned cities — always visible */}
+                        {pinnedCityIds.length > 0 && !stopCitySearch.trim() && (
+                          <View style={{ backgroundColor: theme.color.bgBase, paddingHorizontal: theme.spacing.space3, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                            <Text style={{ ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' }}>PINNED</Text>
+                          </View>
+                        )}
+                        {allCities.filter(c => pinnedCityIds.includes(c.id) && (!stopCitySearch.trim() || c.name.includes(stopCitySearch.trim()))).map(city => (
+                          <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
+                            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                              onPress={() => handleSetStopCity(stop.id, city.id)}>
+                              <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
+                              {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => togglePinCity(city.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Text style={{ fontSize: 14 }}>📌</Text>
+                            </TouchableOpacity>
+                          </View>
                         ))}
+                        {/* Search results (non-pinned) — only shown while typing */}
+                        {stopCitySearch.trim() ? (
+                          allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.includes(stopCitySearch.trim())).length === 0
+                          && pinnedCityIds.filter(id => allCities.find(c => c.id === id)?.name.includes(stopCitySearch.trim())).length === 0
+                            ? <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{stopCitySearch}"</Text>
+                            : allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.includes(stopCitySearch.trim())).map(city => (
+                              <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
+                                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                  onPress={() => handleSetStopCity(stop.id, city.id)}>
+                                  <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
+                                  {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => togglePinCity(city.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  <Text style={{ fontSize: 14, opacity: 0.35 }}>📍</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))
+                        ) : (
+                          pinnedCityIds.length === 0 && !stop.city_id && (
+                            <Text style={{ color: theme.color.textMuted, fontSize: 12, padding: theme.spacing.space3 }}>
+                              Search for a city or pin one to show it here
+                            </Text>
+                          )
+                        )}
+                        {/* Create new city */}
+                        <TouchableOpacity style={s.cityDropdownItem} onPress={() => setShowCreateCityForm(v => !v)}>
+                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                            {showCreateCityForm ? '− Cancel' : '+ Create New City'}
+                          </Text>
+                        </TouchableOpacity>
+                        {showCreateCityForm && (
+                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
+                            <TextInput style={s.newMemberInput} value={newCityName} onChangeText={setNewCityName}
+                              placeholder="City name *" placeholderTextColor={theme.color.textMuted} />
+                            <TouchableOpacity
+                              style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
+                              onPress={() => handleCreateCity(stop.id)}
+                              disabled={savingCity}
+                            >
+                              {savingCity
+                                ? <ActivityIndicator color={theme.color.white} size="small" />
+                                : <Text style={s.newMemberSaveBtnText}>Save & Select</Text>}
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </ScrollView>
                     </View>
                   )}
