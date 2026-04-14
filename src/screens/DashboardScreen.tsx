@@ -54,7 +54,9 @@ function SwipeableTaskRow({
   onCityPress,
   onEdit,
   onDelete,
+  onUnarchive,
   onFinance,
+  isArchived,
 }: {
   task: Task;
   statusColor: string;
@@ -64,7 +66,9 @@ function SwipeableTaskRow({
   onCityPress: (cityId: string) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onUnarchive: () => void;
   onFinance: () => void;
+  isArchived: boolean;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef<'left' | 'right' | false>(false);
@@ -132,7 +136,7 @@ function SwipeableTaskRow({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Left-swipe: Edit + Delete actions (right side) — hidden at rest */}
+      {/* Left-swipe: Edit + Delete/Unarchive actions (right side) — hidden at rest */}
       <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
         <TouchableOpacity
           style={swipeStyles.editBtn}
@@ -140,12 +144,21 @@ function SwipeableTaskRow({
         >
           <Text style={swipeStyles.editBtnText}>✎{'\n'}Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={swipeStyles.deleteBtn}
-          onPress={() => { close(); onDelete(); }}
-        >
-          <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
-        </TouchableOpacity>
+        {isArchived ? (
+          <TouchableOpacity
+            style={swipeStyles.unarchiveBtn}
+            onPress={() => { close(); onUnarchive(); }}
+          >
+            <Text style={swipeStyles.unarchivedBtnText}>📋{'\n'}Restore</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={swipeStyles.deleteBtn}
+            onPress={() => { close(); onDelete(); }}
+          >
+            <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
 
       {/* Swipeable card */}
@@ -213,6 +226,14 @@ const swipeStyles = StyleSheet.create({
     gap:             theme.spacing.space1,
   },
   deleteBtnText: { ...theme.typography.caption, color: theme.color.white, fontWeight: '700', textAlign: 'center' },
+  unarchiveBtn: {
+    flex:            1,
+    backgroundColor: theme.color.success,
+    alignItems:      'center',
+    justifyContent:  'center',
+    gap:             theme.spacing.space1,
+  },
+  unarchivedBtnText: { ...theme.typography.caption, color: theme.color.white, fontWeight: '700', textAlign: 'center' },
 });
 
 interface Filters {
@@ -626,6 +647,14 @@ export default function DashboardScreen() {
     ]);
   };
 
+  const handleUnarchiveTask = async (task: Task) => {
+    await supabase
+      .from('tasks')
+      .update({ is_archived: false, updated_at: new Date().toISOString() })
+      .eq('id', task.id);
+    fetchData();
+  };
+
   const activeFilterCount = [
     filters.teamMemberId,
     filters.ministryId,
@@ -640,20 +669,26 @@ export default function DashboardScreen() {
   );
 
   const renderTaskRow = useCallback(
-    ({ item }: { item: Task }) => (
-      <SwipeableTaskRow
-        task={item}
-        statusColor={getStatusColor(item.current_status)}
-        allStatusColors={allStatusColorsMap}
-        onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-        onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
-        onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
-        onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-        onDelete={() => handleDeleteTask(item)}
-        onFinance={() => openQuickFinance(item)}
-      />
-    ),
-    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, openQuickFinance]
+    ({ item }: { item: Task }) => {
+      const itemIsArchived = item.is_archived === true ||
+        ((item.route_stops?.length ?? 0) > 0 && item.route_stops!.every((s) => s.status === 'Done'));
+      return (
+        <SwipeableTaskRow
+          task={item}
+          statusColor={getStatusColor(item.current_status)}
+          allStatusColors={allStatusColorsMap}
+          onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+          onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
+          onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
+          onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+          onDelete={() => handleDeleteTask(item)}
+          onUnarchive={() => handleUnarchiveTask(item)}
+          onFinance={() => openQuickFinance(item)}
+          isArchived={itemIsArchived}
+        />
+      );
+    },
+    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
   );
 
   if (loading) {
