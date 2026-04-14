@@ -25,6 +25,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { Calendar } from 'react-native-calendars';
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -154,7 +155,7 @@ export default function TaskDetailScreen() {
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [showEditTask, setShowEditTask] = useState(false);
   const [editNotes, setEditNotes] = useState('');
-  const [editDueDate, setEditDueDate] = useState('');
+  const [showDueDateCalendar, setShowDueDateCalendar] = useState(false);
   const [editServiceId, setEditServiceId] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -501,9 +502,14 @@ export default function TaskDetailScreen() {
 
   const openEditTask = () => {
     setEditNotes(task?.notes ?? '');
-    setEditDueDate(task?.due_date ? isoToDisplay(task.due_date) : '');
     setEditServiceId(task?.service_id ?? '');
     setShowEditTask(true);
+  };
+
+  const handleSetDueDate = async (isoDate: string | null) => {
+    await supabase.from('tasks').update({ due_date: isoDate, updated_at: new Date().toISOString() }).eq('id', taskId);
+    setShowDueDateCalendar(false);
+    fetchTask();
   };
 
   const handleSaveEdit = async () => {
@@ -511,17 +517,11 @@ export default function TaskDetailScreen() {
       Alert.alert('Required', 'Please select a service.');
       return;
     }
-    const isoDate = editDueDate.trim() ? displayToISO(editDueDate) : null;
-    if (editDueDate.trim() && !isoDate) {
-      Alert.alert('Invalid Date', 'Enter date as DD/MM/YYYY.');
-      return;
-    }
     setSavingEdit(true);
     const { error } = await supabase
       .from('tasks')
       .update({
         notes: editNotes.trim() || null,
-        due_date: isoDate,
         service_id: editServiceId,
         updated_at: new Date().toISOString(),
       })
@@ -861,10 +861,12 @@ export default function TaskDetailScreen() {
               <Text style={s.metaLabel}>SERVICE</Text>
               <Text style={s.metaValue}>{task.service?.name}</Text>
             </View>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>DUE DATE</Text>
-              <Text style={s.metaValue}>{task.due_date ?? '—'}</Text>
-            </View>
+            <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
+              <Text style={s.metaLabel}>DUE DATE ✎</Text>
+              <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
+                {task.due_date ? formatDate(task.due_date) : 'Tap to set'}
+              </Text>
+            </TouchableOpacity>
             <View style={s.metaCell}>
               <Text style={s.metaLabel}>OPENED</Text>
               <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
@@ -882,6 +884,34 @@ export default function TaskDetailScreen() {
             <Text style={s.editTaskBtnText}>✎ Edit File Details</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── INLINE DUE DATE CALENDAR ── */}
+        {showDueDateCalendar && (
+          <View style={s.dueDateCalendarCard}>
+            <Calendar
+              current={task.due_date ?? undefined}
+              markedDates={task.due_date ? { [task.due_date]: { selected: true, selectedColor: theme.color.primary } } : {}}
+              onDayPress={(day: { dateString: string }) => handleSetDueDate(day.dateString)}
+              theme={{
+                backgroundColor: theme.color.bgBase,
+                calendarBackground: theme.color.bgBase,
+                textSectionTitleColor: theme.color.textMuted,
+                selectedDayBackgroundColor: theme.color.primary,
+                selectedDayTextColor: theme.color.white,
+                todayTextColor: theme.color.primaryText,
+                dayTextColor: theme.color.textSecondary,
+                textDisabledColor: theme.color.border,
+                arrowColor: theme.color.primary,
+                monthTextColor: theme.color.textPrimary,
+              }}
+            />
+            {task.due_date && (
+              <TouchableOpacity style={s.dueDateClearBtn} onPress={() => handleSetDueDate(null)}>
+                <Text style={s.dueDateClearBtnText}>✕ Clear due date</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* ── STAGES ROUTE ── */}
         <View style={s.section}>
@@ -1873,17 +1903,6 @@ export default function TaskDetailScreen() {
                   </TouchableOpacity>
                 ))}
 
-                {/* Due date */}
-                <Text style={[s.editFieldLabel, { marginTop: 16 }]}>DUE DATE</Text>
-                <TextInput
-                  style={s.newMemberInput}
-                  value={editDueDate}
-                  onChangeText={setEditDueDate}
-                  placeholder="DD/MM/YYYY"
-                  placeholderTextColor={theme.color.textMuted}
-                  keyboardType="decimal-pad"
-                />
-
                 {/* Notes */}
                 <Text style={[s.editFieldLabel, { marginTop: 16 }]}>NOTES</Text>
                 <TextInput
@@ -2588,4 +2607,7 @@ const s = StyleSheet.create({
   stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border },
   stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary },
   stopDropdown:     { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: theme.spacing.space1, overflow: 'hidden' },
+  dueDateCalendarCard: { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
+  dueDateClearBtn:     { padding: theme.spacing.space3, alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.color.border },
+  dueDateClearBtnText: { color: theme.color.danger, fontSize: 13, fontWeight: '600' },
 });
