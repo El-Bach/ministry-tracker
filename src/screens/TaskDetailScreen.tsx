@@ -977,74 +977,92 @@ export default function TaskDetailScreen() {
             {task.route_stops?.map((stop, idx) => {
               const stopHistory = stopHistories[stop.id] ?? [];
               const isHistoryExpanded = expandedStopHistory === stop.id;
+              const isLast = idx === (task.route_stops?.length ?? 0) - 1;
               return (
-                <View key={stop.id}>
-                  <RouteStop
-                    stop={stop}
-                    isLast={idx === (task.route_stops?.length ?? 0) - 1}
-                    statusColor={getStatusColor(stop.status)}
-                  />
+                <View key={stop.id} style={s.stageRow}>
 
-                  {/* Action row: Update + Requirements + History toggle */}
-                  <View style={s.stopActionRow}>
-                    <TouchableOpacity
-                      style={s.updateStopBtn}
-                      onPress={() => {
-                        setSelectedStop(stop);
-                        setShowStatusPicker(true);
-                      }}
-                      disabled={updatingStop === stop.id}
-                    >
-                      {updatingStop === stop.id ? (
-                        <ActivityIndicator color={theme.color.primary} size="small" />
-                      ) : (
-                        <Text style={s.updateStopBtnText}>Update Status</Text>
-                      )}
-                    </TouchableOpacity>
+                  {/* ── Rail: dot + continuous line ── */}
+                  <View style={s.stageRail}>
+                    <View style={[s.stageDot, { backgroundColor: getStatusColor(stop.status) }]} />
+                    {!isLast && <View style={s.stageLine} />}
+                  </View>
 
-                    <TouchableOpacity
-                      style={s.reqStopBtn}
-                      onPress={() =>
-                        navigation.navigate('StageRequirements', {
-                          stopId: stop.id,
-                          stageName: stop.ministry?.name ?? 'Requirements',
-                          taskId,
-                        })
-                      }
-                    >
-                      <Text style={s.reqStopBtnText}>📋 Requirements</Text>
-                    </TouchableOpacity>
+                  {/* ── All stage content (rail line spans this full height) ── */}
+                  <View style={s.stageContent}>
 
-                    {stopHistory.length > 0 && (
-                      <TouchableOpacity
-                        style={s.historyToggleBtn}
-                        onPress={() =>
-                          setExpandedStopHistory(isHistoryExpanded ? null : stop.id)
-                        }
-                      >
-                        <Text style={s.historyToggleBtnText}>
-                          {isHistoryExpanded ? '▲ Hide' : `▼ History (${stopHistory.length})`}
-                        </Text>
-                      </TouchableOpacity>
+                    {/* Ministry name + order */}
+                    <View style={s.stageHeader}>
+                      <Text style={s.stageMinistryName} numberOfLines={2}>
+                        {stop.ministry?.name ?? 'Unknown Ministry'}
+                      </Text>
+                      <Text style={s.stageOrder}>#{stop.stop_order}</Text>
+                    </View>
+
+                    {/* Status badge */}
+                    <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
+
+                    {/* 2×2 button grid */}
+                    <View style={s.stageBtnGrid}>
+                      {/* Left column: Update Status → Set city */}
+                      <View style={s.stageBtnCol}>
+                        <TouchableOpacity
+                          style={s.updateStopBtn}
+                          onPress={() => { setSelectedStop(stop); setShowStatusPicker(true); }}
+                          disabled={updatingStop === stop.id}
+                        >
+                          {updatingStop === stop.id
+                            ? <ActivityIndicator color={theme.color.primary} size="small" />
+                            : <Text style={s.updateStopBtnText}>Update Status</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.stopMetaChip}
+                          onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
+                        >
+                          <Text style={s.stopMetaChipText}>
+                            {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Right column: Requirements → Set assignee */}
+                      <View style={s.stageBtnCol}>
+                        <TouchableOpacity
+                          style={s.reqStopBtn}
+                          onPress={() => navigation.navigate('StageRequirements', {
+                            stopId: stop.id,
+                            stageName: stop.ministry?.name ?? 'Requirements',
+                            taskId,
+                          })}
+                        >
+                          <Text style={s.reqStopBtnText}>📋 Requirements</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.stopMetaChip}
+                          onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}
+                        >
+                          <Text style={s.stopMetaChipText}>
+                            {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Saving indicator + History toggle */}
+                    {(savingStopField === stop.id || stopHistory.length > 0) && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {savingStopField === stop.id && <ActivityIndicator size="small" color={theme.color.primary} />}
+                        {stopHistory.length > 0 && (
+                          <TouchableOpacity
+                            style={s.historyToggleBtn}
+                            onPress={() => setExpandedStopHistory(isHistoryExpanded ? null : stop.id)}
+                          >
+                            <Text style={s.historyToggleBtnText}>
+                              {isHistoryExpanded ? '▲ Hide' : `▼ History (${stopHistory.length})`}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     )}
-                  </View>
-
-                  {/* Per-stage city + assignee chips */}
-                  <View style={s.stopMetaRow}>
-                    <TouchableOpacity style={s.stopMetaChip}
-                      onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}>
-                      <Text style={s.stopMetaChipText}>
-                        {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.stopMetaChip}
-                      onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}>
-                      <Text style={s.stopMetaChipText}>
-                        {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
-                      </Text>
-                    </TouchableOpacity>
-                    {savingStopField === stop.id && <ActivityIndicator size="small" color={theme.color.primary} />}
-                  </View>
 
                   {/* City dropdown */}
                   {openCityStopId === stop.id && (
@@ -1204,7 +1222,9 @@ export default function TaskDetailScreen() {
                       ))}
                     </View>
                   )}
-                </View>
+
+                  </View>{/* end stageContent */}
+                </View>{/* end stageRow */}
               );
             })}
           </View>
@@ -2698,7 +2718,19 @@ const s = StyleSheet.create({
   },
   editStagesSaveBtnText: { ...theme.typography.body, color: theme.color.white, fontSize: 15, fontWeight: '700' },
 
-  // Stop action row
+  // Stage row — inline rail layout (replaces RouteStop + separate action rows)
+  stageRow:          { flexDirection: 'row', gap: theme.spacing.space3 },
+  stageRail:         { alignItems: 'center', width: theme.spacing.space5 },
+  stageDot:          { width: 12, height: 12, borderRadius: 6, marginTop: theme.spacing.space1 },
+  stageLine:         { width: 2, flex: 1, backgroundColor: theme.color.border, marginTop: theme.spacing.space1 },
+  stageContent:      { flex: 1, paddingBottom: theme.spacing.space5, gap: theme.spacing.space2 },
+  stageHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stageMinistryName: { ...theme.typography.body, fontWeight: '700', flex: 1 },
+  stageOrder:        { ...theme.typography.caption, fontWeight: '600' },
+  stageBtnGrid:      { flexDirection: 'row', gap: theme.spacing.space2, marginTop: 2 },
+  stageBtnCol:       { flex: 1, gap: theme.spacing.space2 },
+
+  // Stop action row (kept for any remaining references)
   stopActionRow: {
     flexDirection:  'row',
     alignItems:     'center',
@@ -2891,7 +2923,7 @@ const s = StyleSheet.create({
 
   // Per-stage city + assignee
   stopMetaRow:      { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space2, marginTop: theme.spacing.space2, flexWrap: 'wrap' },
-  stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border },
+  stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border, alignItems: 'center', justifyContent: 'center' },
   stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary },
   stopDropdown:     { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: theme.spacing.space1, overflow: 'hidden' },
   dueDateCalendarCard: { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
