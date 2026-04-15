@@ -188,6 +188,7 @@ export default function TaskDetailScreen() {
   const [printingDoc, setPrintingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<TaskDocument | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
+  const [duplicating, setDuplicating] = useState(false);
 
   // Per-stage city / assignee
   const [allCities, setAllCities] = useState<City[]>([]);
@@ -967,6 +968,92 @@ export default function TaskDetailScreen() {
     ]);
   };
 
+  // ─── Share status via WhatsApp ────────────────────────────
+  const handleShareWhatsApp = () => {
+    if (!task) return;
+    const stops = [...(task.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
+    const stageLines = stops
+      .map((s, i) => `  ${i + 1}. ${s.ministry?.name ?? 'Stage'}: ${s.status}`)
+      .join('\n');
+
+    const parts: string[] = [
+      `📁 *تحديث ملف*`,
+      `العميل: ${task.client?.name ?? '-'}`,
+      `الخدمة: ${task.service?.name ?? '-'}`,
+      `الحالة: *${task.current_status}*`,
+    ];
+    if (task.due_date) parts.push(`تاريخ الاستحقاق: ${formatDateOnly(task.due_date)}`);
+    if (stops.length > 0) parts.push(`\n*المراحل:*\n${stageLines}`);
+    if (task.notes) parts.push(`\nملاحظات: ${task.notes}`);
+
+    const msg = parts.join('\n');
+    Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`);
+  };
+
+  // ─── Duplicate task ───────────────────────────────────────
+  const handleDuplicateTask = () => {
+    if (!task) return;
+    Alert.alert(
+      'Duplicate File',
+      `Create a new file for ${task.client?.name} with the same service and stages?\n\nThe new file will start as "Submitted" with all stages reset to "Pending".`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Duplicate',
+          onPress: async () => {
+            setDuplicating(true);
+            try {
+              const now = new Date().toISOString();
+              const { data: newTask, error: taskErr } = await supabase
+                .from('tasks')
+                .insert({
+                  client_id: task.client_id,
+                  service_id: task.service_id,
+                  current_status: 'Submitted',
+                  due_date: null,
+                  notes: task.notes ?? null,
+                  price_usd: task.price_usd ?? 0,
+                  price_lbp: task.price_lbp ?? 0,
+                  created_at: now,
+                  updated_at: now,
+                })
+                .select()
+                .single();
+              if (taskErr) throw taskErr;
+
+              const sortedStops = [...(task.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
+              if (sortedStops.length > 0) {
+                const newStops = sortedStops.map((s, idx) => ({
+                  task_id: newTask.id,
+                  ministry_id: s.ministry_id,
+                  stop_order: idx + 1,
+                  status: 'Pending',
+                }));
+                const { error: stopsErr } = await supabase.from('task_route_stops').insert(newStops);
+                if (stopsErr) throw stopsErr;
+              }
+
+              await supabase.from('status_updates').insert({
+                task_id: newTask.id,
+                updated_by: teamMember?.id,
+                new_status: 'Submitted',
+              });
+
+              setDuplicating(false);
+              Alert.alert('File Duplicated', 'New file created successfully.', [
+                { text: 'Open New File', onPress: () => navigation.replace('TaskDetail', { taskId: newTask.id }) },
+                { text: 'Stay Here', style: 'cancel' },
+              ]);
+            } catch (e: any) {
+              setDuplicating(false);
+              Alert.alert('Error', e.message ?? 'Failed to duplicate file.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
       <KeyboardAwareScrollView
@@ -1022,9 +1109,19 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
-            <Text style={s.editTaskBtnText}>✎ Edit File Details</Text>
-          </TouchableOpacity>
+          <View style={s.headerActionsRow}>
+            <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
+              <Text style={s.editTaskBtnText}>✎ Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.shareWhatsAppBtn} onPress={handleShareWhatsApp}>
+              <Text style={s.shareWhatsAppBtnText}>📤 WhatsApp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.duplicateBtn, duplicating && { opacity: 0.6 }]} onPress={handleDuplicateTask} disabled={duplicating}>
+              {duplicating
+                ? <ActivityIndicator size="small" color={theme.color.white} />
+                : <Text style={s.duplicateBtnText}>📋 Duplicate</Text>}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── INLINE DUE DATE CALENDAR ── */}
@@ -2872,12 +2969,37 @@ const s = StyleSheet.create({
   },
   editStagesBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '600' },
 
+  // Header action buttons row
+  headerActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.space2,
+    marginTop: theme.spacing.space2,
+  },
+  shareWhatsAppBtn: {
+    borderWidth: 1,
+    borderColor: '#25D366',
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(37,211,102,0.08)',
+  },
+  shareWhatsAppBtnText: { ...theme.typography.label, color: '#25D366', fontWeight: '600' },
+  duplicateBtn: {
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: theme.color.primary,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  duplicateBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '600' },
+
   // Edit task button (header)
   editTaskBtn: {
-    alignSelf:   'flex-start',
     borderWidth: 1,
     borderColor: theme.color.border,
-    borderRadius: theme.radius.sm,
+    borderRadius: theme.radius.md,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
