@@ -17,6 +17,7 @@ import {
   Platform,
   Image,
   Dimensions,
+  Linking,
 } from 'react-native';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -98,6 +99,15 @@ function formatDateOnly(iso: string) {
   const [y, m, d] = iso.split('T')[0].split('-');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${parseInt(d)} ${months[parseInt(m) - 1]} ${parseInt(y)}`;
+}
+
+function openPhone(phone: string, name?: string) {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  Alert.alert(name ?? phone, phone, [
+    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
 }
 
 export default function TaskDetailScreen() {
@@ -915,7 +925,9 @@ export default function TaskDetailScreen() {
                 <Text style={s.clientProfileHint}>View profile →</Text>
               </TouchableOpacity>
               {task.client?.phone && (
-                <Text style={s.clientSub}>{task.client.phone}</Text>
+                <TouchableOpacity onPress={() => openPhone(task.client!.phone!, task.client?.name)} activeOpacity={0.7}>
+                  <Text style={[s.clientSub, { color: theme.color.primary }]}>📞 {task.client.phone}</Text>
+                </TouchableOpacity>
               )}
             </View>
             <StatusBadge label={task.current_status} color={mainStatusColor} />

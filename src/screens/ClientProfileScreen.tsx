@@ -12,6 +12,7 @@ import {
   Alert,
   Animated,
   PanResponder,
+  Linking,
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -129,6 +130,15 @@ function SwipeableRow({
       </Animated.View>
     </View>
   );
+}
+
+function openPhone(phone: string, name?: string) {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  Alert.alert(name ?? phone, phone, [
+    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
 }
 
 export default function ClientProfileScreen() {
@@ -319,10 +329,22 @@ export default function ClientProfileScreen() {
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.clientName}>{client.name}</Text>
               {!!client.reference_name && (
-                <Text style={s.clientReference}>via {client.reference_name}{client.reference_phone ? ` · ${client.reference_phone}` : ''}</Text>
+                <Text style={s.clientReference}>
+                  via {client.reference_name}
+                  {client.reference_phone ? (
+                    <Text
+                      style={{ color: theme.color.primary }}
+                      onPress={() => openPhone(client.reference_phone!, client.reference_name ?? undefined)}
+                    >{` · ${client.reference_phone}`}</Text>
+                  ) : null}
+                </Text>
               )}
               <Text style={s.clientId}>{client.client_id}</Text>
-              {client.phone ? <Text style={s.clientPhone}>{client.phone}</Text> : null}
+              {client.phone ? (
+                <TouchableOpacity onPress={() => openPhone(client.phone!, client.name)} activeOpacity={0.7}>
+                  <Text style={[s.clientPhone, { color: theme.color.primary }]}>📞 {client.phone}</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <View style={s.headerActions}>
               <TouchableOpacity style={s.editBtn} onPress={goEdit} activeOpacity={0.7}>

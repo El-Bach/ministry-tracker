@@ -19,6 +19,7 @@ import {
   Platform,
   Animated,
   PanResponder,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
@@ -242,6 +243,15 @@ interface Filters {
   ministryId: string;
   cityId: string;
   showArchived: boolean;
+}
+
+function openPhone(phone: string, name?: string) {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  Alert.alert(name ?? phone, phone, [
+    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
 }
 
 export default function DashboardScreen() {
@@ -680,7 +690,11 @@ export default function DashboardScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.clientRowName}>{c.name}</Text>
-                    {c.phone ? <Text style={styles.clientRowPhone}>{c.phone}</Text> : null}
+                    {c.phone ? (
+                      <TouchableOpacity onPress={() => openPhone(c.phone!, c.name)} activeOpacity={0.7}>
+                        <Text style={[styles.clientRowPhone, { color: theme.color.primary }]}>📞 {c.phone}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                   <Text style={styles.clientRowArrow}>›</Text>
                 </TouchableOpacity>

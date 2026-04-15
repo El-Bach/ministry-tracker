@@ -15,6 +15,7 @@ import {
   Alert,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -25,6 +26,15 @@ import { theme } from '../theme';
 import { Client, Service, Ministry } from '../types';
 
 type ManageSection = 'clients' | 'services' | 'stages' | null;
+
+function openPhone(phone: string, name?: string) {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  Alert.alert(name ?? phone, phone, [
+    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+}
 
 export default function CreateScreen() {
   const navigation = useNavigation<any>();
@@ -369,7 +379,11 @@ export default function CreateScreen() {
                       {!!c.reference_name && (
                         <Text style={s.mgmtItemRef}>عبر {c.reference_name}</Text>
                       )}
-                      {c.phone ? <Text style={s.mgmtItemSub}>{c.phone}</Text> : null}
+                      {c.phone ? (
+                        <TouchableOpacity onPress={() => openPhone(c.phone!, c.name)} activeOpacity={0.7}>
+                          <Text style={[s.mgmtItemSub, { color: theme.color.primary }]}>📞 {c.phone}</Text>
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
                     <TouchableOpacity
                       style={s.mgmtEditBtn}
