@@ -148,7 +148,7 @@ export default function TaskDetailScreen() {
   const [contractPriceUSD, setContractPriceUSD] = useState(0);
   const [contractPriceLBP, setContractPriceLBP] = useState(0);
   const [priceHistory, setPriceHistory] = useState<Array<{id:string;old_price_usd:number;old_price_lbp:number;new_price_usd:number;new_price_lbp:number;note?:string;changer?:{name:string};created_at:string}>>([]);
-  // showPriceHistory removed — price history is always visible
+  const [showPriceHistory, setShowPriceHistory] = useState(false);
   const [showEditPrice, setShowEditPrice] = useState(false);
   const [editPriceUSD, setEditPriceUSD] = useState('');
   const [editPriceLBP, setEditPriceLBP] = useState('');
@@ -377,27 +377,30 @@ export default function TaskDetailScreen() {
   };
 
   const handleDeleteTransaction = (tx: FileTransaction) => {
+    const doDelete = async () => {
+      setDeletingTxId(tx.id);
+      await supabase.from('task_comments').insert({
+        task_id: taskId,
+        author_id: teamMember?.id,
+        body: `🗑 Deleted ${tx.type}: "${tx.description}" (${
+          tx.amount_usd > 0 ? fmtUSD(tx.amount_usd) : ''
+        }${tx.amount_usd > 0 && tx.amount_lbp > 0 ? ' / ' : ''}${
+          tx.amount_lbp > 0 ? fmtLBP(tx.amount_lbp) : ''
+        })`,
+      });
+      await supabase.from('file_transactions').delete().eq('id', tx.id);
+      setDeletingTxId(null);
+      fetchTask();
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm(`Delete "${tx.description}"? This cannot be undone.`)) {
+        doDelete();
+      }
+      return;
+    }
     Alert.alert('Delete', `Delete "${tx.description}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          setDeletingTxId(tx.id);
-          // Log deletion as a comment for audit trail
-          await supabase.from('task_comments').insert({
-            task_id: taskId,
-            author_id: teamMember?.id,
-            body: `🗑 Deleted ${tx.type}: "${tx.description}" (${
-              tx.amount_usd > 0 ? fmtUSD(tx.amount_usd) : ''
-            }${tx.amount_usd > 0 && tx.amount_lbp > 0 ? ' / ' : ''}${
-              tx.amount_lbp > 0 ? fmtLBP(tx.amount_lbp) : ''
-            })`,
-          });
-          await supabase.from('file_transactions').delete().eq('id', tx.id);
-          setDeletingTxId(null);
-          fetchTask();
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: doDelete },
     ]);
   };
 
@@ -1197,7 +1200,7 @@ export default function TaskDetailScreen() {
                         >
                           {updatingStop === stop.id
                             ? <ActivityIndicator color={theme.color.primary} size="small" />
-                            : <Text style={s.updateStopBtnText}>Update Status</Text>}
+                            : <Text style={s.updateStopBtnText}>↺ Update Status</Text>}
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={s.stopMetaChip}
@@ -1431,7 +1434,9 @@ export default function TaskDetailScreen() {
           {/* Contract price row */}
           <View style={s.contractPriceRow}>
             <View style={{ flex: 1 }}>
-              <Text style={s.balanceLabel}>CONTRACT PRICE</Text>
+              <TouchableOpacity onPress={() => setShowPriceHistory(v => !v)} activeOpacity={0.7}>
+                <Text style={s.balanceLabel}>CONTRACT PRICE {showPriceHistory ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
               <View style={s.balanceAmounts}>
                 <Text style={s.contractPriceVal}>{fmtUSD(contractPriceUSD)}</Text>
                 <Text style={s.contractPriceValLBP}>{fmtLBP(contractPriceLBP)}</Text>
@@ -1452,8 +1457,8 @@ export default function TaskDetailScreen() {
             </View>
           </View>
 
-          {/* Contract price change history — always visible */}
-          <View style={s.priceHistoryBlock}>
+          {/* Contract price change history — collapsible */}
+          {showPriceHistory && <View style={s.priceHistoryBlock}>
             <Text style={s.priceHistoryLabel}>CONTRACT PRICE CHANGES</Text>
             {priceHistory.length === 0 ? (
               <Text style={s.priceHistoryEmpty}>No changes recorded yet</Text>
@@ -1485,7 +1490,7 @@ export default function TaskDetailScreen() {
                 </View>
               ))
             )}
-          </View>
+          </View>}
 
           {/* P&L summary */}
           <View style={s.balanceSummary}>
@@ -2304,14 +2309,15 @@ const s = StyleSheet.create({
   // Route
   routeContainer: { gap: theme.spacing.space1 },
   updateStopBtn: {
-    backgroundColor: theme.color.primary + '11',
     borderWidth:     1,
     borderColor:     theme.color.primary + '55',
     borderRadius:    theme.radius.sm,
     paddingHorizontal: theme.spacing.space3,
     paddingVertical: 5,
+    alignItems:      'center',
+    justifyContent:  'center',
   },
-  updateStopBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '600' },
+  updateStopBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '600', textAlign: 'center' },
   reqStopBtn: {
     backgroundColor: theme.color.bgBase,
     borderWidth:     1,
@@ -2319,8 +2325,10 @@ const s = StyleSheet.create({
     borderRadius:    theme.radius.sm,
     paddingHorizontal: theme.spacing.space3,
     paddingVertical: 5,
+    alignItems:      'center',
+    justifyContent:  'center',
   },
-  reqStopBtnText: { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
+  reqStopBtnText: { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600', textAlign: 'center' },
 
   // Comments
   emptyText: { ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', paddingVertical: theme.spacing.space2 },
@@ -2551,7 +2559,7 @@ const s = StyleSheet.create({
     borderColor:     theme.color.border,
   },
   contractPriceVal:     { color: theme.color.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
-  contractPriceValLBP:  { color: theme.color.primaryText, fontSize: 12, marginTop: 2 },
+  contractPriceValLBP:  { color: theme.color.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
   contractPriceActions: { flexDirection: 'row', gap: theme.spacing.space1 + 2, alignItems: 'center' },
   editPriceBtn: {
     backgroundColor: theme.color.primary + '22',
@@ -2576,7 +2584,7 @@ const s = StyleSheet.create({
   priceHistoryEmpty:   { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
   priceHistoryRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.space2, marginBottom: 6 },
   balanceTotalLabel:   { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '800', letterSpacing: 0.8, flex: 1 },
-  balanceAmounts:      { flexDirection: 'row', gap: theme.spacing.space3 },
+  balanceAmounts:      { flexDirection: 'row', gap: theme.spacing.space3, justifyContent: 'space-between' },
   balanceCol:    { width: 80, textAlign: 'right', ...theme.typography.label, fontWeight: '700' },
   balanceColLBP: { width: 120, textAlign: 'right', ...theme.typography.caption, color: theme.color.textSecondary },
   balanceRevenue:      { color: theme.color.success, fontSize: 13, fontWeight: '700' },
@@ -2823,7 +2831,7 @@ const s = StyleSheet.create({
   stageHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stageMinistryName: { ...theme.typography.body, fontWeight: '700', flex: 1 },
   stageOrder:        { ...theme.typography.caption, fontWeight: '600' },
-  stageBtnGrid:      { flexDirection: 'row', gap: theme.spacing.space2, marginTop: 2 },
+  stageBtnGrid:      { flexDirection: 'row', gap: theme.spacing.space2, marginTop: 2, alignItems: 'stretch' },
   stageBtnCol:       { flex: 1, gap: theme.spacing.space2 },
 
   // Stop action row (kept for any remaining references)

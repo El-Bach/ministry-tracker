@@ -304,7 +304,7 @@ function TaskCard({
         >
           {stopsTotal > 0 ? `${stopsDone}/${stopsTotal} stages` : 'No stages'}
         </Text>
-        {task.due_date && (
+        {task.due_date && !allDone && (
           <Text
             style={[
               styles.dueText,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   },
   completionRow: {
     ...theme.typography.caption,
-    color: theme.color.textMuted,
+    color: theme.color.warning,
     marginTop: 2,
   },
   contractPrice: {

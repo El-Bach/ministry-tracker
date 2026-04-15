@@ -622,16 +622,19 @@ export default function DashboardScreen() {
 
   const handleDeleteTask = (task: Task) => {
     const label = task.client?.name ?? 'this file';
+    const doDelete = async () => {
+      await supabase.from('tasks').delete().eq('id', task.id);
+      fetchData();
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm(`Delete "${label}"? This cannot be undone.`)) {
+        doDelete();
+      }
+      return;
+    }
     Alert.alert('Delete File', `Delete "${label}"? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await supabase.from('tasks').delete().eq('id', task.id);
-          fetchData();
-        },
-      },
+      { text: 'Delete', style: 'destructive', onPress: doDelete },
     ]);
   };
 
