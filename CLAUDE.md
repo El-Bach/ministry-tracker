@@ -58,6 +58,9 @@
 - Lockfile must be generated without `--legacy-peer-deps` (EAS doesn't use that flag)
 - App icon: `assets/icon.png` (1024×1024 PNG) — **no adaptiveIcon** in app.json (adaptive icon requires transparent-bg foreground; using icon.png directly is reliable)
 - `assets/icon-fullbleed.png` — full-bleed version (white corners flood-filled with teal gradient) used as PWA apple-touch-icon
+- **Expo account**: `kamalam` (kamal01892100@gmail.com) — `owner: "kamalam"` in app.json, projectId: `3e7ca54c-2ac7-4356-b47a-75f77c55afd4`
+- **EXPO_TOKEN**: saved to Windows user environment variable (`setx EXPO_TOKEN ...`); used as `EXPO_TOKEN=<token> npx eas-cli build ...`
+- Build command: `EXPO_TOKEN="..." npx eas-cli build --platform android --profile preview --non-interactive`
 
 ### iOS PWA (no Apple Developer account needed)
 - Hosted at **ministry-papers.netlify.app** — deploy by dragging `dist/` folder to app.netlify.com
