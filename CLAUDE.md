@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 19 (stage button alignment: all 4 chips centered, ↺ icon on Update Status, removed background; overdue hidden on archived cards; completion row orange; contract price LBP same size/color as USD, pushed right; contract price history collapsible via label tap; web delete for tasks and transactions uses window.confirm; app icon expanded to fill launcher with teal background; CalendarScreen shows stage due dates as orange dots; client statement preview modal with Arabic HTML; stage due dates stored in task_route_stops.due_date)
+> Last updated: session 20 (Create tab replaces Team tab; CreateScreen with quick-action cards + manage section; DashboardScreen summary bar Active·Overdue·Due; GlobalSearchScreen across clients/tasks/comments/requirements; FinancialReport no USD decimals, LBP in contract badge and detail DUE/BALANCE cells)
 
 ---
 
@@ -223,6 +223,7 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | StageRequirements | `{ stopId: string; stageName: string; taskId: string }` |
 | MinistryRequirements | `{ ministryId: string; ministryName: string }` |
 | FinancialReport | — |
+| GlobalSearch | `{ query?: string } \| undefined` |
 
 ---
 
@@ -536,6 +537,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 20 | Create tab replaces Team tab (Dashboard → Create → Calendar → Settings). CreateScreen: quick-action cards (+New File/Client/Service/Stage) + full manage section (clients, services, stages CRUD modals) migrated from DashboardScreen. GlobalSearchScreen: searches clients, tasks (notes + client name), task_comments, stop_requirements with 300ms debounce; results grouped CLIENTS/FILES/COMMENTS/REQUIREMENTS; registered in DashboardStack. DashboardScreen: removed Manage dropdown + all modals; removed +New Client/+New File buttons; added summary bar (Active: N · Overdue: N · Due $X) above task list (hidden in archive view); added 🔍 global search button in search row. FinancialReport: removed USD decimals everywhere; added LBP to contract price badge in row card; added LBP to DUE and BALANCE in detail modal summary strip. |
 | 19 | Stage buttons alignment: all 4 chips (↺ Update Status, 📋 Requirements, 📍 city, 👤 assignee) now centered with matching style; removed primary background from Update Status; added ↺ icon; stageBtnGrid alignItems:stretch. TaskCard: overdue text hidden on archived (allDone) cards; completion row 📅 start→end•Xd now orange (warning color). Contract price: LBP same font size (15) and primary color as USD, pushed to right via space-between. Contract price history: collapsible — tap CONTRACT PRICE label to toggle ▼/▲. Web deletes: DashboardScreen delete-file and TaskDetailScreen delete-transaction both use window.confirm on web instead of broken Alert.alert. App icon: expanded from 16% padding to 4% with teal (icon-fullbleed) background — logo fills launcher fully. CalendarScreen: fully rewritten with stage due dates as orange dots; stage entries appear in day list alongside task entries. ClientProfileScreen: Arabic statement preview modal (WebView) + full RTL HTML with Amiri font; 📄 button in header. task_route_stops: due_date column added (migration_stop_due_date.sql). |
 | 18 | Dashboard filters: removed team/status/date filters; kept search + service + city; filter chips now show only values present in current active/archive task set (dynamic options); useFocusEffect added so client profile edits reflect immediately on dashboard; TaskCard: underlines removed from client name/phone/city chips (links kept); service name changed to yellow (theme.color.warning) with onServicePress prop navigating to ServiceStages; "via" → "عبر"; archived cards show 📅 start→end • Xd completion; contract price no decimals; CalendarScreen: due date label shown on each event card; TeamScreen: ✎ edit button per member opens modal to edit name + role (Arabic-friendly); TaskDetailScreen: sections reordered to header→comments→documents→stages→financials; financials P&L table uses aligned columns (USD minWidth 80, LBP minWidth 120, right-aligned, no decimals); "PAYMENTS RECEIVED" → "RECEIVED"; green "+ Add Stage" button in stages header opens Edit Stages modal; DocumentScannerModal: KeyboardAwareScrollView in preview step; requirements guaranteed loaded before preview in library mode |
 | 17 | Financial transactions: inline edit form per row — tap ✎ to expand edit form with type toggle, description, USD + LBP fields, Save/Cancel; Supabase UPDATE on save; closes inline on save or cancel |
