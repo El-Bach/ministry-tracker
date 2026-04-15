@@ -104,7 +104,9 @@ function TaskCard({
 
   const stopsTotal = task.route_stops?.length ?? 0;
   const stopsDone  = task.route_stops?.filter((s) => s.status === 'Done').length ?? 0;
-  const allDone    = stopsTotal > 0 && stopsDone === stopsTotal;
+  const allDone    = stopsTotal > 0 && task.route_stops!.every(
+    (s) => s.status === 'Done' || s.status === 'Rejected'
+  );
 
   // Financial summary — only computed for archived (allDone) cards
   const txs = task.transactions ?? [];
@@ -122,12 +124,12 @@ function TaskCard({
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
-  // Status logic: show urgentStatus if different from current_status, else current_status
-  const nonDoneStatuses = task.route_stops
-    ?.filter((s) => s.status !== 'Done')
+  // Status logic: Done + Rejected are both terminal; show most urgent of remaining
+  const nonTerminalStatuses = task.route_stops
+    ?.filter((s) => s.status !== 'Done' && s.status !== 'Rejected')
     .map((s) => s.status) ?? [];
-  const urgentStatus = nonDoneStatuses.length > 0
-    ? getMostUrgentStatus(nonDoneStatuses)
+  const urgentStatus = nonTerminalStatuses.length > 0
+    ? getMostUrgentStatus(nonTerminalStatuses)
     : (stopsTotal > 0 ? 'Done' : task.current_status);
 
   const displayStatus = (stopsTotal > 0 && !allDone && urgentStatus !== task.current_status)
@@ -188,7 +190,7 @@ function TaskCard({
       {/* ROW 1: Client name + "via Ref" */}
       <View style={styles.row1}>
         <TouchableOpacity
-          style={styles.clientNameCol}
+          style={[styles.clientNameCol, { minHeight: theme.touchTarget.min }]}
           onPress={onClientPress}
           activeOpacity={onClientPress ? 0.75 : 1}
           disabled={!onClientPress}
@@ -199,7 +201,6 @@ function TaskCard({
               : (task.client?.name ?? '—')
           }
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={[styles.clientNameCol, { minHeight: theme.touchTarget.min }]}
         >
           <Text
             style={[styles.clientName, onClientPress && styles.clientNameLink]}

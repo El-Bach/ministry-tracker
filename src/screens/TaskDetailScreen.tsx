@@ -17,6 +17,7 @@ import {
   Platform,
   Image,
   Dimensions,
+  Linking,
 } from 'react-native';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -30,6 +31,7 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
@@ -159,6 +161,9 @@ export default function TaskDetailScreen() {
   const [showEditStages, setShowEditStages] = useState(false);
   const [allStages, setAllStages] = useState<Ministry[]>([]);
   const [editingStops, setEditingStops] = useState<Ministry[]>([]);
+  const [editStageCities, setEditStageCities] = useState<Record<string, { cityId: string | null; cityName: string | null }>>({});
+  const [editCityPickerMiniId, setEditCityPickerMiniId] = useState<string | null>(null);
+  const [editCitySearch, setEditCitySearch] = useState('');
   const [savingStages, setSavingStages] = useState(false);
   const [newStageName, setNewStageName] = useState('');
   const [savingNewStage, setSavingNewStage] = useState(false);
@@ -179,6 +184,7 @@ export default function TaskDetailScreen() {
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [renamingDoc, setRenamingDoc] = useState<TaskDocument | null>(null);
   const [renameText, setRenameText] = useState('');
+  const [uploadingPDF, setUploadingPDF] = useState(false);
   const [printingDoc, setPrintingDoc] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<TaskDocument | null>(null);
   const [statusMsg, setStatusMsg] = useState('');
@@ -447,6 +453,13 @@ export default function TaskDetailScreen() {
       created_at: '',
     }));
     setEditingStops(current);
+    // Populate city map from existing route_stops
+    const cityMap: Record<string, { cityId: string | null; cityName: string | null }> = {};
+    for (const s of sorted) {
+      cityMap[s.ministry_id] = { cityId: s.city_id ?? null, cityName: (s.city as any)?.name ?? null };
+    }
+    setEditStageCities(cityMap);
+    setEditCityPickerMiniId(null);
     setShowEditStages(true);
   };
 
@@ -507,12 +520,13 @@ export default function TaskDetailScreen() {
         .eq('task_id', taskId);
       if (delErr) throw delErr;
 
-      // Re-insert in new order
+      // Re-insert in new order (preserve city assignments)
       const newStops = editingStops.map((s, idx) => ({
         task_id: taskId,
         ministry_id: s.id,
         stop_order: idx + 1,
         status: 'Pending',
+        city_id: editStageCities[s.id]?.cityId ?? null,
       }));
       const { error: insErr } = await supabase
         .from('task_route_stops')
@@ -631,6 +645,58 @@ export default function TaskDetailScreen() {
     if (!name) return;
     await supabase.from('task_documents').update({ display_name: name, file_name: name }).eq('id', doc.id);
     fetchTask();
+  };
+
+  // ─── PDF direct upload ────────────────────────────────────────
+  const handleAddPDF = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      setUploadingPDF(true);
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const yyyy = today.getFullYear();
+      const displayName = `Upload ${dd}-${mm}-${yyyy}`;
+      const safeBase = displayName.replace(/[^a-z0-9_\-]/gi, '_');
+      const fileName = `${safeBase}_${Date.now()}.pdf`;
+      const storagePath = `documents/${taskId}/${fileName}`;
+
+      // Read file as base64 and upload via Supabase storage
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: (FileSystem as any).EncodingType?.Base64 ?? 'base64',
+      });
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      const { error: upErr } = await supabase.storage
+        .from('task-attachments')
+        .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType: 'application/pdf', upsert: false });
+
+      if (upErr) { Alert.alert('Upload failed', upErr.message); setUploadingPDF(false); return; }
+
+      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(storagePath);
+      const publicUrl = urlData?.publicUrl ?? '';
+
+      await supabase.from('task_documents').insert({
+        task_id: taskId,
+        file_name: asset.name ?? fileName,
+        display_name: displayName,
+        file_url: publicUrl,
+        file_type: 'application/pdf',
+        uploaded_by: teamMember?.id ?? null,
+      });
+      setUploadingPDF(false);
+      fetchTask();
+    } catch (err) {
+      Alert.alert('Error', String(err));
+      setUploadingPDF(false);
+    }
   };
 
   // ─── Document archive ────────────────────────────────────────
@@ -892,6 +958,15 @@ export default function TaskDetailScreen() {
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
+  const handlePhonePress = (phone: string, name?: string) => {
+    const clean = phone.replace(/[^0-9+]/g, '');
+    Alert.alert(name ?? phone, phone, [
+      { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+      { text: '💬 WhatsApp',  onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
       <KeyboardAwareScrollView
@@ -915,7 +990,9 @@ export default function TaskDetailScreen() {
                 <Text style={s.clientProfileHint}>View profile →</Text>
               </TouchableOpacity>
               {task.client?.phone && (
-                <Text style={s.clientSub}>{task.client.phone}</Text>
+                <TouchableOpacity onPress={() => handlePhonePress(task.client!.phone!, task.client?.name)}>
+                  <Text style={[s.clientSub, { color: theme.color.primary }]}>{task.client.phone}</Text>
+                </TouchableOpacity>
               )}
             </View>
             <StatusBadge label={task.current_status} color={mainStatusColor} />
@@ -1065,7 +1142,13 @@ export default function TaskDetailScreen() {
                 <Text style={s.scanDocBtnText}>📷 Scan</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                <Text style={s.addDocBtnText}>📎 Add</Text>
+                <Text style={s.addDocBtnText}>🖼 Image</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.addDocBtn} onPress={handleAddPDF} disabled={uploadingPDF}>
+                {uploadingPDF
+                  ? <ActivityIndicator size="small" color={theme.color.primary} />
+                  : <Text style={s.addDocBtnText}>📄 PDF</Text>
+                }
               </TouchableOpacity>
             </View>
           </View>
@@ -1079,7 +1162,10 @@ export default function TaskDetailScreen() {
                   <Text style={s.scanDocBtnText}>📷 Scan</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                  <Text style={s.addDocBtnText}>📎 Add</Text>
+                  <Text style={s.addDocBtnText}>🖼 Image</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.addDocBtn} onPress={handleAddPDF} disabled={uploadingPDF}>
+                  <Text style={s.addDocBtnText}>📄 PDF</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1874,28 +1960,88 @@ export default function TaskDetailScreen() {
                 <Text style={s.editStagesEmpty}>No stages added yet</Text>
               )}
               {editingStops.map((stage, idx) => (
-                <View key={stage.id} style={s.editStageRow}>
-                  <View style={s.editStageIndex}>
-                    <Text style={s.editStageIndexText}>{idx + 1}</Text>
+                <View key={stage.id}>
+                  <View style={s.editStageRow}>
+                    <View style={s.editStageIndex}>
+                      <Text style={s.editStageIndexText}>{idx + 1}</Text>
+                    </View>
+                    <Text style={s.editStageName} numberOfLines={1}>{stage.name}</Text>
+                    <View style={s.editStageActions}>
+                      <TouchableOpacity
+                        onPress={() => moveEditStop(idx, -1)}
+                        disabled={idx === 0}
+                      >
+                        <Text style={[s.editStageArrow, idx === 0 && s.editStageDisabled]}>↑</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => moveEditStop(idx, 1)}
+                        disabled={idx === editingStops.length - 1}
+                      >
+                        <Text style={[s.editStageArrow, idx === editingStops.length - 1 && s.editStageDisabled]}>↓</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => toggleEditStage(stage)}>
+                        <Text style={s.editStageRemove}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text style={s.editStageName} numberOfLines={1}>{stage.name}</Text>
-                  <View style={s.editStageActions}>
-                    <TouchableOpacity
-                      onPress={() => moveEditStop(idx, -1)}
-                      disabled={idx === 0}
-                    >
-                      <Text style={[s.editStageArrow, idx === 0 && s.editStageDisabled]}>↑</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => moveEditStop(idx, 1)}
-                      disabled={idx === editingStops.length - 1}
-                    >
-                      <Text style={[s.editStageArrow, idx === editingStops.length - 1 && s.editStageDisabled]}>↓</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => toggleEditStage(stage)}>
-                      <Text style={s.editStageRemove}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {/* Inline city chip */}
+                  <TouchableOpacity
+                    style={s.editStageCityChip}
+                    onPress={() => {
+                      setEditCityPickerMiniId(v => v === stage.id ? null : stage.id);
+                      setEditCitySearch('');
+                    }}
+                  >
+                    <Text style={s.editStageCityChipText}>
+                      {editStageCities[stage.id]?.cityName ? `📍 ${editStageCities[stage.id]?.cityName}` : '📍 Set city'}
+                    </Text>
+                  </TouchableOpacity>
+                  {/* City picker dropdown for this stage */}
+                  {editCityPickerMiniId === stage.id && (
+                    <View style={s.editStageCityDropdown}>
+                      <TextInput
+                        style={s.citySearchInner}
+                        value={editCitySearch}
+                        onChangeText={setEditCitySearch}
+                        placeholder="Search city..."
+                        placeholderTextColor={theme.color.textMuted}
+                        autoFocus
+                        autoCorrect={false}
+                      />
+                      <ScrollView style={{ maxHeight: 180 }} keyboardShouldPersistTaps="handled">
+                        {editStageCities[stage.id]?.cityId && (
+                          <TouchableOpacity
+                            style={s.cityDropdownItem}
+                            onPress={() => {
+                              setEditStageCities(prev => ({ ...prev, [stage.id]: { cityId: null, cityName: null } }));
+                              setEditCityPickerMiniId(null);
+                            }}
+                          >
+                            <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove city</Text>
+                          </TouchableOpacity>
+                        )}
+                        {allCities
+                          .filter(c => !editCitySearch.trim() || c.name.includes(editCitySearch.trim()))
+                          .slice(0, 12)
+                          .map(city => (
+                            <TouchableOpacity
+                              key={city.id}
+                              style={[s.cityDropdownItem, editStageCities[stage.id]?.cityId === city.id && s.cityDropdownItemActive]}
+                              onPress={() => {
+                                setEditStageCities(prev => ({ ...prev, [stage.id]: { cityId: city.id, cityName: city.name } }));
+                                setEditCityPickerMiniId(null);
+                              }}
+                            >
+                              <Text style={[s.cityDropdownItemText, editStageCities[stage.id]?.cityId === city.id && { fontWeight: '600' }]}>{city.name}</Text>
+                              {editStageCities[stage.id]?.cityId === city.id && <Text style={s.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                          ))}
+                        {editCitySearch.trim().length > 0 && allCities.filter(c => c.name.includes(editCitySearch.trim())).length === 0 && (
+                          <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{editCitySearch}"</Text>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
                 </View>
               ))}
 
@@ -2138,20 +2284,31 @@ export default function TaskDetailScreen() {
 
           {/* Image viewer for JPEGs; WebView fallback for PDFs */}
           {viewingDoc && (/image\//i.test(viewingDoc.file_type) || /\.(jpg|jpeg|png)$/i.test(viewingDoc.file_url)) ? (
-            <ScrollView
-              style={{ flex: 1, backgroundColor: '#000000' }}
-              contentContainerStyle={s.viewerImageScroll}
-              maximumZoomScale={4}
-              minimumZoomScale={1}
-              showsVerticalScrollIndicator={false}
-              bouncesZoom
-            >
-              <Image
-                source={{ uri: viewingDoc.file_url }}
-                style={s.viewerImage}
-                resizeMode="contain"
+            Platform.OS === 'android' ? (
+              // Android: WebView handles pinch-to-zoom natively; ScrollView maximumZoomScale is iOS-only
+              <WebView
+                style={{ flex: 1, backgroundColor: '#000000' }}
+                source={{ html: `<html><body style="margin:0;padding:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh"><img src="${viewingDoc.file_url}" style="max-width:100%;max-height:100vh;object-fit:contain;touch-action:pinch-zoom"/></body></html>` }}
+                scalesPageToFit={false}
+                bounces={false}
+                showsVerticalScrollIndicator={false}
               />
-            </ScrollView>
+            ) : (
+              <ScrollView
+                style={{ flex: 1, backgroundColor: '#000000' }}
+                contentContainerStyle={s.viewerImageScroll}
+                maximumZoomScale={4}
+                minimumZoomScale={1}
+                showsVerticalScrollIndicator={false}
+                bouncesZoom
+              >
+                <Image
+                  source={{ uri: viewingDoc.file_url }}
+                  style={s.viewerImage}
+                  resizeMode="contain"
+                />
+              </ScrollView>
+            )
           ) : viewingDoc ? (
             <WebView
               style={{ flex: 1, backgroundColor: theme.color.bgBase }}
@@ -2768,6 +2925,26 @@ const s = StyleSheet.create({
   editStageArrow:     { color: theme.color.primary, fontSize: 18, fontWeight: '700', padding: 2 },
   editStageRemove:    { color: theme.color.danger, fontSize: 16, padding: 2 },
   editStageDisabled:  { opacity: 0.3 },
+  editStageCityChip: {
+    alignSelf:         'flex-start',
+    backgroundColor:   theme.color.bgBase,
+    borderRadius:      theme.radius.sm,
+    paddingHorizontal: theme.spacing.space2 + 2,
+    paddingVertical:   4,
+    marginTop:         4,
+    marginBottom:      6,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+  },
+  editStageCityChipText: { ...theme.typography.caption, color: theme.color.textSecondary },
+  editStageCityDropdown: {
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    marginBottom:     8,
+    overflow:         'hidden',
+  },
   addStageRow: {
     flexDirection:  'row',
     alignItems:     'center',

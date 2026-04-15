@@ -59,7 +59,7 @@ export default function CalendarScreen() {
     ]);
     if (tasksRes.data) setTasks(tasksRes.data as Task[]);
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
-    if (stopsRes.data) setStops(stopsRes.data as StopWithTask[]);
+    if (stopsRes.data) setStops(stopsRes.data as unknown as StopWithTask[]);
     setLoading(false);
   }, []);
 

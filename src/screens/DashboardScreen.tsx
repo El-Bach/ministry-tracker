@@ -241,7 +241,17 @@ interface Filters {
   serviceId: string;
   ministryId: string;
   cityId: string;
-  showArchived: boolean;
+}
+
+type ListItem = Task | { _type: 'section-header'; label: string; id: string };
+
+// A task is archived when all its stops are Done or Rejected (or DB flag)
+function isTaskArchived(task: Task): boolean {
+  const stopsTotal = task.route_stops?.length ?? 0;
+  return (
+    task.is_archived === true ||
+    (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done' || s.status === 'Rejected'))
+  );
 }
 
 export default function DashboardScreen() {
@@ -262,8 +272,18 @@ export default function DashboardScreen() {
     serviceId: '',
     ministryId: '',
     cityId: '',
-    showArchived: false,
   });
+
+  // Service stages sheet (Task 3)
+  const [svcSheetId, setSvcSheetId] = useState<string | null>(null);
+  const [svcSheetName, setSvcSheetName] = useState('');
+  interface SvcStage { id: string; stop_order: number; ministry_id: string; ministry: { id: string; name: string } | null }
+  const [svcSheetStages, setSvcSheetStages] = useState<SvcStage[]>([]);
+  const [svcSheetLoading, setSvcSheetLoading] = useState(false);
+  const [svcSheetMinistries, setSvcSheetMinistries] = useState<Ministry[]>([]);
+  const [svcSheetAddSearch, setSvcSheetAddSearch] = useState('');
+  const [svcSheetShowAdd, setSvcSheetShowAdd] = useState(false);
+  const [svcSheetSaving, setSvcSheetSaving] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const [services, setServices] = useState<Service[]>([]);
@@ -341,16 +361,8 @@ export default function DashboardScreen() {
       )
     : [];
 
-  // Apply filters
+  // Apply search/service/city filters (no archive filter — both sections shown)
   const filteredTasks = tasks.filter((task) => {
-    // Archive filter: a task is archived if DB flag is set OR all route stops are Done
-    const stopsTotal = task.route_stops?.length ?? 0;
-    const taskIsArchived =
-      task.is_archived === true ||
-      (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done'));
-    if (!filters.showArchived && taskIsArchived) return false;
-    if (filters.showArchived && !taskIsArchived) return false;
-
     if (
       filters.search &&
       !task.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
@@ -369,6 +381,21 @@ export default function DashboardScreen() {
     }
     return true;
   });
+
+  // Split into active and archived sections
+  const activeTasks = filteredTasks.filter((t) => !isTaskArchived(t));
+  const archivedTasks = filteredTasks.filter((t) => isTaskArchived(t));
+
+  // Combined list: active tasks + divider + archived tasks
+  const listData: ListItem[] = [
+    ...activeTasks,
+    ...(archivedTasks.length > 0
+      ? [
+          { _type: 'section-header' as const, label: `📦 Archive (${archivedTasks.length})`, id: '__archive_header__' } as ListItem,
+          ...archivedTasks,
+        ]
+      : []),
+  ];
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? theme.color.primary;
@@ -446,15 +473,83 @@ export default function DashboardScreen() {
     fetchData();
   };
 
-  // Compute which cities and services actually appear in the current archive/active set
-  // (before city/service filters, so options don't disappear when one is selected)
-  const tasksInCurrentSet = useMemo(() => tasks.filter((task) => {
-    const stopsTotal = task.route_stops?.length ?? 0;
-    const taskIsArchived =
-      task.is_archived === true ||
-      (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done'));
-    return filters.showArchived ? taskIsArchived : !taskIsArchived;
-  }), [tasks, filters.showArchived]);
+  // Service stages sheet helpers (Task 3)
+  const openServiceSheet = useCallback(async (serviceId: string, serviceName: string) => {
+    setSvcSheetId(serviceId);
+    setSvcSheetName(serviceName);
+    setSvcSheetShowAdd(false);
+    setSvcSheetAddSearch('');
+    setSvcSheetLoading(true);
+    const [stagesRes, miniRes] = await Promise.all([
+      supabase
+        .from('service_default_stages')
+        .select('id, stop_order, ministry_id, ministry:ministries(id, name)')
+        .eq('service_id', serviceId)
+        .order('stop_order'),
+      supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
+    ]);
+    if (stagesRes.data) setSvcSheetStages(stagesRes.data as any);
+    if (miniRes.data) setSvcSheetMinistries(miniRes.data as Ministry[]);
+    setSvcSheetLoading(false);
+  }, []);
+
+  const handleSvcSheetAddExisting = async (ministry: Ministry) => {
+    if (!svcSheetId) return;
+    setSvcSheetSaving(true);
+    const nextOrder = (svcSheetStages[svcSheetStages.length - 1]?.stop_order ?? 0) + 1;
+    await supabase.from('service_default_stages').insert({
+      service_id: svcSheetId,
+      ministry_id: ministry.id,
+      stop_order: nextOrder,
+    });
+    const { data } = await supabase
+      .from('service_default_stages')
+      .select('id, stop_order, ministry_id, ministry:ministries(id, name)')
+      .eq('service_id', svcSheetId)
+      .order('stop_order');
+    if (data) setSvcSheetStages(data as any);
+    setSvcSheetShowAdd(false);
+    setSvcSheetSaving(false);
+  };
+
+  const handleSvcSheetAddNew = async () => {
+    const name = svcSheetAddSearch.trim();
+    if (!svcSheetId || !name) return;
+    setSvcSheetSaving(true);
+    const { data: miniData } = await supabase
+      .from('ministries')
+      .insert({ name, type: 'parent' })
+      .select()
+      .single();
+    if (miniData) {
+      await handleSvcSheetAddExisting(miniData as Ministry);
+    }
+    setSvcSheetAddSearch('');
+    setSvcSheetSaving(false);
+  };
+
+  const handleSvcSheetRemove = async (stageId: string) => {
+    await supabase.from('service_default_stages').delete().eq('id', stageId);
+    setSvcSheetStages((prev) => prev.filter((s) => s.id !== stageId));
+  };
+
+  const handleSvcSheetMove = async (idx: number, dir: -1 | 1) => {
+    const stages = [...svcSheetStages];
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= stages.length) return;
+    const a = stages[idx];
+    const b = stages[swapIdx];
+    stages[idx] = { ...b, stop_order: a.stop_order };
+    stages[swapIdx] = { ...a, stop_order: b.stop_order };
+    setSvcSheetStages(stages);
+    await Promise.all([
+      supabase.from('service_default_stages').update({ stop_order: a.stop_order }).eq('id', b.id),
+      supabase.from('service_default_stages').update({ stop_order: b.stop_order }).eq('id', a.id),
+    ]);
+  };
+
+  // Compute which cities and services appear in the active set (for filter chips)
+  const tasksInCurrentSet = useMemo(() => tasks.filter((t) => !isTaskArchived(t)), [tasks]);
 
   const availableCities = useMemo(() => {
     const seen = new Set<string>();
@@ -488,13 +583,9 @@ export default function DashboardScreen() {
     filters.cityId,
   ].filter(Boolean).length;
 
-  // Summary bar stats (active view only)
+  // Summary bar stats (active tasks only)
   const summaryStats = useMemo(() => {
-    if (filters.showArchived) return null;
-    const active = tasks.filter((t) => {
-      const n = t.route_stops?.length ?? 0;
-      return !(t.is_archived === true || (n > 0 && t.route_stops!.every((s) => s.status === 'Done')));
-    });
+    const active = tasks.filter((t) => !isTaskArchived(t));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const overdue = active.filter(
@@ -507,7 +598,7 @@ export default function DashboardScreen() {
       return sum + Math.max(0, (t.price_usd ?? 0) - paid);
     }, 0);
     return { active: active.length, overdue, dueUSD };
-  }, [tasks, filters.showArchived]);
+  }, [tasks]);
 
   // Stable named renderItem — avoids FlatList re-renders on every state change
   const allStatusColorsMap = useMemo(
@@ -516,27 +607,34 @@ export default function DashboardScreen() {
   );
 
   const renderTaskRow = useCallback(
-    ({ item }: { item: Task }) => {
-      const itemIsArchived = item.is_archived === true ||
-        ((item.route_stops?.length ?? 0) > 0 && item.route_stops!.every((s) => s.status === 'Done'));
+    ({ item }: { item: ListItem }) => {
+      // Section divider row
+      if ('_type' in item && item._type === 'section-header') {
+        return (
+          <View style={styles.sectionDivider}>
+            <Text style={styles.sectionDividerText}>{item.label}</Text>
+          </View>
+        );
+      }
+      const task = item as Task;
       return (
         <SwipeableTaskRow
-          task={item}
-          statusColor={getStatusColor(item.current_status)}
+          task={task}
+          statusColor={getStatusColor(task.current_status)}
           allStatusColors={allStatusColorsMap}
-          onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
+          onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+          onClientPress={() => navigation.navigate('ClientProfile', { clientId: task.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
-          onServicePress={() => navigation.navigate('ServiceStages', { serviceId: item.service_id, serviceName: item.service?.name ?? '' })}
-          onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onDelete={() => handleDeleteTask(item)}
-          onUnarchive={() => handleUnarchiveTask(item)}
-          onFinance={() => openQuickFinance(item)}
-          isArchived={itemIsArchived}
+          onServicePress={() => openServiceSheet(task.service_id, task.service?.name ?? '')}
+          onEdit={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+          onDelete={() => handleDeleteTask(task)}
+          onUnarchive={() => handleUnarchiveTask(task)}
+          onFinance={() => openQuickFinance(task)}
+          isArchived={isTaskArchived(task)}
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
+    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, handleUnarchiveTask, openQuickFinance, openServiceSheet]
   );
 
   if (loading) {
@@ -629,23 +727,15 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Result count + archive toggle */}
+      {/* Result count */}
       <View style={styles.resultRow}>
         <Text style={styles.resultCount}>
-          {filteredTasks.length} file{filteredTasks.length !== 1 ? 's' : ''}
+          {activeTasks.length} active · {archivedTasks.length} archived
         </Text>
-        <TouchableOpacity
-          style={[styles.archiveToggle, filters.showArchived && styles.archiveToggleActive]}
-          onPress={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
-        >
-          <Text style={[styles.archiveToggleText, filters.showArchived && styles.archiveToggleTextActive]}>
-            {filters.showArchived ? '📦 Archive' : '📋 Active'}
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {/* Summary bar */}
-      {summaryStats && (
+      {summaryStats.active > 0 && (
         <View style={styles.summaryBar}>
           <Text style={styles.summaryItem}>Active: {summaryStats.active}</Text>
           <Text style={styles.summaryDot}> · </Text>
@@ -659,10 +749,10 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Task list */}
+      {/* Task list — active tasks first, then archive divider, then archived tasks */}
       <FlatList
-        data={filteredTasks}
-        keyExtractor={(item) => item.id}
+        data={listData}
+        keyExtractor={(item) => ('_type' in item ? item.id : (item as Task).id)}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           matchingClients.length > 0 ? (
@@ -711,7 +801,105 @@ export default function DashboardScreen() {
       />
 
 
-      {/* manage modals moved to CreateScreen */}
+      {/* ── SERVICE STAGES SHEET (tap orange service name) ── */}
+      <Modal
+        visible={!!svcSheetId}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSvcSheetId(null)}
+      >
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setSvcSheetId(null)} />
+          <View style={[styles.modalSheet, { maxHeight: '75%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{svcSheetName}</Text>
+              <TouchableOpacity onPress={() => setSvcSheetId(null)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {svcSheetLoading ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <ActivityIndicator color={theme.color.primary} />
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: theme.spacing.space4, gap: theme.spacing.space2 }}>
+                {svcSheetStages.length === 0 && !svcSheetShowAdd && (
+                  <Text style={{ ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', paddingVertical: 16 }}>
+                    No stages defined for this service.
+                  </Text>
+                )}
+                {svcSheetStages.map((stage, idx) => (
+                  <View key={stage.id} style={styles.svcStageRow}>
+                    <Text style={styles.svcStageOrder}>{stage.stop_order}.</Text>
+                    <Text style={[styles.svcStageName, { flex: 1 }]}>{stage.ministry?.name ?? '—'}</Text>
+                    <TouchableOpacity onPress={() => handleSvcSheetMove(idx, -1)} disabled={idx === 0} style={styles.svcStageBtn}>
+                      <Text style={[styles.svcStageBtnText, idx === 0 && { opacity: 0.3 }]}>↑</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleSvcSheetMove(idx, 1)} disabled={idx === svcSheetStages.length - 1} style={styles.svcStageBtn}>
+                      <Text style={[styles.svcStageBtnText, idx === svcSheetStages.length - 1 && { opacity: 0.3 }]}>↓</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleSvcSheetRemove(stage.id)} style={[styles.svcStageBtn, { backgroundColor: theme.color.danger + '22' }]}>
+                      <Text style={[styles.svcStageBtnText, { color: theme.color.danger }]}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Add stage section */}
+                {svcSheetShowAdd ? (
+                  <View style={{ gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Search or create stage..."
+                      placeholderTextColor={theme.color.textMuted}
+                      value={svcSheetAddSearch}
+                      onChangeText={setSvcSheetAddSearch}
+                      autoFocus
+                    />
+                    {svcSheetMinistries
+                      .filter((m) =>
+                        !svcSheetAddSearch.trim() || m.name.toLowerCase().includes(svcSheetAddSearch.toLowerCase())
+                      )
+                      .filter((m) => !svcSheetStages.some((s) => s.ministry_id === m.id))
+                      .slice(0, 8)
+                      .map((m) => (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={styles.svcStagePickerRow}
+                          onPress={() => handleSvcSheetAddExisting(m)}
+                          disabled={svcSheetSaving}
+                        >
+                          <Text style={styles.svcStagePickerText}>{m.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    {svcSheetAddSearch.trim().length > 0 &&
+                      !svcSheetMinistries.some((m) => m.name.toLowerCase() === svcSheetAddSearch.toLowerCase()) && (
+                        <TouchableOpacity
+                          style={[styles.svcStagePickerRow, { borderColor: theme.color.primary }]}
+                          onPress={handleSvcSheetAddNew}
+                          disabled={svcSheetSaving}
+                        >
+                          <Text style={[styles.svcStagePickerText, { color: theme.color.primary }]}>
+                            ＋ Create "{svcSheetAddSearch.trim()}"
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    <TouchableOpacity onPress={() => setSvcSheetShowAdd(false)}>
+                      <Text style={{ ...theme.typography.label, color: theme.color.textMuted, textAlign: 'center', paddingVertical: 8 }}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.modalSaveBtn, { marginTop: theme.spacing.space3 }]}
+                    onPress={() => { setSvcSheetShowAdd(true); setSvcSheetAddSearch(''); }}
+                  >
+                    <Text style={styles.modalSaveBtnText}>＋ Add Stage</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── QUICK FINANCE MODAL (swipe-right) ── */}
       <Modal
@@ -927,19 +1115,51 @@ const styles = StyleSheet.create({
     ...theme.typography.label,
     color: theme.color.textMuted,
   },
-  archiveToggle: {
-    paddingHorizontal: theme.spacing.space2,
-    paddingVertical:   3,
-    borderRadius:      theme.radius.sm,
+  sectionDivider: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingVertical: theme.spacing.space3,
+    paddingTop:      theme.spacing.space4,
+  },
+  sectionDividerText: {
+    ...theme.typography.sectionDivider,
+    color:      theme.color.textMuted,
+    fontWeight: '700',
+  },
+  // Service stages sheet rows
+  svcStageRow: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    backgroundColor:  theme.color.bgBase,
+    borderRadius:     theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:  theme.spacing.space2 + 2,
+    gap:              theme.spacing.space2,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+  },
+  svcStageOrder: { ...theme.typography.label, color: theme.color.textMuted, minWidth: 20 },
+  svcStageName:  { ...theme.typography.body, color: theme.color.textPrimary },
+  svcStageBtn: {
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.sm,
+    width:            30,
+    height:           30,
+    alignItems:       'center',
+    justifyContent:   'center',
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+  },
+  svcStageBtnText:      { ...theme.typography.label, color: theme.color.textSecondary },
+  svcStagePickerRow: {
+    backgroundColor:   theme.color.bgBase,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2 + 4,
     borderWidth:       1,
     borderColor:       theme.color.border,
   },
-  archiveToggleActive: {
-    borderColor:      theme.color.warning,
-    backgroundColor:  theme.color.warning + '22',
-  },
-  archiveToggleText: { ...theme.typography.caption, color: theme.color.textMuted },
-  archiveToggleTextActive: { color: theme.color.warning, fontWeight: '700' },
+  svcStagePickerText: { ...theme.typography.body, color: theme.color.textPrimary },
   // Modals
   modalOverlay: {
     flex:            1,

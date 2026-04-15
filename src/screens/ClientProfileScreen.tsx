@@ -12,6 +12,7 @@ import {
   Alert,
   Animated,
   PanResponder,
+  Linking,
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -174,6 +175,15 @@ export default function ClientProfileScreen() {
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
 
+  const handlePhonePress = (phone: string, name?: string) => {
+    const clean = phone.replace(/[^0-9+]/g, '');
+    Alert.alert(name ?? phone, phone, [
+      { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+      { text: '💬 WhatsApp',  onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   if (loading || !client) {
     return (
       <View style={s.center}>
@@ -319,10 +329,22 @@ export default function ClientProfileScreen() {
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.clientName}>{client.name}</Text>
               {!!client.reference_name && (
-                <Text style={s.clientReference}>via {client.reference_name}{client.reference_phone ? ` · ${client.reference_phone}` : ''}</Text>
+                <Text style={s.clientReference}>
+                  via {client.reference_name}
+                  {client.reference_phone ? (
+                    <Text
+                      style={s.clientPhoneLink}
+                      onPress={() => handlePhonePress(client.reference_phone!, client.reference_name ?? undefined)}
+                    >{` · ${client.reference_phone}`}</Text>
+                  ) : null}
+                </Text>
               )}
               <Text style={s.clientId}>{client.client_id}</Text>
-              {client.phone ? <Text style={s.clientPhone}>{client.phone}</Text> : null}
+              {client.phone ? (
+                <TouchableOpacity onPress={() => handlePhonePress(client.phone!, client.name)}>
+                  <Text style={s.clientPhone}>{client.phone}</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
             <View style={s.headerActions}>
               <TouchableOpacity style={s.editBtn} onPress={goEdit} activeOpacity={0.7}>
@@ -388,9 +410,15 @@ export default function ClientProfileScreen() {
             <Text style={s.emptyText}>No files for this client</Text>
           ) : (
             tasks.map((task, idx) => {
-              const statusColor = getStatusColor(task.current_status);
               const totalStops = task.route_stops?.length ?? 0;
               const doneStops = task.route_stops?.filter((r) => r.status === 'Done').length ?? 0;
+              // Derived status: Done+Rejected are both terminal; show most urgent of remaining
+              const URGENCY: Record<string, number> = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted: 4, Pending: 5, Done: 99, Closed: 100 };
+              const nonTerminal = (task.route_stops ?? []).filter((s) => s.status !== 'Done' && s.status !== 'Rejected').map((s) => s.status);
+              const derivedStatus = nonTerminal.length > 0
+                ? nonTerminal.reduce((a, b) => (URGENCY[a] ?? 50) <= (URGENCY[b] ?? 50) ? a : b)
+                : (totalStops > 0 ? 'Done' : task.current_status);
+              const statusColor = getStatusColor(derivedStatus);
               return (
                 <SwipeableRow
                   key={task.id}
@@ -405,7 +433,7 @@ export default function ClientProfileScreen() {
                   >
                     <View style={s.taskRowTop}>
                       <Text style={s.taskService} numberOfLines={1}>{task.service?.name ?? '—'}</Text>
-                      <StatusBadge label={task.current_status} color={statusColor} />
+                      <StatusBadge label={derivedStatus} color={statusColor} />
                     </View>
                     <View style={s.taskRowMeta}>
                       <Text style={s.taskMetaText}>Opened {formatDate(task.created_at)}</Text>
@@ -415,7 +443,7 @@ export default function ClientProfileScreen() {
                     {totalStops > 0 && (
                       <View style={s.progressRow}>
                         <View style={s.progressBar}>
-                          <View style={[s.progressFill, { width: `${(doneStops / totalStops) * 100}%` as any, backgroundColor: doneStops === totalStops ? theme.color.success : statusColor }]} />
+                          <View style={[s.progressFill, { width: `${(doneStops / totalStops) * 100}%` as any, backgroundColor: derivedStatus === 'Done' ? theme.color.success : statusColor }]} />
                         </View>
                         <Text style={s.progressText}>{doneStops}/{totalStops} stages</Text>
                       </View>
@@ -493,7 +521,8 @@ const s = StyleSheet.create({
   clientName:       { ...theme.typography.heading, fontSize: 20, fontWeight: '800' },
   clientReference:  { ...theme.typography.body, color: theme.color.textSecondary, fontStyle: 'italic' },
   clientId:         { ...theme.typography.label, color: theme.color.textMuted, fontWeight: '600' },
-  clientPhone:      { ...theme.typography.body, color: theme.color.textSecondary },
+  clientPhone:      { ...theme.typography.body, color: theme.color.primary },
+  clientPhoneLink:  { ...theme.typography.body, color: theme.color.primary },
 
   // Custom fields
   fieldsBlock:  { gap: theme.spacing.space2, borderTopWidth: 1, borderTopColor: theme.color.border, paddingTop: 14 },
