@@ -49,7 +49,7 @@ interface ReportRow {
 }
 
 const fmtUSD = (n: number) =>
-  `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 const fmtLBP = (n: number) =>
   `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
@@ -202,8 +202,15 @@ export default function FinancialReportScreen() {
         <View style={{ flex: 1 }}>
           <View style={s.rowClientRow}>
             <Text style={s.rowClient} numberOfLines={1}>{r.clientName}</Text>
-            {r.contractPriceUSD > 0 && (
-              <Text style={s.rowContractBadge}>{fmtUSD(r.contractPriceUSD)}</Text>
+            {(r.contractPriceUSD > 0 || r.contractPriceLBP > 0) && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                {r.contractPriceUSD > 0 && (
+                  <Text style={s.rowContractBadge}>{fmtUSD(r.contractPriceUSD)}</Text>
+                )}
+                {r.contractPriceLBP > 0 && (
+                  <Text style={s.rowContractBadgeLBP}>{fmtLBP(r.contractPriceLBP)}</Text>
+                )}
+              </View>
             )}
           </View>
           <Text style={s.rowService}>{r.serviceName}</Text>
@@ -418,12 +425,14 @@ export default function FinancialReportScreen() {
                 <View style={s.detailSummaryCell}>
                   <Text style={s.detailSummaryLabel}>DUE</Text>
                   <Text style={[s.detailSummaryValue, detailRow.outstandingUSD > 0 ? s.negative : s.positive]}>{fmtUSD(detailRow.outstandingUSD)}</Text>
+                  {detailRow.outstandingLBP !== 0 && <Text style={[s.detailSummarySub, detailRow.outstandingLBP > 0 ? s.negative : s.positive]}>{fmtLBP(detailRow.outstandingLBP)}</Text>}
                 </View>
                 <View style={s.detailSummaryCell}>
                   <Text style={s.detailSummaryLabel}>BALANCE</Text>
                   <Text style={[s.detailSummaryValue, detailRow.balanceUSD >= 0 ? s.positive : s.negative]}>
                     {detailRow.balanceUSD >= 0 ? '+' : '-'}{fmtUSD(detailRow.balanceUSD)}
                   </Text>
+                  {detailRow.balanceLBP !== 0 && <Text style={[s.detailSummarySub, detailRow.balanceLBP >= 0 ? s.positive : s.negative]}>{detailRow.balanceLBP >= 0 ? '+' : '-'}{fmtLBP(detailRow.balanceLBP)}</Text>}
                 </View>
               </View>
             )}
@@ -571,7 +580,8 @@ const s = StyleSheet.create({
   rowTop:          { flexDirection: 'row', alignItems: 'flex-start', marginBottom: theme.spacing.space1 - 2 },
   rowClientRow:    { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space2, flexWrap: 'wrap' },
   rowClient:       { ...theme.typography.heading, fontSize: 15 },
-  rowContractBadge:{ ...theme.typography.body, color: theme.color.primaryText, fontWeight: '700' },
+  rowContractBadge:    { ...theme.typography.body, color: theme.color.primaryText, fontWeight: '700' },
+  rowContractBadgeLBP: { ...theme.typography.caption, color: theme.color.primary, fontWeight: '600' },
   rowService:      { ...theme.typography.caption, marginTop: theme.spacing.space1 - 2 },
   rowDate:         { ...theme.typography.caption, marginBottom: theme.spacing.space2 + 2 },
   statusPill: {

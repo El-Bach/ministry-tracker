@@ -16,6 +16,8 @@ import NewTaskScreen from '../screens/NewTaskScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import TeamScreen from '../screens/TeamScreen';
+import CreateScreen from '../screens/CreateScreen';
+import GlobalSearchScreen from '../screens/GlobalSearchScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ClientFieldsSettingsScreen from '../screens/ClientFieldsSettingsScreen';
 import ClientProfileScreen from '../screens/ClientProfileScreen';
@@ -40,7 +42,7 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   const icons: Record<string, string> = {
     Dashboard: '⊞',
     Calendar: '▦',
-    Team: '◎',
+    Create: '✚',
     Settings: '⚙',
   };
   return (
@@ -115,6 +117,11 @@ function DashboardStack() {
         component={FinancialReportScreen}
         options={{ title: 'Financial Report', headerBackTitle: 'Back' }}
       />
+      <DashStack.Screen
+        name="GlobalSearch"
+        component={GlobalSearchScreen}
+        options={{ title: 'Search', headerBackTitle: 'Back' }}
+      />
     </DashStack.Navigator>
   );
 }
@@ -134,8 +141,8 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardStack} />
+      <Tab.Screen name="Create" component={CreateScreen} />
       <Tab.Screen name="Calendar" component={CalendarScreen} />
-      <Tab.Screen name="Team" component={TeamScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );

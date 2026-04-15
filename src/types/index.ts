@@ -170,7 +170,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Calendar: undefined;
-  Team: undefined;
+  Create: undefined;
   Settings: undefined;
 };
 
@@ -211,4 +211,5 @@ export type DashboardStackParamList = {
   StageRequirements: { stopId: string; stageName: string; taskId: string };
   MinistryRequirements: { ministryId: string; ministryName: string };
   FinancialReport: undefined;
+  GlobalSearch: { query?: string } | undefined;
 };
