@@ -22,6 +22,9 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+    "updates": {
+      "enabled": false
+    },
     "plugins": [
       "expo-camera",
       "expo-image-picker",
