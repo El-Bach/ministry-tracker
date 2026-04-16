@@ -77,6 +77,20 @@ export default function CreateScreen() {
   const [editStageName, setEditStageName] = useState('');
   const [savingEditStage, setSavingEditStage] = useState(false);
 
+  // Inline service stages
+  const [expandedSvcId, setExpandedSvcId] = useState<string | null>(null);
+  const [svcStages, setSvcStages] = useState<Record<string, any[]>>({});
+  const [loadingSvcStages, setLoadingSvcStages] = useState<string | null>(null);
+  const [svcStageNewName, setSvcStageNewName] = useState('');
+  const [savingNewSvcStage, setSavingNewSvcStage] = useState(false);
+
+  // Inline stage requirements
+  const [expandedStageReqId, setExpandedStageReqId] = useState<string | null>(null);
+  const [stageReqs, setStageReqs] = useState<Record<string, any[]>>({});
+  const [loadingStageReqs, setLoadingStageReqs] = useState<string | null>(null);
+  const [stageReqNewTitle, setStageReqNewTitle] = useState('');
+  const [savingNewStageReq, setSavingNewStageReq] = useState(false);
+
   // New client full form
   const [showClientForm, setShowClientForm] = useState(false);
   const [newClientName, setNewClientName] = useState('');
@@ -233,6 +247,105 @@ export default function CreateScreen() {
         { text: 'Delete', style: 'destructive', onPress: doDelete },
       ]);
     }
+  };
+
+  // ── Inline Service Stages ─────────────────────────────────
+  const fetchSvcStages = async (svcId: string) => {
+    setLoadingSvcStages(svcId);
+    const { data } = await supabase
+      .from('service_default_stages')
+      .select('id, stop_order, ministry:ministries(id, name)')
+      .eq('service_id', svcId)
+      .order('stop_order');
+    setSvcStages((prev) => ({ ...prev, [svcId]: data ?? [] }));
+    setLoadingSvcStages(null);
+  };
+
+  const handleToggleSvcExpand = async (svcId: string) => {
+    if (expandedSvcId === svcId) { setExpandedSvcId(null); return; }
+    setExpandedSvcId(svcId);
+    await fetchSvcStages(svcId);
+  };
+
+  const handleAddSvcStage = async (svcId: string) => {
+    const name = svcStageNewName.trim();
+    if (!name) return;
+    setSavingNewSvcStage(true);
+    // Check if ministry with this name already exists
+    const existing = ministries.find((m) => m.name.toLowerCase() === name.toLowerCase());
+    let ministryId: string;
+    if (existing) {
+      ministryId = existing.id;
+    } else {
+      const { data: mData } = await supabase.from('ministries').insert({ name, type: 'parent' }).select().single();
+      if (!mData) { setSavingNewSvcStage(false); return; }
+      ministryId = (mData as any).id;
+    }
+    const stages = svcStages[svcId] ?? [];
+    await supabase.from('service_default_stages').insert({ service_id: svcId, ministry_id: ministryId, stop_order: stages.length + 1 });
+    setSavingNewSvcStage(false);
+    setSvcStageNewName('');
+    await fetchSvcStages(svcId);
+    fetchData();
+  };
+
+  const handleAddExistingSvcStage = async (svcId: string, ministryId: string) => {
+    const stages = svcStages[svcId] ?? [];
+    await supabase.from('service_default_stages').insert({ service_id: svcId, ministry_id: ministryId, stop_order: stages.length + 1 });
+    setSvcStageNewName('');
+    await fetchSvcStages(svcId);
+  };
+
+  const handleRemoveSvcStage = async (svcId: string, stageId: string) => {
+    await supabase.from('service_default_stages').delete().eq('id', stageId);
+    await fetchSvcStages(svcId);
+  };
+
+  const handleMoveSvcStage = async (svcId: string, stageId: string, dir: 'up' | 'down') => {
+    const stages = [...(svcStages[svcId] ?? [])];
+    const idx = stages.findIndex((s) => s.id === stageId);
+    if (dir === 'up' && idx === 0) return;
+    if (dir === 'down' && idx === stages.length - 1) return;
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    await Promise.all([
+      supabase.from('service_default_stages').update({ stop_order: stages[swapIdx].stop_order }).eq('id', stages[idx].id),
+      supabase.from('service_default_stages').update({ stop_order: stages[idx].stop_order }).eq('id', stages[swapIdx].id),
+    ]);
+    await fetchSvcStages(svcId);
+  };
+
+  // ── Inline Stage Requirements ──────────────────────────────
+  const fetchStageReqs = async (ministryId: string) => {
+    setLoadingStageReqs(ministryId);
+    const { data } = await supabase
+      .from('ministry_requirements')
+      .select('*')
+      .eq('ministry_id', ministryId)
+      .order('sort_order');
+    setStageReqs((prev) => ({ ...prev, [ministryId]: data ?? [] }));
+    setLoadingStageReqs(null);
+  };
+
+  const handleToggleStageReqExpand = async (ministryId: string) => {
+    if (expandedStageReqId === ministryId) { setExpandedStageReqId(null); return; }
+    setExpandedStageReqId(ministryId);
+    await fetchStageReqs(ministryId);
+  };
+
+  const handleAddStageReq = async (ministryId: string) => {
+    const title = stageReqNewTitle.trim();
+    if (!title) return;
+    setSavingNewStageReq(true);
+    const reqs = stageReqs[ministryId] ?? [];
+    await supabase.from('ministry_requirements').insert({ ministry_id: ministryId, title, req_type: 'document', sort_order: reqs.length + 1 });
+    setSavingNewStageReq(false);
+    setStageReqNewTitle('');
+    await fetchStageReqs(ministryId);
+  };
+
+  const handleDeleteStageReq = async (ministryId: string, reqId: string) => {
+    await supabase.from('ministry_requirements').delete().eq('id', reqId);
+    await fetchStageReqs(ministryId);
   };
 
   // ── UI ────────────────────────────────────────────────────
@@ -729,26 +842,78 @@ export default function CreateScreen() {
                         </View>
                       </View>
                     ) : (
-                      <View style={s.mgmtItemRow}>
-                        <TouchableOpacity
-                          style={{ flex: 1 }}
-                          onPress={() => { setManageSection(null); (navigation as any).navigate('Dashboard', { screen: 'ServiceStages', params: { serviceId: sv.id, serviceName: sv.name } }); }}
-                        >
-                          <Text style={[s.mgmtItemName, { color: theme.color.primaryText }]}>{sv.name} ›</Text>
-                          {(sv.base_price_usd > 0 || sv.base_price_lbp > 0) && (
-                            <Text style={s.mgmtItemPrice}>
-                              {sv.base_price_usd > 0 ? `$${sv.base_price_usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
-                              {sv.base_price_usd > 0 && sv.base_price_lbp > 0 ? '  ·  ' : ''}
-                              {sv.base_price_lbp > 0 ? `LBP ${sv.base_price_lbp.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
+                      <View>
+                        <View style={s.mgmtItemRow}>
+                          <TouchableOpacity style={{ flex: 1 }} onPress={() => handleToggleSvcExpand(sv.id)}>
+                            <Text style={[s.mgmtItemName, { color: theme.color.primaryText }]}>
+                              {expandedSvcId === sv.id ? '▾ ' : '›  '}{sv.name}
                             </Text>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setEditSvcId(sv.id); setEditSvcName(sv.name); setEditSvcPriceUSD(sv.base_price_usd > 0 ? String(sv.base_price_usd) : ''); setEditSvcPriceLBP(sv.base_price_lbp > 0 ? sv.base_price_lbp.toLocaleString('en-US') : ''); }}>
-                          <Text style={s.mgmtEditBtnText}>✎</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteService(sv)}>
-                          <Text style={s.mgmtDelBtnText}>✕</Text>
-                        </TouchableOpacity>
+                            {(sv.base_price_usd > 0 || sv.base_price_lbp > 0) && (
+                              <Text style={s.mgmtItemPrice}>
+                                {sv.base_price_usd > 0 ? `$${sv.base_price_usd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
+                                {sv.base_price_usd > 0 && sv.base_price_lbp > 0 ? '  ·  ' : ''}
+                                {sv.base_price_lbp > 0 ? `LBP ${sv.base_price_lbp.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setExpandedSvcId(null); setEditSvcId(sv.id); setEditSvcName(sv.name); setEditSvcPriceUSD(sv.base_price_usd > 0 ? String(sv.base_price_usd) : ''); setEditSvcPriceLBP(sv.base_price_lbp > 0 ? sv.base_price_lbp.toLocaleString('en-US') : ''); }}>
+                            <Text style={s.mgmtEditBtnText}>✎</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteService(sv)}>
+                            <Text style={s.mgmtDelBtnText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {expandedSvcId === sv.id && (
+                          <View style={s.inlinePanel}>
+                            {loadingSvcStages === sv.id ? (
+                              <ActivityIndicator color={theme.color.primary} style={{ margin: 12 }} />
+                            ) : (
+                              <>
+                                <Text style={s.inlinePanelLabel}>STAGES</Text>
+                                {(svcStages[sv.id] ?? []).length === 0 ? (
+                                  <Text style={s.inlinePanelEmpty}>No stages yet. Add one below.</Text>
+                                ) : (
+                                  (svcStages[sv.id] ?? []).map((stage, idx) => (
+                                    <View key={stage.id} style={s.inlineStageRow}>
+                                      <Text style={s.inlineStageOrder}>{stage.stop_order}.</Text>
+                                      <Text style={s.inlineStageName}>{stage.ministry?.name ?? '—'}</Text>
+                                      <TouchableOpacity onPress={() => handleMoveSvcStage(sv.id, stage.id, 'up')} style={s.inlineStageBtn} disabled={idx === 0}>
+                                        <Text style={[s.inlineStageBtnText, idx === 0 && { opacity: 0.25 }]}>↑</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity onPress={() => handleMoveSvcStage(sv.id, stage.id, 'down')} style={s.inlineStageBtn} disabled={idx === (svcStages[sv.id] ?? []).length - 1}>
+                                        <Text style={[s.inlineStageBtnText, idx === (svcStages[sv.id] ?? []).length - 1 && { opacity: 0.25 }]}>↓</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity onPress={() => handleRemoveSvcStage(sv.id, stage.id)} style={[s.inlineStageBtn, { backgroundColor: theme.color.dangerDim }]}>
+                                        <Text style={[s.inlineStageBtnText, { color: theme.color.danger }]}>✕</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  ))
+                                )}
+                                <View style={s.inlineAddRow}>
+                                  <TextInput
+                                    style={[s.mgmtSearchInput, { flex: 1 }]}
+                                    value={svcStageNewName}
+                                    onChangeText={setSvcStageNewName}
+                                    placeholder="Stage name..."
+                                    placeholderTextColor={theme.color.textMuted}
+                                  />
+                                  <TouchableOpacity style={s.inlineAddBtn} onPress={() => handleAddSvcStage(sv.id)} disabled={savingNewSvcStage}>
+                                    {savingNewSvcStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.inlineAddBtnText}>＋</Text>}
+                                  </TouchableOpacity>
+                                </View>
+                                {svcStageNewName.trim().length > 0 && ministries.filter(m => m.name.toLowerCase().includes(svcStageNewName.toLowerCase())).length > 0 && (
+                                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
+                                    {ministries.filter(m => m.name.toLowerCase().includes(svcStageNewName.toLowerCase())).map(m => (
+                                      <TouchableOpacity key={m.id} style={s.inlinePill} onPress={() => handleAddExistingSvcStage(sv.id, m.id)}>
+                                        <Text style={s.inlinePillText}>{m.name}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </ScrollView>
+                                )}
+                              </>
+                            )}
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -818,20 +983,57 @@ export default function CreateScreen() {
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      <View style={s.mgmtItemRow}>
-                        <Text style={[s.mgmtItemName, { flex: 1 }]}>{m.name}</Text>
-                        <TouchableOpacity
-                          style={s.mgmtReqBtn}
-                          onPress={() => { setManageSection(null); (navigation as any).navigate('Dashboard', { screen: 'MinistryRequirements', params: { ministryId: m.id, ministryName: m.name } }); }}
-                        >
-                          <Text style={s.mgmtReqBtnText}>📋 Req</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setEditStageId(m.id); setEditStageName(m.name); }}>
-                          <Text style={s.mgmtEditBtnText}>✎</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
-                          <Text style={s.mgmtDelBtnText}>✕</Text>
-                        </TouchableOpacity>
+                      <View>
+                        <View style={s.mgmtItemRow}>
+                          <Text style={[s.mgmtItemName, { flex: 1 }]}>{m.name}</Text>
+                          <TouchableOpacity
+                            style={[s.mgmtReqBtn, expandedStageReqId === m.id && { backgroundColor: theme.color.successDim }]}
+                            onPress={() => handleToggleStageReqExpand(m.id)}
+                          >
+                            <Text style={s.mgmtReqBtnText}>{expandedStageReqId === m.id ? '▲ Req' : '📋 Req'}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setExpandedStageReqId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
+                            <Text style={s.mgmtEditBtnText}>✎</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
+                            <Text style={s.mgmtDelBtnText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {expandedStageReqId === m.id && (
+                          <View style={s.inlinePanel}>
+                            {loadingStageReqs === m.id ? (
+                              <ActivityIndicator color={theme.color.primary} style={{ margin: 12 }} />
+                            ) : (
+                              <>
+                                <Text style={s.inlinePanelLabel}>REQUIREMENTS</Text>
+                                {(stageReqs[m.id] ?? []).length === 0 ? (
+                                  <Text style={s.inlinePanelEmpty}>No requirements yet. Add one below.</Text>
+                                ) : (
+                                  (stageReqs[m.id] ?? []).map((req) => (
+                                    <View key={req.id} style={s.inlineReqRow}>
+                                      <Text style={s.inlineReqTitle}>{req.title}</Text>
+                                      <TouchableOpacity onPress={() => handleDeleteStageReq(m.id, req.id)} style={[s.inlineStageBtn, { backgroundColor: theme.color.dangerDim }]}>
+                                        <Text style={[s.inlineStageBtnText, { color: theme.color.danger }]}>✕</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  ))
+                                )}
+                                <View style={s.inlineAddRow}>
+                                  <TextInput
+                                    style={[s.mgmtSearchInput, { flex: 1 }]}
+                                    value={stageReqNewTitle}
+                                    onChangeText={setStageReqNewTitle}
+                                    placeholder="Requirement title..."
+                                    placeholderTextColor={theme.color.textMuted}
+                                  />
+                                  <TouchableOpacity style={s.inlineAddBtn} onPress={() => handleAddStageReq(m.id)} disabled={savingNewStageReq}>
+                                    {savingNewStageReq ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.inlineAddBtnText}>＋</Text>}
+                                  </TouchableOpacity>
+                                </View>
+                              </>
+                            )}
+                          </View>
+                        )}
                       </View>
                     )}
                   </View>
@@ -1229,4 +1431,74 @@ const s = StyleSheet.create({
     justifyContent:    'center',
   },
   mgmtReqBtnText: { ...theme.typography.caption, color: theme.color.success, fontWeight: '700' },
+
+  // Inline panels (service stages + stage requirements)
+  inlinePanel: {
+    backgroundColor:   theme.color.bgBase,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    paddingBottom:     theme.spacing.space2,
+  },
+  inlinePanelLabel: {
+    ...theme.typography.sectionDivider,
+    paddingHorizontal: theme.spacing.space3 + 2,
+    paddingTop:        theme.spacing.space2 + 2,
+    paddingBottom:     theme.spacing.space1 + 2,
+  },
+  inlinePanelEmpty: { ...theme.typography.caption, color: theme.color.textMuted, paddingHorizontal: theme.spacing.space3 + 2, paddingVertical: theme.spacing.space2 },
+  inlineStageRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: theme.spacing.space3 + 2,
+    paddingVertical:   theme.spacing.space1 + 2,
+    gap:               theme.spacing.space2,
+  },
+  inlineStageOrder: { ...theme.typography.caption, color: theme.color.textMuted, minWidth: 18 },
+  inlineStageName:  { ...theme.typography.body, fontSize: 13, flex: 1 },
+  inlineStageBtn: {
+    backgroundColor:   theme.color.border,
+    borderRadius:      theme.radius.sm,
+    paddingHorizontal: theme.spacing.space2,
+    paddingVertical:   theme.spacing.space1,
+    minWidth:          28,
+    minHeight:         28,
+    justifyContent:    'center',
+    alignItems:        'center',
+  },
+  inlineStageBtnText: { ...theme.typography.label, color: theme.color.textSecondary },
+  inlineAddRow: {
+    flexDirection:     'row',
+    gap:               theme.spacing.space2,
+    paddingHorizontal: theme.spacing.space3 + 2,
+    paddingTop:        theme.spacing.space2,
+    paddingBottom:     theme.spacing.space1,
+  },
+  inlineAddBtn: {
+    backgroundColor:   theme.color.primary,
+    borderRadius:      theme.radius.sm,
+    paddingHorizontal: theme.spacing.space3,
+    minWidth:          40,
+    minHeight:         theme.touchTarget.min,
+    justifyContent:    'center',
+    alignItems:        'center',
+  },
+  inlineAddBtnText: { ...theme.typography.heading, color: theme.color.white, fontSize: 18 },
+  inlinePill: {
+    backgroundColor:   theme.color.primaryDim,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space1 + 2,
+    marginEnd:         theme.spacing.space2,
+    borderWidth:       1,
+    borderColor:       theme.color.primary + '44',
+  },
+  inlinePillText: { ...theme.typography.label, color: theme.color.primaryText },
+  inlineReqRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: theme.spacing.space3 + 2,
+    paddingVertical:   theme.spacing.space1 + 2,
+    gap:               theme.spacing.space2,
+  },
+  inlineReqTitle: { ...theme.typography.body, fontSize: 13, flex: 1 },
 });
