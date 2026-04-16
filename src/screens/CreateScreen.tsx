@@ -240,26 +240,26 @@ export default function CreateScreen() {
     {
       icon: '📄',
       label: '+ New File',
+      color: theme.color.primary,
       onPress: () => (navigation as any).navigate('Dashboard', { screen: 'NewTask' }),
-      accent: true,
     },
     {
       icon: '👤',
       label: '+ New Client',
+      color: '#10b981',
       onPress: () => openNewClientForm(),
-      accent: true,
     },
     {
       icon: '⚙',
       label: '+ New Service',
+      color: '#f59e0b',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('services'); },
-      accent: false,
     },
     {
       icon: '◎',
       label: '+ New Stage',
+      color: '#8b5cf6',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('stages'); },
-      accent: false,
     },
   ];
 
@@ -270,7 +270,7 @@ export default function CreateScreen() {
   ];
 
   return (
-    <SafeAreaView style={s.safe} edges={['bottom']}>
+    <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={s.header}>
@@ -283,12 +283,12 @@ export default function CreateScreen() {
           {quickActions.map((a) => (
             <TouchableOpacity
               key={a.label}
-              style={[s.actionCard, a.accent && s.actionCardAccent]}
+              style={[s.actionCard, { borderColor: a.color + '55', backgroundColor: a.color + '18' }]}
               onPress={a.onPress}
               activeOpacity={0.75}
             >
-              <Text style={s.actionIcon}>{a.icon}</Text>
-              <Text style={[s.actionLabel, a.accent && s.actionLabelAccent]}>{a.label}</Text>
+              <Text style={[s.actionIcon, { color: a.color }]}>{a.icon}</Text>
+              <Text style={[s.actionLabel, { color: a.color }]}>{a.label}</Text>
             </TouchableOpacity>
           ))}
         </View>

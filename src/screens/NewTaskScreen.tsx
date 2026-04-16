@@ -403,7 +403,7 @@ const fp = StyleSheet.create({
   optionCheck:            { color: theme.color.success, fontSize: 18 },
 });
 import { useAuth } from '../hooks/useAuth';
-import { Client, Service, Ministry, TeamMember, DashboardStackParamList } from '../types';
+import { Client, Service, Ministry, TeamMember, City, DashboardStackParamList } from '../types';
 
 // ─── Date helpers ─────────────────────────────────────────────
 // Parse DD/MM/YYYY or DD/MM/YY → Date object
@@ -851,6 +851,16 @@ export default function NewTaskScreen() {
  const [newStageName, setNewStageName] = useState('');
  const [savingStage, setSavingStage] = useState(false);
 
+ // Per-stage city + assignee (set before creating the task)
+ const [allCities, setAllCities] = useState<City[]>([]);
+ const [allAssignees, setAllAssignees] = useState<any[]>([]);
+ const [openStageDetailId, setOpenStageDetailId] = useState<string | null>(null);
+ const [stageCityMap, setStageCityMap] = useState<Record<string, { cityId: string; cityName: string } | null>>({});
+ const [stageAssigneeMap, setStageAssigneeMap] = useState<Record<string, { id: string; name: string; isExt: boolean } | null>>({});
+ const [stageCitySearch, setStageCitySearch] = useState('');
+ const [stageAssigneeSearch, setStageAssigneeSearch] = useState('');
+ const [stageDetailTab, setStageDetailTab] = useState<'city' | 'assignee'>('city');
+
  const [saving, setSaving] = useState(false);
 
  // Stage inline rename
@@ -945,11 +955,13 @@ export default function NewTaskScreen() {
  };
 
  const loadData = async () => {
- const [c, sv, m, tm] = await Promise.all([
+ const [c, sv, m, tm, ci, asgn] = await Promise.all([
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
  supabase.from('ministries').select('*').order('name'),
  supabase.from('team_members').select('*').order('name'),
+ supabase.from('cities').select('*').order('name'),
+ supabase.from('assignees').select('*').order('name'),
  ]);
  if (c.data) {
    setClients(c.data as Client[]);
@@ -963,6 +975,8 @@ export default function NewTaskScreen() {
  if (sv.data) setServices(sv.data as Service[]);
  if (m.data) setStages(m.data as Ministry[]);
  if (tm.data) setTeamMembers(tm.data as TeamMember[]);
+ if (ci.data) setAllCities(ci.data as City[]);
+ if (asgn.data) setAllAssignees(asgn.data);
  };
 
  const toggleStage = (stage: Ministry) => {
@@ -1194,6 +1208,9 @@ export default function NewTaskScreen() {
  ministry_id: m.id,
  stop_order: idx + 1,
  status: 'Pending',
+ city_id: stageCityMap[m.id]?.cityId ?? null,
+ assigned_to: stageAssigneeMap[m.id]?.isExt === false ? (stageAssigneeMap[m.id]?.id ?? null) : null,
+ ext_assignee_id: stageAssigneeMap[m.id]?.isExt === true ? (stageAssigneeMap[m.id]?.id ?? null) : null,
  }));
 
  const { error: stopsErr } = await supabase.from('task_route_stops').insert(stops);
@@ -1412,45 +1429,170 @@ export default function NewTaskScreen() {
    <View style={s.stageIndex}>
      <Text style={s.stageIndexText}>{idx + 1}</Text>
    </View>
-   {editingStageIdx === idx ? (
-     <TextInput
-       style={[s.inlineInput, { flex: 1, marginVertical: 0, paddingVertical: 6 }]}
-       value={editingStageName}
-       onChangeText={setEditingStageName}
-       autoFocus
-       onSubmitEditing={handleRenameStage}
-       returnKeyType="done"
-     />
-   ) : (
-     <Text style={s.stageName} numberOfLines={1}>{stage.name}</Text>
-   )}
-   <View style={s.stageActions}>
-     {editingStageIdx === idx ? (
-       <>
-         <TouchableOpacity onPress={handleRenameStage} disabled={savingStageRename}>
-           {savingStageRename
-             ? <ActivityIndicator size="small" color={theme.color.success} />
-             : <Text style={s.stageRenameConfirm}>✓</Text>}
+   <View style={{ flex: 1 }}>
+     {/* Stage name row */}
+     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+       {editingStageIdx === idx ? (
+         <TextInput
+           style={[s.inlineInput, { flex: 1, marginVertical: 0, paddingVertical: 6 }]}
+           value={editingStageName}
+           onChangeText={setEditingStageName}
+           autoFocus
+           onSubmitEditing={handleRenameStage}
+           returnKeyType="done"
+         />
+       ) : (
+         <TouchableOpacity
+           style={{ flex: 1 }}
+           onPress={() => {
+             setOpenStageDetailId(v => v === stage.id ? null : stage.id);
+             setStageCitySearch('');
+             setStageAssigneeSearch('');
+             setStageDetailTab('city');
+           }}
+           activeOpacity={0.7}
+         >
+           <Text style={s.stageName} numberOfLines={1}>{stage.name}</Text>
+           <Text style={{ fontSize: 11, color: theme.color.textMuted, marginTop: 2 }}>
+             {[stageCityMap[stage.id]?.cityName && `📍 ${stageCityMap[stage.id]!.cityName}`,
+               stageAssigneeMap[stage.id]?.name && `👤 ${stageAssigneeMap[stage.id]!.name}`]
+               .filter(Boolean).join('  ') || '📍 tap to set city & assignee'}
+           </Text>
          </TouchableOpacity>
-         <TouchableOpacity onPress={() => setEditingStageIdx(null)}>
-           <Text style={s.stageRemove}>✕</Text>
-         </TouchableOpacity>
-       </>
-     ) : (
-       <>
-         <TouchableOpacity onPress={() => { setEditingStageIdx(idx); setEditingStageName(stage.name); }}>
-           <Text style={s.stageEdit}>✎</Text>
-         </TouchableOpacity>
-         <TouchableOpacity onPress={() => moveStop(idx, -1)} disabled={idx === 0}>
-           <Text style={[s.stageArrow, idx === 0 && s.disabled]}>↑</Text>
-         </TouchableOpacity>
-         <TouchableOpacity onPress={() => moveStop(idx, 1)} disabled={idx === routeStops.length - 1}>
-           <Text style={[s.stageArrow, idx === routeStops.length - 1 && s.disabled]}>↓</Text>
-         </TouchableOpacity>
-         <TouchableOpacity onPress={() => removeRouteStop(stage.id)}>
-           <Text style={s.stageRemove}>✕</Text>
-         </TouchableOpacity>
-       </>
+       )}
+       <View style={s.stageActions}>
+         {editingStageIdx === idx ? (
+           <>
+             <TouchableOpacity onPress={handleRenameStage} disabled={savingStageRename}>
+               {savingStageRename
+                 ? <ActivityIndicator size="small" color={theme.color.success} />
+                 : <Text style={s.stageRenameConfirm}>✓</Text>}
+             </TouchableOpacity>
+             <TouchableOpacity onPress={() => setEditingStageIdx(null)}>
+               <Text style={s.stageRemove}>✕</Text>
+             </TouchableOpacity>
+           </>
+         ) : (
+           <>
+             <TouchableOpacity onPress={() => { setEditingStageIdx(idx); setEditingStageName(stage.name); }}>
+               <Text style={s.stageEdit}>✎</Text>
+             </TouchableOpacity>
+             <TouchableOpacity onPress={() => moveStop(idx, -1)} disabled={idx === 0}>
+               <Text style={[s.stageArrow, idx === 0 && s.disabled]}>↑</Text>
+             </TouchableOpacity>
+             <TouchableOpacity onPress={() => moveStop(idx, 1)} disabled={idx === routeStops.length - 1}>
+               <Text style={[s.stageArrow, idx === routeStops.length - 1 && s.disabled]}>↓</Text>
+             </TouchableOpacity>
+             <TouchableOpacity onPress={() => removeRouteStop(stage.id)}>
+               <Text style={s.stageRemove}>✕</Text>
+             </TouchableOpacity>
+           </>
+         )}
+       </View>
+     </View>
+
+     {/* Inline city + assignee picker */}
+     {openStageDetailId === stage.id && (
+       <View style={s.stageDetailPanel}>
+         {/* Tab selector */}
+         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+           <TouchableOpacity
+             style={[s.stageDetailTab, stageDetailTab === 'city' && s.stageDetailTabActive]}
+             onPress={() => setStageDetailTab('city')}
+           >
+             <Text style={[s.stageDetailTabText, stageDetailTab === 'city' && { color: theme.color.primary }]}>
+               📍 City
+             </Text>
+           </TouchableOpacity>
+           <TouchableOpacity
+             style={[s.stageDetailTab, stageDetailTab === 'assignee' && s.stageDetailTabActive]}
+             onPress={() => setStageDetailTab('assignee')}
+           >
+             <Text style={[s.stageDetailTabText, stageDetailTab === 'assignee' && { color: theme.color.primary }]}>
+               👤 Assignee
+             </Text>
+           </TouchableOpacity>
+         </View>
+
+         {stageDetailTab === 'city' && (
+           <>
+             <TextInput
+               style={s.stageDetailSearch}
+               value={stageCitySearch}
+               onChangeText={setStageCitySearch}
+               placeholder="Search city..."
+               placeholderTextColor={theme.color.textMuted}
+             />
+             <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+               {stageCityMap[stage.id] && (
+                 <TouchableOpacity onPress={() => setStageCityMap(m => ({ ...m, [stage.id]: null }))}>
+                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove city</Text>
+                 </TouchableOpacity>
+               )}
+               {allCities
+                 .filter(c => !stageCitySearch.trim() || c.name.includes(stageCitySearch.trim()))
+                 .slice(0, 10)
+                 .map(c => (
+                   <TouchableOpacity
+                     key={c.id}
+                     style={[s.stageDetailItem, stageCityMap[stage.id]?.cityId === c.id && s.stageDetailItemActive]}
+                     onPress={() => { setStageCityMap(m => ({ ...m, [stage.id]: { cityId: c.id, cityName: c.name } })); setStageCitySearch(''); }}
+                   >
+                     <Text style={s.stageDetailItemText}>{c.name}</Text>
+                     {stageCityMap[stage.id]?.cityId === c.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                   </TouchableOpacity>
+                 ))}
+             </ScrollView>
+           </>
+         )}
+
+         {stageDetailTab === 'assignee' && (
+           <>
+             <TextInput
+               style={s.stageDetailSearch}
+               value={stageAssigneeSearch}
+               onChangeText={setStageAssigneeSearch}
+               placeholder="Search assignee..."
+               placeholderTextColor={theme.color.textMuted}
+             />
+             <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+               {stageAssigneeMap[stage.id] && (
+                 <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
+                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove assignee</Text>
+                 </TouchableOpacity>
+               )}
+               <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 4, fontWeight: '700' }}>TEAM</Text>
+               {teamMembers
+                 .filter(tm => !stageAssigneeSearch.trim() || tm.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
+                 .map(tm => (
+                   <TouchableOpacity
+                     key={tm.id}
+                     style={[s.stageDetailItem, stageAssigneeMap[stage.id]?.id === tm.id && s.stageDetailItemActive]}
+                     onPress={() => { setStageAssigneeMap(m => ({ ...m, [stage.id]: { id: tm.id, name: tm.name, isExt: false } })); setStageAssigneeSearch(''); }}
+                   >
+                     <Text style={s.stageDetailItemText}>{tm.name}</Text>
+                     {stageAssigneeMap[stage.id]?.id === tm.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                   </TouchableOpacity>
+                 ))}
+               {allAssignees.length > 0 && (
+                 <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 8, fontWeight: '700' }}>EXTERNAL</Text>
+               )}
+               {allAssignees
+                 .filter(a => !stageAssigneeSearch.trim() || a.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
+                 .map(a => (
+                   <TouchableOpacity
+                     key={a.id}
+                     style={[s.stageDetailItem, stageAssigneeMap[stage.id]?.id === a.id && s.stageDetailItemActive]}
+                     onPress={() => { setStageAssigneeMap(m => ({ ...m, [stage.id]: { id: a.id, name: a.name, isExt: true } })); setStageAssigneeSearch(''); }}
+                   >
+                     <Text style={s.stageDetailItemText}>{a.name}</Text>
+                     {stageAssigneeMap[stage.id]?.id === a.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                   </TouchableOpacity>
+                 ))}
+             </ScrollView>
+           </>
+         )}
+       </View>
      )}
    </View>
  </View>
@@ -1841,7 +1983,7 @@ const s = StyleSheet.create({
   selectedStages: { gap: 6 },
   stageRow: {
     flexDirection:   'row',
-    alignItems:      'center',
+    alignItems:      'flex-start',
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.md,
     padding:         10,
@@ -1858,8 +2000,35 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   stageIndexText:    { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '700' },
-  stageName:         { flex: 1, color: theme.color.textPrimary, fontSize: theme.typography.body.fontSize, fontWeight: '600' },
+  stageName:         { color: theme.color.textPrimary, fontSize: theme.typography.body.fontSize, fontWeight: '600' },
   stageActions:      { flexDirection: 'row', gap: theme.spacing.space2, alignItems: 'center' },
+  stageDetailPanel: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    padding:         theme.spacing.space3,
+    marginTop:       theme.spacing.space2,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '33',
+  },
+  stageDetailTab: {
+    flex: 1, alignItems: 'center', paddingVertical: 6,
+    borderRadius: theme.radius.sm, backgroundColor: theme.color.bgSurface,
+  },
+  stageDetailTabActive: { backgroundColor: theme.color.primary + '22' },
+  stageDetailTabText: { ...theme.typography.label, color: theme.color.textMuted, fontWeight: '700' },
+  stageDetailSearch: {
+    backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md,
+    borderWidth: 1, borderColor: theme.color.border, color: theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3, paddingVertical: theme.spacing.space2,
+    fontSize: 13, marginBottom: 6,
+  },
+  stageDetailItem: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: theme.spacing.space3, paddingVertical: theme.spacing.space2,
+    borderRadius: theme.radius.sm,
+  },
+  stageDetailItemActive: { backgroundColor: theme.color.primary + '18' },
+  stageDetailItemText: { ...theme.typography.body, color: theme.color.textPrimary },
   stageArrow:        { color: theme.color.primary, fontSize: 18, fontWeight: '700', padding: 2 },
   stageRemove:       { color: theme.color.danger, fontSize: 16, padding: 2 },
   stageEdit:         { color: theme.color.textSecondary, fontSize: 15, padding: 2 },

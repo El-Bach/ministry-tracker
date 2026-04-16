@@ -207,6 +207,9 @@ export default function TaskDetailScreen() {
   const [savingCity, setSavingCity] = useState(false);
   const [stopDueDatePickerStopId, setStopDueDatePickerStopId] = useState<string | null>(null);
   const [savingStopDueDate, setSavingStopDueDate] = useState<string | null>(null);
+  const [openStageNameId, setOpenStageNameId] = useState<string | null>(null);
+  const [stageNameEdit, setStageNameEdit] = useState('');
+  const [savingStageNameId, setSavingStageNameId] = useState<string | null>(null);
 
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
@@ -864,6 +867,15 @@ export default function TaskDetailScreen() {
     fetchTask();
   };
 
+  const handleRenameStopMinistry = async (ministryId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setSavingStageNameId(ministryId);
+    await supabase.from('ministries').update({ name: newName.trim() }).eq('id', ministryId);
+    setSavingStageNameId(null);
+    setOpenStageNameId(null);
+    fetchTask();
+  };
+
   const handleSetStopCity = async (stopId: string, cityId: string | null) => {
     setSavingStopField(stopId);
     await supabase.from('task_route_stops').update({ city_id: cityId }).eq('id', stopId);
@@ -944,6 +956,21 @@ export default function TaskDetailScreen() {
 
   const mainStatusColor = getStatusColor(task.current_status);
 
+  // Derived status — same terminal logic as dashboard (Done + Rejected = terminal)
+  const DETAIL_URGENCY: Record<string, number> = {
+    Rejected: 1, 'Pending Signature': 2, 'In Review': 3,
+    Submitted: 4, Pending: 5, Done: 99, Closed: 100,
+  };
+  const nonTerminalStops = (task.route_stops ?? []).filter(
+    (s) => s.status !== 'Done' && s.status !== 'Rejected'
+  );
+  const derivedStatus = nonTerminalStops.length > 0
+    ? nonTerminalStops.reduce((a, b) =>
+        (DETAIL_URGENCY[a.status] ?? 50) <= (DETAIL_URGENCY[b.status] ?? 50) ? a : b
+      ).status
+    : ((task.route_stops && task.route_stops.length > 0) ? 'Done' : task.current_status);
+  const derivedStatusColor = getStatusColor(derivedStatus);
+
   // Compute balances — contract price is NOT revenue, it's the agreed billing amount
   const totalRevenueUSD = transactions.filter((t) => t.type === 'revenue').reduce((sum, t) => sum + t.amount_usd, 0);
   const totalExpenseUSD = transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_usd, 0);
@@ -995,7 +1022,7 @@ export default function TaskDetailScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <StatusBadge label={task.current_status} color={mainStatusColor} />
+            <StatusBadge label={derivedStatus} color={derivedStatusColor} />
           </View>
 
           <View style={s.metaGrid}>
@@ -1251,13 +1278,57 @@ export default function TaskDetailScreen() {
                   {/* ── All stage content (rail line spans this full height) ── */}
                   <View style={s.stageContent}>
 
-                    {/* Ministry name + order */}
-                    <View style={s.stageHeader}>
+                    {/* Ministry name + order — tap to edit name / requirements */}
+                    <TouchableOpacity
+                      style={s.stageHeader}
+                      onPress={() => {
+                        setOpenStageNameId(v => v === stop.id ? null : stop.id);
+                        setStageNameEdit(stop.ministry?.name ?? '');
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <Text style={s.stageMinistryName} numberOfLines={2}>
                         {stop.ministry?.name ?? 'Unknown Ministry'}
                       </Text>
-                      <Text style={s.stageOrder}>#{stop.stop_order}</Text>
-                    </View>
+                      <Text style={[s.stageOrder, { color: theme.color.primary }]}>
+                        {openStageNameId === stop.id ? '▲' : '✎'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Inline name-edit + requirements panel */}
+                    {openStageNameId === stop.id && (
+                      <View style={s.stageNamePanel}>
+                        <TextInput
+                          style={s.stageNameInput}
+                          value={stageNameEdit}
+                          onChangeText={setStageNameEdit}
+                          placeholder="Stage name..."
+                          placeholderTextColor={theme.color.textMuted}
+                          autoFocus
+                        />
+                        <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
+                          <TouchableOpacity
+                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.primary }]}
+                            onPress={() => stop.ministry_id && handleRenameStopMinistry(stop.ministry_id, stageNameEdit)}
+                            disabled={savingStageNameId === stop.ministry_id}
+                          >
+                            {savingStageNameId === stop.ministry_id
+                              ? <ActivityIndicator size="small" color={theme.color.white} />
+                              : <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>💾 Save</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.primary, borderWidth: 1 }]}
+                            onPress={() => navigation.navigate('StageRequirements', {
+                              stopId: stop.id,
+                              stageName: stop.ministry?.name ?? 'Requirements',
+                              taskId,
+                            })}
+                          >
+                            <Text style={[s.stageNameBtnText, { color: theme.color.primary }]}>📋 Requirements</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
 
                     {/* Status badge */}
                     <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
@@ -1298,18 +1369,8 @@ export default function TaskDetailScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Right column: Requirements → Set assignee */}
+                      {/* Right column: Set assignee */}
                       <View style={s.stageBtnCol}>
-                        <TouchableOpacity
-                          style={s.reqStopBtn}
-                          onPress={() => navigation.navigate('StageRequirements', {
-                            stopId: stop.id,
-                            stageName: stop.ministry?.name ?? 'Requirements',
-                            taskId,
-                          })}
-                        >
-                          <Text style={s.reqStopBtnText}>📋 Requirements</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity
                           style={s.stopMetaChip}
                           onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}
@@ -3008,6 +3069,30 @@ const s = StyleSheet.create({
   stageHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stageMinistryName: { ...theme.typography.body, fontWeight: '700', flex: 1 },
   stageOrder:        { ...theme.typography.caption, fontWeight: '600' },
+  stageNamePanel: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    padding:         theme.spacing.space3,
+    marginTop:       theme.spacing.space1,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '44',
+  },
+  stageNameInput: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    color:           theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: theme.spacing.space2,
+    fontSize:        14,
+  },
+  stageNameBtn: {
+    paddingVertical:   theme.spacing.space2,
+    borderRadius:      theme.radius.md,
+    alignItems:        'center',
+  },
+  stageNameBtnText: { ...theme.typography.label, fontWeight: '700' },
   stageBtnGrid:      { flexDirection: 'row', gap: theme.spacing.space2, marginTop: 2, alignItems: 'stretch' },
   stageBtnCol:       { flex: 1, gap: theme.spacing.space2 },
 
