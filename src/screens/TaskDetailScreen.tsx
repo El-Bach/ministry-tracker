@@ -1285,24 +1285,33 @@ export default function TaskDetailScreen() {
                   {/* ── All stage content (rail line spans this full height) ── */}
                   <View style={s.stageContent}>
 
-                    {/* Ministry name + order — tap to edit name / requirements */}
+                    {/* Ministry name + order — tap to edit name / city / requirements */}
                     <TouchableOpacity
                       style={s.stageHeader}
                       onPress={() => {
                         setOpenStageNameId(v => v === stop.id ? null : stop.id);
                         setStageNameEdit(stop.ministry?.name ?? '');
+                        setOpenCityStopId(null);
+                        setOpenAssigneeStopId(null);
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={s.stageMinistryName} numberOfLines={2}>
-                        {stop.ministry?.name ?? 'Unknown Ministry'}
-                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.stageMinistryName} numberOfLines={2}>
+                          {stop.ministry?.name ?? 'Unknown Ministry'}
+                        </Text>
+                        {stop.city?.name ? (
+                          <Text style={{ color: theme.color.primary, fontSize: 12, marginTop: 3, fontWeight: '600' }}>
+                            📍 {stop.city.name}
+                          </Text>
+                        ) : null}
+                      </View>
                       <Text style={[s.stageOrder, { color: theme.color.primary }]}>
                         {openStageNameId === stop.id ? '▲' : '✎'}
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Inline name-edit + requirements panel */}
+                    {/* Inline name-edit + city + requirements panel */}
                     {openStageNameId === stop.id && (
                       <View style={s.stageNamePanel}>
                         <TextInput
@@ -1313,6 +1322,22 @@ export default function TaskDetailScreen() {
                           placeholderTextColor={theme.color.textMuted}
                           autoFocus
                         />
+
+                        {/* City picker chip inside panel */}
+                        <TouchableOpacity
+                          style={[s.stopMetaChip, { marginTop: theme.spacing.space2, alignSelf: 'flex-start' }]}
+                          onPress={() => {
+                            setOpenCityStopId(v => v === stop.id ? null : stop.id);
+                            setStopCitySearch('');
+                            setShowCreateCityForm(false);
+                            setNewCityName('');
+                          }}
+                        >
+                          <Text style={[s.stopMetaChipText, stop.city?.name ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
+                            {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                          </Text>
+                        </TouchableOpacity>
+
                         <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
                           <TouchableOpacity
                             style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.primary }]}
