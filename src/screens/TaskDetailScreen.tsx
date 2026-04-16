@@ -861,8 +861,15 @@ export default function TaskDetailScreen() {
   // ─── Per-stage city / assignee handlers ─────────────────
   const handleSetStopDueDate = async (stopId: string, date: string | null) => {
     setSavingStopDueDate(stopId);
-    await supabase.from('task_route_stops').update({ due_date: date }).eq('id', stopId);
+    const { error } = await supabase
+      .from('task_route_stops')
+      .update({ due_date: date })
+      .eq('id', stopId);
     setSavingStopDueDate(null);
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
     setStopDueDatePickerStopId(null);
     fetchTask();
   };
