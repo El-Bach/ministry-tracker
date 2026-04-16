@@ -21,6 +21,9 @@ import {
 } from 'react-native';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+// ─── Final closure stage — always last, auto-created, non-removable ─
+const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -449,16 +452,18 @@ export default function TaskDetailScreen() {
   const openEditStages = () => {
     if (!task?.route_stops) return;
     const sorted = [...task.route_stops].sort((a, b) => a.stop_order - b.stop_order);
-    const current = sorted.map((s) => ({
+    // Exclude the final closure stage — it's always last and auto-managed
+    const editable = sorted.filter(s => s.ministry?.name !== FINAL_STAGE_NAME);
+    const current = editable.map((s) => ({
       id: s.ministry_id,
       name: s.ministry?.name ?? '',
       type: 'parent' as const,
       created_at: '',
     }));
     setEditingStops(current);
-    // Populate city map from existing route_stops
+    // Populate city map from existing route_stops (editable only)
     const cityMap: Record<string, { cityId: string | null; cityName: string | null }> = {};
-    for (const s of sorted) {
+    for (const s of editable) {
       cityMap[s.ministry_id] = { cityId: s.city_id ?? null, cityName: (s.city as any)?.name ?? null };
     }
     setEditStageCities(cityMap);
@@ -510,12 +515,32 @@ export default function TaskDetailScreen() {
   };
 
   const handleSaveStages = async () => {
-    if (editingStops.length === 0) {
-      Alert.alert('Required', 'Add at least one stage.');
-      return;
-    }
     setSavingStages(true);
     try {
+      // Preserve the existing final stage stop (to keep its status/city)
+      const existingFinal = task?.route_stops?.find(s => s.ministry?.name === FINAL_STAGE_NAME);
+
+      // Get or create the final stage ministry
+      let finalMinistryId = existingFinal?.ministry_id ?? null;
+      if (!finalMinistryId) {
+        const { data: existingMin } = await supabase
+          .from('ministries')
+          .select('id')
+          .eq('name', FINAL_STAGE_NAME)
+          .maybeSingle();
+        if (existingMin) {
+          finalMinistryId = existingMin.id;
+        } else {
+          const { data: newMin, error: minErr } = await supabase
+            .from('ministries')
+            .insert({ name: FINAL_STAGE_NAME, type: 'parent' })
+            .select()
+            .single();
+          if (minErr) throw minErr;
+          finalMinistryId = newMin.id;
+        }
+      }
+
       // Delete all existing stops for this task
       const { error: delErr } = await supabase
         .from('task_route_stops')
@@ -523,14 +548,24 @@ export default function TaskDetailScreen() {
         .eq('task_id', taskId);
       if (delErr) throw delErr;
 
-      // Re-insert in new order (preserve city assignments)
-      const newStops = editingStops.map((s, idx) => ({
-        task_id: taskId,
-        ministry_id: s.id,
-        stop_order: idx + 1,
-        status: 'Pending',
-        city_id: editStageCities[s.id]?.cityId ?? null,
-      }));
+      // Re-insert in new order + final stage always last
+      const newStops = [
+        ...editingStops.map((s, idx) => ({
+          task_id: taskId,
+          ministry_id: s.id,
+          stop_order: idx + 1,
+          status: 'Pending',
+          city_id: editStageCities[s.id]?.cityId ?? null,
+        })),
+        {
+          task_id: taskId,
+          ministry_id: finalMinistryId,
+          stop_order: editingStops.length + 1,
+          status: existingFinal?.status ?? 'Pending',
+          city_id: existingFinal?.city_id ?? null,
+        },
+      ];
+
       const { error: insErr } = await supabase
         .from('task_route_stops')
         .insert(newStops);
@@ -2138,6 +2173,14 @@ export default function TaskDetailScreen() {
                 </View>
               ))}
 
+              {/* Fixed final stage row — always last, not editable */}
+              <View style={[s.editStageRow, { opacity: 0.5, marginTop: theme.spacing.space2 }]}>
+                <View style={[s.editStageIndex, { backgroundColor: theme.color.border }]}>
+                  <Text style={s.editStageIndexText}>🔒</Text>
+                </View>
+                <Text style={[s.editStageName, { flex: 1, color: theme.color.textMuted }]} numberOfLines={1}>{FINAL_STAGE_NAME}</Text>
+              </View>
+
               {/* All available stages to add */}
               <Text style={[s.editStagesSubtitle, { marginTop: 16 }]}>ADD STAGES</Text>
               <TextInput
@@ -2151,6 +2194,7 @@ export default function TaskDetailScreen() {
               />
               {[...allStages]
                 .filter((st) => !editingStops.find((e) => e.id === st.id))
+                .filter((st) => st.name !== FINAL_STAGE_NAME)
                 .filter((st) => !editStageSearch || st.name.toLowerCase().includes(editStageSearch.toLowerCase()))
                 .sort((a, b) => a.name.localeCompare(b.name, ['ar', 'en'], { sensitivity: 'base' }))
                 .map((stage) => (
@@ -2163,10 +2207,10 @@ export default function TaskDetailScreen() {
                     <Text style={s.addStageIcon}>+</Text>
                   </TouchableOpacity>
                 ))}
-              {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length === 0 && (
+              {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length === 0 && (
                 <Text style={s.editStagesEmpty}>All stages are already added.</Text>
               )}
-              {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length > 0 && (
+              {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length > 0 && (
                 <Text style={s.editStagesEmpty}>No stages match "{editStageSearch}"</Text>
               )}
 

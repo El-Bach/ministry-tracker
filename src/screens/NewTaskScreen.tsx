@@ -26,6 +26,9 @@ import { theme } from '../theme';
 import { FieldDefinition, FieldValue, useFieldDefinitions } from '../components/ClientFieldsForm';
 import * as Location from 'expo-location';
 
+// ─── Final closure stage — always last, auto-created ────────────────
+const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
+
 // ─── Field types list (for picker) ──────────────────────────────
 const FIELD_TYPES_LIST = [
  { key: 'text', label: 'Text', icon: 'Aa', desc: 'Free text' },
@@ -1215,6 +1218,29 @@ export default function NewTaskScreen() {
 
  const { error: stopsErr } = await supabase.from('task_route_stops').insert(stops);
  if (stopsErr) throw stopsErr;
+
+ // Auto-append the final closure stage (always last)
+ const { data: existingFinalMin } = await supabase
+   .from('ministries')
+   .select('id')
+   .eq('name', FINAL_STAGE_NAME)
+   .maybeSingle();
+ let finalMinistryId = existingFinalMin?.id ?? null;
+ if (!finalMinistryId) {
+   const { data: newMin, error: minErr } = await supabase
+     .from('ministries')
+     .insert({ name: FINAL_STAGE_NAME, type: 'parent' })
+     .select()
+     .single();
+   if (minErr) throw minErr;
+   finalMinistryId = newMin.id;
+ }
+ await supabase.from('task_route_stops').insert({
+   task_id: taskData.id,
+   ministry_id: finalMinistryId,
+   stop_order: stops.length + 1,
+   status: 'Pending',
+ });
 
  await supabase.from('status_updates').insert({
  task_id: taskData.id,
