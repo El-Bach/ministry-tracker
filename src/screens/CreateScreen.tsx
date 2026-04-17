@@ -23,9 +23,9 @@ import { Calendar } from 'react-native-calendars';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { Client, Service, Ministry } from '../types';
+import { Client, Service, Ministry, ServiceDocument } from '../types';
 
-type ManageSection = 'clients' | 'services' | 'stages' | null;
+type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
 function openPhone(phone: string, name?: string) {
   const clean = phone.replace(/[^0-9+]/g, '');
@@ -109,16 +109,41 @@ export default function CreateScreen() {
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
   const [calCurrentDate, setCalCurrentDate] = useState<string | undefined>(undefined);
 
+  // ── Network (people directory) ────────────────────────────
+  const [network, setNetwork] = useState<any[]>([]);
+  const [networkSearch, setNetworkSearch] = useState('');
+  const [showNetworkForm, setShowNetworkForm] = useState(false);
+  const [editNetworkId, setEditNetworkId] = useState<string | null>(null);
+  const [netName, setNetName] = useState('');
+  const [netPhone, setNetPhone] = useState('');
+  const [netReference, setNetReference] = useState('');
+  const [netRefPhone, setNetRefPhone] = useState('');
+  const [netCityId, setNetCityId] = useState<string | null>(null);
+  const [netCitySearch, setNetCitySearch] = useState('');
+  const [showNetCityPicker, setShowNetCityPicker] = useState(false);
+  const [savingNetwork, setSavingNetwork] = useState(false);
+  const [allCities, setAllCities] = useState<any[]>([]);
+
+  // ── Service documents checklist ───────────────────────────
+  const [serviceDocs, setServiceDocs] = useState<Record<string, ServiceDocument[]>>({});
+  const [expandedDocSvcId, setExpandedDocSvcId] = useState<string | null>(null);
+  const [newDocTitle, setNewDocTitle] = useState('');
+  const [savingDoc, setSavingDoc] = useState(false);
+
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    const [c, s, m] = await Promise.all([
+    const [c, s, m, net, cities] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
       supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
+      supabase.from('assignees').select('*, city:cities(id,name)').order('name'),
+      supabase.from('cities').select('*').order('name'),
     ]);
     if (c.data) setClients(c.data as Client[]);
     if (s.data) setServices(s.data as Service[]);
     if (m.data) setMinistries(m.data as Ministry[]);
+    if (net.data) setNetwork(net.data as any[]);
+    if (cities.data) setAllCities(cities.data as any[]);
     setLoading(false);
   }, []);
 
@@ -348,6 +373,105 @@ export default function CreateScreen() {
     await fetchStageReqs(ministryId);
   };
 
+  // ── Network handlers ─────────────────────────────────────
+  const openNetworkForm = (contact?: any) => {
+    if (contact) {
+      setEditNetworkId(contact.id);
+      setNetName(contact.name ?? '');
+      setNetPhone(contact.phone ?? '');
+      setNetReference(contact.reference ?? '');
+      setNetRefPhone(contact.reference_phone ?? '');
+      setNetCityId(contact.city_id ?? null);
+    } else {
+      setEditNetworkId(null);
+      setNetName(''); setNetPhone(''); setNetReference(''); setNetRefPhone(''); setNetCityId(null);
+    }
+    setNetCitySearch('');
+    setShowNetCityPicker(false);
+    setShowNetworkForm(true);
+  };
+
+  const handleSaveNetworkContact = async () => {
+    if (!netName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+    setSavingNetwork(true);
+    const payload = {
+      name: netName.trim(),
+      phone: netPhone.trim() || null,
+      reference: netReference.trim() || null,
+      reference_phone: netRefPhone.trim() || null,
+      city_id: netCityId ?? null,
+    };
+    if (editNetworkId) {
+      await supabase.from('assignees').update(payload).eq('id', editNetworkId);
+    } else {
+      await supabase.from('assignees').insert(payload);
+    }
+    setSavingNetwork(false);
+    setShowNetworkForm(false);
+    setEditNetworkId(null);
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
+    if (data) setNetwork(data);
+  };
+
+  const handleDeleteNetworkContact = (contact: any) => {
+    Alert.alert('Delete Contact', `Delete "${contact.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          await supabase.from('assignees').delete().eq('id', contact.id);
+          setNetwork(prev => prev.filter(n => n.id !== contact.id));
+        },
+      },
+    ]);
+  };
+
+  // ── Service document handlers ─────────────────────────────
+  const fetchServiceDocs = async (serviceId: string) => {
+    const { data } = await supabase.from('service_documents').select('*').eq('service_id', serviceId).order('sort_order');
+    setServiceDocs(prev => ({ ...prev, [serviceId]: (data ?? []) as ServiceDocument[] }));
+  };
+
+  const handleToggleDocExpand = async (serviceId: string) => {
+    if (expandedDocSvcId === serviceId) { setExpandedDocSvcId(null); return; }
+    setExpandedDocSvcId(serviceId);
+    await fetchServiceDocs(serviceId);
+  };
+
+  const handleAddDoc = async (serviceId: string) => {
+    const title = newDocTitle.trim();
+    if (!title) return;
+    setSavingDoc(true);
+    const docs = serviceDocs[serviceId] ?? [];
+    const maxOrder = docs.length > 0 ? Math.max(...docs.map(d => d.sort_order)) : 0;
+    const { data } = await supabase.from('service_documents')
+      .insert({ service_id: serviceId, title, sort_order: maxOrder + 1 })
+      .select().single();
+    setSavingDoc(false);
+    if (data) {
+      setServiceDocs(prev => ({ ...prev, [serviceId]: [...(prev[serviceId] ?? []), data as ServiceDocument] }));
+      setNewDocTitle('');
+    }
+  };
+
+  const handleToggleDocCheck = async (doc: ServiceDocument) => {
+    const next = !doc.is_checked;
+    await supabase.from('service_documents').update({ is_checked: next }).eq('id', doc.id);
+    setServiceDocs(prev => ({
+      ...prev,
+      [doc.service_id]: (prev[doc.service_id] ?? []).map(d => d.id === doc.id ? { ...d, is_checked: next } : d),
+    }));
+  };
+
+  const handleDeleteDoc = async (doc: ServiceDocument) => {
+    await supabase.from('service_documents').delete().eq('id', doc.id);
+    setServiceDocs(prev => ({ ...prev, [doc.service_id]: (prev[doc.service_id] ?? []).filter(d => d.id !== doc.id) }));
+  };
+
+  const handleResetChecks = async (serviceId: string) => {
+    await supabase.from('service_documents').update({ is_checked: false }).eq('service_id', serviceId);
+    setServiceDocs(prev => ({ ...prev, [serviceId]: (prev[serviceId] ?? []).map(d => ({ ...d, is_checked: false })) }));
+  };
+
   // ── UI ────────────────────────────────────────────────────
   const quickActions = [
     {
@@ -380,6 +504,8 @@ export default function CreateScreen() {
     { key: 'clients' as ManageSection, icon: '👤', label: 'Clients', count: clients.length },
     { key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length },
     { key: 'stages' as ManageSection, icon: '◎', label: 'Stages', count: ministries.length },
+    { key: 'network' as ManageSection, icon: '👥', label: 'Network', count: network.length },
+    { key: 'documents' as ManageSection, icon: '📋', label: 'Documents Required', count: services.length },
   ];
 
   return (
@@ -413,7 +539,7 @@ export default function CreateScreen() {
             <TouchableOpacity
               key={row.key}
               style={[s.manageRow, i < manageRows.length - 1 && s.manageRowBorder]}
-              onPress={() => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection(row.key); }}
+              onPress={() => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setNetworkSearch(''); setShowNetworkForm(false); setManageSection(row.key); }}
               activeOpacity={0.7}
             >
               <Text style={s.manageRowIcon}>{row.icon}</Text>
@@ -1046,6 +1172,190 @@ export default function CreateScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* ── NETWORK MODAL ── */}
+      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => setManageSection(null)}>
+        <View style={s.mgmtOverlay}>
+          <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={s.mgmtSheet}>
+              <View style={s.mgmtHeader}>
+                <Text style={s.mgmtTitle}>👥 Network</Text>
+                <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
+                  <Text style={s.mgmtClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              {/* Search */}
+              <View style={s.mgmtSearchRow}>
+                <TextInput style={s.mgmtSearch} value={networkSearch} onChangeText={setNetworkSearch}
+                  placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted} />
+              </View>
+              <Text style={s.mgmtSubtitle}>
+                {networkSearch.trim()
+                  ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
+                  : `${network.length} contacts`}
+              </Text>
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                {network
+                  .filter(n => !networkSearch.trim() || n.name?.toLowerCase().includes(networkSearch.toLowerCase()))
+                  .map((contact) => (
+                    <View key={contact.id} style={s.netContactCard}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.netContactName}>{contact.name}</Text>
+                        {contact.phone ? (
+                          <TouchableOpacity onPress={() => openPhone(contact.phone, contact.name)}>
+                            <Text style={s.netContactPhone}>📞 {contact.phone}</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        {contact.reference ? <Text style={s.netContactRef}>عبر {contact.reference}</Text> : null}
+                        {contact.reference_phone ? (
+                          <TouchableOpacity onPress={() => openPhone(contact.reference_phone, contact.reference || contact.name)}>
+                            <Text style={s.netContactPhone}>📞 {contact.reference_phone}</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        {contact.city?.name ? <Text style={s.netContactCity}>📍 {contact.city.name}</Text> : null}
+                      </View>
+                      <View style={s.netContactActions}>
+                        <TouchableOpacity onPress={() => openNetworkForm(contact)} style={s.netActionBtn}>
+                          <Text style={s.netActionEdit}>✎</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteNetworkContact(contact)} style={s.netActionBtn}>
+                          <Text style={s.netActionDelete}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                {networkSearch.trim() && network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length === 0 && (
+                  <Text style={s.mgmtEmpty}>No contacts match "{networkSearch}"</Text>
+                )}
+                <TouchableOpacity style={s.netAddBtn} onPress={() => openNetworkForm()}>
+                  <Text style={s.netAddBtnText}>＋ Add Contact</Text>
+                </TouchableOpacity>
+              </ScrollView>
+              {/* Add/Edit form */}
+              {showNetworkForm && (
+                <View style={s.netForm}>
+                  <Text style={s.netFormTitle}>{editNetworkId ? 'Edit Contact' : 'New Contact'}</Text>
+                  <TextInput style={s.netInput} value={netName} onChangeText={setNetName}
+                    placeholder="Full name *" placeholderTextColor={theme.color.textMuted} autoFocus={!editNetworkId} />
+                  <TextInput style={s.netInput} value={netPhone} onChangeText={setNetPhone}
+                    placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                  <TextInput style={s.netInput} value={netReference} onChangeText={setNetReference}
+                    placeholder="Reference (via)" placeholderTextColor={theme.color.textMuted} />
+                  <TextInput style={s.netInput} value={netRefPhone} onChangeText={setNetRefPhone}
+                    placeholder="Reference phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                  {/* City picker */}
+                  <TouchableOpacity style={s.netCityTrigger} onPress={() => setShowNetCityPicker(v => !v)}>
+                    <Text style={[s.netCityTriggerText, netCityId && { color: theme.color.textPrimary }]}>
+                      📍 {netCityId ? (allCities.find(c => c.id === netCityId)?.name ?? 'City') : 'Set city (optional)'}
+                    </Text>
+                    {netCityId && (
+                      <TouchableOpacity onPress={() => { setNetCityId(null); setShowNetCityPicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Text style={{ color: theme.color.danger, fontSize: 13, paddingStart: 8 }}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                  {showNetCityPicker && (
+                    <View style={s.netCityDropdown}>
+                      <TextInput style={s.netCitySearch} value={netCitySearch} onChangeText={setNetCitySearch}
+                        placeholder="Search cities..." placeholderTextColor={theme.color.textMuted} />
+                      <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+                        {allCities
+                          .filter(c => !netCitySearch.trim() || c.name.toLowerCase().includes(netCitySearch.toLowerCase()))
+                          .map(city => (
+                            <TouchableOpacity key={city.id}
+                              style={[s.netCityItem, netCityId === city.id && s.netCityItemActive]}
+                              onPress={() => { setNetCityId(city.id); setShowNetCityPicker(false); setNetCitySearch(''); }}>
+                              <Text style={[s.netCityItemText, netCityId === city.id && { color: theme.color.primary, fontWeight: '700' }]}>{city.name}</Text>
+                              {netCityId === city.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                            </TouchableOpacity>
+                          ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  <View style={s.netFormActions}>
+                    <TouchableOpacity style={s.netCancelBtn} onPress={() => { setShowNetworkForm(false); setEditNetworkId(null); }}>
+                      <Text style={s.netCancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.netSaveBtn, savingNetwork && { opacity: 0.6 }]} onPress={handleSaveNetworkContact} disabled={savingNetwork}>
+                      {savingNetwork ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.netSaveBtnText}>Save</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* ── DOCUMENTS REQUIRED MODAL ── */}
+      <Modal visible={manageSection === 'documents'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
+        <View style={s.mgmtOverlay}>
+          <View style={[s.mgmtSheet, { flex: 1, marginTop: 60 }]}>
+            <View style={s.mgmtHeader}>
+              <Text style={s.mgmtTitle}>📋 Documents Required</Text>
+              <TouchableOpacity onPress={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
+                <Text style={s.mgmtClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+              {services.length === 0 && <Text style={s.mgmtEmpty}>No services yet</Text>}
+              {services.map((svc) => {
+                const docs = serviceDocs[svc.id] ?? [];
+                const checkedCount = docs.filter(d => d.is_checked).length;
+                const isExpanded = expandedDocSvcId === svc.id;
+                return (
+                  <View key={svc.id} style={s.docSvcCard}>
+                    {/* Service header row */}
+                    <TouchableOpacity style={s.docSvcRow} onPress={() => handleToggleDocExpand(svc.id)} activeOpacity={0.7}>
+                      <Text style={s.docSvcName}>{svc.name}</Text>
+                      {isExpanded && docs.length > 0 && (
+                        <Text style={s.docSvcBadge}>{checkedCount}/{docs.length} ✓</Text>
+                      )}
+                      <Text style={s.docSvcArrow}>{isExpanded ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {/* Expanded document list */}
+                    {isExpanded && (
+                      <View style={s.docListPanel}>
+                        {docs.length === 0 && <Text style={s.docEmpty}>No documents added yet</Text>}
+                        {docs.map((doc, idx) => (
+                          <TouchableOpacity key={doc.id} style={s.docRow} onPress={() => handleToggleDocCheck(doc)} activeOpacity={0.7}>
+                            <Text style={s.docNumber}>{idx + 1}.</Text>
+                            <Text style={[s.docCheck, doc.is_checked && s.docCheckDone]}>{doc.is_checked ? '☑' : '☐'}</Text>
+                            <Text style={[s.docTitle, doc.is_checked && s.docTitleDone]} numberOfLines={2}>{doc.title}</Text>
+                            <TouchableOpacity onPress={() => handleDeleteDoc(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Text style={s.docDelete}>✕</Text>
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        ))}
+                        {/* Add document inline */}
+                        <View style={s.docAddRow}>
+                          <TextInput
+                            style={s.docAddInput}
+                            value={expandedDocSvcId === svc.id ? newDocTitle : ''}
+                            onChangeText={setNewDocTitle}
+                            placeholder="Add document..."
+                            placeholderTextColor={theme.color.textMuted}
+                          />
+                          <TouchableOpacity style={s.docAddBtn} onPress={() => handleAddDoc(svc.id)} disabled={savingDoc || !newDocTitle.trim()}>
+                            {savingDoc ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docAddBtnText}>＋</Text>}
+                          </TouchableOpacity>
+                        </View>
+                        {/* Reset checks */}
+                        {checkedCount > 0 && (
+                          <TouchableOpacity style={s.docResetBtn} onPress={() => handleResetChecks(svc.id)}>
+                            <Text style={s.docResetBtnText}>↺ Reset all checks</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -1501,4 +1811,187 @@ const s = StyleSheet.create({
     gap:               theme.spacing.space2,
   },
   inlineReqTitle: { ...theme.typography.body, fontSize: 13, flex: 1 },
+
+  // ── Network styles ────────────────────────────────────────
+  netContactCard: {
+    flexDirection:   'row',
+    alignItems:      'flex-start',
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   theme.spacing.space3,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    gap:             theme.spacing.space3,
+  },
+  netContactName:    { ...theme.typography.body, fontWeight: '700', marginBottom: 2 },
+  netContactPhone:   { ...theme.typography.caption, color: theme.color.primary, marginBottom: 1 },
+  netContactRef:     { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic', marginBottom: 1 },
+  netContactCity:    { ...theme.typography.caption, color: theme.color.textSecondary },
+  netContactActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  netActionBtn:      { padding: 6 },
+  netActionEdit:     { color: theme.color.primary, fontSize: 16 },
+  netActionDelete:   { color: theme.color.textMuted, fontSize: 15 },
+  netAddBtn: {
+    margin:          theme.spacing.space4,
+    paddingVertical: theme.spacing.space3,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.primary + '18',
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '44',
+    alignItems:      'center',
+  },
+  netAddBtnText: { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
+  netForm: {
+    borderTopWidth:  1,
+    borderTopColor:  theme.color.border,
+    padding:         theme.spacing.space4,
+    gap:             10,
+    backgroundColor: theme.color.bgBase,
+  },
+  netFormTitle:  { ...theme.typography.label, fontWeight: '700', color: theme.color.textSecondary },
+  netInput: {
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:  10,
+    ...theme.typography.body,
+    color:            theme.color.textPrimary,
+  },
+  netCityTrigger: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+  },
+  netCityTriggerText: { ...theme.typography.body, color: theme.color.textMuted, flex: 1 },
+  netCityDropdown: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    overflow:        'hidden',
+  },
+  netCitySearch: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+    ...theme.typography.body,
+    color:             theme.color.textPrimary,
+  },
+  netCityItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  netCityItemActive: { backgroundColor: theme.color.primary + '11' },
+  netCityItemText:   { ...theme.typography.body, color: theme.color.textPrimary, flex: 1 },
+  netFormActions:  { flexDirection: 'row', gap: 10 },
+  netCancelBtn: {
+    flex:            0,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   theme.spacing.space3,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.bgSurface,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    alignItems:      'center',
+  },
+  netCancelBtnText: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
+  netSaveBtn: {
+    flex:            1,
+    paddingVertical: theme.spacing.space3,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.primary,
+    alignItems:      'center',
+  },
+  netSaveBtnText: { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
+
+  // ── Service Documents styles ──────────────────────────────
+  docSvcCard: {
+    marginHorizontal: theme.spacing.space3,
+    marginBottom:     theme.spacing.space3,
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.lg,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    overflow:         'hidden',
+  },
+  docSvcRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   theme.spacing.space3 + 2,
+    gap:             theme.spacing.space2,
+  },
+  docSvcName:  { flex: 1, ...theme.typography.body, fontWeight: '700' },
+  docSvcBadge: { ...theme.typography.caption, color: theme.color.success, fontWeight: '700' },
+  docSvcArrow: { ...theme.typography.caption, color: theme.color.textMuted },
+  docListPanel: {
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+    paddingBottom:  theme.spacing.space2,
+  },
+  docEmpty: { ...theme.typography.caption, color: theme.color.textMuted, padding: theme.spacing.space3, paddingBottom: theme.spacing.space1 },
+  docRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    gap:             theme.spacing.space2,
+  },
+  docNumber:      { ...theme.typography.caption, color: theme.color.textMuted, minWidth: 20 },
+  docCheck:       { fontSize: 18, color: theme.color.textMuted },
+  docCheckDone:   { color: theme.color.success },
+  docTitle:       { flex: 1, ...theme.typography.body },
+  docTitleDone:   { textDecorationLine: 'line-through', color: theme.color.textMuted },
+  docDelete:      { color: theme.color.textMuted, fontSize: 14, padding: 4 },
+  docAddRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    marginHorizontal: theme.spacing.space3,
+    marginTop:       theme.spacing.space2,
+    gap:             8,
+  },
+  docAddInput: {
+    flex:            1,
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+    ...theme.typography.body,
+    color:           theme.color.textPrimary,
+  },
+  docAddBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+    alignItems:      'center',
+  },
+  docAddBtnText:  { color: theme.color.white, fontWeight: '700', fontSize: 16 },
+  docResetBtn: {
+    marginHorizontal: theme.spacing.space3,
+    marginTop:        theme.spacing.space2,
+    paddingVertical:  8,
+    alignItems:       'center',
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+  },
+  docResetBtnText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '600' },
 });

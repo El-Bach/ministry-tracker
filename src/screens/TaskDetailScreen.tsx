@@ -69,6 +69,8 @@ interface FileTransaction {
   description: string;
   amount_usd: number;
   amount_lbp: number;
+  stop_id?: string | null;
+  stop?: { id: string; ministry?: { name: string } } | null;
   created_by?: string;
   creator?: { name: string };
   created_at: string;
@@ -158,12 +160,16 @@ export default function TaskDetailScreen() {
   const [txAmountLBP, setTxAmountLBP] = useState('');
   const [savingTx, setSavingTx] = useState(false);
   const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+  const [txStopId, setTxStopId] = useState<string | null>(null);
+  const [showTxStagePicker, setShowTxStagePicker] = useState(false);
   // Edit transaction
   const [editingTx, setEditingTx] = useState<FileTransaction | null>(null);
   const [editTxType, setEditTxType] = useState<'expense' | 'revenue'>('expense');
   const [editTxDescription, setEditTxDescription] = useState('');
   const [editTxAmountUSD, setEditTxAmountUSD] = useState('');
   const [editTxAmountLBP, setEditTxAmountLBP] = useState('');
+  const [editTxStopId, setEditTxStopId] = useState<string | null>(null);
+  const [showEditTxStagePicker, setShowEditTxStagePicker] = useState(false);
   const [savingEditTx, setSavingEditTx] = useState(false);
 
   // Contract price states
@@ -255,7 +261,7 @@ export default function TaskDetailScreen() {
       supabase.from('status_labels').select('*').order('sort_order'),
       supabase.from('team_members').select('*').order('name'),
       supabase.from('cities').select('*').order('name'),
-      supabase.from('assignees').select('*, creator:team_members!created_by(name)').order('name'),
+      supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').order('name'),
     ]);
 
     if (citiesRes.data) setAllCities(citiesRes.data as City[]);
@@ -293,7 +299,7 @@ export default function TaskDetailScreen() {
     // Fetch financial transactions
     const { data: txData } = await supabase
       .from('file_transactions')
-      .select('*, creator:team_members!created_by(name)')
+      .select('*, creator:team_members!created_by(name), stop:task_route_stops(id, ministry:ministries(name))')
       .eq('task_id', taskId)
       .order('created_at', { ascending: false });
     if (txData) setTransactions(txData as FileTransaction[]);
@@ -387,6 +393,7 @@ export default function TaskDetailScreen() {
       description: txDescription.trim(),
       amount_usd: usd,
       amount_lbp: lbp,
+      stop_id: txStopId ?? null,
       created_by: teamMember?.id,
     });
     setSavingTx(false);
@@ -395,6 +402,8 @@ export default function TaskDetailScreen() {
     setTxAmountUSD('');
     setTxAmountLBP('');
     setTxType('expense');
+    setTxStopId(null);
+    setShowTxStagePicker(false);
     setShowAddTransaction(false);
     fetchTask();
   };
@@ -419,11 +428,14 @@ export default function TaskDetailScreen() {
         description: editTxDescription.trim(),
         amount_usd:  usd,
         amount_lbp:  lbp,
+        stop_id:     editTxStopId ?? null,
       })
       .eq('id', editingTx.id);
     setSavingEditTx(false);
     if (error) { Alert.alert('Error', error.message); return; }
     setEditingTx(null);
+    setEditTxStopId(null);
+    setShowEditTxStagePicker(false);
     fetchTask();
   };
 
@@ -1117,7 +1129,16 @@ export default function TaskDetailScreen() {
 
   const handleSetStopAssignee = async (stopId: string, memberId: string | null, extId: string | null) => {
     setSavingStopField(stopId);
-    await supabase.from('task_route_stops').update({ assigned_to: memberId, ext_assignee_id: extId }).eq('id', stopId);
+    const updates: Record<string, any> = { assigned_to: memberId, ext_assignee_id: extId };
+    // Auto-fill city from Network contact's city if stop has no city yet
+    if (extId) {
+      const ext = extAssignees.find((a: any) => a.id === extId);
+      const currentStop = task?.route_stops?.find(rs => rs.id === stopId);
+      if (ext?.city_id && !currentStop?.city_id) {
+        updates.city_id = ext.city_id;
+      }
+    }
+    await supabase.from('task_route_stops').update(updates).eq('id', stopId);
     setSavingStopField(null);
     setOpenAssigneeStopId(null);
     fetchTask();
@@ -2206,6 +2227,40 @@ export default function TaskDetailScreen() {
                 </View>
               </View>
 
+              {/* Stage link (expenses only) */}
+              {txType === 'expense' && task?.route_stops && task.route_stops.length > 0 && (
+                <View style={s.txStageSection}>
+                  <TouchableOpacity
+                    style={s.txStageTrigger}
+                    onPress={() => setShowTxStagePicker(v => !v)}
+                  >
+                    <Text style={s.txStageTriggerText}>
+                      {txStopId
+                        ? `📌 ${task.route_stops.find(rs => rs.id === txStopId)?.ministry?.name ?? 'Stage'}`
+                        : '📌 Link to stage (optional)'}
+                    </Text>
+                    {txStopId && (
+                      <TouchableOpacity onPress={() => { setTxStopId(null); setShowTxStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                        <Text style={s.txStageRemove}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                  {showTxStagePicker && (
+                    <View style={s.txStageDropdown}>
+                      {task.route_stops.map(rs => (
+                        <TouchableOpacity key={rs.id} style={[s.txStageItem, txStopId === rs.id && s.txStageItemActive]}
+                          onPress={() => { setTxStopId(rs.id); setShowTxStagePicker(false); }}>
+                          <Text style={[s.txStageItemText, txStopId === rs.id && { color: theme.color.primary, fontWeight: '700' }]}>
+                            {rs.stop_order}. {rs.ministry?.name}
+                          </Text>
+                          {txStopId === rs.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
               <TouchableOpacity
                 style={[s.txSaveBtn, txType === 'expense' ? s.txSaveBtnExpense : s.txSaveBtnRevenue, savingTx && s.disabledBtn]}
                 onPress={handleAddTransaction}
@@ -2288,6 +2343,39 @@ export default function TaskDetailScreen() {
                         />
                       </View>
                     </View>
+                    {/* Stage link (expenses only) */}
+                    {editTxType === 'expense' && task?.route_stops && task.route_stops.length > 0 && (
+                      <View style={s.txStageSection}>
+                        <TouchableOpacity
+                          style={s.txStageTrigger}
+                          onPress={() => setShowEditTxStagePicker(v => !v)}
+                        >
+                          <Text style={s.txStageTriggerText}>
+                            {editTxStopId
+                              ? `📌 ${task.route_stops.find(rs => rs.id === editTxStopId)?.ministry?.name ?? 'Stage'}`
+                              : '📌 Link to stage (optional)'}
+                          </Text>
+                          {editTxStopId && (
+                            <TouchableOpacity onPress={() => { setEditTxStopId(null); setShowEditTxStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                              <Text style={s.txStageRemove}>✕</Text>
+                            </TouchableOpacity>
+                          )}
+                        </TouchableOpacity>
+                        {showEditTxStagePicker && (
+                          <View style={s.txStageDropdown}>
+                            {task.route_stops.map(rs => (
+                              <TouchableOpacity key={rs.id} style={[s.txStageItem, editTxStopId === rs.id && s.txStageItemActive]}
+                                onPress={() => { setEditTxStopId(rs.id); setShowEditTxStagePicker(false); }}>
+                                <Text style={[s.txStageItemText, editTxStopId === rs.id && { color: theme.color.primary, fontWeight: '700' }]}>
+                                  {rs.stop_order}. {rs.ministry?.name}
+                                </Text>
+                                {editTxStopId === rs.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    )}
                     {/* Save / Cancel */}
                     <View style={s.txEditActions}>
                       <TouchableOpacity
@@ -2320,6 +2408,9 @@ export default function TaskDetailScreen() {
                   <View style={[s.txTypeDot, tx.type === 'expense' ? s.txDotExpense : s.txDotRevenue]} />
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={s.txDesc}>{tx.description}</Text>
+                    {tx.stop?.ministry?.name && (
+                      <Text style={s.txStageTag}>📌 {tx.stop.ministry.name}</Text>
+                    )}
                     <View style={s.txAmountDisplay}>
                       {tx.amount_usd > 0 && (
                         <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
@@ -2345,6 +2436,8 @@ export default function TaskDetailScreen() {
                         setEditTxDescription(tx.description);
                         setEditTxAmountUSD(tx.amount_usd > 0 ? tx.amount_usd.toString() : '');
                         setEditTxAmountLBP(tx.amount_lbp > 0 ? tx.amount_lbp.toLocaleString('en-US') : '');
+                        setEditTxStopId(tx.stop_id ?? null);
+                        setShowEditTxStagePicker(false);
                       }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
@@ -3528,6 +3621,44 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   txCancelBtnText: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
+  txStageSection: { marginTop: 2 },
+  txStageTrigger: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.sm,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+  },
+  txStageTriggerText: { ...theme.typography.caption, color: theme.color.textSecondary, flex: 1 },
+  txStageRemove:      { ...theme.typography.caption, color: theme.color.danger, paddingStart: 8 },
+  txStageDropdown: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.sm,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    marginTop:       4,
+    overflow:        'hidden',
+  },
+  txStageItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  txStageItemActive: { backgroundColor: theme.color.primary + '11' },
+  txStageItemText:   { ...theme.typography.body, color: theme.color.textPrimary, flex: 1 },
+  txStageTag: {
+    ...theme.typography.caption,
+    color:           theme.color.textSecondary,
+    fontStyle:       'italic',
+  },
 
   // Section title row with edit button
   sectionTitleRow: {

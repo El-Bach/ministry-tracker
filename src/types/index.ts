@@ -111,9 +111,35 @@ export interface Assignee {
   name: string;
   phone?: string;
   reference?: string;
+  reference_phone?: string;
   notes?: string;
+  city_id?: string | null;
+  city?: { id: string; name: string } | null;
   created_by?: string;
   creator?: { name: string };
+  created_at: string;
+}
+
+export interface FileTransaction {
+  id: string;
+  task_id: string;
+  type: 'expense' | 'revenue';
+  description: string;
+  amount_usd: number;
+  amount_lbp: number;
+  stop_id?: string | null;
+  stop?: { id: string; ministry?: { name: string } } | null;
+  created_by?: string;
+  creator?: { name: string };
+  created_at: string;
+}
+
+export interface ServiceDocument {
+  id: string;
+  service_id: string;
+  title: string;
+  sort_order: number;
+  is_checked: boolean;
   created_at: string;
 }
 

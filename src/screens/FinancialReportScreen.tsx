@@ -14,8 +14,12 @@ import {
   Modal,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import supabase from '../lib/supabase';
 
@@ -195,6 +199,142 @@ export default function FinancialReportScreen() {
     balanceLBP: filtered.reduce((s, r) => s + r.balanceLBP, 0),
   }), [filtered]);
 
+  // ─── PDF Export ─────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const exportPDF = useCallback(async () => {
+    setExporting(true);
+    try {
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+      const filterDesc = [
+        filterService ? `Service: ${filterService}` : '',
+        filterStatus  ? `Status: ${filterStatus}`   : '',
+        search        ? `Search: "${search}"`         : '',
+        filterArchive !== 'all' ? (filterArchive === 'active' ? 'Active files only' : 'Archived files only') : '',
+      ].filter(Boolean).join(' · ') || 'All files';
+
+      const tableRows = filtered.map((r) => `
+        <tr>
+          <td>${r.clientName}</td>
+          <td>${r.serviceName}</td>
+          <td class="status">${r.status}</td>
+          <td class="num">${r.contractPriceUSD > 0 ? fmtUSD(r.contractPriceUSD) : '—'}<br/>${r.contractPriceLBP > 0 ? `<span class="sub">${fmtLBP(r.contractPriceLBP)}</span>` : ''}</td>
+          <td class="num green">${fmtUSD(r.receivedUSD)}<br/>${r.receivedLBP > 0 ? `<span class="sub">${fmtLBP(r.receivedLBP)}</span>` : ''}</td>
+          <td class="num ${r.outstandingUSD > 0 ? 'red' : 'green'}">${fmtUSD(r.outstandingUSD)}<br/>${r.outstandingLBP !== 0 ? `<span class="sub">${fmtLBP(r.outstandingLBP)}</span>` : ''}</td>
+          <td class="num red">${r.expenseUSD > 0 ? fmtUSD(r.expenseUSD) : '—'}<br/>${r.expenseLBP > 0 ? `<span class="sub">${fmtLBP(r.expenseLBP)}</span>` : ''}</td>
+          <td class="num ${r.balanceUSD >= 0 ? 'green' : 'red'}">${r.balanceUSD >= 0 ? '+' : ''}${fmtUSD(r.balanceUSD)}<br/>${r.balanceLBP !== 0 ? `<span class="sub">${r.balanceLBP >= 0 ? '+' : ''}${fmtLBP(r.balanceLBP)}</span>` : ''}</td>
+        </tr>`).join('');
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  body { font-family: -apple-system, Arial, sans-serif; margin: 0; padding: 24px; background: #fff; color: #1e293b; font-size: 12px; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; color: #0f172a; }
+  .meta { color: #64748b; font-size: 11px; margin-bottom: 16px; }
+  .totals { display: flex; gap: 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+  .tot-cell { flex: 1; padding: 10px 12px; border-right: 1px solid #e2e8f0; }
+  .tot-cell:last-child { border-right: none; }
+  .tot-label { font-size: 9px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; }
+  .tot-val { font-size: 13px; font-weight: 700; }
+  .tot-sub { font-size: 9px; color: #64748b; margin-top: 2px; }
+  .green { color: #10b981; }
+  .red   { color: #ef4444; }
+  .blue  { color: #6366f1; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: #f1f5f9; }
+  th { padding: 8px 6px; text-align: left; font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 8px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-weight: 600; }
+  .status { font-size: 10px; }
+  .sub { font-size: 9px; color: #94a3b8; display: block; margin-top: 2px; }
+  tfoot tr { background: #f8fafc; font-weight: 700; border-top: 2px solid #e2e8f0; }
+  tfoot td { padding: 10px 6px; }
+</style>
+</head>
+<body>
+  <h1>Financial Report</h1>
+  <div class="meta">Generated ${dateStr} · ${filterDesc} · ${filtered.length} file${filtered.length !== 1 ? 's' : ''}</div>
+
+  <div class="totals">
+    <div class="tot-cell">
+      <div class="tot-label">${filtered.length} Files · Contract</div>
+      <div class="tot-val blue">${fmtUSD(totals.contractUSD)}</div>
+      ${totals.contractLBP > 0 ? `<div class="tot-sub">${fmtLBP(totals.contractLBP)}</div>` : ''}
+    </div>
+    <div class="tot-cell">
+      <div class="tot-label">Received</div>
+      <div class="tot-val green">${fmtUSD(totals.receivedUSD)}</div>
+      ${totals.receivedLBP > 0 ? `<div class="tot-sub green">${fmtLBP(totals.receivedLBP)}</div>` : ''}
+    </div>
+    <div class="tot-cell">
+      <div class="tot-label">Due</div>
+      <div class="tot-val ${totals.outstandingUSD > 0 ? 'red' : 'green'}">${fmtUSD(totals.outstandingUSD)}</div>
+      ${totals.outstandingLBP !== 0 ? `<div class="tot-sub">${fmtLBP(totals.outstandingLBP)}</div>` : ''}
+    </div>
+    <div class="tot-cell">
+      <div class="tot-label">Expenses</div>
+      <div class="tot-val red">${fmtUSD(totals.expenseUSD)}</div>
+      ${totals.expenseLBP > 0 ? `<div class="tot-sub red">${fmtLBP(totals.expenseLBP)}</div>` : ''}
+    </div>
+    <div class="tot-cell">
+      <div class="tot-label">Balance</div>
+      <div class="tot-val ${totals.balanceUSD >= 0 ? 'green' : 'red'}">${totals.balanceUSD >= 0 ? '+' : ''}${fmtUSD(totals.balanceUSD)}</div>
+      ${totals.balanceLBP !== 0 ? `<div class="tot-sub">${totals.balanceLBP >= 0 ? '+' : ''}${fmtLBP(totals.balanceLBP)}</div>` : ''}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Client</th>
+        <th>Service</th>
+        <th>Status</th>
+        <th style="text-align:right">Contract</th>
+        <th style="text-align:right">Received</th>
+        <th style="text-align:right">Due</th>
+        <th style="text-align:right">Expenses</th>
+        <th style="text-align:right">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">TOTAL (${filtered.length} files)</td>
+        <td class="num blue">${fmtUSD(totals.contractUSD)}</td>
+        <td class="num green">${fmtUSD(totals.receivedUSD)}</td>
+        <td class="num ${totals.outstandingUSD > 0 ? 'red' : 'green'}">${fmtUSD(totals.outstandingUSD)}</td>
+        <td class="num red">${totals.expenseUSD > 0 ? fmtUSD(totals.expenseUSD) : '—'}</td>
+        <td class="num ${totals.balanceUSD >= 0 ? 'green' : 'red'}">${totals.balanceUSD >= 0 ? '+' : ''}${fmtUSD(totals.balanceUSD)}</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+      // Move to a named file in cache so the share sheet shows a clean filename
+      const reportName = `financial-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      const dest = (FileSystem.cacheDirectory ?? '') + reportName;
+      await FileSystem.copyAsync({ from: uri, to: dest });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dest, { mimeType: 'application/pdf', dialogTitle: 'Export Financial Report' });
+      } else {
+        Alert.alert('Sharing unavailable', 'Cannot share files on this device.');
+      }
+    } catch (e: any) {
+      Alert.alert('Export failed', e?.message ?? 'Unknown error');
+    } finally {
+      setExporting(false);
+    }
+  }, [filtered, totals, filterService, filterStatus, search, filterArchive]);
+
   // ─── Render row ──────────────────────────────────────────────
   const renderRow = ({ item: r }: { item: ReportRow }) => (
     <TouchableOpacity style={s.row} onPress={() => openDetail(r)} activeOpacity={0.75}>
@@ -304,6 +444,13 @@ export default function FinancialReportScreen() {
               <Text style={s.clearBtnText}>✕ Clear</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={[s.exportBtn, exporting && { opacity: 0.5 }]}
+            onPress={exportPDF}
+            disabled={exporting || filtered.length === 0}
+          >
+            <Text style={s.exportBtnText}>{exporting ? '...' : '📄 PDF'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -543,6 +690,16 @@ const s = StyleSheet.create({
   filterChipTextActive: { color: theme.color.primaryText },
   clearBtn:             { paddingHorizontal: theme.spacing.space2 + 2, paddingVertical: theme.spacing.space1 + 2, minHeight: theme.touchTarget.min, justifyContent: 'center' },
   clearBtnText:         { ...theme.typography.label, color: theme.color.danger },
+  exportBtn: {
+    marginStart:       'auto' as any,
+    backgroundColor:   theme.color.primary,
+    borderRadius:      theme.radius.full,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space1 + 2,
+    minHeight:         theme.touchTarget.min,
+    justifyContent:    'center',
+  },
+  exportBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
 
   totalsBar: {
     flexDirection:     'row',

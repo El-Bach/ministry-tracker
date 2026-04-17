@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 22 (WhatsApp share: header button composes Arabic status message (client, service, status, stages list) and opens WhatsApp; File duplication: header button clones task with same client/service/stages/price — new file starts as Submitted with all stages Pending; both buttons in headerActionsRow alongside ✎ Edit)
+> Last updated: session 23 (Export Financial Report as PDF: 📄 PDF button in FinancialReportScreen filter bar; generates HTML table with current filtered rows + totals summary; uses expo-print printToFileAsync + expo-sharing shareAsync; respects all active filters; button disabled when no rows)
 
 ---
 
@@ -540,6 +540,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 23 | Export Financial Report as PDF: `📄 PDF` button added to FinancialReportScreen filter bar (right-aligned, indigo, disabled when 0 rows). Uses `expo-print` `printToFileAsync` to render an HTML report with a totals summary bar + full data table (client, service, status, contract, received, due, expenses, balance columns). Report respects all active filters (service/status/archive/search). File named `financial-report-YYYY-MM-DD.pdf`, saved to cache, then shared via `expo-sharing`. |
 | 22 | WhatsApp share button in TaskDetailScreen header: composes Arabic-language status message (client, service, status, stage list, notes) and opens WhatsApp via `wa.me/?text=...`. File duplication button in header: clones task (same client, service, stages, notes, price) with new file starting as Submitted + all stages Pending; shows alert to Open New File or Stay Here. Both buttons sit alongside ✎ Edit in a `headerActionsRow` flex row. |
 | 21 | Phone links: all phone fields (ClientProfile, TaskDetail) tappable → Alert with 📞 Phone Call + 💬 WhatsApp. TaskCard already had phone links. PDF upload: "📄 PDF" button in TaskDetail documents section uses expo-document-picker (v13.0.3, SDK 54 compatible) + base64 upload via Supabase storage. Service stages sheet: tapping orange service name on dashboard opens bottom-sheet modal with service's default stages (reorder ↑↓, remove ✕, add stage with search + create). Stage status logic: Rejected treated as terminal alongside Done — only non-Done/non-Rejected stops determine displayed status; allDone now includes Rejected stages; same logic in ClientProfileScreen StatusBadge. Dashboard: simultaneous active+archive display — removed archive toggle, FlatList shows active tasks then "📦 Archive (N)" divider then archived tasks; isTaskArchived() helper treats Done+Rejected as terminal. Android image zoom: WebView with HTML img tag for Android instead of ScrollView maximumZoomScale (iOS-only). Stage city inline in edit modal: editStageCities state map preserves city per ministry; each stage row in edit modal shows "📍 Set city" chip + inline searchable city dropdown; city saved on handleSaveStages. Scanner crop UI (Option C): ✂ Crop button in preview → drag-handle overlay with 4 PanResponder corner handles → "✓ Apply Crop" uses expo-image-manipulator to crop to selected region. |
 | 20 | Create tab replaces Team tab (Dashboard → Create → Calendar → Settings). CreateScreen: quick-action cards (+New File/Client/Service/Stage) + full manage section (clients, services, stages CRUD modals) migrated from DashboardScreen. GlobalSearchScreen: searches clients, tasks (notes + client name), task_comments, stop_requirements with 300ms debounce; results grouped CLIENTS/FILES/COMMENTS/REQUIREMENTS; registered in DashboardStack. DashboardScreen: removed Manage dropdown + all modals; removed +New Client/+New File buttons; added summary bar (Active: N · Overdue: N · Due $X) above task list (hidden in archive view); added 🔍 global search button in search row. FinancialReport: removed USD decimals everywhere; added LBP to contract price badge in row card; added LBP to DUE and BALANCE in detail modal summary strip. |
@@ -611,7 +612,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 | # | Feature | Effort | Value |
 |---|---|---|---|
 | 1 | Dashboard summary bar (active files count, total balance due, expenses) | Low | High |
-| 2 | Export Financial Report as PDF (expo-print already installed) | Low | High |
+| 2 | ~~Export Financial Report as PDF~~ | ~~Low~~ | ~~Done (session 23)~~ |
 | 3 | ~~WhatsApp share from TaskDetail — send file status as formatted message~~ | ~~Low~~ | ~~Done (session 22)~~ |
 | 4 | ~~File duplication — clone a task with same client + service + stages~~ | ~~Low~~ | ~~Done (session 22)~~ |
 | 5 | Quick status update from dashboard (long-press card → status picker) | Medium | High |

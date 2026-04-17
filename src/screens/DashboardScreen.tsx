@@ -297,6 +297,8 @@ export default function DashboardScreen() {
   const [quickTxDesc, setQuickTxDesc] = useState('');
   const [quickTxUSD, setQuickTxUSD] = useState('');
   const [quickTxLBP, setQuickTxLBP] = useState('');
+  const [quickTxStopId, setQuickTxStopId] = useState<string | null>(null);
+  const [showQuickStagePicker, setShowQuickStagePicker] = useState(false);
   const [savingQuickTx, setSavingQuickTx] = useState(false);
 
   // Default to "My Files" once the logged-in team member is known
@@ -438,6 +440,7 @@ export default function DashboardScreen() {
       description: quickTxDesc.trim(),
       amount_usd: usd,
       amount_lbp: lbp,
+      stop_id: quickTxStopId ?? null,
       created_by: teamMember?.id ?? null,
     });
     setSavingQuickTx(false);
@@ -447,6 +450,8 @@ export default function DashboardScreen() {
     }
     setShowQuickFinance(false);
     setQuickFinanceTask(null);
+    setQuickTxStopId(null);
+    setShowQuickStagePicker(false);
   };
 
   const handleDeleteTask = (task: Task) => {
@@ -864,6 +869,41 @@ export default function DashboardScreen() {
               </View>
             </View>
 
+            {/* Stage link (expenses only) */}
+            {quickTxType === 'expense' && quickFinanceTask?.route_stops && quickFinanceTask.route_stops.length > 0 && (
+              <View style={{ marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={styles.qfStageTrigger}
+                  onPress={() => setShowQuickStagePicker(v => !v)}
+                >
+                  <Text style={styles.qfStageTriggerText}>
+                    {quickTxStopId
+                      ? `📌 ${quickFinanceTask.route_stops!.find(rs => rs.id === quickTxStopId)?.ministry?.name ?? 'Stage'}`
+                      : '📌 Link to stage (optional)'}
+                  </Text>
+                  {quickTxStopId && (
+                    <TouchableOpacity onPress={() => { setQuickTxStopId(null); setShowQuickStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                      <Text style={{ color: theme.color.danger, fontSize: 13, paddingStart: 8 }}>✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+                {showQuickStagePicker && (
+                  <View style={styles.qfStageDropdown}>
+                    {quickFinanceTask.route_stops!.map(rs => (
+                      <TouchableOpacity key={rs.id}
+                        style={[styles.qfStageItem, quickTxStopId === rs.id && styles.qfStageItemActive]}
+                        onPress={() => { setQuickTxStopId(rs.id); setShowQuickStagePicker(false); }}>
+                        <Text style={[styles.qfStageItemText, quickTxStopId === rs.id && { color: theme.color.primary, fontWeight: '700' }]}>
+                          {rs.stop_order}. {rs.ministry?.name}
+                        </Text>
+                        {quickTxStopId === rs.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Save */}
             <TouchableOpacity
               style={[
@@ -1237,6 +1277,37 @@ const styles = StyleSheet.create({
   qfSaveBtnText:     { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
   qfViewAllBtn:      { alignItems: 'center', paddingVertical: theme.spacing.space1 },
   qfViewAllText:     { ...theme.typography.label, color: theme.color.primary, fontWeight: '600' },
+  qfStageTrigger: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.sm,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+  },
+  qfStageTriggerText: { ...theme.typography.caption, color: theme.color.textSecondary, flex: 1 },
+  qfStageDropdown: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.sm,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    marginTop:       4,
+    overflow:        'hidden',
+  },
+  qfStageItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  qfStageItemActive:   { backgroundColor: theme.color.primary + '11' },
+  qfStageItemText:     { ...theme.typography.body, color: theme.color.textPrimary, flex: 1 },
   // Summary bar
   summaryBar: {
     flexDirection:     'row',

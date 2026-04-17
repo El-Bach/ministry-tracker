@@ -214,6 +214,17 @@ function TaskCard({
               عبر {task.client.reference_name}
             </Text>
           )}
+          {!!task.client?.reference_phone && (
+            <TouchableOpacity
+              onPress={() => handlePhonePress(task.client!.reference_phone!)}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.phoneLabel} numberOfLines={1}>
+                📞 {task.client.reference_phone}
+              </Text>
+            </TouchableOpacity>
+          )}
           {!!task.client?.phone && (
             <TouchableOpacity
               onPress={() => handlePhonePress(task.client!.phone!)}
