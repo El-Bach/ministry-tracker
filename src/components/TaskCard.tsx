@@ -187,7 +187,7 @@ function TaskCard({
         </View>
       )}
 
-      {/* ROW 1: Client name + "via Ref" */}
+      {/* ROW 1: Client name + phone (same line) + reference info below */}
       <View style={styles.row1}>
         <TouchableOpacity
           style={[styles.clientNameCol, { minHeight: theme.touchTarget.min }]}
@@ -202,13 +202,28 @@ function TaskCard({
           }
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text
-            style={[styles.clientName, onClientPress && styles.clientNameLink]}
-            numberOfLines={1}
-            suppressHighlighting
-          >
-            {task.client?.name ?? '—'}
-          </Text>
+          {/* Client name + client phone on same line */}
+          <View style={styles.clientNameRow}>
+            <Text
+              style={[styles.clientName, onClientPress && styles.clientNameLink]}
+              numberOfLines={1}
+              suppressHighlighting
+            >
+              {task.client?.name ?? '—'}
+            </Text>
+            {!!task.client?.phone && (
+              <TouchableOpacity
+                onPress={() => handlePhonePress(task.client!.phone!)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.clientPhoneInline} numberOfLines={1}>
+                  📞 {task.client.phone}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {/* Reference info below — clearly secondary */}
           {!!task.client?.reference_name && (
             <Text style={styles.referenceLabel} numberOfLines={1}>
               عبر {task.client.reference_name}
@@ -222,17 +237,6 @@ function TaskCard({
             >
               <Text style={styles.phoneLabel} numberOfLines={1}>
                 📞 {task.client.reference_phone}
-              </Text>
-            </TouchableOpacity>
-          )}
-          {!!task.client?.phone && (
-            <TouchableOpacity
-              onPress={() => handlePhonePress(task.client!.phone!)}
-              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.phoneLabel} numberOfLines={1}>
-                📞 {task.client.phone}
               </Text>
             </TouchableOpacity>
           )}
@@ -434,17 +438,31 @@ const styles = StyleSheet.create({
     flex: 1,
     gap:  2,
   },
+  clientNameRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    gap:            6,
+  },
   clientName: {
     ...theme.typography.heading,
     fontSize: 15, // slightly tighter than heading on card
+    flex: 1,
   },
   clientNameLink: {
     color: theme.color.primaryText,
+  },
+  // Client's own phone — inline with the name, subdued
+  clientPhoneInline: {
+    ...theme.typography.caption,
+    color:      theme.color.textSecondary,
+    flexShrink: 0,
   },
   referenceLabel: {
     ...theme.typography.caption,
     fontStyle: 'italic',
   },
+  // Reference phone — same primary blue as before so it's clearly tappable
   phoneLabel: {
     ...theme.typography.caption,
     color: theme.color.primary,

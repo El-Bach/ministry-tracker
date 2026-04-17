@@ -498,14 +498,24 @@ export default function CreateScreen() {
       color: '#8b5cf6',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('stages'); },
     },
+    {
+      icon: '👥',
+      label: 'Network',
+      color: '#06b6d4',
+      onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setManageSection('network'); },
+    },
+    {
+      icon: '📋',
+      label: 'Documents',
+      color: '#a855f7',
+      onPress: () => { setExpandedDocSvcId(null); setManageSection('documents'); },
+    },
   ];
 
   const manageRows = [
     { key: 'clients' as ManageSection, icon: '👤', label: 'Clients', count: clients.length },
     { key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length },
     { key: 'stages' as ManageSection, icon: '◎', label: 'Stages', count: ministries.length },
-    { key: 'network' as ManageSection, icon: '👥', label: 'Network', count: network.length },
-    { key: 'documents' as ManageSection, icon: '📋', label: 'Documents Required', count: services.length },
   ];
 
   return (
@@ -1174,26 +1184,29 @@ export default function CreateScreen() {
       </Modal>
 
       {/* ── NETWORK MODAL ── */}
-      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => setManageSection(null)}>
-        <View style={s.mgmtOverlay}>
+      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); }}>
+        <View style={s.modalOverlay}>
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={s.mgmtSheet}>
-              <View style={s.mgmtHeader}>
-                <Text style={s.mgmtTitle}>👥 Network</Text>
+            <View style={[s.modalSheet, { maxHeight: '90%' }]}>
+              <View style={s.modalHeader}>
+                <View>
+                  <Text style={s.modalTitle}>👥 Network</Text>
+                  <Text style={s.modalSubtitle}>
+                    {networkSearch.trim()
+                      ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
+                      : `${network.length} contacts`}
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
-                  <Text style={s.mgmtClose}>✕</Text>
+                  <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
               </View>
               {/* Search */}
               <View style={s.mgmtSearchRow}>
-                <TextInput style={s.mgmtSearch} value={networkSearch} onChangeText={setNetworkSearch}
-                  placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted} />
+                <TextInput style={s.mgmtSearchInput} value={networkSearch} onChangeText={setNetworkSearch}
+                  placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted}
+                  clearButtonMode="while-editing" autoCorrect={false} />
               </View>
-              <Text style={s.mgmtSubtitle}>
-                {networkSearch.trim()
-                  ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
-                  : `${network.length} contacts`}
-              </Text>
               <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
                 {network
                   .filter(n => !networkSearch.trim() || n.name?.toLowerCase().includes(networkSearch.toLowerCase()))
@@ -1289,15 +1302,15 @@ export default function CreateScreen() {
 
       {/* ── DOCUMENTS REQUIRED MODAL ── */}
       <Modal visible={manageSection === 'documents'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
-        <View style={s.mgmtOverlay}>
-          <View style={[s.mgmtSheet, { flex: 1, marginTop: 60 }]}>
-            <View style={s.mgmtHeader}>
-              <Text style={s.mgmtTitle}>📋 Documents Required</Text>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { flex: 1, marginTop: 60 }]}>
+            <View style={s.modalHeader}>
+              <Text style={s.modalTitle}>📋 Documents Required</Text>
               <TouchableOpacity onPress={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
-                <Text style={s.mgmtClose}>✕</Text>
+                <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.space3 }} keyboardShouldPersistTaps="handled">
               {services.length === 0 && <Text style={s.mgmtEmpty}>No services yet</Text>}
               {services.map((svc) => {
                 const docs = serviceDocs[svc.id] ?? [];
