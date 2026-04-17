@@ -969,22 +969,24 @@ export default function TaskDetailScreen() {
     setUploadingVoice(true);
     try {
       const timestamp = Date.now();
-      const storagePath = `task-attachments/voice-notes/${taskId}/${timestamp}.m4a`;
+      const ext = recordedUri.split('.').pop()?.toLowerCase() ?? 'm4a';
+      const storagePath = `task-attachments/voice-notes/${taskId}/${timestamp}.${ext}`;
+      const contentType = ext === 'mp4' ? 'audio/mp4' : 'audio/m4a';
       const uploadResult = await FileSystem.uploadAsync(
         `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/${storagePath}`,
         recordedUri,
         {
           httpMethod: 'POST',
-          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-          fieldName: 'file',
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: {
             Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI`,
+            'Content-Type': contentType,
             'x-upsert': 'true',
           },
         }
       );
       if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        throw new Error('Upload failed');
+        throw new Error(`Upload failed: ${uploadResult.status}`);
       }
       const audioUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/public/${storagePath}`;
       const { error } = await supabase.from('task_comments').insert({
