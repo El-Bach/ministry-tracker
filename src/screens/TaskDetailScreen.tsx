@@ -344,14 +344,21 @@ export default function TaskDetailScreen() {
     )
   );
 
-  // Cleanup sound + recording on unmount
+  // Cleanup sound when it changes
   useEffect(() => {
-    return () => {
-      if (soundObj) { soundObj.unloadAsync(); }
-      if (recordingObj) { recordingObj.stopAndUnloadAsync(); }
-      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); }
-    };
-  }, [soundObj, recordingObj]);
+    return () => { if (soundObj) { soundObj.unloadAsync(); } };
+  }, [soundObj]);
+
+  // Cleanup recording when it changes
+  useEffect(() => {
+    return () => { if (recordingObj) { recordingObj.stopAndUnloadAsync(); } };
+  }, [recordingObj]);
+
+  // Cleanup timer on unmount only — must NOT depend on recordingObj or the
+  // interval gets cleared immediately when setRecordingObj(recording) triggers a re-render
+  useEffect(() => {
+    return () => { if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); } };
+  }, []);
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
