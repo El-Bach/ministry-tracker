@@ -937,7 +937,7 @@ export default function TaskDetailScreen() {
         setRecordingDuration(d => d + 1);
       }, 1000);
     } catch (e: unknown) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert('Recording Error', (e as any)?.message ?? String(e) ?? 'Could not start recording.');
     }
   };
 
@@ -946,14 +946,21 @@ export default function TaskDetailScreen() {
     if (!recordingObj) return;
     if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
     try {
+      const uri = recordingObj.getURI(); // must capture BEFORE stopAndUnloadAsync
       await recordingObj.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      const uri = recordingObj.getURI();
       setRecordingObj(null);
       setIsRecording(false);
+      if (!uri) {
+        Alert.alert('Error', 'No audio was captured. Please try again.');
+        setRecordingDuration(0);
+        return;
+      }
       setRecordedUri(uri);
     } catch (e: unknown) {
-      Alert.alert('Error', (e as Error).message);
+      setIsRecording(false);
+      setRecordingObj(null);
+      Alert.alert('Recording Error', (e as any)?.message ?? String(e) ?? 'Could not stop recording.');
     }
   };
 
