@@ -934,15 +934,22 @@ export default function TaskDetailScreen() {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) { Alert.alert('Permission', 'Microphone permission is required.'); return; }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecordingObj(recording);
+
+      // Use explicit prepare+start instead of createAsync for better Expo Go compatibility
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+
+      // Set state AFTER recording is fully started, then start timer separately
       setIsRecording(true);
       setRecordingDuration(0);
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingDuration(d => d + 1);
-      }, 1000);
+      setRecordingObj(rec);
+      // Delay interval slightly so React has flushed the state update before we start ticking
+      setTimeout(() => {
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingDuration(d => d + 1);
+        }, 1000);
+      }, 100);
     } catch (e: unknown) {
       Alert.alert('Recording Error', (e as any)?.message ?? String(e) ?? 'Could not start recording.');
     }
