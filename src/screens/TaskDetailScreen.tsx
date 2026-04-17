@@ -749,23 +749,37 @@ export default function TaskDetailScreen() {
   // ─── PDF direct upload ────────────────────────────────────────
   const handleAddPDF = async () => {
     try {
+      // Accept PDF + common image types — lets the Android file picker browse
+      // WhatsApp's media folders (Documents & Images)
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
+        type: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'],
         copyToCacheDirectory: true,
+        multiple: false,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
       setUploadingPDF(true);
+
+      // Detect actual MIME type and extension
+      const mimeType: string =
+        asset.mimeType ??
+        (/\.pdf$/i.test(asset.name ?? '') ? 'application/pdf' :
+         /\.(jpg|jpeg)$/i.test(asset.name ?? '') ? 'image/jpeg' :
+         /\.png$/i.test(asset.name ?? '') ? 'image/png' :
+         'application/octet-stream');
+      const isPDF = mimeType === 'application/pdf';
+      const ext   = isPDF ? 'pdf' : /png/i.test(mimeType) ? 'png' : 'jpg';
+
       const today = new Date();
       const dd = String(today.getDate()).padStart(2, '0');
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const yyyy = today.getFullYear();
       const displayName = `Upload ${dd}-${mm}-${yyyy}`;
       const safeBase = displayName.replace(/[^a-z0-9_\-]/gi, '_');
-      const fileName = `${safeBase}_${Date.now()}.pdf`;
+      const fileName = `${safeBase}_${Date.now()}.${ext}`;
       const storagePath = `documents/${taskId}/${fileName}`;
 
-      // Read file as base64 and upload via Supabase storage
+      // Read as base64 and upload
       const base64 = await FileSystem.readAsStringAsync(asset.uri, {
         encoding: (FileSystem as any).EncodingType?.Base64 ?? 'base64',
       });
@@ -775,7 +789,7 @@ export default function TaskDetailScreen() {
 
       const { error: upErr } = await supabase.storage
         .from('task-attachments')
-        .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType: 'application/pdf', upsert: false });
+        .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType: mimeType, upsert: false });
 
       if (upErr) { Alert.alert('Upload failed', upErr.message); setUploadingPDF(false); return; }
 
@@ -787,7 +801,7 @@ export default function TaskDetailScreen() {
         file_name: asset.name ?? fileName,
         display_name: displayName,
         file_url: publicUrl,
-        file_type: 'application/pdf',
+        file_type: mimeType,
         uploaded_by: teamMember?.id ?? null,
       });
       setUploadingPDF(false);
@@ -1635,7 +1649,7 @@ export default function TaskDetailScreen() {
               <TouchableOpacity style={s.addDocBtn} onPress={handleAddPDF} disabled={uploadingPDF}>
                 {uploadingPDF
                   ? <ActivityIndicator size="small" color={theme.color.primary} />
-                  : <Text style={s.addDocBtnText}>📄 PDF</Text>
+                  : <Text style={s.addDocBtnText}>📎 Import</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -1653,7 +1667,7 @@ export default function TaskDetailScreen() {
                   <Text style={s.addDocBtnText}>🖼 Image</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.addDocBtn} onPress={handleAddPDF} disabled={uploadingPDF}>
-                  <Text style={s.addDocBtnText}>📄 PDF</Text>
+                  <Text style={s.addDocBtnText}>📎 Import</Text>
                 </TouchableOpacity>
               </View>
             </View>
