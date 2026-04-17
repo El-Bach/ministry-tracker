@@ -80,6 +80,7 @@ export interface TaskComment {
   author_id?: string;
   author?: TeamMember;
   body: string;
+  audio_url?: string | null;
   gps_lat?: number;
   gps_lng?: number;
   created_at: string;

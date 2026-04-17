@@ -1,7 +1,7 @@
 // src/screens/TaskDetailScreen.tsx
 // Full task detail: route, status updates, comments, assignment, financials with edit
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
@@ -135,6 +136,18 @@ export default function TaskDetailScreen() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState('');
   const [savingEditComment, setSavingEditComment] = useState(false);
+
+  // Voice note states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingObj, setRecordingObj] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
+  const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
+  const [playbackDuration, setPlaybackDuration] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Financial transaction states
   const [transactions, setTransactions] = useState<FileTransaction[]>([]);
@@ -329,6 +342,15 @@ export default function TaskDetailScreen() {
       [fetchTask]
     )
   );
+
+  // Cleanup sound + recording on unmount
+  useEffect(() => {
+    return () => {
+      if (soundObj) { soundObj.unloadAsync(); }
+      if (recordingObj) { recordingObj.stopAndUnloadAsync(); }
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); }
+    };
+  }, [soundObj, recordingObj]);
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
@@ -898,6 +920,128 @@ export default function TaskDetailScreen() {
     fetchTask();
   };
 
+  // ─── Voice note: start recording ────────────────────────
+  const handleStartRecording = async () => {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert('Permission', 'Microphone permission is required.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecordingObj(recording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(d => d + 1);
+      }, 1000);
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message);
+    }
+  };
+
+  // ─── Voice note: stop recording ─────────────────────────
+  const handleStopRecording = async () => {
+    if (!recordingObj) return;
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    try {
+      await recordingObj.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recordingObj.getURI();
+      setRecordingObj(null);
+      setIsRecording(false);
+      setRecordedUri(uri);
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message);
+    }
+  };
+
+  // ─── Voice note: discard recording ──────────────────────
+  const handleDiscardRecording = () => {
+    setRecordedUri(null);
+    setRecordingDuration(0);
+  };
+
+  // ─── Voice note: upload + post as comment ───────────────
+  const handleSendVoiceNote = async () => {
+    if (!recordedUri) return;
+    setUploadingVoice(true);
+    try {
+      const timestamp = Date.now();
+      const storagePath = `task-attachments/voice-notes/${taskId}/${timestamp}.m4a`;
+      const uploadResult = await FileSystem.uploadAsync(
+        `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/${storagePath}`,
+        recordedUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI`,
+            'x-upsert': 'true',
+          },
+        }
+      );
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        throw new Error('Upload failed');
+      }
+      const audioUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/public/${storagePath}`;
+      const { error } = await supabase.from('task_comments').insert({
+        task_id: taskId,
+        author_id: teamMember?.id,
+        body: '🎤 Voice note',
+        audio_url: audioUrl,
+      });
+      if (error) throw error;
+      setRecordedUri(null);
+      setRecordingDuration(0);
+      fetchTask();
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message ?? 'Failed to upload voice note.');
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+
+  // ─── Voice note: play / pause ────────────────────────────
+  const handlePlayPause = async (commentId: string, audioUrl: string) => {
+    if (playingCommentId === commentId) {
+      // Pause
+      if (soundObj) { await soundObj.pauseAsync(); }
+      setPlayingCommentId(null);
+      return;
+    }
+    // Stop any current playback
+    if (soundObj) { await soundObj.unloadAsync(); setSoundObj(null); }
+    setPlayingCommentId(commentId);
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded) {
+            setPlaybackPosition(status.positionMillis ?? 0);
+            setPlaybackDuration(status.durationMillis ?? 0);
+            if (status.didJustFinish) {
+              setPlayingCommentId(null);
+              setSoundObj(null);
+            }
+          }
+        }
+      );
+      setSoundObj(sound);
+    } catch (e: unknown) {
+      Alert.alert('Error', 'Could not play voice note.');
+      setPlayingCommentId(null);
+    }
+  };
+
+  const fmtDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
   // ─── Per-stage city / assignee handlers ─────────────────
   const handleSetStopDueDate = async (stopId: string, date: string | null) => {
     setSavingStopDueDate(stopId);
@@ -1178,33 +1322,96 @@ export default function TaskDetailScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
+                ) : c.audio_url ? (
+                  /* Voice note player */
+                  <View style={s.voiceNotePlayer}>
+                    <TouchableOpacity
+                      style={s.voiceNotePlayBtn}
+                      onPress={() => handlePlayPause(c.id, c.audio_url!)}
+                    >
+                      <Text style={s.voiceNotePlayBtnText}>
+                        {playingCommentId === c.id ? '⏸' : '▶'}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={s.voiceNoteInfo}>
+                      <View style={s.voiceNoteBar}>
+                        {playingCommentId === c.id && playbackDuration > 0 ? (
+                          <View style={[s.voiceNoteProgress, { width: `${(playbackPosition / playbackDuration) * 100}%` as any }]} />
+                        ) : (
+                          <View style={[s.voiceNoteProgress, { width: '0%' }]} />
+                        )}
+                      </View>
+                      <Text style={s.voiceNoteDuration}>
+                        {playingCommentId === c.id && playbackDuration > 0
+                          ? `${fmtDuration(Math.floor(playbackPosition / 1000))} / ${fmtDuration(Math.floor(playbackDuration / 1000))}`
+                          : '🎤 Voice note'}
+                      </Text>
+                    </View>
+                  </View>
                 ) : (
                   <Text style={s.commentBody}>{c.body}</Text>
                 )}
               </View>
             </View>
           ))}
-          <View style={s.commentInput}>
-            <TextInput
-              style={s.commentTextInput}
-              value={newComment}
-              onChangeText={setNewComment}
-              placeholder="Add a comment..."
-              placeholderTextColor={theme.color.textMuted}
-              multiline
-            />
-            <TouchableOpacity
-              style={[s.commentSendBtn, postingComment && s.disabledBtn]}
-              onPress={handlePostComment}
-              disabled={postingComment}
-            >
-              {postingComment ? (
-                <ActivityIndicator color={theme.color.white} size="small" />
-              ) : (
-                <Text style={s.commentSendBtnText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Recording indicator */}
+          {isRecording && (
+            <View style={s.recordingBar}>
+              <View style={s.recordingDot} />
+              <Text style={s.recordingText}>Recording... {fmtDuration(recordingDuration)}</Text>
+              <TouchableOpacity style={s.recordingStopBtn} onPress={handleStopRecording}>
+                <Text style={s.recordingStopBtnText}>⏹ Stop</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Recorded preview (before sending) */}
+          {!isRecording && recordedUri && (
+            <View style={s.voicePreviewBar}>
+              <Text style={s.voicePreviewLabel}>🎤 {fmtDuration(recordingDuration)}</Text>
+              <TouchableOpacity
+                style={[s.commentSendBtn, { backgroundColor: theme.color.success }]}
+                onPress={handleSendVoiceNote}
+                disabled={uploadingVoice}
+              >
+                {uploadingVoice
+                  ? <ActivityIndicator color={theme.color.white} size="small" />
+                  : <Text style={s.commentSendBtnText}>Send</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={s.voiceDiscardBtn} onPress={handleDiscardRecording}>
+                <Text style={s.voiceDiscardBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Normal comment input (hidden while recording/preview) */}
+          {!isRecording && !recordedUri && (
+            <View style={s.commentInput}>
+              <TextInput
+                style={s.commentTextInput}
+                value={newComment}
+                onChangeText={setNewComment}
+                placeholder="Add a comment..."
+                placeholderTextColor={theme.color.textMuted}
+                multiline
+              />
+              {/* Mic button */}
+              <TouchableOpacity style={s.micBtn} onPress={handleStartRecording}>
+                <Text style={s.micBtnText}>🎙</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.commentSendBtn, postingComment && s.disabledBtn]}
+                onPress={handlePostComment}
+                disabled={postingComment}
+              >
+                {postingComment ? (
+                  <ActivityIndicator color={theme.color.white} size="small" />
+                ) : (
+                  <Text style={s.commentSendBtnText}>Post</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* ── DOCUMENTS ── */}
@@ -2726,7 +2933,29 @@ const s = StyleSheet.create({
   commentTime:       { ...theme.typography.caption, color: theme.color.textMuted },
   commentBody:       { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 18 },
   commentGps:        { ...theme.typography.caption, color: theme.color.primary },
-  commentInput:      { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
+  commentInput:      { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
+  // Mic button
+  micBtn:            { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.color.border },
+  micBtnText:        { fontSize: 20 },
+  // Recording bar
+  recordingBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.color.danger + '18', borderRadius: theme.radius.md, padding: theme.spacing.space3, marginBottom: 6 },
+  recordingDot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.color.danger },
+  recordingText:     { ...theme.typography.body, color: theme.color.danger, fontWeight: '600', flex: 1 },
+  recordingStopBtn:  { backgroundColor: theme.color.danger, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 6 },
+  recordingStopBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+  // Voice preview bar (after recording, before sending)
+  voicePreviewBar:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, padding: theme.spacing.space3, marginBottom: 6, borderWidth: 1, borderColor: theme.color.border },
+  voicePreviewLabel: { ...theme.typography.body, color: theme.color.textPrimary, fontWeight: '600', flex: 1 },
+  voiceDiscardBtn:   { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.color.border },
+  voiceDiscardBtnText: { color: theme.color.danger, fontWeight: '700', fontSize: 14 },
+  // Voice note player (in comment list)
+  voiceNotePlayer:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space2, borderWidth: 1, borderColor: theme.color.border },
+  voiceNotePlayBtn:  { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center' },
+  voiceNotePlayBtnText: { color: theme.color.white, fontSize: 14, fontWeight: '700' },
+  voiceNoteInfo:     { flex: 1, gap: 4 },
+  voiceNoteBar:      { height: 4, backgroundColor: theme.color.border, borderRadius: 2, overflow: 'hidden' },
+  voiceNoteProgress: { height: 4, backgroundColor: theme.color.primary, borderRadius: 2 },
+  voiceNoteDuration: { ...theme.typography.caption, color: theme.color.textMuted },
   commentTextInput: {
     flex:            1,
     backgroundColor: theme.color.bgBase,
