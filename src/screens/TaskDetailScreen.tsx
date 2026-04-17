@@ -242,7 +242,7 @@ export default function TaskDetailScreen() {
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*),
+          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(id,name,role,push_token),
            route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*), city:cities(id,name), assignee:team_members!assigned_to(id,name,role,push_token), ext_assignee:assignees!ext_assignee_id(id,name,phone))`
         )
         .eq('id', taskId)
