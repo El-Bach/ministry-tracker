@@ -7,48 +7,48 @@ import { I18nManager } from 'react-native';
 // ─── Colors ──────────────────────────────────────────────────────────────────
 
 const color = {
-  // Backgrounds
-  bgBase:       '#0B1120',
-  bgSurface:    '#111827',
-  bgElevated:   '#1A2235',
-  bgSubtle:     '#1E2D40',
+  // Backgrounds — light blue theme
+  bgBase:       '#E8F4FD',   // main page background (soft sky blue)
+  bgSurface:    '#FFFFFF',   // cards, modals, sheets
+  bgElevated:   '#F0F9FF',   // elevated surfaces
+  bgSubtle:     '#DBEAFE',   // subtle tinted areas
 
   // Borders
-  border:       '#243047',
-  borderStrong: '#2E3D54',
+  border:       '#BFDBFE',
+  borderStrong: '#93C5FD',
 
   // Primary (Indigo)
-  primary:      '#6366F1',
-  primaryDim:   '#1E1B4B',
-  primaryText:  '#A5B4FC',
+  primary:      '#4F46E5',
+  primaryDim:   '#EDE9FE',
+  primaryText:  '#4338CA',
 
   // Semantic — Success
-  success:      '#10B981',
-  successDim:   '#052E16',
+  success:      '#059669',
+  successDim:   '#D1FAE5',
 
   // Semantic — Danger
-  danger:       '#EF4444',
-  dangerDim:    '#450A0A',
+  danger:       '#DC2626',
+  dangerDim:    '#FEE2E2',
 
   // Semantic — Warning
-  warning:      '#F59E0B',
-  warningDim:   '#451A03',
+  warning:      '#D97706',
+  warningDim:   '#FEF3C7',
 
   // Semantic — Info
-  info:         '#38BDF8',
-  infoDim:      '#082F49',
+  info:         '#0284C7',
+  infoDim:      '#E0F2FE',
 
   // Text
-  textPrimary:   '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textMuted:     '#475569',
-  textInverse:   '#0B1120',
+  textPrimary:   '#0F172A',
+  textSecondary: '#334155',
+  textMuted:     '#64748B',
+  textInverse:   '#FFFFFF',
 
   // Utility
   white:        '#FFFFFF',
   transparent:  'transparent',
-  overlayDark:  'rgba(0,0,0,0.6)',
-  hairline:     'rgba(255,255,255,0.1)',
+  overlayDark:  'rgba(0,0,0,0.5)',
+  hairline:     'rgba(0,0,0,0.08)',
 } as const;
 
 // ─── Spacing (8pt grid) ───────────────────────────────────────────────────────
@@ -120,16 +120,16 @@ const radius = {
 const shadow = {
   none: {},
   modal: {
-    shadowColor:   '#000000',
-    shadowOffset:  { width: 0, height: 20 },
-    shadowOpacity: 0.6,
-    shadowRadius:  30,
-    elevation:     24,
+    shadowColor:   '#0F172A',
+    shadowOffset:  { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius:  24,
+    elevation:     16,
   },
   focus: {
-    shadowColor:   '#6366F1',
+    shadowColor:   '#4F46E5',
     shadowOffset:  { width: 0, height: 0 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.25,
     shadowRadius:  3,
     elevation:     4,
   },
@@ -198,7 +198,7 @@ const rtl = {
 
 const statusColors: Record<string, { bg: string; text: string; accent: string }> = {
   'Done':               { bg: color.successDim,  text: color.success,     accent: color.success },
-  'Closed':             { bg: color.bgSubtle,     text: color.textMuted,   accent: color.textMuted },
+  'Closed':             { bg: '#F1F5F9',          text: color.textMuted,   accent: color.textMuted },
   'Submitted':          { bg: color.primaryDim,   text: color.primaryText, accent: color.primary },
   'In Review':          { bg: color.infoDim,      text: color.info,        accent: color.info },
   'Pending Signature':  { bg: color.warningDim,   text: color.warning,     accent: color.warning },
