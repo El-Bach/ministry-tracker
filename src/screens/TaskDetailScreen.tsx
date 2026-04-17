@@ -198,6 +198,11 @@ export default function TaskDetailScreen() {
   const [editServiceId, setEditServiceId] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // File-level assignment
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [savingAssignee, setSavingAssignee] = useState(false);
+
   // Document archive states
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [scanMode, setScanMode] = useState<'camera' | 'library' | null>(null);
@@ -664,6 +669,16 @@ export default function TaskDetailScreen() {
     setSavingEdit(false);
     if (error) { Alert.alert('Error', error.message); return; }
     setShowEditTask(false);
+    fetchTask();
+  };
+
+  // ─── File-level assignee ────────────────────────────────────
+  const handleSetFileAssignee = async (memberId: string | null) => {
+    setSavingAssignee(true);
+    await supabase.from('tasks').update({ assigned_to: memberId, updated_at: new Date().toISOString() }).eq('id', taskId);
+    setSavingAssignee(false);
+    setShowAssigneePicker(false);
+    setAssigneeSearch('');
     fetchTask();
   };
 
@@ -1325,6 +1340,57 @@ export default function TaskDetailScreen() {
             </View>
             <StatusBadge label={derivedStatus} color={derivedStatusColor} />
           </View>
+
+          {/* ── ASSIGNED TO ── */}
+          <TouchableOpacity
+            style={s.assigneeRow}
+            onPress={() => { setShowAssigneePicker(v => !v); setAssigneeSearch(''); }}
+            activeOpacity={0.7}
+          >
+            <Text style={s.metaLabel}>ASSIGNED TO ✎</Text>
+            {savingAssignee ? (
+              <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 2 }} />
+            ) : (
+              <Text style={[s.assigneeValue, !task.assignee && { color: theme.color.textMuted }]}>
+                {task.assignee ? `👤 ${task.assignee.name}` : '👤 Tap to assign'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Inline assignee picker */}
+          {showAssigneePicker && (
+            <View style={s.assigneePickerPanel}>
+              <TextInput
+                style={s.assigneeSearchInput}
+                value={assigneeSearch}
+                onChangeText={setAssigneeSearch}
+                placeholder="Search team members..."
+                placeholderTextColor={theme.color.textMuted}
+                autoFocus
+              />
+              <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                {task.assignee && (
+                  <TouchableOpacity style={s.assigneePickerItem} onPress={() => handleSetFileAssignee(null)}>
+                    <Text style={[s.assigneePickerItemText, { color: theme.color.danger }]}>✕ Remove assignment</Text>
+                  </TouchableOpacity>
+                )}
+                {allMembers
+                  .filter(m => !assigneeSearch.trim() || m.name.toLowerCase().includes(assigneeSearch.toLowerCase()))
+                  .map(m => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[s.assigneePickerItem, task.assigned_to === m.id && s.assigneePickerItemActive]}
+                      onPress={() => handleSetFileAssignee(m.id)}
+                    >
+                      <Text style={[s.assigneePickerItemText, task.assigned_to === m.id && { color: theme.color.primary, fontWeight: '700' }]}>
+                        {task.assigned_to === m.id ? '✓ ' : ''}{m.name}
+                      </Text>
+                      {m.role ? <Text style={s.assigneePickerItemRole}>{m.role}</Text> : null}
+                    </TouchableOpacity>
+                  ))}
+              </ScrollView>
+            </View>
+          )}
 
           <View style={s.metaGrid}>
             <View style={s.metaCell}>
@@ -2992,6 +3058,47 @@ const s = StyleSheet.create({
   metaCell:          { width: '45%', gap: 3 },
   metaLabel:         { ...theme.typography.sectionDivider, fontSize: theme.typography.caption.fontSize },
   metaValue:         { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
+
+  // File assignment
+  assigneeRow: {
+    paddingVertical:   theme.spacing.space2 + 2,
+    paddingHorizontal: theme.spacing.space1,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    marginBottom:      theme.spacing.space3,
+    gap:               3,
+  },
+  assigneeValue: {
+    ...theme.typography.label,
+    color:      theme.color.primary,
+    fontWeight: '700',
+    fontSize:   14,
+  },
+  assigneePickerPanel: {
+    backgroundColor:  theme.color.bgBase,
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    marginBottom:     theme.spacing.space3,
+    overflow:         'hidden',
+  },
+  assigneeSearchInput: {
+    ...theme.typography.body,
+    color:             theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2 + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  assigneePickerItem: {
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2 + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  assigneePickerItemActive: { backgroundColor: theme.color.primaryDim },
+  assigneePickerItemText:   { ...theme.typography.body, fontWeight: '600' },
+  assigneePickerItemRole:   { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
   notesBlock:        { gap: theme.spacing.space1 },
   notesText:         { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 18 },
 
