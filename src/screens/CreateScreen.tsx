@@ -139,6 +139,7 @@ export default function CreateScreen() {
   const [expandedDocSvcId, setExpandedDocSvcId] = useState<string | null>(null);
   const [newDocTitle, setNewDocTitle] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
+  const [docSearch, setDocSearch] = useState('');
 
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -554,7 +555,7 @@ export default function CreateScreen() {
       icon: '📋',
       label: 'Documents',
       color: '#a855f7',
-      onPress: () => { setExpandedDocSvcId(null); setManageSection('documents'); },
+      onPress: () => { setExpandedDocSvcId(null); setDocSearch(''); setManageSection('documents'); },
     },
   ];
 
@@ -1548,18 +1549,39 @@ export default function CreateScreen() {
       </Modal>
 
       {/* ── DOCUMENTS REQUIRED MODAL ── */}
-      <Modal visible={manageSection === 'documents'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
+      <Modal visible={manageSection === 'documents'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setExpandedDocSvcId(null); setDocSearch(''); }}>
         <View style={s.modalOverlay}>
           <View style={[s.modalSheet, { flex: 1, marginTop: 60 }]}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>📋 Documents Required</Text>
-              <TouchableOpacity onPress={() => { setManageSection(null); setExpandedDocSvcId(null); }}>
+              <View>
+                <Text style={s.modalTitle}>📋 Documents Required</Text>
+                <Text style={s.modalSubtitle}>
+                  {docSearch.trim()
+                    ? `${services.filter(sv => sv.name.toLowerCase().includes(docSearch.toLowerCase())).length} of ${services.length} services`
+                    : `${services.length} services`}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => { setManageSection(null); setExpandedDocSvcId(null); setDocSearch(''); }}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
+            <View style={s.mgmtSearchRow}>
+              <TextInput
+                style={s.mgmtSearchInput}
+                value={docSearch}
+                onChangeText={setDocSearch}
+                placeholder="Search services..."
+                placeholderTextColor={theme.color.textMuted}
+                clearButtonMode="while-editing"
+                autoCorrect={false}
+              />
+            </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.space3 }} keyboardShouldPersistTaps="handled">
               {services.length === 0 && <Text style={s.mgmtEmpty}>No services yet</Text>}
-              {services.map((svc) => {
+              {docSearch.trim() && services.filter(sv => sv.name.toLowerCase().includes(docSearch.toLowerCase())).length === 0 && (
+                <Text style={s.mgmtEmpty}>No services match "{docSearch}"</Text>
+              )}
+              {services.filter(sv => !docSearch.trim() || sv.name.toLowerCase().includes(docSearch.toLowerCase())).map((svc) => {
                 const docs = serviceDocs[svc.id] ?? [];
                 const checkedCount = docs.filter(d => d.is_checked).length;
                 const isExpanded = expandedDocSvcId === svc.id;
