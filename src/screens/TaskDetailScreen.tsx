@@ -124,6 +124,10 @@ export default function TaskDetailScreen() {
   const [stopHistories, setStopHistories] = useState<Record<string, Array<{id: string; old_status?: string; new_status: string; updated_by?: string; updater?: TeamMember; created_at: string}>>>({});
   const [expandedStopHistory, setExpandedStopHistory] = useState<string | null>(null);
   const [updatingStop, setUpdatingStop] = useState<string | null>(null);
+  // Rejection reason
+  const [showRejectionInput, setShowRejectionInput] = useState(false);
+  const [pendingRejectionStop, setPendingRejectionStop] = useState<TaskRouteStop | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   // Comment states
   const [newComment, setNewComment] = useState('');
@@ -755,20 +759,21 @@ export default function TaskDetailScreen() {
   };
 
   // ─── Status update ────────────────────────────────────────
-  const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string) => {
+  const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string, reason?: string) => {
     setUpdatingStop(stop.id);
     const oldStatus = stop.status;
     const now = new Date().toISOString();
 
     if (isOnline) {
       try {
-        // Update the stop status
+        // Update the stop status (clear rejection_reason unless new status is Rejected)
         const { error } = await supabase
           .from('task_route_stops')
           .update({
             status: newStatus,
             updated_at: now,
             updated_by: teamMember?.id,
+            rejection_reason: newStatus === 'Rejected' ? (reason ?? null) : null,
           })
           .eq('id', stop.id);
 
@@ -1399,6 +1404,13 @@ export default function TaskDetailScreen() {
 
                     {/* Status badge */}
                     <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
+
+                    {/* Rejection reason — shown inline when status is Rejected */}
+                    {stop.status === 'Rejected' && stop.rejection_reason ? (
+                      <View style={s.rejectionReasonRow}>
+                        <Text style={s.rejectionReasonText}>⚠ {stop.rejection_reason}</Text>
+                      </View>
+                    ) : null}
 
                     {/* Due date chip */}
                     <TouchableOpacity
@@ -2048,7 +2060,18 @@ export default function TaskDetailScreen() {
               <TouchableOpacity
                 key={sl.id}
                 style={[s.optionRow, selectedStop?.status === sl.label && s.optionRowActive]}
-                onPress={() => selectedStop && handleUpdateStopStatus(selectedStop, sl.label)}
+                onPress={() => {
+                  if (!selectedStop) return;
+                  if (sl.label === 'Rejected') {
+                    // Show rejection reason input before saving
+                    setPendingRejectionStop(selectedStop);
+                    setRejectionReason(selectedStop.rejection_reason ?? '');
+                    setShowStatusPicker(false);
+                    setShowRejectionInput(true);
+                  } else {
+                    handleUpdateStopStatus(selectedStop, sl.label);
+                  }
+                }}
               >
                 <View style={[s.optionDot, { backgroundColor: sl.color }]} />
                 <Text style={[s.optionText, { color: sl.color }]}>{sl.label}</Text>
@@ -2059,6 +2082,62 @@ export default function TaskDetailScreen() {
             ))}
           </View>
         </View>
+      </Modal>
+
+      {/* ── REJECTION REASON MODAL ── */}
+      <Modal
+        visible={showRejectionInput}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalSheet, { paddingBottom: theme.spacing.space4 }]}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Rejection Reason</Text>
+                <TouchableOpacity onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[s.modalHint, { marginBottom: theme.spacing.space3 }]}>
+                Stage: {pendingRejectionStop?.ministry?.name}
+              </Text>
+              <TextInput
+                style={[s.stageNameInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                value={rejectionReason}
+                onChangeText={setRejectionReason}
+                placeholder="Enter reason for rejection..."
+                placeholderTextColor={theme.color.textMuted}
+                multiline
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space3 }}>
+                <TouchableOpacity
+                  style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.border, borderWidth: 1 }]}
+                  onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}
+                >
+                  <Text style={[s.stageNameBtnText, { color: theme.color.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.stageNameBtn, { flex: 2, backgroundColor: theme.color.danger }]}
+                  onPress={() => {
+                    if (!pendingRejectionStop) return;
+                    setShowRejectionInput(false);
+                    handleUpdateStopStatus(pendingRejectionStop, 'Rejected', rejectionReason.trim() || undefined);
+                    setPendingRejectionStop(null);
+                    setRejectionReason('');
+                  }}
+                >
+                  <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>✕ Confirm Rejection</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── EDIT STAGES MODAL ── */}
@@ -2888,6 +2967,8 @@ const s = StyleSheet.create({
   txMetaName:          { color: theme.color.textSecondary, fontWeight: '700' },
   balanceExpense:      { color: theme.color.danger, fontSize: 13, fontWeight: '700' },
   stopDueChipSet: { borderColor: theme.color.warning + '66', backgroundColor: theme.color.warning + '15' },
+  rejectionReasonRow: { backgroundColor: theme.color.danger + '18', borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 6, borderLeftWidth: 3, borderLeftColor: theme.color.danger, marginTop: 2 },
+  rejectionReasonText: { color: theme.color.danger, fontSize: 12, fontWeight: '500', lineHeight: 17 },
   clearStopDueDateBtn: {
     marginHorizontal: theme.spacing.space4,
     marginVertical: theme.spacing.space2,

@@ -71,6 +71,7 @@ export interface TaskRouteStop {
   ext_assignee_id?: string | null;
   ext_assignee?: { id: string; name: string; phone?: string } | null;
   due_date?: string | null;
+  rejection_reason?: string | null;
 }
 
 export interface TaskComment {
