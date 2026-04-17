@@ -527,11 +527,12 @@ export default function SettingsScreen() {
  const name = (formValues.name as string)?.trim();
  const email = (formValues.email as string)?.trim().toLowerCase();
  const role = (formValues.role as string)?.trim() || 'Agent';
+ const phone = (formValues.phone as string)?.trim() || null;
  if (!name || !email) { Alert.alert('Required', 'Name and email are required.'); return; }
  setSaving(true);
  // Create auth user (Supabase Admin API not available client-side; insert profile only)
  // In production: use Supabase Edge Function to create auth user + insert profile
- const { error } = await supabase.from('team_members').insert({ name, email, role });
+ const { error } = await supabase.from('team_members').insert({ name, email, role, phone });
  setSaving(false);
  if (error) Alert.alert('Error', error.message);
  else {
@@ -592,6 +593,22 @@ export default function SettingsScreen() {
  <View>
  <Text style={ss.navCardTitle}>Client Fields</Text>
  <Text style={ss.navCardSubtitle}>Customize what info to collect per client</Text>
+ </View>
+ </View>
+ <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
+
+ {/* Team Member Fields */}
+ <TouchableOpacity
+ style={ss.navCard}
+ onPress={() => navigation.navigate('TeamMemberFields')}
+ activeOpacity={0.75}
+ >
+ <View style={ss.navCardLeft}>
+ <Text style={ss.navCardIcon}>👥</Text>
+ <View>
+ <Text style={ss.navCardTitle}>Team Member Fields</Text>
+ <Text style={ss.navCardSubtitle}>Custom fields for team member profiles</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
@@ -702,7 +719,7 @@ export default function SettingsScreen() {
  <Section
  title="Team Members"
  count={teamMembers.length}
- onAdd={() => openModal('member', { name: '', email: '', role: 'Agent' })}
+ onAdd={() => openModal('member', { name: '', email: '', role: 'Agent', phone: '' })}
  >
  {teamMembers.map((tm) => (
  <ListItem
@@ -934,6 +951,7 @@ export default function SettingsScreen() {
  keyboardType: 'email-address',
  },
  { key: 'role', label: 'ROLE', placeholder: 'Agent' },
+ { key: 'phone', label: 'PHONE (optional)', placeholder: '+961 70 000 000', keyboardType: 'phone-pad' },
  ]}
  values={formValues}
  onChange={setField}

@@ -20,6 +20,7 @@ import CreateScreen from '../screens/CreateScreen';
 import GlobalSearchScreen from '../screens/GlobalSearchScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ClientFieldsSettingsScreen from '../screens/ClientFieldsSettingsScreen';
+import TeamMemberFieldsScreen from '../screens/TeamMemberFieldsScreen';
 import ClientProfileScreen from '../screens/ClientProfileScreen';
 import EditClientScreen from '../screens/EditClientScreen';
 import ServiceStagesScreen from '../screens/ServiceStagesScreen';
@@ -86,6 +87,11 @@ function DashboardStack() {
         name="ClientFieldsSettings"
         component={ClientFieldsSettingsScreen}
         options={{ title: 'Client Fields', headerBackTitle: 'Back' }}
+      />
+      <DashStack.Screen
+        name="TeamMemberFields"
+        component={TeamMemberFieldsScreen}
+        options={{ title: 'Team Member Fields', headerBackTitle: 'Back' }}
       />
       <DashStack.Screen
         name="ClientProfile"

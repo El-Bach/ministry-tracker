@@ -15,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +27,15 @@ import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { TeamMember, Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
+
+function openPhone(phone: string, name?: string) {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  Alert.alert(name ?? phone, phone, [
+    { text: '📞 Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+}
 
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
@@ -47,6 +57,7 @@ export default function TeamScreen() {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -87,6 +98,7 @@ export default function TeamScreen() {
     setEditingMember(member);
     setEditName(member.name);
     setEditRole(member.role);
+    setEditPhone(member.phone ?? '');
   };
 
   const handleSaveEditMember = async () => {
@@ -97,7 +109,7 @@ export default function TeamScreen() {
     setSavingEdit(true);
     await supabase
       .from('team_members')
-      .update({ name: editName.trim(), role: editRole.trim() })
+      .update({ name: editName.trim(), role: editRole.trim(), phone: editPhone.trim() || null })
       .eq('id', editingMember.id);
     setSavingEdit(false);
     setEditingMember(null);
@@ -172,6 +184,11 @@ export default function TeamScreen() {
                   </View>
                   <Text style={s.memberRole}>{member.role}</Text>
                   <Text style={s.memberEmail}>{member.email}</Text>
+                  {member.phone ? (
+                    <TouchableOpacity onPress={() => openPhone(member.phone!, member.name)} activeOpacity={0.7}>
+                      <Text style={s.memberPhone}>📞 {member.phone}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
                 {/* Workload indicator */}
@@ -286,6 +303,16 @@ export default function TeamScreen() {
                 autoCorrect={false}
                 autoCapitalize="words"
               />
+              <Text style={[s.fieldLabel, { marginTop: 12 }]}>PHONE NUMBER</Text>
+              <TextInput
+                style={s.modalInput}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="+961 70 000 000"
+                placeholderTextColor={theme.color.textMuted}
+                keyboardType="phone-pad"
+                autoCorrect={false}
+              />
               <TouchableOpacity
                 style={[s.saveBtn, savingEdit && s.saveBtnDisabled]}
                 onPress={handleSaveEditMember}
@@ -359,6 +386,7 @@ const s = StyleSheet.create({
   },
   memberRole:  { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
   memberEmail: { ...theme.typography.caption, color: theme.color.border },
+  memberPhone: { ...theme.typography.caption, color: theme.color.primary, marginTop: 2 },
   workload:    { alignItems: 'center', gap: 2 },
   workloadBadge: {
     width:          40,

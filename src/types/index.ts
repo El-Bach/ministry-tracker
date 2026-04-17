@@ -7,6 +7,7 @@ export interface TeamMember {
   role: string;
   avatar_url?: string;
   email: string;
+  phone?: string;
   push_token?: string;
   created_at: string;
 }
@@ -207,6 +208,7 @@ export type DashboardStackParamList = {
   NewTask: { preselectedClientId?: string } | undefined;
   TaskDetail: { taskId: string };
   ClientFieldsSettings: undefined;
+  TeamMemberFields: undefined;
   ClientProfile: { clientId: string };
   EditClient: { clientId: string };
   ServiceStages: { serviceId: string; serviceName: string };

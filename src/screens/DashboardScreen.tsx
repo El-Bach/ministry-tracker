@@ -242,6 +242,7 @@ interface Filters {
   serviceId: string;
   ministryId: string;
   cityId: string;
+  teamMemberId: string;
 }
 
 
@@ -281,6 +282,7 @@ export default function DashboardScreen() {
     serviceId: '',
     ministryId: '',
     cityId: '',
+    teamMemberId: '',
   });
 
   const [showArchived, setShowArchived] = useState(false);
@@ -296,6 +298,13 @@ export default function DashboardScreen() {
   const [quickTxUSD, setQuickTxUSD] = useState('');
   const [quickTxLBP, setQuickTxLBP] = useState('');
   const [savingQuickTx, setSavingQuickTx] = useState(false);
+
+  // Default to "My Files" once the logged-in team member is known
+  useEffect(() => {
+    if (teamMember?.id) {
+      setFilters((f) => ({ ...f, teamMemberId: teamMember.id }));
+    }
+  }, [teamMember?.id]);
 
   // Network listener
   useEffect(() => {
@@ -361,7 +370,7 @@ export default function DashboardScreen() {
       )
     : [];
 
-  // Apply search/service/city filters (no archive filter — both sections shown)
+  // Apply search/service/city/teamMember filters
   const filteredTasks = tasks.filter((task) => {
     if (
       filters.search &&
@@ -379,6 +388,7 @@ export default function DashboardScreen() {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
     }
+    if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
     return true;
   });
 
@@ -598,6 +608,26 @@ export default function DashboardScreen() {
           onPress={() => navigation.navigate('GlobalSearch')}
         >
           <Text style={styles.globalSearchBtnText}>🔍</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* My Files / All Files toggle */}
+      <View style={styles.myFilesToggle}>
+        <TouchableOpacity
+          style={[styles.myFilesBtn, filters.teamMemberId === (teamMember?.id ?? '') && teamMember?.id && styles.myFilesBtnActive]}
+          onPress={() => setFilters((f) => ({ ...f, teamMemberId: teamMember?.id ?? '' }))}
+        >
+          <Text style={[styles.myFilesBtnText, filters.teamMemberId === (teamMember?.id ?? '') && teamMember?.id && styles.myFilesBtnTextActive]}>
+            👤 My Files
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.myFilesBtn, !filters.teamMemberId && styles.myFilesBtnActive]}
+          onPress={() => setFilters((f) => ({ ...f, teamMemberId: '' }))}
+        >
+          <Text style={[styles.myFilesBtnText, !filters.teamMemberId && styles.myFilesBtnTextActive]}>
+            🌐 All Files
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -1232,5 +1262,34 @@ const styles = StyleSheet.create({
     minHeight:         theme.touchTarget.min,
   },
   globalSearchBtnText: { fontSize: 16 },
+
+  // My Files / All Files toggle
+  myFilesToggle: {
+    flexDirection:     'row',
+    marginHorizontal:  theme.spacing.space4,
+    marginVertical:    theme.spacing.space2 + 2,
+    backgroundColor:   theme.color.bgSurface,
+    borderRadius:      theme.radius.lg,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    overflow:          'hidden',
+  },
+  myFilesBtn: {
+    flex:            1,
+    paddingVertical: theme.spacing.space2 + 2,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  myFilesBtnActive: {
+    backgroundColor: theme.color.primary,
+  },
+  myFilesBtnText: {
+    ...theme.typography.label,
+    color:      theme.color.textMuted,
+    fontWeight: '700',
+  },
+  myFilesBtnTextActive: {
+    color: theme.color.white,
+  },
 
 });
