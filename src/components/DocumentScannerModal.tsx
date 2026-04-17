@@ -29,11 +29,18 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 
 // Native document scanner — ML Kit (Android) / VisionKit (iOS native build)
-// Returns null on web; web uses CameraView fallback
-const DocumentScanner: any =
-  Platform.OS !== 'web'
-    ? require('react-native-document-scanner-plugin').default
-    : null;
+// Only available in custom EAS builds — null in Expo Go or web.
+// Wrapped in try-catch: TurboModuleRegistry.getEnforcing throws at require()
+// time when the native binary doesn't include the module (Expo Go, web PWA).
+let DocumentScanner: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    DocumentScanner = require('react-native-document-scanner-plugin').default;
+  }
+} catch {
+  // Module not linked in this build (Expo Go) — falls back to CameraView
+  DocumentScanner = null;
+}
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -144,8 +151,14 @@ export default function DocumentScannerModal({
   }
 
   // ─── Native scanner: ML Kit (Android) / VisionKit (iOS native) ──────────────
-  // Auto edge detection + perspective correction + crop to document bounds
+  // Auto edge detection + perspective correction + crop to document bounds.
+  // Falls back to CameraView when module is not linked (Expo Go / unbuilt).
   async function handleScanNative() {
+    if (!DocumentScanner) {
+      // Module not available in this build — use the CameraView fallback
+      setStep('camera');
+      return;
+    }
     try {
       const { scannedImages, status } = await DocumentScanner.scanDocument({
         croppedImageQuality: 100,
