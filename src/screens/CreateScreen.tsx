@@ -123,6 +123,16 @@ export default function CreateScreen() {
   const [showNetCityPicker, setShowNetCityPicker] = useState(false);
   const [savingNetwork, setSavingNetwork] = useState(false);
   const [allCities, setAllCities] = useState<any[]>([]);
+  // Network additional fields
+  const [netFieldDefs, setNetFieldDefs] = useState<any[]>([]);
+  const [netFieldValues, setNetFieldValues] = useState<Record<string, string>>({});
+  const [netAddedFieldIds, setNetAddedFieldIds] = useState<string[]>([]);
+  const [showNetFieldPicker, setShowNetFieldPicker] = useState(false);
+  const [netFieldSearch, setNetFieldSearch] = useState('');
+  const [netDatePickerFieldId, setNetDatePickerFieldId] = useState<string | null>(null);
+  const [netDatePickerYear, setNetDatePickerYear] = useState(new Date().getFullYear());
+  const [netDatePickerMonthYear, setNetDatePickerMonthYear] = useState(false);
+  const [netDatePickerCurrent, setNetDatePickerCurrent] = useState<string | undefined>(undefined);
 
   // ── Service documents checklist ───────────────────────────
   const [serviceDocs, setServiceDocs] = useState<Record<string, ServiceDocument[]>>({});
@@ -132,18 +142,20 @@ export default function CreateScreen() {
 
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    const [c, s, m, net, cities] = await Promise.all([
+    const [c, s, m, net, cities, fieldDefs] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
       supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
-      supabase.from('assignees').select('*, city:cities(id,name)').order('name'),
+      supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name'),
       supabase.from('cities').select('*').order('name'),
+      supabase.from('client_field_definitions').select('*').eq('is_active', true).order('sort_order'),
     ]);
     if (c.data) setClients(c.data as Client[]);
     if (s.data) setServices(s.data as Service[]);
     if (m.data) setMinistries(m.data as Ministry[]);
     if (net.data) setNetwork(net.data as any[]);
     if (cities.data) setAllCities(cities.data as any[]);
+    if (fieldDefs.data) setNetFieldDefs(fieldDefs.data as any[]);
     setLoading(false);
   }, []);
 
@@ -374,7 +386,16 @@ export default function CreateScreen() {
   };
 
   // ── Network handlers ─────────────────────────────────────
-  const openNetworkForm = (contact?: any) => {
+  const openNetworkForm = async (contact?: any) => {
+    setNetFieldValues({});
+    setNetAddedFieldIds([]);
+    setShowNetFieldPicker(false);
+    setNetFieldSearch('');
+    setNetCitySearch('');
+    setShowNetCityPicker(false);
+    setNetDatePickerFieldId(null);
+    setNetDatePickerMonthYear(false);
+    setNetDatePickerCurrent(undefined);
     if (contact) {
       setEditNetworkId(contact.id);
       setNetName(contact.name ?? '');
@@ -382,12 +403,25 @@ export default function CreateScreen() {
       setNetReference(contact.reference ?? '');
       setNetRefPhone(contact.reference_phone ?? '');
       setNetCityId(contact.city_id ?? null);
+      // Load existing additional field values
+      const { data: vals } = await supabase
+        .from('assignee_field_values')
+        .select('*')
+        .eq('assignee_id', contact.id);
+      if (vals && vals.length > 0) {
+        const values: Record<string, string> = {};
+        const fieldIds: string[] = [];
+        for (const v of vals) {
+          values[v.field_id] = v.value_text ?? (v.value_number != null ? String(v.value_number) : v.value_boolean != null ? String(v.value_boolean) : '');
+          fieldIds.push(v.field_id);
+        }
+        setNetFieldValues(values);
+        setNetAddedFieldIds(fieldIds);
+      }
     } else {
       setEditNetworkId(null);
       setNetName(''); setNetPhone(''); setNetReference(''); setNetRefPhone(''); setNetCityId(null);
     }
-    setNetCitySearch('');
-    setShowNetCityPicker(false);
     setShowNetworkForm(true);
   };
 
@@ -401,15 +435,27 @@ export default function CreateScreen() {
       reference_phone: netRefPhone.trim() || null,
       city_id: netCityId ?? null,
     };
+    let assigneeId: string;
     if (editNetworkId) {
       await supabase.from('assignees').update(payload).eq('id', editNetworkId);
+      assigneeId = editNetworkId;
     } else {
-      await supabase.from('assignees').insert(payload);
+      const { data: newContact, error } = await supabase.from('assignees').insert(payload).select().single();
+      if (error || !newContact) { setSavingNetwork(false); Alert.alert('Error', error?.message ?? 'Failed to save'); return; }
+      assigneeId = (newContact as any).id;
+    }
+    // Save additional field values: delete all then re-insert
+    await supabase.from('assignee_field_values').delete().eq('assignee_id', assigneeId);
+    const fieldInserts = netAddedFieldIds
+      .filter(id => (netFieldValues[id] ?? '').trim() !== '')
+      .map(id => ({ assignee_id: assigneeId, field_id: id, value_text: netFieldValues[id] }));
+    if (fieldInserts.length > 0) {
+      await supabase.from('assignee_field_values').insert(fieldInserts);
     }
     setSavingNetwork(false);
     setShowNetworkForm(false);
     setEditNetworkId(null);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name');
     if (data) setNetwork(data);
   };
 
@@ -1187,77 +1233,110 @@ export default function CreateScreen() {
       <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); }}>
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[s.modalSheet, { maxHeight: '90%' }]}>
-              <View style={s.modalHeader}>
-                <View>
-                  <Text style={s.modalTitle}>👥 Network</Text>
-                  <Text style={s.modalSubtitle}>
-                    {networkSearch.trim()
-                      ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
-                      : `${network.length} contacts`}
-                  </Text>
+            <View style={[s.modalSheet, { maxHeight: '92%' }]}>
+
+              {/* ── LIST VIEW header ── */}
+              {!showNetworkForm ? (
+                <View style={s.modalHeader}>
+                  <View>
+                    <Text style={s.modalTitle}>👥 Network</Text>
+                    <Text style={s.modalSubtitle}>
+                      {networkSearch.trim()
+                        ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
+                        : `${network.length} contacts`}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <TouchableOpacity style={s.modalAddBtn} onPress={() => openNetworkForm()}>
+                      <Text style={s.modalAddBtnText}>+ New</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
+                      <Text style={s.modalClose}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              {/* Search */}
-              <View style={s.mgmtSearchRow}>
-                <TextInput style={s.mgmtSearchInput} value={networkSearch} onChangeText={setNetworkSearch}
-                  placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted}
-                  clearButtonMode="while-editing" autoCorrect={false} />
-              </View>
-              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
-                {network
-                  .filter(n => !networkSearch.trim() || n.name?.toLowerCase().includes(networkSearch.toLowerCase()))
-                  .map((contact) => (
-                    <View key={contact.id} style={s.netContactCard}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.netContactName}>{contact.name}</Text>
-                        {contact.phone ? (
-                          <TouchableOpacity onPress={() => openPhone(contact.phone, contact.name)}>
-                            <Text style={s.netContactPhone}>📞 {contact.phone}</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                        {contact.reference ? <Text style={s.netContactRef}>عبر {contact.reference}</Text> : null}
-                        {contact.reference_phone ? (
-                          <TouchableOpacity onPress={() => openPhone(contact.reference_phone, contact.reference || contact.name)}>
-                            <Text style={s.netContactPhone}>📞 {contact.reference_phone}</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                        {contact.city?.name ? <Text style={s.netContactCity}>📍 {contact.city.name}</Text> : null}
-                      </View>
-                      <View style={s.netContactActions}>
-                        <TouchableOpacity onPress={() => openNetworkForm(contact)} style={s.netActionBtn}>
-                          <Text style={s.netActionEdit}>✎</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleDeleteNetworkContact(contact)} style={s.netActionBtn}>
-                          <Text style={s.netActionDelete}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                {networkSearch.trim() && network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length === 0 && (
-                  <Text style={s.mgmtEmpty}>No contacts match "{networkSearch}"</Text>
-                )}
-                <TouchableOpacity style={s.netAddBtn} onPress={() => openNetworkForm()}>
-                  <Text style={s.netAddBtnText}>＋ Add Contact</Text>
-                </TouchableOpacity>
-              </ScrollView>
-              {/* Add/Edit form */}
-              {showNetworkForm && (
-                <View style={s.netForm}>
-                  <Text style={s.netFormTitle}>{editNetworkId ? 'Edit Contact' : 'New Contact'}</Text>
-                  <TextInput style={s.netInput} value={netName} onChangeText={setNetName}
+              ) : (
+                /* ── FORM VIEW header ── */
+                <View style={s.modalHeader}>
+                  <TouchableOpacity onPress={() => { setShowNetworkForm(false); setEditNetworkId(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
+                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  </TouchableOpacity>
+                  <Text style={s.modalTitle}>{editNetworkId ? 'Edit Contact' : 'New Contact'}</Text>
+                  <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {!showNetworkForm ? (
+                /* ── LIST VIEW body ── */
+                <>
+                  <View style={s.mgmtSearchRow}>
+                    <TextInput style={s.mgmtSearchInput} value={networkSearch} onChangeText={setNetworkSearch}
+                      placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted}
+                      clearButtonMode="while-editing" autoCorrect={false} />
+                  </View>
+                  <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                    {network.length === 0 && <Text style={s.mgmtEmpty}>No contacts yet. Tap + New to add one.</Text>}
+                    {network
+                      .filter(n => !networkSearch.trim() || n.name?.toLowerCase().includes(networkSearch.toLowerCase()))
+                      .map((contact) => (
+                        <View key={contact.id} style={s.netContactCard}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.netContactName}>{contact.name}</Text>
+                            {contact.phone ? (
+                              <TouchableOpacity onPress={() => openPhone(contact.phone, contact.name)}>
+                                <Text style={s.netContactPhone}>📞 {contact.phone}</Text>
+                              </TouchableOpacity>
+                            ) : null}
+                            {contact.reference ? <Text style={s.netContactRef}>عبر {contact.reference}</Text> : null}
+                            {contact.reference_phone ? (
+                              <TouchableOpacity onPress={() => openPhone(contact.reference_phone, contact.reference || contact.name)}>
+                                <Text style={s.netContactPhone}>📞 {contact.reference_phone}</Text>
+                              </TouchableOpacity>
+                            ) : null}
+                            {contact.city?.name ? <Text style={s.netContactCity}>📍 {contact.city.name}</Text> : null}
+                            {/* Additional field values */}
+                            {(contact.field_values ?? []).map((fv: any) => (
+                              fv.value_text ? (
+                                <Text key={fv.field_id} style={s.netContactFieldVal}>
+                                  {fv.field?.label}: {fv.value_text}
+                                </Text>
+                              ) : null
+                            ))}
+                          </View>
+                          <View style={s.netContactActions}>
+                            <TouchableOpacity onPress={() => openNetworkForm(contact)} style={s.netActionBtn}>
+                              <Text style={s.netActionEdit}>✎</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleDeleteNetworkContact(contact)} style={s.netActionBtn}>
+                              <Text style={s.netActionDelete}>✕</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      ))}
+                    {networkSearch.trim() && network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length === 0 && (
+                      <Text style={s.mgmtEmpty}>No contacts match "{networkSearch}"</Text>
+                    )}
+                  </ScrollView>
+                </>
+              ) : (
+                /* ── FORM VIEW body ── */
+                <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
+                  {/* Basic fields */}
+                  <TextInput style={s.modalInput} value={netName} onChangeText={setNetName}
                     placeholder="Full name *" placeholderTextColor={theme.color.textMuted} autoFocus={!editNetworkId} />
-                  <TextInput style={s.netInput} value={netPhone} onChangeText={setNetPhone}
-                    placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
-                  <TextInput style={s.netInput} value={netReference} onChangeText={setNetReference}
-                    placeholder="Reference (via)" placeholderTextColor={theme.color.textMuted} />
-                  <TextInput style={s.netInput} value={netRefPhone} onChangeText={setNetRefPhone}
+                  <TextInput style={s.modalInput} value={netPhone} onChangeText={setNetPhone}
+                    placeholder="Phone number" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                  <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
+                  <TextInput style={s.modalInput} value={netReference} onChangeText={setNetReference}
+                    placeholder="Reference name" placeholderTextColor={theme.color.textMuted} />
+                  <TextInput style={s.modalInput} value={netRefPhone} onChangeText={setNetRefPhone}
                     placeholder="Reference phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+
                   {/* City picker */}
-                  <TouchableOpacity style={s.netCityTrigger} onPress={() => setShowNetCityPicker(v => !v)}>
+                  <TouchableOpacity style={s.netCityTrigger} onPress={() => { setShowNetCityPicker(v => !v); setShowNetFieldPicker(false); }}>
                     <Text style={[s.netCityTriggerText, netCityId && { color: theme.color.textPrimary }]}>
                       📍 {netCityId ? (allCities.find(c => c.id === netCityId)?.name ?? 'City') : 'Set city (optional)'}
                     </Text>
@@ -1285,15 +1364,183 @@ export default function CreateScreen() {
                       </ScrollView>
                     </View>
                   )}
-                  <View style={s.netFormActions}>
-                    <TouchableOpacity style={s.netCancelBtn} onPress={() => { setShowNetworkForm(false); setEditNetworkId(null); }}>
-                      <Text style={s.netCancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[s.netSaveBtn, savingNetwork && { opacity: 0.6 }]} onPress={handleSaveNetworkContact} disabled={savingNetwork}>
-                      {savingNetwork ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.netSaveBtnText}>Save</Text>}
-                    </TouchableOpacity>
-                  </View>
-                </View>
+
+                  {/* Additional fields */}
+                  {netAddedFieldIds.length > 0 && (
+                    <Text style={[s.fieldsSectionLabel, { marginTop: theme.spacing.space2 }]}>ADDITIONAL INFO</Text>
+                  )}
+                  {netAddedFieldIds.map((fieldId) => {
+                    const def = netFieldDefs.find(d => d.id === fieldId);
+                    if (!def) return null;
+                    return (
+                      <View key={fieldId} style={{ marginBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={s.fieldDefLabel}>{def.label}</Text>
+                          <TouchableOpacity
+                            onPress={() => setNetAddedFieldIds(ids => ids.filter(id => id !== fieldId))}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={{ color: theme.color.danger, fontSize: 13 }}>✕ Remove</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {def.field_type === 'boolean' ? (
+                          <View style={s.fieldBoolRow}>
+                            <Text style={s.fieldBoolText}>{netFieldValues[fieldId] === 'true' ? 'Yes' : 'No'}</Text>
+                            <Switch
+                              value={netFieldValues[fieldId] === 'true'}
+                              onValueChange={v => setNetFieldValues(p => ({ ...p, [fieldId]: v ? 'true' : 'false' }))}
+                              trackColor={{ false: theme.color.border, true: theme.color.primary }}
+                              thumbColor={theme.color.white}
+                            />
+                          </View>
+                        ) : def.field_type === 'select' && def.options?.length > 0 ? (
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                            {(def.options as string[]).map((opt: string) => (
+                              <TouchableOpacity
+                                key={opt}
+                                style={[s.selectOption, netFieldValues[fieldId] === opt && s.selectOptionActive]}
+                                onPress={() => setNetFieldValues(p => ({ ...p, [fieldId]: opt }))}
+                              >
+                                <Text style={[s.selectOptionText, netFieldValues[fieldId] === opt && s.selectOptionTextActive]}>{opt}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        ) : def.field_type === 'date' ? (
+                          <View>
+                            <TouchableOpacity
+                              style={s.dateBtn}
+                              onPress={() => {
+                                if (netDatePickerFieldId === fieldId) {
+                                  setNetDatePickerFieldId(null);
+                                } else {
+                                  setNetDatePickerFieldId(fieldId);
+                                  setNetDatePickerMonthYear(false);
+                                  setNetDatePickerCurrent(undefined);
+                                }
+                                setShowNetCityPicker(false);
+                                setShowNetFieldPicker(false);
+                              }}
+                            >
+                              <Text style={netFieldValues[fieldId] ? s.dateBtnText : s.dateBtnPlaceholder}>
+                                {netFieldValues[fieldId] || `Select ${def.label}`}
+                              </Text>
+                              <Text style={s.dateBtnIcon}>{netDatePickerFieldId === fieldId ? '▲' : '📅'}</Text>
+                            </TouchableOpacity>
+                            {netDatePickerFieldId === fieldId && (
+                              <View style={s.inlineCalendarContainer}>
+                                {netDatePickerMonthYear ? (
+                                  <View style={s.monthYearPicker}>
+                                    <View style={s.monthYearPickerHeader}>
+                                      <TouchableOpacity onPress={() => setNetDatePickerYear(y => y - 1)} style={s.monthYearArrow}>
+                                        <Text style={s.monthYearArrowText}>‹</Text>
+                                      </TouchableOpacity>
+                                      <TextInput
+                                        style={s.monthYearPickerYearInput}
+                                        value={String(netDatePickerYear)}
+                                        onChangeText={v => { const n = parseInt(v.replace(/[^0-9]/g, ''), 10); if (!isNaN(n)) setNetDatePickerYear(n); }}
+                                        keyboardType="number-pad" maxLength={4} selectTextOnFocus
+                                        placeholderTextColor={theme.color.textMuted}
+                                      />
+                                      <TouchableOpacity onPress={() => setNetDatePickerYear(y => y + 1)} style={s.monthYearArrow}>
+                                        <Text style={s.monthYearArrowText}>›</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                    <View style={s.monthGrid}>
+                                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((mon, idx) => (
+                                        <TouchableOpacity key={mon} style={s.monthGridItem}
+                                          onPress={() => { setNetDatePickerCurrent(`${netDatePickerYear}-${String(idx+1).padStart(2,'0')}-01`); setNetDatePickerMonthYear(false); }}>
+                                          <Text style={s.monthGridItemText}>{mon}</Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                    </View>
+                                  </View>
+                                ) : (
+                                  <Calendar
+                                    current={netDatePickerCurrent}
+                                    onDayPress={(day: any) => {
+                                      const [y, m, d] = day.dateString.split('-');
+                                      setNetFieldValues(p => ({ ...p, [fieldId]: `${d}/${m}/${y}` }));
+                                      setNetDatePickerFieldId(null);
+                                      setNetDatePickerCurrent(undefined);
+                                    }}
+                                    onMonthChange={(date: any) => setNetDatePickerCurrent(date.dateString)}
+                                    renderHeader={(date: any) => {
+                                      const d = typeof date === 'string' ? new Date(date) : date;
+                                      const label = d?.toString ? d.toString('MMMM yyyy') : '';
+                                      return (
+                                        <TouchableOpacity onPress={() => { setNetDatePickerYear(typeof d?.getFullYear === 'function' ? d.getFullYear() : new Date().getFullYear()); setNetDatePickerMonthYear(true); }} style={s.calHeaderBtn}>
+                                          <Text style={s.calHeaderText}>{label} ▾</Text>
+                                        </TouchableOpacity>
+                                      );
+                                    }}
+                                    theme={{ backgroundColor: theme.color.bgBase, calendarBackground: theme.color.bgBase, selectedDayBackgroundColor: theme.color.primary, selectedDayTextColor: theme.color.white, todayTextColor: theme.color.primary, dayTextColor: theme.color.textPrimary, textDisabledColor: theme.color.textMuted, arrowColor: theme.color.primary, monthTextColor: theme.color.textPrimary }}
+                                  />
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        ) : (
+                          <TextInput
+                            style={[s.modalInput, def.field_type === 'textarea' && { height: 80, textAlignVertical: 'top' }]}
+                            value={netFieldValues[fieldId] ?? ''}
+                            onChangeText={v => setNetFieldValues(p => ({ ...p, [fieldId]: v }))}
+                            placeholder={def.label}
+                            placeholderTextColor={theme.color.textMuted}
+                            multiline={def.field_type === 'textarea'}
+                            keyboardType={
+                              def.field_type === 'number' || def.field_type === 'currency' ? 'decimal-pad' :
+                              def.field_type === 'phone' ? 'phone-pad' :
+                              def.field_type === 'email' ? 'email-address' : 'default'
+                            }
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
+
+                  {/* Add Field button + dropdown */}
+                  <TouchableOpacity
+                    style={s.netAddFieldBtn}
+                    onPress={() => { setShowNetFieldPicker(v => !v); setShowNetCityPicker(false); setNetDatePickerFieldId(null); }}
+                  >
+                    <Text style={s.netAddFieldBtnText}>{showNetFieldPicker ? '▲ Close' : '＋ Add Field'}</Text>
+                  </TouchableOpacity>
+                  {showNetFieldPicker && (
+                    <View style={s.netCityDropdown}>
+                      <TextInput style={s.netCitySearch} value={netFieldSearch} onChangeText={setNetFieldSearch}
+                        placeholder="Search fields..." placeholderTextColor={theme.color.textMuted} autoFocus />
+                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                        {netFieldDefs
+                          .filter(d => !netAddedFieldIds.includes(d.id) && (!netFieldSearch.trim() || d.label.toLowerCase().includes(netFieldSearch.toLowerCase())))
+                          .map(def => (
+                            <TouchableOpacity key={def.id} style={s.netFieldPickerItem}
+                              onPress={() => { setNetAddedFieldIds(ids => [...ids, def.id]); setShowNetFieldPicker(false); setNetFieldSearch(''); }}>
+                              <Text style={s.netCityItemText}>{def.label}</Text>
+                              <Text style={s.netFieldPickerType}>{def.field_type}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        {netFieldDefs.filter(d => !netAddedFieldIds.includes(d.id)).length === 0 && (
+                          <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>All fields already added</Text>
+                        )}
+                        {netFieldDefs.filter(d => !netAddedFieldIds.includes(d.id) && (!netFieldSearch.trim() || d.label.toLowerCase().includes(netFieldSearch.toLowerCase()))).length === 0
+                          && netFieldDefs.filter(d => !netAddedFieldIds.includes(d.id)).length > 0 && (
+                          <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>No fields match "{netFieldSearch}"</Text>
+                        )}
+                      </ScrollView>
+                    </View>
+                  )}
+
+                  {/* Save button */}
+                  <TouchableOpacity
+                    style={[s.modalSaveBtn, { marginTop: theme.spacing.space3 }, savingNetwork && s.modalSaveBtnDisabled]}
+                    onPress={handleSaveNetworkContact}
+                    disabled={savingNetwork}
+                  >
+                    {savingNetwork
+                      ? <ActivityIndicator color={theme.color.white} size="small" />
+                      : <Text style={s.modalSaveBtnText}>Save Contact</Text>}
+                  </TouchableOpacity>
+                </ScrollView>
               )}
             </View>
           </KeyboardAvoidingView>
@@ -1838,7 +2085,8 @@ const s = StyleSheet.create({
   netContactName:    { ...theme.typography.body, fontWeight: '700', marginBottom: 2 },
   netContactPhone:   { ...theme.typography.caption, color: theme.color.primary, marginBottom: 1 },
   netContactRef:     { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic', marginBottom: 1 },
-  netContactCity:    { ...theme.typography.caption, color: theme.color.textSecondary },
+  netContactCity:     { ...theme.typography.caption, color: theme.color.textSecondary },
+  netContactFieldVal: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 1 },
   netContactActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   netActionBtn:      { padding: 6 },
   netActionEdit:     { color: theme.color.primary, fontSize: 16 },
@@ -1853,6 +2101,25 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   netAddBtnText: { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
+  netAddFieldBtn: {
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.md,
+    paddingVertical: theme.spacing.space3,
+    alignItems:      'center',
+    backgroundColor: theme.color.bgBase,
+  },
+  netAddFieldBtnText: { ...theme.typography.label, color: theme.color.primary, fontWeight: '700' },
+  netFieldPickerItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  netFieldPickerType: { ...theme.typography.caption, color: theme.color.textMuted, fontStyle: 'italic' },
   netForm: {
     borderTopWidth:  1,
     borderTopColor:  theme.color.border,
