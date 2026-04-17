@@ -30,7 +30,8 @@
       "expo-image-picker",
       "expo-location",
       "expo-notifications",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-document-scanner-plugin"
     ],
     "extra": {
       "eas": {

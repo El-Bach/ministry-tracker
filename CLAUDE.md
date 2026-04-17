@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 23 (Export Financial Report as PDF: 📄 PDF button in FinancialReportScreen filter bar; generates HTML table with current filtered rows + totals summary; uses expo-print printToFileAsync + expo-sharing shareAsync; respects all active filters; button disabled when no rows)
+> Last updated: session 24 (Network contacts directory in Create tab; Expense→Stage link on financial transactions; Service Document Checklist per service; reference_phone shown on TaskCard; task-level assignee join fix; Android create-assignee form field visibility fix)
 
 ---
 
@@ -103,7 +103,12 @@ ministry-tracker/
 │   ├── migration_task_documents_v2.sql  ← session 9 — adds display_name + requirement_id
 │   ├── migration_client_reference.sql   ← session 10 — reference_name + reference_phone
 │   ├── migration_assignees.sql          ← session 12 — assignees table + ext_assignee_id on tasks
-│   └── migration_archive.sql           ← session 12 — is_archived column on tasks
+│   ├── migration_archive.sql           ← session 12 — is_archived column on tasks
+│   ├── migration_stop_fields.sql       ← session 15 — city_id/assigned_to/ext_assignee_id on task_route_stops
+│   ├── migration_stop_due_date.sql     ← session 19 — due_date column on task_route_stops
+│   ├── migration_network.sql           ← session 24 — reference_phone + city_id on assignees
+│   ├── migration_expense_stage.sql     ← session 24 — stop_id on file_transactions
+│   └── migration_service_documents.sql ← session 24 — service_documents table
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
@@ -143,7 +148,7 @@ ministry-tracker/
 
 ---
 
-## Database Schema (20 tables)
+## Database Schema (22 tables)
 
 | Table | Key fields | Notes |
 |---|---|---|
@@ -160,13 +165,14 @@ ministry-tracker/
 | `assignment_history` | id, task_id, assigned_to, assigned_by, created_at | |
 | `client_field_definitions` | id, label, field_key, field_type, options (jsonb), is_required, is_active, sort_order | 14 types |
 | `client_field_values` | id, client_id, field_id, value_text, value_number, value_boolean, value_json | |
-| `file_transactions` | id, task_id, type (expense/revenue), description, amount_usd, amount_lbp, created_by, created_at | |
+| `file_transactions` | id, task_id, type (expense/revenue), description, amount_usd, amount_lbp, stop_id (nullable FK → task_route_stops), created_by, created_at | stop_id added session 24 — links expense to a specific stage |
 | `service_default_stages` | id, service_id, ministry_id, stop_order | default stage templates per service |
 | `stop_requirements` | id, stop_id, title, req_type, notes, is_completed, attachment_url, attachment_name, sort_order, created_by, updated_at | |
 | `task_price_history` | id, task_id, old_price_usd, old_price_lbp, new_price_usd, new_price_lbp, note, changed_by | |
 | `ministry_requirements` | id, ministry_id, title, req_type, notes, sort_order, created_at, updated_at | template requirements per stage (no completion state) |
 | `task_documents` | id, task_id, file_name, display_name, file_url, file_type, uploaded_by, requirement_id, created_at | |
-| `assignees` | id, name, phone, reference, notes, created_by → team_members, created_at | external assignees (not team members); added session 12 |
+| `assignees` | id, name, phone, reference, reference_phone, notes, city_id (nullable FK → cities), created_by → team_members, created_at | external assignees (not team members); reference_phone + city_id added session 24 |
+| `service_documents` | id, service_id (FK → services), title, sort_order, is_checked, created_at | required documents per service; is_checked is global (shared checklist, not per-file); added session 24 |
 
 ### Migrations to run (in order)
 1. `supabase/schema.sql`
@@ -184,6 +190,10 @@ ministry-tracker/
 13. `supabase/migration_assignees.sql`
 14. `supabase/migration_archive.sql`
 15. `supabase/migration_stop_fields.sql`
+16. `supabase/migration_stop_due_date.sql`
+17. `supabase/migration_network.sql`
+18. `supabase/migration_expense_stage.sql`
+19. `supabase/migration_service_documents.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
@@ -199,7 +209,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 - `task_route_stops` = stages; ordered by `stop_order` (1-indexed)
 - `tasks.current_status` = most recently updated stage status. Only "Done" when ALL stages are "Done"
 - **Archive**: `tasks.is_archived` set to `true` when all route stops become "Done". Dashboard derives archived state client-side: `is_archived === true || all route_stops.status === 'Done'` — no dependency on DB column for display
-- **External Assignees**: `assignees` table (separate from `team_members`); linked via `tasks.ext_assignee_id`; can be created inline in TaskDetailScreen and NewTaskScreen
+- **External Assignees**: `assignees` table (separate from `team_members`); linked via `tasks.ext_assignee_id`; can be created inline in TaskDetailScreen and NewTaskScreen. Now also has `reference_phone` and `city_id` (session 24). When assigning an ext_assignee to a stage, if the assignee has a `city_id` and the stop has no city, the stop's city is auto-populated.
+- `file_transactions.stop_id` — optional FK linking an expense to a specific stage (task_route_stops row). Only used for expense type (not revenue). Shown as "📌 StageName" tag on the transaction row.
+- `service_documents.is_checked` — global per-document flag (not per-file). Staff tick documents as received, then "Reset checks" clears all for that service. Per-file document tracking uses `stop_requirements` instead.
 - GPS columns exist on `task_comments` but GPS is no longer collected or shown (removed session 12)
 - `client_id` auto-generated as `CLT-{Date.now()}`
 - `assigned_to` is nullable — assignment always optional
@@ -234,10 +246,11 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 
 | Screen | Key behavior |
 |---|---|
-| DashboardScreen | Filters (team/status/date/search); swipe-left (Edit/Delete); swipe-right (💰 Quick Finance); 📋 Active / 📦 Archive toggle; manage dropdown (Clients/Services/Stages with search bar each); + New Client modal with custom fields + reference fields; service name tap → ServiceStages; date fields use inline calendar with month/year quick-jump picker |
+| DashboardScreen | Filters (search/service/city); swipe-left (Edit/Delete); swipe-right (💰 Quick Finance with optional stage link on expenses); simultaneous active+archive display (📦 Archive divider); summary bar (Active/Overdue/Due$); 🔍 global search; service name tap → stages sheet; date fields use inline calendar with month/year quick-jump picker |
 | NewTaskScreen | Client picker (✎ Edit → EditClient, ✕ delete); service picker (✎ Stages → ServiceStages, ✕ delete); create service with inline stage builder; stages auto-load on service select; useFocusEffect refreshes on return; Assign To → combined modal (team members + external assignees + create new external assignee inline) |
-| TaskDetailScreen | Stages timeline + status update (auto-archives when all Done); team member assignment + external assignee (create/assign/remove); financials + contract price history; DOCUMENTS section; comments (no GPS; edit/delete available to all users); "+ Req" quick-add requirement per stage |
-| CalendarScreen | Multi-dot calendar; day task list |
+| TaskDetailScreen | Stages timeline + status update (auto-archives when all Done/Rejected); team member assignment + external assignee (create/assign/remove; auto-fills stage city from assignee's city); financials + contract price history; DOCUMENTS section; comments (no GPS; edit/delete available to all users); expense transactions optionally linked to a specific stage |
+| CreateScreen | Quick-action cards (+New File/Client/Service/Stage); Manage sections: Clients, Services, Stages, **Network** (external contacts with name/phone/reference/reference_phone/city; tappable phone numbers), **Documents Required** (per-service numbered checklist — add/tick/delete/reset); CRUD modals with search for all sections |
+| CalendarScreen | Multi-dot calendar; day task list with stage due dates (orange dots) |
 | TeamScreen | Member cards with workload; expandable task list |
 | SettingsScreen | CRUD: ministries, services (✎ Stages modal), status labels, team members; Arabic/RTL toggle |
 | ClientFieldsSettingsScreen | Manage custom field definitions: add/edit/reorder/toggle/delete |
@@ -415,7 +428,8 @@ text, textarea, number, currency, email, phone, url, date, boolean, select, mult
 - Contract price changes logged in `task_price_history` (who + when + note)
 - `TaskCard` shows contract price inline next to client name (indigo text, hidden if zero)
 - `FinancialReportScreen` shows contract price next to client name; grid: RECEIVED · OUTSTANDING · EXPENSES · BALANCE
-- **Quick Finance** available from Dashboard swipe-right on any task card
+- **Quick Finance** available from Dashboard swipe-right on any task card; includes optional stage picker for expenses
+- **Expense → Stage link**: optional `stop_id` on `file_transactions` (expense type only) — shown as "📌 StageName" tag on transaction row in TaskDetail and in Quick Finance modal
 - All LBP inputs use comma-formatted display (`parseInt.toLocaleString('en-US')`) and `keyboardType="number-pad"`. Parse back with `.replace(/,/g, '')` before saving.
 - `fmtUSD` / `fmtLBP` helper functions used throughout for display formatting
 
@@ -440,7 +454,9 @@ text, textarea, number, currency, email, phone, url, date, boolean, select, mult
 ```
 URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted: 4, Pending: 5, Done: 99, Closed: 100 }
 ```
-- Filters out "Done" stages, finds most urgent remaining stage
+- Filters out **both "Done" and "Rejected"** stages (both are terminal) — finds most urgent remaining non-terminal stage
+- If all stages are Done or Rejected → displays "Done"
+- `allDone` = all stops are Done **or** Rejected (archive trigger)
 - Shows "URGENT STAGE" badge if different from overall status
 
 ---
@@ -484,7 +500,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 ## Setup Checklist
 
-- [ ] Run all 14 SQL migration files in Supabase SQL Editor (in order)
+- [ ] Run all 19 SQL migration files in Supabase SQL Editor (in order)
 - [ ] Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `src/lib/supabase.ts`
 - [ ] Create Supabase Storage bucket `task-attachments` (public)
 - [ ] Create auth users in Supabase dashboard
@@ -533,6 +549,8 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 | NewTaskScreen Assign To had no external assignees | Replaced PickerModal with custom bottom-sheet modal: team members section + external assignees section + inline create form; saves `ext_assignee_id` on task |
 | Android adaptive icon invisible | Removed `adaptiveIcon` from app.json — foreground PNG requires transparent bg; using `icon.png` directly works on all launchers |
 | iOS icon had white border on home screen | Generated `icon-fullbleed.png` via Python/Pillow flood-fill: white corner pixels made transparent, teal gradient fills behind |
+| Task-level assignee not showing after pick | Task fetch query was missing `assignee:team_members!assigned_to(id,name,role,push_token)` at task level — was only on route_stops; added join at task level |
+| Android create-assignee form fields hidden | Form inside `ScrollView maxHeight:260` clipped phone/reference inputs when list was long; moved create form `<View>` outside the `</ScrollView>` closing tag (still inside container) with top border separator |
 
 ---
 
@@ -540,6 +558,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 24 | **Network contacts directory** in CreateScreen: 👥 Network manage section backed by `assignees` table (now with `reference_phone` + `city_id` columns). Full CRUD: search, tappable phone/ref-phone (call/WhatsApp), create/edit (name, phone, reference, ref-phone, city picker), delete. Auto-city: assigning a Network contact to a stage auto-populates the stage's city from the contact's city (if stop has no city set). **Expense→Stage link**: optional stage picker on financial transactions (expense only) — `file_transactions.stop_id` FK; shown as "📌 StageName" in transaction list. Quick Finance modal on dashboard also has stage picker. **Service Document Checklist**: 📋 Documents Required in CreateScreen — per-service numbered checklist in `service_documents` table; tap service → checklist expands; tick/add/delete documents; "↺ Reset checks" clears all ticks for that service. **Reference phone on TaskCard**: `client.reference_phone` shown below `reference_name` as tappable 📞 link. **Bug fixes**: task-level assignee join added to task fetch query (was missing `assignee:team_members!assigned_to`); Android create-assignee form moved outside constrained ScrollView so phone/reference fields are always visible. SQL migrations: `migration_network.sql`, `migration_expense_stage.sql`, `migration_service_documents.sql`. |
 | 23 | Export Financial Report as PDF: `📄 PDF` button added to FinancialReportScreen filter bar (right-aligned, indigo, disabled when 0 rows). Uses `expo-print` `printToFileAsync` to render an HTML report with a totals summary bar + full data table (client, service, status, contract, received, due, expenses, balance columns). Report respects all active filters (service/status/archive/search). File named `financial-report-YYYY-MM-DD.pdf`, saved to cache, then shared via `expo-sharing`. |
 | 22 | WhatsApp share button in TaskDetailScreen header: composes Arabic-language status message (client, service, status, stage list, notes) and opens WhatsApp via `wa.me/?text=...`. File duplication button in header: clones task (same client, service, stages, notes, price) with new file starting as Submitted + all stages Pending; shows alert to Open New File or Stay Here. Both buttons sit alongside ✎ Edit in a `headerActionsRow` flex row. |
 | 21 | Phone links: all phone fields (ClientProfile, TaskDetail) tappable → Alert with 📞 Phone Call + 💬 WhatsApp. TaskCard already had phone links. PDF upload: "📄 PDF" button in TaskDetail documents section uses expo-document-picker (v13.0.3, SDK 54 compatible) + base64 upload via Supabase storage. Service stages sheet: tapping orange service name on dashboard opens bottom-sheet modal with service's default stages (reorder ↑↓, remove ✕, add stage with search + create). Stage status logic: Rejected treated as terminal alongside Done — only non-Done/non-Rejected stops determine displayed status; allDone now includes Rejected stages; same logic in ClientProfileScreen StatusBadge. Dashboard: simultaneous active+archive display — removed archive toggle, FlatList shows active tasks then "📦 Archive (N)" divider then archived tasks; isTaskArchived() helper treats Done+Rejected as terminal. Android image zoom: WebView with HTML img tag for Android instead of ScrollView maximumZoomScale (iOS-only). Stage city inline in edit modal: editStageCities state map preserves city per ministry; each stage row in edit modal shows "📍 Set city" chip + inline searchable city dropdown; city saved on handleSaveStages. Scanner crop UI (Option C): ✂ Crop button in preview → drag-handle overlay with 4 PanResponder corner handles → "✓ Apply Crop" uses expo-image-manipulator to crop to selected region. |
@@ -580,6 +599,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 - **No underlines** on any tappable text (client name, phone, city chips) — links work without decoration
 - **Service name**: `theme.color.warning` (#F59E0B), `onServicePress` prop → navigates to ServiceStages
 - **"عبر"** used instead of "via" for reference names
+- **reference_phone on card**: shown below `reference_name` as tappable `📞 {phone}` (same `handlePhonePress` Alert pattern as `client.phone`) — added session 24
 - **Archived card completion row**: `📅 {start} → {end}  •  {N}d` — uses `task.created_at` and `task.updated_at`
 - **Contract price on card**: no decimals (`maximumFractionDigits: 0`)
 
@@ -611,24 +631,17 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | # | Feature | Effort | Value |
 |---|---|---|---|
-| 1 | Dashboard summary bar (active files count, total balance due, expenses) | Low | High |
-| 2 | ~~Export Financial Report as PDF~~ | ~~Low~~ | ~~Done (session 23)~~ |
-| 3 | ~~WhatsApp share from TaskDetail — send file status as formatted message~~ | ~~Low~~ | ~~Done (session 22)~~ |
-| 4 | ~~File duplication — clone a task with same client + service + stages~~ | ~~Low~~ | ~~Done (session 22)~~ |
-| 5 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
-| 6 | Client statement — printable summary of all files + financial balance per client | Medium | High |
-| 7 | Due date push notification (overdue check on app open) | Medium | Medium |
-| 8 | Notifications inbox / activity feed tab | High | High |
-| 9 | Global search across clients, files, stages, requirements | Medium | Medium |
-| 10 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
-| 11 | Stage deadline per stop (separate from file due date) | Low | Medium |
-| 12 | Offline status updates queue (currently only comments queue offline) | High | Medium |
-| 13 | File tags / labels (color-coded free tags per file for custom grouping) | Low | Medium |
-| 14 | Dashboard summary stats row (total active, overdue, total outstanding $) | Low | High |
-| 8 | Notifications inbox / activity feed tab | High | High |
-| 9 | Global search across clients, files, stages, requirements | Medium | Medium |
-| 10 | Document rename after upload | Low | Medium |
-| 11 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
-| 12 | Client statement — printable summary of all files + financial balance per client | Medium | High |
-| 13 | Stage deadline per stop (separate from file due date) | Low | Medium |
-| 14 | Offline status updates queue (currently only comments queue offline) | High | Medium |
+| 1 | ~~Export Financial Report as PDF~~ | ~~Low~~ | ~~Done (session 23)~~ |
+| 2 | ~~WhatsApp share from TaskDetail~~ | ~~Low~~ | ~~Done (session 22)~~ |
+| 3 | ~~File duplication — clone a task~~ | ~~Low~~ | ~~Done (session 22)~~ |
+| 4 | ~~Network contacts directory~~ | ~~Medium~~ | ~~Done (session 24)~~ |
+| 5 | ~~Expense → Stage link~~ | ~~Low~~ | ~~Done (session 24)~~ |
+| 6 | ~~Service Document Checklist~~ | ~~Medium~~ | ~~Done (session 24)~~ |
+| 7 | ~~Reference phone on TaskCard~~ | ~~Low~~ | ~~Done (session 24)~~ |
+| 8 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
+| 9 | Client statement — printable summary of all files + financial balance per client | Medium | High |
+| 10 | Due date push notification (overdue check on app open) | Medium | Medium |
+| 11 | Notifications inbox / activity feed tab | High | High |
+| 12 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
+| 13 | Offline status updates queue (currently only comments queue offline) | High | Medium |
+| 14 | File tags / labels (color-coded free tags per file for custom grouping) | Low | Medium |
