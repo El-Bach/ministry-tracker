@@ -71,6 +71,7 @@ export interface TaskRouteStop {
   ext_assignee_id?: string | null;
   ext_assignee?: { id: string; name: string; phone?: string } | null;
   due_date?: string | null;
+  rejection_reason?: string | null;
 }
 
 export interface TaskComment {
@@ -79,6 +80,7 @@ export interface TaskComment {
   author_id?: string;
   author?: TeamMember;
   body: string;
+  audio_url?: string | null;
   gps_lat?: number;
   gps_lng?: number;
   created_at: string;

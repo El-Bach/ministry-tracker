@@ -1,7 +1,7 @@
 // src/screens/TaskDetailScreen.tsx
 // Full task detail: route, status updates, comments, assignment, financials with edit
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,9 @@ import {
 } from 'react-native';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+// ─── Final closure stage — always last, auto-created, non-removable ─
+const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -32,6 +35,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
@@ -121,6 +125,10 @@ export default function TaskDetailScreen() {
   const [stopHistories, setStopHistories] = useState<Record<string, Array<{id: string; old_status?: string; new_status: string; updated_by?: string; updater?: TeamMember; created_at: string}>>>({});
   const [expandedStopHistory, setExpandedStopHistory] = useState<string | null>(null);
   const [updatingStop, setUpdatingStop] = useState<string | null>(null);
+  // Rejection reason
+  const [showRejectionInput, setShowRejectionInput] = useState(false);
+  const [pendingRejectionStop, setPendingRejectionStop] = useState<TaskRouteStop | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   // Comment states
   const [newComment, setNewComment] = useState('');
@@ -128,6 +136,18 @@ export default function TaskDetailScreen() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentBody, setEditingCommentBody] = useState('');
   const [savingEditComment, setSavingEditComment] = useState(false);
+
+  // Voice note states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingObj, setRecordingObj] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
+  const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
+  const [playbackDuration, setPlaybackDuration] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Financial transaction states
   const [transactions, setTransactions] = useState<FileTransaction[]>([]);
@@ -208,6 +228,9 @@ export default function TaskDetailScreen() {
   const [savingCity, setSavingCity] = useState(false);
   const [stopDueDatePickerStopId, setStopDueDatePickerStopId] = useState<string | null>(null);
   const [savingStopDueDate, setSavingStopDueDate] = useState<string | null>(null);
+  const [openStageNameId, setOpenStageNameId] = useState<string | null>(null);
+  const [stageNameEdit, setStageNameEdit] = useState('');
+  const [savingStageNameId, setSavingStageNameId] = useState<string | null>(null);
 
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
@@ -320,6 +343,15 @@ export default function TaskDetailScreen() {
       [fetchTask]
     )
   );
+
+  // Cleanup sound + recording on unmount
+  useEffect(() => {
+    return () => {
+      if (soundObj) { soundObj.unloadAsync(); }
+      if (recordingObj) { recordingObj.stopAndUnloadAsync(); }
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); }
+    };
+  }, [soundObj, recordingObj]);
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
@@ -447,16 +479,18 @@ export default function TaskDetailScreen() {
   const openEditStages = () => {
     if (!task?.route_stops) return;
     const sorted = [...task.route_stops].sort((a, b) => a.stop_order - b.stop_order);
-    const current = sorted.map((s) => ({
+    // Exclude the final closure stage — it's always last and auto-managed
+    const editable = sorted.filter(s => s.ministry?.name !== FINAL_STAGE_NAME);
+    const current = editable.map((s) => ({
       id: s.ministry_id,
       name: s.ministry?.name ?? '',
       type: 'parent' as const,
       created_at: '',
     }));
     setEditingStops(current);
-    // Populate city map from existing route_stops
+    // Populate city map from existing route_stops (editable only)
     const cityMap: Record<string, { cityId: string | null; cityName: string | null }> = {};
-    for (const s of sorted) {
+    for (const s of editable) {
       cityMap[s.ministry_id] = { cityId: s.city_id ?? null, cityName: (s.city as any)?.name ?? null };
     }
     setEditStageCities(cityMap);
@@ -508,12 +542,32 @@ export default function TaskDetailScreen() {
   };
 
   const handleSaveStages = async () => {
-    if (editingStops.length === 0) {
-      Alert.alert('Required', 'Add at least one stage.');
-      return;
-    }
     setSavingStages(true);
     try {
+      // Preserve the existing final stage stop (to keep its status/city)
+      const existingFinal = task?.route_stops?.find(s => s.ministry?.name === FINAL_STAGE_NAME);
+
+      // Get or create the final stage ministry
+      let finalMinistryId = existingFinal?.ministry_id ?? null;
+      if (!finalMinistryId) {
+        const { data: existingMin } = await supabase
+          .from('ministries')
+          .select('id')
+          .eq('name', FINAL_STAGE_NAME)
+          .maybeSingle();
+        if (existingMin) {
+          finalMinistryId = existingMin.id;
+        } else {
+          const { data: newMin, error: minErr } = await supabase
+            .from('ministries')
+            .insert({ name: FINAL_STAGE_NAME, type: 'parent' })
+            .select()
+            .single();
+          if (minErr) throw minErr;
+          finalMinistryId = newMin.id;
+        }
+      }
+
       // Delete all existing stops for this task
       const { error: delErr } = await supabase
         .from('task_route_stops')
@@ -521,14 +575,24 @@ export default function TaskDetailScreen() {
         .eq('task_id', taskId);
       if (delErr) throw delErr;
 
-      // Re-insert in new order (preserve city assignments)
-      const newStops = editingStops.map((s, idx) => ({
-        task_id: taskId,
-        ministry_id: s.id,
-        stop_order: idx + 1,
-        status: 'Pending',
-        city_id: editStageCities[s.id]?.cityId ?? null,
-      }));
+      // Re-insert in new order + final stage always last
+      const newStops = [
+        ...editingStops.map((s, idx) => ({
+          task_id: taskId,
+          ministry_id: s.id,
+          stop_order: idx + 1,
+          status: 'Pending',
+          city_id: editStageCities[s.id]?.cityId ?? null,
+        })),
+        {
+          task_id: taskId,
+          ministry_id: finalMinistryId,
+          stop_order: editingStops.length + 1,
+          status: existingFinal?.status ?? 'Pending',
+          city_id: existingFinal?.city_id ?? null,
+        },
+      ];
+
       const { error: insErr } = await supabase
         .from('task_route_stops')
         .insert(newStops);
@@ -718,20 +782,21 @@ export default function TaskDetailScreen() {
   };
 
   // ─── Status update ────────────────────────────────────────
-  const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string) => {
+  const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string, reason?: string) => {
     setUpdatingStop(stop.id);
     const oldStatus = stop.status;
     const now = new Date().toISOString();
 
     if (isOnline) {
       try {
-        // Update the stop status
+        // Update the stop status (clear rejection_reason unless new status is Rejected)
         const { error } = await supabase
           .from('task_route_stops')
           .update({
             status: newStatus,
             updated_at: now,
             updated_by: teamMember?.id,
+            rejection_reason: newStatus === 'Rejected' ? (reason ?? null) : null,
           })
           .eq('id', stop.id);
 
@@ -856,12 +921,150 @@ export default function TaskDetailScreen() {
     fetchTask();
   };
 
+  // ─── Voice note: start recording ────────────────────────
+  const handleStartRecording = async () => {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert('Permission', 'Microphone permission is required.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecordingObj(recording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(d => d + 1);
+      }, 1000);
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message);
+    }
+  };
+
+  // ─── Voice note: stop recording ─────────────────────────
+  const handleStopRecording = async () => {
+    if (!recordingObj) return;
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+    try {
+      await recordingObj.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recordingObj.getURI();
+      setRecordingObj(null);
+      setIsRecording(false);
+      setRecordedUri(uri);
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message);
+    }
+  };
+
+  // ─── Voice note: discard recording ──────────────────────
+  const handleDiscardRecording = () => {
+    setRecordedUri(null);
+    setRecordingDuration(0);
+  };
+
+  // ─── Voice note: upload + post as comment ───────────────
+  const handleSendVoiceNote = async () => {
+    if (!recordedUri) return;
+    setUploadingVoice(true);
+    try {
+      const timestamp = Date.now();
+      const storagePath = `task-attachments/voice-notes/${taskId}/${timestamp}.m4a`;
+      const uploadResult = await FileSystem.uploadAsync(
+        `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/${storagePath}`,
+        recordedUri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          headers: {
+            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI`,
+            'x-upsert': 'true',
+          },
+        }
+      );
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        throw new Error('Upload failed');
+      }
+      const audioUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/public/${storagePath}`;
+      const { error } = await supabase.from('task_comments').insert({
+        task_id: taskId,
+        author_id: teamMember?.id,
+        body: '🎤 Voice note',
+        audio_url: audioUrl,
+      });
+      if (error) throw error;
+      setRecordedUri(null);
+      setRecordingDuration(0);
+      fetchTask();
+    } catch (e: unknown) {
+      Alert.alert('Error', (e as Error).message ?? 'Failed to upload voice note.');
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+
+  // ─── Voice note: play / pause ────────────────────────────
+  const handlePlayPause = async (commentId: string, audioUrl: string) => {
+    if (playingCommentId === commentId) {
+      // Pause
+      if (soundObj) { await soundObj.pauseAsync(); }
+      setPlayingCommentId(null);
+      return;
+    }
+    // Stop any current playback
+    if (soundObj) { await soundObj.unloadAsync(); setSoundObj(null); }
+    setPlayingCommentId(commentId);
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded) {
+            setPlaybackPosition(status.positionMillis ?? 0);
+            setPlaybackDuration(status.durationMillis ?? 0);
+            if (status.didJustFinish) {
+              setPlayingCommentId(null);
+              setSoundObj(null);
+            }
+          }
+        }
+      );
+      setSoundObj(sound);
+    } catch (e: unknown) {
+      Alert.alert('Error', 'Could not play voice note.');
+      setPlayingCommentId(null);
+    }
+  };
+
+  const fmtDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+
   // ─── Per-stage city / assignee handlers ─────────────────
   const handleSetStopDueDate = async (stopId: string, date: string | null) => {
     setSavingStopDueDate(stopId);
-    await supabase.from('task_route_stops').update({ due_date: date }).eq('id', stopId);
+    const { error } = await supabase
+      .from('task_route_stops')
+      .update({ due_date: date })
+      .eq('id', stopId);
     setSavingStopDueDate(null);
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
     setStopDueDatePickerStopId(null);
+    fetchTask();
+  };
+
+  const handleRenameStopMinistry = async (ministryId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setSavingStageNameId(ministryId);
+    await supabase.from('ministries').update({ name: newName.trim() }).eq('id', ministryId);
+    setSavingStageNameId(null);
+    setOpenStageNameId(null);
     fetchTask();
   };
 
@@ -944,6 +1147,21 @@ export default function TaskDetailScreen() {
   }
 
   const mainStatusColor = getStatusColor(task.current_status);
+
+  // Derived status — same terminal logic as dashboard (Done + Rejected = terminal)
+  const DETAIL_URGENCY: Record<string, number> = {
+    Rejected: 1, 'Pending Signature': 2, 'In Review': 3,
+    Submitted: 4, Pending: 5, Done: 99, Closed: 100,
+  };
+  const nonTerminalStops = (task.route_stops ?? []).filter(
+    (s) => s.status !== 'Done' && s.status !== 'Rejected'
+  );
+  const derivedStatus = nonTerminalStops.length > 0
+    ? nonTerminalStops.reduce((a, b) =>
+        (DETAIL_URGENCY[a.status] ?? 50) <= (DETAIL_URGENCY[b.status] ?? 50) ? a : b
+      ).status
+    : ((task.route_stops && task.route_stops.length > 0) ? 'Done' : task.current_status);
+  const derivedStatusColor = getStatusColor(derivedStatus);
 
   // Compute balances — contract price is NOT revenue, it's the agreed billing amount
   const totalRevenueUSD = transactions.filter((t) => t.type === 'revenue').reduce((sum, t) => sum + t.amount_usd, 0);
@@ -1082,7 +1300,7 @@ export default function TaskDetailScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <StatusBadge label={task.current_status} color={mainStatusColor} />
+            <StatusBadge label={derivedStatus} color={derivedStatusColor} />
           </View>
 
           <View style={s.metaGrid}>
@@ -1201,33 +1419,96 @@ export default function TaskDetailScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
+                ) : c.audio_url ? (
+                  /* Voice note player */
+                  <View style={s.voiceNotePlayer}>
+                    <TouchableOpacity
+                      style={s.voiceNotePlayBtn}
+                      onPress={() => handlePlayPause(c.id, c.audio_url!)}
+                    >
+                      <Text style={s.voiceNotePlayBtnText}>
+                        {playingCommentId === c.id ? '⏸' : '▶'}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={s.voiceNoteInfo}>
+                      <View style={s.voiceNoteBar}>
+                        {playingCommentId === c.id && playbackDuration > 0 ? (
+                          <View style={[s.voiceNoteProgress, { width: `${(playbackPosition / playbackDuration) * 100}%` as any }]} />
+                        ) : (
+                          <View style={[s.voiceNoteProgress, { width: '0%' }]} />
+                        )}
+                      </View>
+                      <Text style={s.voiceNoteDuration}>
+                        {playingCommentId === c.id && playbackDuration > 0
+                          ? `${fmtDuration(Math.floor(playbackPosition / 1000))} / ${fmtDuration(Math.floor(playbackDuration / 1000))}`
+                          : '🎤 Voice note'}
+                      </Text>
+                    </View>
+                  </View>
                 ) : (
                   <Text style={s.commentBody}>{c.body}</Text>
                 )}
               </View>
             </View>
           ))}
-          <View style={s.commentInput}>
-            <TextInput
-              style={s.commentTextInput}
-              value={newComment}
-              onChangeText={setNewComment}
-              placeholder="Add a comment..."
-              placeholderTextColor={theme.color.textMuted}
-              multiline
-            />
-            <TouchableOpacity
-              style={[s.commentSendBtn, postingComment && s.disabledBtn]}
-              onPress={handlePostComment}
-              disabled={postingComment}
-            >
-              {postingComment ? (
-                <ActivityIndicator color={theme.color.white} size="small" />
-              ) : (
-                <Text style={s.commentSendBtnText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          {/* Recording indicator */}
+          {isRecording && (
+            <View style={s.recordingBar}>
+              <View style={s.recordingDot} />
+              <Text style={s.recordingText}>Recording... {fmtDuration(recordingDuration)}</Text>
+              <TouchableOpacity style={s.recordingStopBtn} onPress={handleStopRecording}>
+                <Text style={s.recordingStopBtnText}>⏹ Stop</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Recorded preview (before sending) */}
+          {!isRecording && recordedUri && (
+            <View style={s.voicePreviewBar}>
+              <Text style={s.voicePreviewLabel}>🎤 {fmtDuration(recordingDuration)}</Text>
+              <TouchableOpacity
+                style={[s.commentSendBtn, { backgroundColor: theme.color.success }]}
+                onPress={handleSendVoiceNote}
+                disabled={uploadingVoice}
+              >
+                {uploadingVoice
+                  ? <ActivityIndicator color={theme.color.white} size="small" />
+                  : <Text style={s.commentSendBtnText}>Send</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={s.voiceDiscardBtn} onPress={handleDiscardRecording}>
+                <Text style={s.voiceDiscardBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Normal comment input (hidden while recording/preview) */}
+          {!isRecording && !recordedUri && (
+            <View style={s.commentInput}>
+              <TextInput
+                style={s.commentTextInput}
+                value={newComment}
+                onChangeText={setNewComment}
+                placeholder="Add a comment..."
+                placeholderTextColor={theme.color.textMuted}
+                multiline
+              />
+              {/* Mic button */}
+              <TouchableOpacity style={s.micBtn} onPress={handleStartRecording}>
+                <Text style={s.micBtnText}>🎙</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.commentSendBtn, postingComment && s.disabledBtn]}
+                onPress={handlePostComment}
+                disabled={postingComment}
+              >
+                {postingComment ? (
+                  <ActivityIndicator color={theme.color.white} size="small" />
+                ) : (
+                  <Text style={s.commentSendBtnText}>Post</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* ── DOCUMENTS ── */}
@@ -1348,16 +1629,92 @@ export default function TaskDetailScreen() {
                   {/* ── All stage content (rail line spans this full height) ── */}
                   <View style={s.stageContent}>
 
-                    {/* Ministry name + order */}
-                    <View style={s.stageHeader}>
-                      <Text style={s.stageMinistryName} numberOfLines={2}>
-                        {stop.ministry?.name ?? 'Unknown Ministry'}
+                    {/* Ministry name + order — tap to edit name / city / requirements */}
+                    <TouchableOpacity
+                      style={s.stageHeader}
+                      onPress={() => {
+                        setOpenStageNameId(v => v === stop.id ? null : stop.id);
+                        setStageNameEdit(stop.ministry?.name ?? '');
+                        setOpenCityStopId(null);
+                        setOpenAssigneeStopId(null);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.stageMinistryName} numberOfLines={2}>
+                          {stop.ministry?.name ?? 'Unknown Ministry'}
+                        </Text>
+                        {stop.city?.name ? (
+                          <Text style={{ color: theme.color.primary, fontSize: 12, marginTop: 3, fontWeight: '600' }}>
+                            📍 {stop.city.name}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={[s.stageOrder, { color: theme.color.primary }]}>
+                        {openStageNameId === stop.id ? '▲' : '✎'}
                       </Text>
-                      <Text style={s.stageOrder}>#{stop.stop_order}</Text>
-                    </View>
+                    </TouchableOpacity>
+
+                    {/* Inline name-edit + city + requirements panel */}
+                    {openStageNameId === stop.id && (
+                      <View style={s.stageNamePanel}>
+                        <TextInput
+                          style={s.stageNameInput}
+                          value={stageNameEdit}
+                          onChangeText={setStageNameEdit}
+                          placeholder="Stage name..."
+                          placeholderTextColor={theme.color.textMuted}
+                          autoFocus
+                        />
+
+                        {/* City picker chip inside panel */}
+                        <TouchableOpacity
+                          style={[s.stopMetaChip, { marginTop: theme.spacing.space2, alignSelf: 'flex-start' }]}
+                          onPress={() => {
+                            setOpenCityStopId(v => v === stop.id ? null : stop.id);
+                            setStopCitySearch('');
+                            setShowCreateCityForm(false);
+                            setNewCityName('');
+                          }}
+                        >
+                          <Text style={[s.stopMetaChipText, stop.city?.name ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
+                            {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
+                          <TouchableOpacity
+                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.primary }]}
+                            onPress={() => stop.ministry_id && handleRenameStopMinistry(stop.ministry_id, stageNameEdit)}
+                            disabled={savingStageNameId === stop.ministry_id}
+                          >
+                            {savingStageNameId === stop.ministry_id
+                              ? <ActivityIndicator size="small" color={theme.color.white} />
+                              : <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>💾 Save</Text>}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.primary, borderWidth: 1 }]}
+                            onPress={() => navigation.navigate('StageRequirements', {
+                              stopId: stop.id,
+                              stageName: stop.ministry?.name ?? 'Requirements',
+                              taskId,
+                            })}
+                          >
+                            <Text style={[s.stageNameBtnText, { color: theme.color.primary }]}>📋 Requirements</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
 
                     {/* Status badge */}
                     <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
+
+                    {/* Rejection reason — shown inline when status is Rejected */}
+                    {stop.status === 'Rejected' && stop.rejection_reason ? (
+                      <View style={s.rejectionReasonRow}>
+                        <Text style={s.rejectionReasonText}>⚠ {stop.rejection_reason}</Text>
+                      </View>
+                    ) : null}
 
                     {/* Due date chip */}
                     <TouchableOpacity
@@ -1395,18 +1752,8 @@ export default function TaskDetailScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Right column: Requirements → Set assignee */}
+                      {/* Right column: Set assignee */}
                       <View style={s.stageBtnCol}>
-                        <TouchableOpacity
-                          style={s.reqStopBtn}
-                          onPress={() => navigation.navigate('StageRequirements', {
-                            stopId: stop.id,
-                            stageName: stop.ministry?.name ?? 'Requirements',
-                            taskId,
-                          })}
-                        >
-                          <Text style={s.reqStopBtnText}>📋 Requirements</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity
                           style={s.stopMetaChip}
                           onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}
@@ -2017,7 +2364,18 @@ export default function TaskDetailScreen() {
               <TouchableOpacity
                 key={sl.id}
                 style={[s.optionRow, selectedStop?.status === sl.label && s.optionRowActive]}
-                onPress={() => selectedStop && handleUpdateStopStatus(selectedStop, sl.label)}
+                onPress={() => {
+                  if (!selectedStop) return;
+                  if (sl.label === 'Rejected') {
+                    // Show rejection reason input before saving
+                    setPendingRejectionStop(selectedStop);
+                    setRejectionReason(selectedStop.rejection_reason ?? '');
+                    setShowStatusPicker(false);
+                    setShowRejectionInput(true);
+                  } else {
+                    handleUpdateStopStatus(selectedStop, sl.label);
+                  }
+                }}
               >
                 <View style={[s.optionDot, { backgroundColor: sl.color }]} />
                 <Text style={[s.optionText, { color: sl.color }]}>{sl.label}</Text>
@@ -2028,6 +2386,62 @@ export default function TaskDetailScreen() {
             ))}
           </View>
         </View>
+      </Modal>
+
+      {/* ── REJECTION REASON MODAL ── */}
+      <Modal
+        visible={showRejectionInput}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, justifyContent: 'flex-end' }}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalSheet, { paddingBottom: theme.spacing.space4 }]}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Rejection Reason</Text>
+                <TouchableOpacity onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}>
+                  <Text style={s.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[s.modalHint, { marginBottom: theme.spacing.space3 }]}>
+                Stage: {pendingRejectionStop?.ministry?.name}
+              </Text>
+              <TextInput
+                style={[s.stageNameInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                value={rejectionReason}
+                onChangeText={setRejectionReason}
+                placeholder="Enter reason for rejection..."
+                placeholderTextColor={theme.color.textMuted}
+                multiline
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space3 }}>
+                <TouchableOpacity
+                  style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.border, borderWidth: 1 }]}
+                  onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}
+                >
+                  <Text style={[s.stageNameBtnText, { color: theme.color.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.stageNameBtn, { flex: 2, backgroundColor: theme.color.danger }]}
+                  onPress={() => {
+                    if (!pendingRejectionStop) return;
+                    setShowRejectionInput(false);
+                    handleUpdateStopStatus(pendingRejectionStop, 'Rejected', rejectionReason.trim() || undefined);
+                    setPendingRejectionStop(null);
+                    setRejectionReason('');
+                  }}
+                >
+                  <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>✕ Confirm Rejection</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── EDIT STAGES MODAL ── */}
@@ -2142,6 +2556,14 @@ export default function TaskDetailScreen() {
                 </View>
               ))}
 
+              {/* Fixed final stage row — always last, not editable */}
+              <View style={[s.editStageRow, { opacity: 0.5, marginTop: theme.spacing.space2 }]}>
+                <View style={[s.editStageIndex, { backgroundColor: theme.color.border }]}>
+                  <Text style={s.editStageIndexText}>🔒</Text>
+                </View>
+                <Text style={[s.editStageName, { flex: 1, color: theme.color.textMuted }]} numberOfLines={1}>{FINAL_STAGE_NAME}</Text>
+              </View>
+
               {/* All available stages to add */}
               <Text style={[s.editStagesSubtitle, { marginTop: 16 }]}>ADD STAGES</Text>
               <TextInput
@@ -2155,6 +2577,7 @@ export default function TaskDetailScreen() {
               />
               {[...allStages]
                 .filter((st) => !editingStops.find((e) => e.id === st.id))
+                .filter((st) => st.name !== FINAL_STAGE_NAME)
                 .filter((st) => !editStageSearch || st.name.toLowerCase().includes(editStageSearch.toLowerCase()))
                 .sort((a, b) => a.name.localeCompare(b.name, ['ar', 'en'], { sensitivity: 'base' }))
                 .map((stage) => (
@@ -2167,10 +2590,10 @@ export default function TaskDetailScreen() {
                     <Text style={s.addStageIcon}>+</Text>
                   </TouchableOpacity>
                 ))}
-              {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length === 0 && (
+              {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length === 0 && (
                 <Text style={s.editStagesEmpty}>All stages are already added.</Text>
               )}
-              {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id)).length > 0 && (
+              {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length > 0 && (
                 <Text style={s.editStagesEmpty}>No stages match "{editStageSearch}"</Text>
               )}
 
@@ -2607,7 +3030,29 @@ const s = StyleSheet.create({
   commentTime:       { ...theme.typography.caption, color: theme.color.textMuted },
   commentBody:       { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 18 },
   commentGps:        { ...theme.typography.caption, color: theme.color.primary },
-  commentInput:      { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
+  commentInput:      { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
+  // Mic button
+  micBtn:            { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.color.border },
+  micBtnText:        { fontSize: 20 },
+  // Recording bar
+  recordingBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.color.danger + '18', borderRadius: theme.radius.md, padding: theme.spacing.space3, marginBottom: 6 },
+  recordingDot:      { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.color.danger },
+  recordingText:     { ...theme.typography.body, color: theme.color.danger, fontWeight: '600', flex: 1 },
+  recordingStopBtn:  { backgroundColor: theme.color.danger, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 6 },
+  recordingStopBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+  // Voice preview bar (after recording, before sending)
+  voicePreviewBar:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, padding: theme.spacing.space3, marginBottom: 6, borderWidth: 1, borderColor: theme.color.border },
+  voicePreviewLabel: { ...theme.typography.body, color: theme.color.textPrimary, fontWeight: '600', flex: 1 },
+  voiceDiscardBtn:   { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.color.border },
+  voiceDiscardBtnText: { color: theme.color.danger, fontWeight: '700', fontSize: 14 },
+  // Voice note player (in comment list)
+  voiceNotePlayer:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space2, borderWidth: 1, borderColor: theme.color.border },
+  voiceNotePlayBtn:  { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center' },
+  voiceNotePlayBtnText: { color: theme.color.white, fontSize: 14, fontWeight: '700' },
+  voiceNoteInfo:     { flex: 1, gap: 4 },
+  voiceNoteBar:      { height: 4, backgroundColor: theme.color.border, borderRadius: 2, overflow: 'hidden' },
+  voiceNoteProgress: { height: 4, backgroundColor: theme.color.primary, borderRadius: 2 },
+  voiceNoteDuration: { ...theme.typography.caption, color: theme.color.textMuted },
   commentTextInput: {
     flex:            1,
     backgroundColor: theme.color.bgBase,
@@ -2848,6 +3293,8 @@ const s = StyleSheet.create({
   txMetaName:          { color: theme.color.textSecondary, fontWeight: '700' },
   balanceExpense:      { color: theme.color.danger, fontSize: 13, fontWeight: '700' },
   stopDueChipSet: { borderColor: theme.color.warning + '66', backgroundColor: theme.color.warning + '15' },
+  rejectionReasonRow: { backgroundColor: theme.color.danger + '18', borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 6, borderLeftWidth: 3, borderLeftColor: theme.color.danger, marginTop: 2 },
+  rejectionReasonText: { color: theme.color.danger, fontSize: 12, fontWeight: '500', lineHeight: 17 },
   clearStopDueDateBtn: {
     marginHorizontal: theme.spacing.space4,
     marginVertical: theme.spacing.space2,
@@ -3130,6 +3577,30 @@ const s = StyleSheet.create({
   stageHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stageMinistryName: { ...theme.typography.body, fontWeight: '700', flex: 1 },
   stageOrder:        { ...theme.typography.caption, fontWeight: '600' },
+  stageNamePanel: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    padding:         theme.spacing.space3,
+    marginTop:       theme.spacing.space1,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '44',
+  },
+  stageNameInput: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    color:           theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: theme.spacing.space2,
+    fontSize:        14,
+  },
+  stageNameBtn: {
+    paddingVertical:   theme.spacing.space2,
+    borderRadius:      theme.radius.md,
+    alignItems:        'center',
+  },
+  stageNameBtnText: { ...theme.typography.label, fontWeight: '700' },
   stageBtnGrid:      { flexDirection: 'row', gap: theme.spacing.space2, marginTop: 2, alignItems: 'stretch' },
   stageBtnCol:       { flex: 1, gap: theme.spacing.space2 },
 
