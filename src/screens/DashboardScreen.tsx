@@ -51,7 +51,7 @@ function SwipeableTaskRow({
   onClientPress,
   onCityPress,
   onServicePress,
-  onEdit,
+  onArchive,
   onDelete,
   onUnarchive,
   onFinance,
@@ -64,7 +64,7 @@ function SwipeableTaskRow({
   onClientPress: () => void;
   onCityPress: (cityId: string) => void;
   onServicePress: () => void;
-  onEdit: () => void;
+  onArchive: () => void;
   onDelete: () => void;
   onUnarchive: () => void;
   onFinance: () => void;
@@ -136,14 +136,8 @@ function SwipeableTaskRow({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Left-swipe: Edit + Delete/Unarchive actions (right side) — hidden at rest */}
+      {/* Left-swipe: Archive + Delete/Restore actions (right side) — hidden at rest */}
       <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
-        <TouchableOpacity
-          style={swipeStyles.editBtn}
-          onPress={() => { close(); onEdit(); }}
-        >
-          <Text style={swipeStyles.editBtnText}>✎{'\n'}Edit</Text>
-        </TouchableOpacity>
         {isArchived ? (
           <TouchableOpacity
             style={swipeStyles.unarchiveBtn}
@@ -153,12 +147,18 @@ function SwipeableTaskRow({
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={swipeStyles.deleteBtn}
-            onPress={() => { close(); onDelete(); }}
+            style={swipeStyles.archiveBtn}
+            onPress={() => { close(); onArchive(); }}
           >
-            <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
+            <Text style={swipeStyles.archiveBtnText}>📦{'\n'}Archive</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity
+          style={swipeStyles.deleteBtn}
+          onPress={() => { close(); onDelete(); }}
+        >
+          <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       {/* Swipeable card */}
@@ -211,14 +211,14 @@ const swipeStyles = StyleSheet.create({
     width:         SWIPE_ACTION_WIDTH,
     flexDirection: 'row',
   },
-  editBtn: {
+  archiveBtn: {
     flex:            1,
-    backgroundColor: theme.color.primary,
+    backgroundColor: '#f59e0b',
     alignItems:      'center',
     justifyContent:  'center',
     gap:             theme.spacing.space1,
   },
-  editBtnText:   { ...theme.typography.caption, color: theme.color.white, fontWeight: '700', textAlign: 'center' },
+  archiveBtnText: { ...theme.typography.caption, color: theme.color.white, fontWeight: '700', textAlign: 'center' },
   deleteBtn: {
     flex:            1,
     backgroundColor: theme.color.danger,
@@ -457,6 +457,21 @@ export default function DashboardScreen() {
     ]);
   };
 
+  const handleArchiveTask = async (task: Task) => {
+    Alert.alert('Archive File', `Move "${task.client?.name ?? 'this file'}" to archive?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Archive', style: 'destructive', onPress: async () => {
+          await supabase
+            .from('tasks')
+            .update({ is_archived: true, updated_at: new Date().toISOString() })
+            .eq('id', task.id);
+          fetchData();
+        }
+      },
+    ]);
+  };
+
   const handleUnarchiveTask = async (task: Task) => {
     await supabase
       .from('tasks')
@@ -538,7 +553,7 @@ export default function DashboardScreen() {
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
           onServicePress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onEdit={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+          onArchive={() => handleArchiveTask(item)}
           onDelete={() => handleDeleteTask(item)}
           onUnarchive={() => handleUnarchiveTask(item)}
           onFinance={() => openQuickFinance(item)}
@@ -546,7 +561,7 @@ export default function DashboardScreen() {
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
   );
 
   if (loading) {
