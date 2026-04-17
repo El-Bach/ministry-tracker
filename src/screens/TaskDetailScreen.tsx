@@ -977,25 +977,25 @@ export default function TaskDetailScreen() {
     try {
       const timestamp = Date.now();
       const ext = recordedUri.split('.').pop()?.toLowerCase() ?? 'm4a';
-      const storagePath = `task-attachments/voice-notes/${taskId}/${timestamp}.${ext}`;
+      const storagePath = `voice-notes/${taskId}/${timestamp}.${ext}`;
       const contentType = ext === 'mp4' ? 'audio/mp4' : 'audio/m4a';
-      const uploadResult = await FileSystem.uploadAsync(
-        `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/${storagePath}`,
-        recordedUri,
-        {
-          httpMethod: 'POST',
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: {
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI`,
-            'Content-Type': contentType,
-            'x-upsert': 'true',
-          },
-        }
-      );
-      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
-        throw new Error(`Upload failed: ${uploadResult.status}`);
-      }
-      const audioUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/public/${storagePath}`;
+
+      // Read as base64 → ArrayBuffer → upload via supabase client (same proven pattern as PDF)
+      const base64 = await FileSystem.readAsStringAsync(recordedUri, {
+        encoding: (FileSystem as any).EncodingType?.Base64 ?? 'base64',
+      });
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      const { error: upErr } = await supabase.storage
+        .from('task-attachments')
+        .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType, upsert: true });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(storagePath);
+      const audioUrl = urlData?.publicUrl ?? '';
+
       const { error } = await supabase.from('task_comments').insert({
         task_id: taskId,
         author_id: teamMember?.id,
@@ -1007,7 +1007,7 @@ export default function TaskDetailScreen() {
       setRecordingDuration(0);
       fetchTask();
     } catch (e: unknown) {
-      Alert.alert('Error', (e as Error).message ?? 'Failed to upload voice note.');
+      Alert.alert('Error', (e as any)?.message ?? String(e) ?? 'Failed to upload voice note.');
     } finally {
       setUploadingVoice(false);
     }
