@@ -1975,33 +1975,34 @@ export default function TaskDetailScreen() {
                             {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
                           </TouchableOpacity>
                         ))}
-                        {/* Create new external assignee */}
+                        {/* Create new external assignee — toggle button inside scroll list */}
                         <TouchableOpacity style={s.cityDropdownItem}
                           onPress={() => setShowCreateExtForm(v => !v)}>
                           <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
                             {showCreateExtForm ? '− Cancel' : '+ Create New Assignee'}
                           </Text>
                         </TouchableOpacity>
-                        {showCreateExtForm && (
-                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
-                            <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
-                              placeholder="Full name *" placeholderTextColor={theme.color.textMuted} autoFocus />
-                            <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone}
-                              placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
-                            <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference}
-                              placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
-                            <TouchableOpacity
-                              style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
-                              onPress={() => handleCreateExtAssigneeForStop(stop.id)}
-                              disabled={savingExtAssignee}
-                            >
-                              {savingExtAssignee
-                                ? <ActivityIndicator color={theme.color.white} size="small" />
-                                : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
-                            </TouchableOpacity>
-                          </View>
-                        )}
                       </ScrollView>
+                      {/* Create form rendered OUTSIDE the constrained ScrollView so phone/reference fields are always visible */}
+                      {showCreateExtForm && (
+                        <View style={{ padding: theme.spacing.space3, gap: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}>
+                          <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
+                            placeholder="Full name *" placeholderTextColor={theme.color.textMuted} />
+                          <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone}
+                            placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                          <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference}
+                            placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
+                          <TouchableOpacity
+                            style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
+                            onPress={() => handleCreateExtAssigneeForStop(stop.id)}
+                            disabled={savingExtAssignee}
+                          >
+                            {savingExtAssignee
+                              ? <ActivityIndicator color={theme.color.white} size="small" />
+                              : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   )}
 
