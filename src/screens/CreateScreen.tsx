@@ -133,6 +133,11 @@ export default function CreateScreen() {
   const [netDatePickerYear, setNetDatePickerYear] = useState(new Date().getFullYear());
   const [netDatePickerMonthYear, setNetDatePickerMonthYear] = useState(false);
   const [netDatePickerCurrent, setNetDatePickerCurrent] = useState<string | undefined>(undefined);
+  // Network import
+  const [showImportModal, setShowImportModal]       = useState(false);
+  const [importRaw, setImportRaw]                   = useState('');
+  const [importRows, setImportRows]                 = useState<{ name: string; phone: string; reference: string }[]>([]);
+  const [importingContacts, setImportingContacts]   = useState(false);
 
   // ── Service documents checklist ───────────────────────────
   const [serviceDocs, setServiceDocs] = useState<Record<string, ServiceDocument[]>>({});
@@ -470,6 +475,38 @@ export default function CreateScreen() {
         },
       },
     ]);
+  };
+
+  // ── Network import helpers ────────────────────────────────
+  const parseImportText = (raw: string) => {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    return lines.map(l => {
+      const cols = l.split('\t');
+      return {
+        name:      (cols[0] ?? '').trim(),
+        phone:     (cols[1] ?? '').trim(),
+        reference: (cols[2] ?? '').trim(),
+      };
+    }).filter(r => r.name);
+  };
+
+  const handleImportContacts = async () => {
+    if (!importRows.length) return;
+    setImportingContacts(true);
+    const inserts = importRows.map(r => ({
+      name:      r.name,
+      phone:     r.phone || null,
+      reference: r.reference || null,
+    }));
+    const { error } = await supabase.from('assignees').insert(inserts);
+    setImportingContacts(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setShowImportModal(false);
+    setImportRaw('');
+    setImportRows([]);
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name');
+    if (data) setNetwork(data as any[]);
+    Alert.alert('Imported ✓', `${inserts.length} contact${inserts.length !== 1 ? 's' : ''} added to Network.`);
   };
 
   // ── Service document handlers ─────────────────────────────
@@ -1236,8 +1273,20 @@ export default function CreateScreen() {
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
 
-              {/* ── LIST VIEW header ── */}
-              {!showNetworkForm ? (
+              {/* ── HEADER — import / list / form ── */}
+              {showImportModal ? (
+                <View style={s.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowImportModal(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
+                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  </TouchableOpacity>
+                  <Text style={s.modalTitle}>📥 Import</Text>
+                  <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !showNetworkForm ? (
+                /* ── LIST VIEW header ── */
                 <View style={s.modalHeader}>
                   <View>
                     <Text style={s.modalTitle}>👥 Network</Text>
@@ -1247,7 +1296,13 @@ export default function CreateScreen() {
                         : `${network.length} contacts`}
                     </Text>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      style={s.modalImportBtn}
+                      onPress={() => { setImportRaw(''); setImportRows([]); setShowImportModal(true); }}
+                    >
+                      <Text style={s.modalImportBtnText}>📥 Import</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={s.modalAddBtn} onPress={() => openNetworkForm()}>
                       <Text style={s.modalAddBtnText}>+ New</Text>
                     </TouchableOpacity>
@@ -1270,7 +1325,65 @@ export default function CreateScreen() {
                 </View>
               )}
 
-              {!showNetworkForm ? (
+              {showImportModal ? (
+                /* ── IMPORT VIEW body ── */
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+                  <View style={s.importInstructions}>
+                    <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
+                    <Text style={s.importInstructionsText}>
+                      {'1. Make sure columns are: A = Name  |  B = Phone  |  C = Reference\n2. Select all data rows (not the header)\n3. Press Ctrl+C (or Cmd+C on Mac)\n4. Long-press in the box below → Paste'}
+                    </Text>
+                  </View>
+
+                  <TextInput
+                    style={s.importTextArea}
+                    value={importRaw}
+                    onChangeText={setImportRaw}
+                    placeholder={'Paste Excel data here...\n\nExample:\nAhmad Khalil\t+961 70 111 111\tLawyer\nSara Khoury\t+961 71 222 222\tAgent'}
+                    placeholderTextColor={theme.color.textMuted}
+                    multiline
+                    numberOfLines={6}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+
+                  <TouchableOpacity
+                    style={s.importPreviewBtn}
+                    onPress={() => {
+                      const rows = parseImportText(importRaw);
+                      if (!rows.length) { Alert.alert('Nothing found', 'No valid rows detected. Make sure Name is in the first column.'); return; }
+                      setImportRows(rows);
+                    }}
+                  >
+                    <Text style={s.importPreviewBtnText}>Preview ({parseImportText(importRaw).length} rows)</Text>
+                  </TouchableOpacity>
+
+                  {importRows.length > 0 && (
+                    <>
+                      <Text style={s.importPreviewLabel}>PREVIEW — {importRows.length} CONTACT{importRows.length !== 1 ? 'S' : ''}</Text>
+                      {importRows.map((r, i) => (
+                        <View key={i} style={s.importPreviewRow}>
+                          <View style={s.importRowNum}><Text style={s.importRowNumText}>{i + 1}</Text></View>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Text style={s.importRowName}>{r.name}</Text>
+                            {r.phone ? <Text style={s.importRowSub}>📞 {r.phone}</Text> : null}
+                            {r.reference ? <Text style={s.importRowSub}>Ref: {r.reference}</Text> : null}
+                          </View>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={[s.modalSaveBtn, importingContacts && s.modalSaveBtnDisabled]}
+                        onPress={handleImportContacts}
+                        disabled={importingContacts}
+                      >
+                        {importingContacts
+                          ? <ActivityIndicator color={theme.color.white} size="small" />
+                          : <Text style={s.modalSaveBtnText}>Import {importRows.length} Contact{importRows.length !== 1 ? 's' : ''}</Text>}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </ScrollView>
+              ) : !showNetworkForm ? (
                 /* ── LIST VIEW body ── */
                 <>
                   <View style={s.mgmtSearchRow}>
@@ -1762,6 +1875,66 @@ const s = StyleSheet.create({
     justifyContent:    'center',
   },
   modalAddBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '700' },
+  modalImportBtn: {
+    backgroundColor:   theme.color.infoDim,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space1 + 2,
+    borderWidth:       1,
+    borderColor:       theme.color.info + '55',
+    minHeight:         theme.touchTarget.min,
+    justifyContent:    'center',
+  },
+  modalImportBtnText: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
+  // Import view
+  importInstructions: {
+    backgroundColor: theme.color.infoDim,
+    borderRadius:    theme.radius.md,
+    padding:         theme.spacing.space3,
+    borderWidth:     1,
+    borderColor:     theme.color.info + '44',
+    gap:             theme.spacing.space1,
+  },
+  importInstructionsTitle: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
+  importInstructionsText:  { ...theme.typography.caption, color: theme.color.textSecondary, lineHeight: 18 },
+  importTextArea: {
+    backgroundColor:   theme.color.bgSurface,
+    borderRadius:      theme.radius.md,
+    padding:           theme.spacing.space3,
+    minHeight:         140,
+    color:             theme.color.textPrimary,
+    ...theme.typography.body,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    textAlignVertical: 'top',
+  },
+  importPreviewBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingVertical: theme.spacing.space3,
+    alignItems:      'center',
+  },
+  importPreviewBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
+  importPreviewLabel:   { ...theme.typography.sectionDivider, marginTop: theme.spacing.space2 },
+  importPreviewRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgBase,
+  },
+  importRowNum: {
+    width:           24,
+    height:          24,
+    borderRadius:    12,
+    backgroundColor: theme.color.bgSubtle,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  importRowNumText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' },
+  importRowName:    { ...theme.typography.body, fontWeight: '700' },
+  importRowSub:     { ...theme.typography.caption, color: theme.color.textMuted },
   modalBody: {
     padding: theme.spacing.space4,
     gap:     theme.spacing.space3,
