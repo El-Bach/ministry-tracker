@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 24 (Network contacts directory in Create tab; Expense→Stage link on financial transactions; Service Document Checklist per service; reference_phone shown on TaskCard; task-level assignee join fix; Android create-assignee form field visibility fix)
+> Last updated: session 25 (Per-stage city + assignee on task_route_stops; inline city/assignee dropdowns per stage row; pinned cities (AsyncStorage); create new city inline; inline due date calendar on TaskDetail header; formatDateOnly() for timezone-safe display; archive Restore swipe button; city filter searches all stages across all files)
 
 ---
 
@@ -246,9 +246,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 
 | Screen | Key behavior |
 |---|---|
-| DashboardScreen | Filters (search/service/city); swipe-left (Edit/Delete); swipe-right (💰 Quick Finance with optional stage link on expenses); simultaneous active+archive display (📦 Archive divider); summary bar (Active/Overdue/Due$); 🔍 global search; service name tap → stages sheet; date fields use inline calendar with month/year quick-jump picker |
+| DashboardScreen | Filters (search/service/city); city filter searches `task_route_stops.city_id` across all stages; swipe-left active (Edit/Delete) / archive (📋 Restore); swipe-right (💰 Quick Finance with optional stage link on expenses); simultaneous active+archive display (📦 Archive divider); summary bar (Active/Overdue/Due$); 🔍 global search; service name tap → stages sheet; date fields use inline calendar with month/year quick-jump picker |
 | NewTaskScreen | Client picker (✎ Edit → EditClient, ✕ delete); service picker (✎ Stages → ServiceStages, ✕ delete); create service with inline stage builder; stages auto-load on service select; useFocusEffect refreshes on return; Assign To → combined modal (team members + external assignees + create new external assignee inline) |
-| TaskDetailScreen | Stages timeline + status update (auto-archives when all Done/Rejected); team member assignment + external assignee (create/assign/remove; auto-fills stage city from assignee's city); financials + contract price history; DOCUMENTS section; comments (no GPS; edit/delete available to all users); expense transactions optionally linked to a specific stage |
+| TaskDetailScreen | Stages timeline + status update (auto-archives when all Done/Rejected); per-stage 📍 city (search-first, pinned via AsyncStorage, create new inline) + 👤 assignee (team + ext + create inline; auto-fills city from assignee's city); due date editable inline via calendar on header tap (`formatDateOnly()` for timezone-safe display); financials + contract price history; DOCUMENTS section; comments (no GPS; edit/delete available to all users); expense transactions optionally linked to a specific stage |
 | CreateScreen | Quick-action cards (+New File/Client/Service/Stage); Manage sections: Clients, Services, Stages, **Network** (external contacts with name/phone/reference/reference_phone/city; tappable phone numbers), **Documents Required** (per-service numbered checklist — add/tick/delete/reset); CRUD modals with search for all sections |
 | CalendarScreen | Multi-dot calendar; day task list with stage due dates (orange dots) |
 | TeamScreen | Member cards with workload; expandable task list |
@@ -304,7 +304,8 @@ Each document row has a ✎ rename button → bottom-sheet modal with TextInput 
 
 | Direction | Width | Reveals |
 |---|---|---|
-| Swipe Left | 130px | ✎ Edit (indigo) + ✕ Delete (red) |
+| Swipe Left (active) | 130px | ✎ Edit (indigo) + ✕ Delete (red) |
+| Swipe Left (archive) | 130px | 📋 Restore (green) — sets `is_archived = false` |
 | Swipe Right | 80px | 💰 Add (green) → Quick Finance sheet |
 
 ### Quick Finance sheet (swipe-right)
@@ -432,6 +433,7 @@ text, textarea, number, currency, email, phone, url, date, boolean, select, mult
 - **Expense → Stage link**: optional `stop_id` on `file_transactions` (expense type only) — shown as "📌 StageName" tag on transaction row in TaskDetail and in Quick Finance modal
 - All LBP inputs use comma-formatted display (`parseInt.toLocaleString('en-US')`) and `keyboardType="number-pad"`. Parse back with `.replace(/,/g, '')` before saving.
 - `fmtUSD` / `fmtLBP` helper functions used throughout for display formatting
+- `formatDateOnly(iso: string)` in TaskDetailScreen — splits `YYYY-MM-DD` string directly without `new Date()` to avoid UTC midnight timezone shift (Lebanon UTC+3 would show previous day). Use instead of `formatDate()` for date-only fields like `due_date`
 
 ---
 
@@ -551,6 +553,9 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 | iOS icon had white border on home screen | Generated `icon-fullbleed.png` via Python/Pillow flood-fill: white corner pixels made transparent, teal gradient fills behind |
 | Task-level assignee not showing after pick | Task fetch query was missing `assignee:team_members!assigned_to(id,name,role,push_token)` at task level — was only on route_stops; added join at task level |
 | Android create-assignee form fields hidden | Form inside `ScrollView maxHeight:260` clipped phone/reference inputs when list was long; moved create form `<View>` outside the `</ScrollView>` closing tag (still inside container) with top border separator |
+| Due date showing wrong day (UTC shift) | `formatDate()` used `new Date('YYYY-MM-DD')` which parses as UTC midnight; Lebanon UTC+3 shows previous day. Fixed with `formatDateOnly()` that splits the ISO string directly without Date constructor |
+| City filter only checked task-level city_id | Tasks no longer have city at task level — cities are per-stage. Fixed filter to `route_stops.some(s => s.city_id === filters.cityId)`; TaskCard city chips now collected from unique stop cities |
+| Unarchive not possible from dashboard | Swipe-left in archive mode now shows green 📋 Restore button instead of red Delete; sets `is_archived = false` |
 
 ---
 
@@ -558,6 +563,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 25 | **Per-stage city + assignee**: removed city/assignment from task level; each `task_route_stops` row now has `city_id`, `assigned_to`, `ext_assignee_id` (migration_stop_fields.sql). Per-stage inline dropdowns in TaskDetailScreen: 📍 city (search-first, pinned via AsyncStorage, create new city inline) + 👤 assignee (team members + ext assignees + inline create). Auto-city: assigning a Network contact to a stage auto-fills stage city from contact's city. **Inline due date calendar**: tapping DUE DATE in file header opens inline Calendar directly on detail screen; instant save, no Save button; removed from Edit File Details modal. `formatDateOnly()` helper to avoid UTC midnight timezone shift (Lebanon UTC+3). **Archive Restore swipe**: in archive mode, swipe-left Delete button replaced with green 📋 Restore button (sets `is_archived = false`). **City filter fix**: dashboard city chips now search `task_route_stops.city_id` across all stages (not task-level city); TaskCard shows unique stage cities as tappable chips; city filter counted in active filter badge. |
 | 24 | **Network contacts directory** in CreateScreen: 👥 Network manage section backed by `assignees` table (now with `reference_phone` + `city_id` columns). Full CRUD: search, tappable phone/ref-phone (call/WhatsApp), create/edit (name, phone, reference, ref-phone, city picker), delete. Auto-city: assigning a Network contact to a stage auto-populates the stage's city from the contact's city (if stop has no city set). **Expense→Stage link**: optional stage picker on financial transactions (expense only) — `file_transactions.stop_id` FK; shown as "📌 StageName" in transaction list. Quick Finance modal on dashboard also has stage picker. **Service Document Checklist**: 📋 Documents Required in CreateScreen — per-service numbered checklist in `service_documents` table; tap service → checklist expands; tick/add/delete documents; "↺ Reset checks" clears all ticks for that service. **Reference phone on TaskCard**: `client.reference_phone` shown below `reference_name` as tappable 📞 link. **Bug fixes**: task-level assignee join added to task fetch query (was missing `assignee:team_members!assigned_to`); Android create-assignee form moved outside constrained ScrollView so phone/reference fields are always visible. SQL migrations: `migration_network.sql`, `migration_expense_stage.sql`, `migration_service_documents.sql`. |
 | 23 | Export Financial Report as PDF: `📄 PDF` button added to FinancialReportScreen filter bar (right-aligned, indigo, disabled when 0 rows). Uses `expo-print` `printToFileAsync` to render an HTML report with a totals summary bar + full data table (client, service, status, contract, received, due, expenses, balance columns). Report respects all active filters (service/status/archive/search). File named `financial-report-YYYY-MM-DD.pdf`, saved to cache, then shared via `expo-sharing`. |
 | 22 | WhatsApp share button in TaskDetailScreen header: composes Arabic-language status message (client, service, status, stage list, notes) and opens WhatsApp via `wa.me/?text=...`. File duplication button in header: clones task (same client, service, stages, notes, price) with new file starting as Submitted + all stages Pending; shows alert to Open New File or Stay Here. Both buttons sit alongside ✎ Edit in a `headerActionsRow` flex row. |
