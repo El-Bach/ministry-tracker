@@ -36,7 +36,13 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
+// @react-native-voice/voice is a native module — not available in Expo Go.
+// Lazy-require with a fallback so the app doesn't crash in Expo Go.
+// In an EAS APK / dev-client build the real module is used.
+let VoiceModule: any = null;
+try { VoiceModule = require('@react-native-voice/voice').default; } catch (_) {}
+type SpeechResultsEvent = { value?: string[] };
+type SpeechErrorEvent   = { error?: { message?: string } };
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
@@ -372,21 +378,22 @@ export default function TaskDetailScreen() {
     return () => { if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); } };
   }, []);
 
-  // ─── @react-native-voice/voice setup ───────────────────────
+  // ─── @react-native-voice/voice setup (no-op in Expo Go) ────
   useEffect(() => {
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+    if (!VoiceModule) return; // Expo Go — native module not available
+    VoiceModule.onSpeechResults = (e: SpeechResultsEvent) => {
       const text = (e.value ?? [])[0] ?? '';
       if (text) setNewComment(text);
       setIsListening(false);
       setVoicePartial('');
     };
-    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+    VoiceModule.onSpeechPartialResults = (e: SpeechResultsEvent) => {
       setVoicePartial((e.value ?? [])[0] ?? '');
     };
-    Voice.onSpeechEnd = () => {
+    VoiceModule.onSpeechEnd = () => {
       setIsListening(false);
     };
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+    VoiceModule.onSpeechError = (e: SpeechErrorEvent) => {
       setIsListening(false);
       setVoicePartial('');
       const msg = e.error?.message ?? '';
@@ -396,7 +403,7 @@ export default function TaskDetailScreen() {
       }
     };
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+      VoiceModule?.destroy().then(VoiceModule?.removeAllListeners).catch(() => {});
     };
   }, []);
 
@@ -993,16 +1000,20 @@ export default function TaskDetailScreen() {
   // Uses iOS SFSpeechRecognizer / Android Google SpeechRecognizer — both free.
   // Lebanese Arabic locale: 'ar-LB' (falls back to 'ar' on devices without LB pack).
   const handleTextFromVoice = async () => {
+    if (!VoiceModule) {
+      Alert.alert('يتطلب بناء APK', 'ميزة تحويل الصوت إلى نص تعمل فقط في نسخة APK، وليس في Expo Go.');
+      return;
+    }
     handleDiscardRecording(); // discard the m4a
     try {
       setIsListening(true);
       setVoicePartial('');
-      await Voice.start('ar-LB');
+      await VoiceModule.start('ar-LB');
     } catch (e: any) {
       setIsListening(false);
       // Try plain 'ar' locale if 'ar-LB' not installed
       try {
-        await Voice.start('ar');
+        await VoiceModule.start('ar');
         setIsListening(true);
       } catch (e2: any) {
         Alert.alert('خطأ', e2?.message ?? 'تعذّر بدء التعرف على الكلام.');
@@ -1011,7 +1022,7 @@ export default function TaskDetailScreen() {
   };
 
   const handleStopListening = async () => {
-    try { await Voice.stop(); } catch {}
+    try { await VoiceModule?.stop(); } catch {}
     setIsListening(false);
     setVoicePartial('');
   };
