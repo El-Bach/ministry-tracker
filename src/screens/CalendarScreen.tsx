@@ -19,6 +19,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import { useAuth } from '../hooks/useAuth';
 
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
@@ -30,20 +31,26 @@ interface StopWithTask {
   task?: {
     id: string;
     current_status: string;
+    assigned_to?: string | null;
     client?: { name: string } | null;
     service?: { name: string } | null;
   } | null;
 }
 
+type FileFilter = 'all' | 'mine';
+
 export default function CalendarScreen() {
   const navigation = useNavigation<Nav>();
+  const { teamMember } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stops, setStops] = useState<StopWithTask[]>([]);
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [currentMonth, setCurrentMonth] = useState<string>(todayStr);
+  const [calendarKey, setCalendarKey] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [fileFilter, setFileFilter] = useState<FileFilter>('all');
 
   const fetchData = useCallback(async () => {
     const [tasksRes, labelsRes, stopsRes] = await Promise.all([
@@ -54,7 +61,7 @@ export default function CalendarScreen() {
       supabase.from('status_labels').select('*'),
       supabase
         .from('task_route_stops')
-        .select('id, due_date, task_id, ministry:ministries(name), task:tasks!task_id(id, current_status, client:clients(name), service:services(name))')
+        .select('id, due_date, task_id, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
         .not('due_date', 'is', null),
     ]);
     if (tasksRes.data) setTasks(tasksRes.data as Task[]);
@@ -70,17 +77,26 @@ export default function CalendarScreen() {
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
 
+  // Apply My Files filter
+  const filteredTasks = fileFilter === 'mine' && teamMember
+    ? tasks.filter(t => t.assigned_to === teamMember.id)
+    : tasks;
+
+  const filteredStops = fileFilter === 'mine' && teamMember
+    ? stops.filter(s => s.task?.assigned_to === teamMember.id)
+    : stops;
+
   // Build marked dates — task due dates + stage due dates
   const markedDates: Record<string, { dots: Array<{ color: string }> }> = {};
 
-  tasks.forEach((task) => {
+  filteredTasks.forEach((task) => {
     if (!task.due_date) return;
     if (!markedDates[task.due_date]) markedDates[task.due_date] = { dots: [] };
     if (markedDates[task.due_date].dots.length < 3)
       markedDates[task.due_date].dots.push({ color: getStatusColor(task.current_status) });
   });
 
-  stops.forEach((stop) => {
+  filteredStops.forEach((stop) => {
     if (!stop.due_date) return;
     if (!markedDates[stop.due_date]) markedDates[stop.due_date] = { dots: [] };
     if (markedDates[stop.due_date].dots.length < 3)
@@ -95,8 +111,8 @@ export default function CalendarScreen() {
   const calendarMarks = { ...markedDates, [selectedDate]: selectedMarking };
 
   // Items for selected date
-  const tasksForDate = tasks.filter((t) => t.due_date === selectedDate);
-  const stopsForDate = stops.filter((s) => s.due_date === selectedDate);
+  const tasksForDate = filteredTasks.filter((t) => t.due_date === selectedDate);
+  const stopsForDate = filteredStops.filter((s) => s.due_date === selectedDate);
   const totalCount = tasksForDate.length + stopsForDate.length;
 
   if (loading) {
@@ -113,13 +129,38 @@ export default function CalendarScreen() {
         <Text style={s.title}>Calendar</Text>
         <TouchableOpacity
           style={s.todayBtn}
-          onPress={() => { setSelectedDate(todayStr); setCurrentMonth(todayStr); }}
+          onPress={() => {
+            setSelectedDate(todayStr);
+            setCurrentMonth(todayStr);
+            setCalendarKey(k => k + 1); // force Calendar remount at today
+          }}
         >
           <Text style={s.todayBtnText}>Today</Text>
         </TouchableOpacity>
       </View>
 
+      {/* My Files / All Files filter */}
+      <View style={s.filterRow}>
+        <TouchableOpacity
+          style={[s.filterChip, fileFilter === 'all' && s.filterChipActive]}
+          onPress={() => setFileFilter('all')}
+        >
+          <Text style={[s.filterChipText, fileFilter === 'all' && s.filterChipTextActive]}>
+            All Files
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.filterChip, fileFilter === 'mine' && s.filterChipActive]}
+          onPress={() => setFileFilter('mine')}
+        >
+          <Text style={[s.filterChipText, fileFilter === 'mine' && s.filterChipTextActive]}>
+            My Files
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <Calendar
+        key={calendarKey}
         markingType="multi-dot"
         markedDates={calendarMarks}
         current={currentMonth}
@@ -162,7 +203,9 @@ export default function CalendarScreen() {
       <ScrollView contentContainerStyle={s.list}>
         {totalCount === 0 ? (
           <View style={s.empty}>
-            <Text style={s.emptyText}>No items due on this date</Text>
+            <Text style={s.emptyText}>
+              {fileFilter === 'mine' ? 'No items assigned to you on this date' : 'No items due on this date'}
+            </Text>
           </View>
         ) : (
           <>
@@ -255,6 +298,35 @@ const s = StyleSheet.create({
     paddingVertical: 7,
   },
   todayBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+
+  // My Files / All Files filter
+  filterRow: {
+    flexDirection:     'row',
+    gap:               8,
+    paddingHorizontal: theme.spacing.space4,
+    paddingBottom:     theme.spacing.space3,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical:   6,
+    borderRadius:      theme.radius.xl,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    backgroundColor:   theme.color.bgSurface,
+  },
+  filterChipActive: {
+    backgroundColor: theme.color.primary,
+    borderColor:     theme.color.primary,
+  },
+  filterChipText: {
+    fontSize:   13,
+    fontWeight: '600',
+    color:      theme.color.textSecondary,
+  },
+  filterChipTextActive: {
+    color: theme.color.white,
+  },
+
   calendar: { borderBottomWidth: 1, borderBottomColor: theme.color.bgSurface },
   dateHeader: {
     flexDirection:     'row',

@@ -1502,7 +1502,7 @@ export default function CreateScreen() {
                       placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted}
                       clearButtonMode="while-editing" autoCorrect={false} />
                   </View>
-                  <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                  <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                     {network.length === 0 && <Text style={s.mgmtEmpty}>No contacts yet. Tap + New to add one.</Text>}
                     {network
                       .filter(n => !networkSearch.trim() || matchesNetworkSearch(n, networkSearch))
