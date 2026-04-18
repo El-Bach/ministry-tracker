@@ -36,13 +36,8 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
 import supabase from '../lib/supabase';
-
-// ─── Whisper API key ──────────────────────────────────────────────────────────
-// Set your OpenAI API key here to enable speech-to-text transcription.
-// Whisper model 'whisper-1' handles Lebanese Arabic dialect (language: 'ar').
-// Get a key at: https://platform.openai.com/api-keys
-const WHISPER_API_KEY = '';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
 import { useAuth } from '../hooks/useAuth';
@@ -150,7 +145,8 @@ export default function TaskDetailScreen() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [uploadingVoice, setUploadingVoice] = useState(false);
-  const [transcribingVoice, setTranscribingVoice] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voicePartial, setVoicePartial] = useState('');
   const [playingCommentId, setPlayingCommentId] = useState<string | null>(null);
   const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
   const [playbackPosition, setPlaybackPosition] = useState(0);
@@ -374,6 +370,34 @@ export default function TaskDetailScreen() {
   // interval gets cleared immediately when setRecordingObj(recording) triggers a re-render
   useEffect(() => {
     return () => { if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); } };
+  }, []);
+
+  // ─── @react-native-voice/voice setup ───────────────────────
+  useEffect(() => {
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      const text = (e.value ?? [])[0] ?? '';
+      if (text) setNewComment(text);
+      setIsListening(false);
+      setVoicePartial('');
+    };
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      setVoicePartial((e.value ?? [])[0] ?? '');
+    };
+    Voice.onSpeechEnd = () => {
+      setIsListening(false);
+    };
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      setIsListening(false);
+      setVoicePartial('');
+      const msg = e.error?.message ?? '';
+      // Code 7 on Android = "No match" (user didn't speak) — not an error worth showing
+      if (!msg.includes('7/') && !msg.includes('No match')) {
+        Alert.alert('لم يتم التعرف على الكلام', msg || 'حاول مرة أخرى.');
+      }
+    };
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+    };
   }, []);
 
   const getStatusColor = (label: string) =>
@@ -964,56 +988,32 @@ export default function TaskDetailScreen() {
     setRecordingDuration(0);
   };
 
-  // ─── Voice → Text  (Whisper API, Lebanese Arabic) ────────
-  // Sends the recorded .m4a to OpenAI Whisper-1 with language='ar'.
-  // Whisper handles Lebanese dialect automatically.
-  // On success: fills the comment text input and discards the recording.
-  const handleTranscribeVoice = async () => {
-    if (!recordedUri) return;
-
-    if (!WHISPER_API_KEY) {
-      Alert.alert(
-        'API key missing',
-        'Add your OpenAI API key to WHISPER_API_KEY in TaskDetailScreen.tsx to enable speech-to-text.',
-      );
-      return;
-    }
-
-    setTranscribingVoice(true);
+  // ─── Voice → Text  (native speech recognition, no API key needed) ──────
+  // Discards the current voice recording and starts a live recognition session.
+  // Uses iOS SFSpeechRecognizer / Android Google SpeechRecognizer — both free.
+  // Lebanese Arabic locale: 'ar-LB' (falls back to 'ar' on devices without LB pack).
+  const handleTextFromVoice = async () => {
+    handleDiscardRecording(); // discard the m4a
     try {
-      const ext  = recordedUri.split('.').pop()?.toLowerCase() ?? 'm4a';
-      const mime = ext === 'mp4' ? 'audio/mp4' : 'audio/m4a';
-
-      // Build multipart form — React Native's fetch handles the boundary automatically
-      const formData = new FormData();
-      formData.append('file', { uri: recordedUri, type: mime, name: `voice.${ext}` } as any);
-      formData.append('model', 'whisper-1');
-      formData.append('language', 'ar');          // ISO 639-1 for Arabic; Whisper detects dialect
-      formData.append('response_format', 'text'); // plain text back
-
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${WHISPER_API_KEY}` },
-        // ⚠️  Do NOT set Content-Type manually — fetch sets it with the multipart boundary
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`Whisper API ${response.status}: ${errBody}`);
-      }
-
-      const transcription = (await response.text()).trim();
-      if (!transcription) throw new Error('No text returned from Whisper.');
-
-      // Drop the recording preview and put the transcribed text in the comment box
-      setNewComment(transcription);
-      handleDiscardRecording();
+      setIsListening(true);
+      setVoicePartial('');
+      await Voice.start('ar-LB');
     } catch (e: any) {
-      Alert.alert('Transcription failed', e?.message ?? 'Could not convert speech to text.');
-    } finally {
-      setTranscribingVoice(false);
+      setIsListening(false);
+      // Try plain 'ar' locale if 'ar-LB' not installed
+      try {
+        await Voice.start('ar');
+        setIsListening(true);
+      } catch (e2: any) {
+        Alert.alert('خطأ', e2?.message ?? 'تعذّر بدء التعرف على الكلام.');
+      }
     }
+  };
+
+  const handleStopListening = async () => {
+    try { await Voice.stop(); } catch {}
+    setIsListening(false);
+    setVoicePartial('');
   };
 
   // ─── Voice note: upload + post as comment ───────────────
@@ -1578,7 +1578,7 @@ export default function TaskDetailScreen() {
           )}
 
           {/* Recorded preview (before sending) */}
-          {!isRecording && recordedUri && (
+          {!isRecording && !isListening && recordedUri && (
             <View style={s.voicePreviewBar}>
               <Text style={s.voicePreviewLabel}>🎤 {fmtDuration(recordingDuration)}</Text>
 
@@ -1586,36 +1586,47 @@ export default function TaskDetailScreen() {
               <TouchableOpacity
                 style={[s.commentSendBtn, { backgroundColor: theme.color.success }]}
                 onPress={handleSendVoiceNote}
-                disabled={uploadingVoice || transcribingVoice}
+                disabled={uploadingVoice}
               >
                 {uploadingVoice
                   ? <ActivityIndicator color={theme.color.white} size="small" />
                   : <Text style={s.commentSendBtnText}>Save</Text>}
               </TouchableOpacity>
 
-              {/* Text — transcribe via Whisper, fill comment input */}
+              {/* Text — live speech recognition (no API key needed) */}
               <TouchableOpacity
-                style={[s.voiceTextBtn, transcribingVoice && { opacity: 0.6 }]}
-                onPress={handleTranscribeVoice}
-                disabled={uploadingVoice || transcribingVoice}
+                style={s.voiceTextBtn}
+                onPress={handleTextFromVoice}
+                disabled={uploadingVoice}
               >
-                {transcribingVoice
-                  ? <ActivityIndicator color={theme.color.primary} size="small" />
-                  : <Text style={s.voiceTextBtnText}>Text</Text>}
+                <Text style={s.voiceTextBtnText}>Text</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={s.voiceDiscardBtn}
                 onPress={handleDiscardRecording}
-                disabled={uploadingVoice || transcribingVoice}
+                disabled={uploadingVoice}
               >
                 <Text style={s.voiceDiscardBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Normal comment input (hidden while recording/preview) */}
-          {!isRecording && !recordedUri && (
+          {/* Listening state — live speech recognition active */}
+          {isListening && (
+            <View style={s.voicePreviewBar}>
+              <ActivityIndicator color={theme.color.primary} size="small" />
+              <Text style={[s.voicePreviewLabel, { flex: 1 }]}>
+                {voicePartial || '🎤 Listening...'}
+              </Text>
+              <TouchableOpacity style={s.voiceDiscardBtn} onPress={handleStopListening}>
+                <Text style={s.voiceDiscardBtnText}>⏹</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Normal comment input (hidden while recording/preview/listening) */}
+          {!isRecording && !recordedUri && !isListening && (
             <View style={s.commentInput}>
               <TextInput
                 style={s.commentTextInput}
@@ -1625,7 +1636,7 @@ export default function TaskDetailScreen() {
                 placeholderTextColor={theme.color.textMuted}
                 multiline
               />
-              {/* Mic button */}
+              {/* Mic button — record voice note */}
               <TouchableOpacity style={s.micBtn} onPress={handleStartRecording}>
                 <Text style={s.micBtnText}>🎙</Text>
               </TouchableOpacity>

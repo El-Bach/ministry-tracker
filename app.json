@@ -31,7 +31,14 @@
       "expo-location",
       "expo-notifications",
       "expo-web-browser",
-      "react-native-document-scanner-plugin"
+      "react-native-document-scanner-plugin",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow Ministry Tracker to use the microphone for speech recognition.",
+          "speechRecognitionPermission": "Allow Ministry Tracker to recognize your speech."
+        }
+      ]
     ],
     "extra": {
       "eas": {
