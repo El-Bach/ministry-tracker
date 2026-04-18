@@ -239,6 +239,7 @@ export default function TaskDetailScreen() {
   const [openCityStopId, setOpenCityStopId] = useState<string | null>(null);
   const [stopCitySearch, setStopCitySearch] = useState('');
   const [openAssigneeStopId, setOpenAssigneeStopId] = useState<string | null>(null);
+  const [stopAssigneeSearch, setStopAssigneeSearch] = useState('');
   const [savingStopField, setSavingStopField] = useState<string | null>(null);
   const [showCreateExtForm, setShowCreateExtForm] = useState(false);
   const [newExtName, setNewExtName] = useState('');
@@ -1908,7 +1909,7 @@ export default function TaskDetailScreen() {
                       <View style={s.stageBtnCol}>
                         <TouchableOpacity
                           style={s.stopMetaChip}
-                          onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); }}
+                          onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setStopAssigneeSearch(''); }}
                         >
                           <Text style={s.stopMetaChipText}>
                             {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
@@ -2016,37 +2017,79 @@ export default function TaskDetailScreen() {
                   {/* Assignee dropdown */}
                   {openAssigneeStopId === stop.id && (
                     <View style={s.stopDropdown}>
-                      <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
-                        {(stop.assigned_to || stop.ext_assignee_id) && (
+                      {/* Search bar */}
+                      <TextInput
+                        style={s.stopAssigneeSearch}
+                        value={stopAssigneeSearch}
+                        onChangeText={setStopAssigneeSearch}
+                        placeholder="Search network..."
+                        placeholderTextColor={theme.color.textMuted}
+                        autoCorrect={false}
+                        clearButtonMode="while-editing"
+                      />
+                      <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
+                        {(stop.assigned_to || stop.ext_assignee_id) && !stopAssigneeSearch.trim() && (
                           <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopAssignee(stop.id, null, null)}>
                             <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove assignee</Text>
                           </TouchableOpacity>
                         )}
-                        {allMembers.map(m => (
-                          <TouchableOpacity key={m.id}
-                            style={[s.cityDropdownItem, stop.assigned_to === m.id && s.cityDropdownItemActive]}
-                            onPress={() => handleSetStopAssignee(stop.id, m.id, null)}>
-                            <Text style={s.cityDropdownItemText}>{m.name} · {m.role}</Text>
-                            {stop.assigned_to === m.id && <Text style={s.checkmark}>✓</Text>}
+                        {/* Team members section */}
+                        {allMembers
+                          .filter(m => !stopAssigneeSearch.trim() || m.name.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || m.role?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()))
+                          .map(m => (
+                            <TouchableOpacity key={m.id}
+                              style={[s.cityDropdownItem, stop.assigned_to === m.id && s.cityDropdownItemActive]}
+                              onPress={() => handleSetStopAssignee(stop.id, m.id, null)}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={s.cityDropdownItemText}>{m.name}</Text>
+                                {m.role ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>{m.role}</Text> : null}
+                              </View>
+                              {stop.assigned_to === m.id && <Text style={s.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                          ))}
+                        {/* Network contacts (ext assignees) */}
+                        {extAssignees
+                          .filter(a => {
+                            if (!stopAssigneeSearch.trim()) return true;
+                            const q = stopAssigneeSearch.toLowerCase();
+                            return (
+                              a.name?.toLowerCase().includes(q) ||
+                              a.phone?.toLowerCase().includes(q) ||
+                              a.reference?.toLowerCase().includes(q) ||
+                              a.reference_phone?.toLowerCase().includes(q) ||
+                              a.city?.name?.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((a: any) => (
+                            <TouchableOpacity key={a.id}
+                              style={[s.cityDropdownItem, stop.ext_assignee_id === a.id && s.cityDropdownItemActive]}
+                              onPress={() => handleSetStopAssignee(stop.id, null, a.id)}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={s.cityDropdownItemText}>{a.name}</Text>
+                                {a.phone ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📞 {a.phone}</Text> : null}
+                                {a.reference ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>عبر {a.reference}</Text> : null}
+                                {a.city?.name ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📍 {a.city.name}</Text> : null}
+                              </View>
+                              {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                          ))}
+                        {/* No results */}
+                        {stopAssigneeSearch.trim() &&
+                          allMembers.filter(m => m.name.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 &&
+                          extAssignees.filter(a => a.name?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.phone?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.reference?.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 && (
+                            <Text style={{ padding: theme.spacing.space3, color: theme.color.textMuted, fontSize: 13 }}>No contacts match "{stopAssigneeSearch}"</Text>
+                          )}
+                        {/* Create new external assignee — toggle button */}
+                        {!stopAssigneeSearch.trim() && (
+                          <TouchableOpacity style={s.cityDropdownItem}
+                            onPress={() => setShowCreateExtForm(v => !v)}>
+                            <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                              {showCreateExtForm ? '− Cancel' : '+ Create New Contact'}
+                            </Text>
                           </TouchableOpacity>
-                        ))}
-                        {extAssignees.map((a: any) => (
-                          <TouchableOpacity key={a.id}
-                            style={[s.cityDropdownItem, stop.ext_assignee_id === a.id && s.cityDropdownItemActive]}
-                            onPress={() => handleSetStopAssignee(stop.id, null, a.id)}>
-                            <Text style={s.cityDropdownItemText}>{a.name} (ext)</Text>
-                            {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
-                          </TouchableOpacity>
-                        ))}
-                        {/* Create new external assignee — toggle button inside scroll list */}
-                        <TouchableOpacity style={s.cityDropdownItem}
-                          onPress={() => setShowCreateExtForm(v => !v)}>
-                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                            {showCreateExtForm ? '− Cancel' : '+ Create New Assignee'}
-                          </Text>
-                        </TouchableOpacity>
+                        )}
                       </ScrollView>
-                      {/* Create form rendered OUTSIDE the constrained ScrollView so phone/reference fields are always visible */}
+                      {/* Create form rendered OUTSIDE the constrained ScrollView */}
                       {showCreateExtForm && (
                         <View style={{ padding: theme.spacing.space3, gap: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}>
                           <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
@@ -4166,6 +4209,7 @@ const s = StyleSheet.create({
   stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border, alignItems: 'center', justifyContent: 'center' },
   stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary },
   stopDropdown:     { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: theme.spacing.space1, overflow: 'hidden' },
+  stopAssigneeSearch: { margin: theme.spacing.space2, paddingHorizontal: theme.spacing.space3, paddingVertical: 8, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, color: theme.color.textPrimary, fontSize: 13 },
   dueDateCalendarCard: { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
   dueDateClearBtn:     { padding: theme.spacing.space3, alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.color.border },
   dueDateClearBtnText: { color: theme.color.danger, fontSize: 13, fontWeight: '600' },

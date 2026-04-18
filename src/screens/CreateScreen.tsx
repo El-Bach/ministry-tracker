@@ -181,7 +181,7 @@ export default function CreateScreen() {
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
       supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
-      supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name'),
+      supabase.from('assignees').select('*, city:cities(id,name)').order('name'),
       supabase.from('cities').select('*').order('name'),
       supabase.from('client_field_definitions').select('*').eq('is_active', true).order('sort_order'),
     ]);
@@ -420,6 +420,19 @@ export default function CreateScreen() {
     await fetchStageReqs(ministryId);
   };
 
+  // ── Network helpers ───────────────────────────────────────
+  const matchesNetworkSearch = (n: any, query: string) => {
+    const q = query.toLowerCase();
+    return (
+      n.name?.toLowerCase().includes(q) ||
+      n.phone?.toLowerCase().includes(q) ||
+      n.reference?.toLowerCase().includes(q) ||
+      n.reference_phone?.toLowerCase().includes(q) ||
+      n.notes?.toLowerCase().includes(q) ||
+      n.city?.name?.toLowerCase().includes(q)
+    );
+  };
+
   // ── Network handlers ─────────────────────────────────────
   const openNetworkForm = async (contact?: any) => {
     setNetFieldValues({});
@@ -438,21 +451,6 @@ export default function CreateScreen() {
       setNetReference(contact.reference ?? '');
       setNetRefPhone(contact.reference_phone ?? '');
       setNetCityId(contact.city_id ?? null);
-      // Load existing additional field values
-      const { data: vals } = await supabase
-        .from('assignee_field_values')
-        .select('*')
-        .eq('assignee_id', contact.id);
-      if (vals && vals.length > 0) {
-        const values: Record<string, string> = {};
-        const fieldIds: string[] = [];
-        for (const v of vals) {
-          values[v.field_id] = v.value_text ?? (v.value_number != null ? String(v.value_number) : v.value_boolean != null ? String(v.value_boolean) : '');
-          fieldIds.push(v.field_id);
-        }
-        setNetFieldValues(values);
-        setNetAddedFieldIds(fieldIds);
-      }
     } else {
       setEditNetworkId(null);
       setNetName(''); setNetPhone(''); setNetReference(''); setNetRefPhone(''); setNetCityId(null);
@@ -479,18 +477,10 @@ export default function CreateScreen() {
       if (error || !newContact) { setSavingNetwork(false); Alert.alert('Error', error?.message ?? 'Failed to save'); return; }
       assigneeId = (newContact as any).id;
     }
-    // Save additional field values: delete all then re-insert
-    await supabase.from('assignee_field_values').delete().eq('assignee_id', assigneeId);
-    const fieldInserts = netAddedFieldIds
-      .filter(id => (netFieldValues[id] ?? '').trim() !== '')
-      .map(id => ({ assignee_id: assigneeId, field_id: id, value_text: netFieldValues[id] }));
-    if (fieldInserts.length > 0) {
-      await supabase.from('assignee_field_values').insert(fieldInserts);
-    }
     setSavingNetwork(false);
     setShowNetworkForm(false);
     setEditNetworkId(null);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name');
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
     if (data) setNetwork(data);
   };
 
@@ -533,7 +523,7 @@ export default function CreateScreen() {
     setShowImportModal(false);
     setImportRaw('');
     setImportRows([]);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name');
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
     if (data) setNetwork(data as any[]);
     Alert.alert('Imported ✓', `${inserts.length} contact${inserts.length !== 1 ? 's' : ''} added to Network.`);
   };
@@ -1391,7 +1381,7 @@ export default function CreateScreen() {
       {/* ── NETWORK MODAL ── */}
       <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
         <View style={s.modalOverlay}>
-          <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
 
               {/* ── HEADER — import / list / form ── */}
@@ -1413,7 +1403,7 @@ export default function CreateScreen() {
                     <Text style={s.modalTitle}>👥 Network</Text>
                     <Text style={s.modalSubtitle}>
                       {networkSearch.trim()
-                        ? `${network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length} of ${network.length} contacts`
+                        ? `${network.filter(n => matchesNetworkSearch(n, networkSearch)).length} of ${network.length} contacts`
                         : `${network.length} contacts`}
                     </Text>
                   </View>
@@ -1515,7 +1505,7 @@ export default function CreateScreen() {
                   <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
                     {network.length === 0 && <Text style={s.mgmtEmpty}>No contacts yet. Tap + New to add one.</Text>}
                     {network
-                      .filter(n => !networkSearch.trim() || n.name?.toLowerCase().includes(networkSearch.toLowerCase()))
+                      .filter(n => !networkSearch.trim() || matchesNetworkSearch(n, networkSearch))
                       .map((contact) => (
                         <View key={contact.id} style={s.netContactCard}>
                           <View style={{ flex: 1 }}>
@@ -1551,7 +1541,7 @@ export default function CreateScreen() {
                           </View>
                         </View>
                       ))}
-                    {networkSearch.trim() && network.filter(n => n.name?.toLowerCase().includes(networkSearch.toLowerCase())).length === 0 && (
+                    {networkSearch.trim() && network.filter(n => matchesNetworkSearch(n, networkSearch)).length === 0 && (
                       <Text style={s.mgmtEmpty}>No contacts match "{networkSearch}"</Text>
                     )}
                   </ScrollView>
