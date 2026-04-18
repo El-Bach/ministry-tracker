@@ -586,7 +586,7 @@ export default function CreateScreen() {
       icon: '👥',
       label: 'Network',
       color: '#06b6d4',
-      onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setManageSection('network'); },
+      onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setShowImportModal(false); setManageSection('network'); },
     },
     {
       icon: '📋',
@@ -1268,7 +1268,7 @@ export default function CreateScreen() {
       </Modal>
 
       {/* ── NETWORK MODAL ── */}
-      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); }}>
+      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
