@@ -1,7 +1,7 @@
 // src/screens/CreateScreen.tsx
 // Create tab: quick-action cards + full manage section (clients / services / stages)
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Calendar } from 'react-native-calendars';
 
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { Client, Service, Ministry, ServiceDocument } from '../types';
@@ -102,6 +103,11 @@ export default function CreateScreen() {
   const [clientFormFieldValues, setClientFormFieldValues] = useState<Record<string, string>>({});
   const [loadingClientFields, setLoadingClientFields] = useState(false);
 
+  // ID / QR scanner for new client form
+  const [showIdScanner, setShowIdScanner]   = useState(false);
+  const [scannerPerm, requestScannerPerm]   = useCameraPermissions();
+  const scannerCooldown                     = useRef(false);
+
   // Inline calendar for date fields
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [currentDateField, setCurrentDateField] = useState<string | null>(null);
@@ -133,6 +139,11 @@ export default function CreateScreen() {
   const [netDatePickerYear, setNetDatePickerYear] = useState(new Date().getFullYear());
   const [netDatePickerMonthYear, setNetDatePickerMonthYear] = useState(false);
   const [netDatePickerCurrent, setNetDatePickerCurrent] = useState<string | undefined>(undefined);
+  // Network import
+  const [showImportModal, setShowImportModal]       = useState(false);
+  const [importRaw, setImportRaw]                   = useState('');
+  const [importRows, setImportRows]                 = useState<{ name: string; phone: string; reference: string }[]>([]);
+  const [importingContacts, setImportingContacts]   = useState(false);
 
   // ── Service documents checklist ───────────────────────────
   const [serviceDocs, setServiceDocs] = useState<Record<string, ServiceDocument[]>>({});
@@ -140,6 +151,29 @@ export default function CreateScreen() {
   const [newDocTitle, setNewDocTitle] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSearch, setDocSearch] = useState('');
+  // Documents Excel import
+  const [docImportSvcId, setDocImportSvcId]   = useState<string | null>(null);
+  const [docImportRaw, setDocImportRaw]         = useState('');
+  const [docImportTitles, setDocImportTitles]   = useState<string[]>([]);
+  const [importingDocs, setImportingDocs]       = useState(false);
+
+  // ── Barcode parse helper ──────────────────────────────────
+  const parseBarcodeData = (data: string): { name: string; phone: string } => {
+    // Normalize: replace non-printable chars with space/newline
+    const normalized = data.replace(/\r/g, '\n').replace(/[\x00-\x08\x0B-\x1F\x7F]/g, ' ');
+    // Split by common delimiters used in ID barcodes
+    const parts = normalized.split(/[\n|;,]+/).map(p => p.trim()).filter(Boolean);
+    // Name candidates: 2+ words of letters (supports Arabic + Latin)
+    const nameCandidates = parts.filter(p =>
+      /^[\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z ]{3,}$/.test(p) && p.includes(' ')
+    );
+    // Phone candidates: 6–15 digits possibly starting with +
+    const phoneCandidates = parts.filter(p => /^[+]?[0-9 ()-]{6,16}$/.test(p));
+    return {
+      name:  nameCandidates[0] ?? '',
+      phone: phoneCandidates[0] ?? '',
+    };
+  };
 
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -472,6 +506,38 @@ export default function CreateScreen() {
     ]);
   };
 
+  // ── Network import helpers ────────────────────────────────
+  const parseImportText = (raw: string) => {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    return lines.map(l => {
+      const cols = l.split('\t');
+      return {
+        name:      (cols[0] ?? '').trim(),
+        phone:     (cols[1] ?? '').trim(),
+        reference: (cols[2] ?? '').trim(),
+      };
+    }).filter(r => r.name);
+  };
+
+  const handleImportContacts = async () => {
+    if (!importRows.length) return;
+    setImportingContacts(true);
+    const inserts = importRows.map(r => ({
+      name:      r.name,
+      phone:     r.phone || null,
+      reference: r.reference || null,
+    }));
+    const { error } = await supabase.from('assignees').insert(inserts);
+    setImportingContacts(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setShowImportModal(false);
+    setImportRaw('');
+    setImportRows([]);
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name), field_values:assignee_field_values(field_id, value_text, field:client_field_definitions(label))').order('name');
+    if (data) setNetwork(data as any[]);
+    Alert.alert('Imported ✓', `${inserts.length} contact${inserts.length !== 1 ? 's' : ''} added to Network.`);
+  };
+
   // ── Service document handlers ─────────────────────────────
   const fetchServiceDocs = async (serviceId: string) => {
     const { data } = await supabase.from('service_documents').select('*').eq('service_id', serviceId).order('sort_order');
@@ -519,6 +585,30 @@ export default function CreateScreen() {
     setServiceDocs(prev => ({ ...prev, [serviceId]: (prev[serviceId] ?? []).map(d => ({ ...d, is_checked: false })) }));
   };
 
+  const parseDocImport = (raw: string): string[] =>
+    raw.split(/\r?\n/).map(l => l.split('\t')[0].trim()).filter(Boolean);
+
+  const handleImportDocs = async () => {
+    if (!docImportSvcId || !docImportTitles.length) return;
+    setImportingDocs(true);
+    const docs = serviceDocs[docImportSvcId] ?? [];
+    const maxOrder = docs.length > 0 ? Math.max(...docs.map(d => d.sort_order)) : 0;
+    const inserts = docImportTitles.map((title, i) => ({
+      service_id: docImportSvcId,
+      title,
+      sort_order: maxOrder + i + 1,
+      is_checked: false,
+    }));
+    const { data, error } = await supabase.from('service_documents').insert(inserts).select();
+    setImportingDocs(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    if (data) setServiceDocs(prev => ({ ...prev, [docImportSvcId]: [...(prev[docImportSvcId] ?? []), ...(data as ServiceDocument[])] }));
+    setDocImportSvcId(null);
+    setDocImportRaw('');
+    setDocImportTitles([]);
+    Alert.alert('Imported', `${inserts.length} documents added.`);
+  };
+
   // ── UI ────────────────────────────────────────────────────
   const quickActions = [
     {
@@ -549,7 +639,7 @@ export default function CreateScreen() {
       icon: '👥',
       label: 'Network',
       color: '#06b6d4',
-      onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setManageSection('network'); },
+      onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setShowImportModal(false); setManageSection('network'); },
     },
     {
       icon: '📋',
@@ -710,9 +800,24 @@ export default function CreateScreen() {
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>New Client</Text>
-                <TouchableOpacity onPress={() => setShowClientForm(false)}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TouchableOpacity
+                    style={s.scanIdBtn}
+                    onPress={async () => {
+                      if (!scannerPerm?.granted) {
+                        const { granted } = await requestScannerPerm();
+                        if (!granted) { Alert.alert('Permission required', 'Camera access is needed to scan ID / QR codes.'); return; }
+                      }
+                      scannerCooldown.current = false;
+                      setShowIdScanner(true);
+                    }}
+                  >
+                    <Text style={s.scanIdBtnText}>📷 Scan ID / QR</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowClientForm(false)}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
                 <TextInput
@@ -1230,14 +1335,79 @@ export default function CreateScreen() {
         </View>
       </Modal>
 
+      {/* ── ID / QR SCANNER MODAL ── */}
+      <Modal visible={showIdScanner} transparent={false} animationType="slide" onRequestClose={() => setShowIdScanner(false)}>
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {showIdScanner && (
+            <CameraView
+              style={{ flex: 1 }}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['pdf417', 'qr', 'code128', 'code39', 'ean13', 'datamatrix'] }}
+              onBarcodeScanned={(result) => {
+                if (scannerCooldown.current) return;
+                scannerCooldown.current = true;
+                const parsed = parseBarcodeData(result.data);
+                setShowIdScanner(false);
+                // Pre-fill form fields with whatever we extracted
+                if (parsed.name)  setNewClientName(parsed.name);
+                if (parsed.phone) setNewClientPhone(parsed.phone);
+                if (!parsed.name && !parsed.phone) {
+                  // Show raw data so user can inspect
+                  Alert.alert(
+                    'Scanned Data',
+                    result.data.replace(/[\x00-\x1F\x7F]/g, ' ').trim().slice(0, 300),
+                    [{ text: 'OK' }]
+                  );
+                }
+              }}
+            />
+          )}
+          {/* Overlay UI */}
+          <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+            {/* Top bar */}
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>📷 Scan ID / QR Code</Text>
+              <TouchableOpacity onPress={() => setShowIdScanner(false)}>
+                <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Center frame guide */}
+            <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 280, height: 160, borderRadius: 12, borderWidth: 2, borderColor: '#6366f1', backgroundColor: 'transparent' }} />
+              <Text style={{ color: '#fff', marginTop: 16, fontSize: 13, opacity: 0.85, textAlign: 'center' }}>
+                Point at the PDF417 barcode or QR code{'\n'}on the ID document
+              </Text>
+            </View>
+            {/* Bottom info */}
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 20 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center' }}>
+                Supports: PDF417 · QR · Code128 · EAN-13 · DataMatrix
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ── NETWORK MODAL ── */}
-      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); }}>
+      <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
 
-              {/* ── LIST VIEW header ── */}
-              {!showNetworkForm ? (
+              {/* ── HEADER — import / list / form ── */}
+              {showImportModal ? (
+                <View style={s.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowImportModal(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
+                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  </TouchableOpacity>
+                  <Text style={s.modalTitle}>📥 Import</Text>
+                  <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !showNetworkForm ? (
+                /* ── LIST VIEW header ── */
                 <View style={s.modalHeader}>
                   <View>
                     <Text style={s.modalTitle}>👥 Network</Text>
@@ -1247,7 +1417,13 @@ export default function CreateScreen() {
                         : `${network.length} contacts`}
                     </Text>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      style={s.modalImportBtn}
+                      onPress={() => { setImportRaw(''); setImportRows([]); setShowImportModal(true); }}
+                    >
+                      <Text style={s.modalImportBtnText}>📥 Import</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={s.modalAddBtn} onPress={() => openNetworkForm()}>
                       <Text style={s.modalAddBtnText}>+ New</Text>
                     </TouchableOpacity>
@@ -1270,7 +1446,65 @@ export default function CreateScreen() {
                 </View>
               )}
 
-              {!showNetworkForm ? (
+              {showImportModal ? (
+                /* ── IMPORT VIEW body ── */
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+                  <View style={s.importInstructions}>
+                    <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
+                    <Text style={s.importInstructionsText}>
+                      {'1. Make sure columns are: A = Name  |  B = Phone  |  C = Reference\n2. Select all data rows (not the header)\n3. Press Ctrl+C (or Cmd+C on Mac)\n4. Long-press in the box below → Paste'}
+                    </Text>
+                  </View>
+
+                  <TextInput
+                    style={s.importTextArea}
+                    value={importRaw}
+                    onChangeText={setImportRaw}
+                    placeholder={'Paste Excel data here...\n\nExample:\nAhmad Khalil\t+961 70 111 111\tLawyer\nSara Khoury\t+961 71 222 222\tAgent'}
+                    placeholderTextColor={theme.color.textMuted}
+                    multiline
+                    numberOfLines={6}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+
+                  <TouchableOpacity
+                    style={s.importPreviewBtn}
+                    onPress={() => {
+                      const rows = parseImportText(importRaw);
+                      if (!rows.length) { Alert.alert('Nothing found', 'No valid rows detected. Make sure Name is in the first column.'); return; }
+                      setImportRows(rows);
+                    }}
+                  >
+                    <Text style={s.importPreviewBtnText}>Preview ({parseImportText(importRaw).length} rows)</Text>
+                  </TouchableOpacity>
+
+                  {importRows.length > 0 && (
+                    <>
+                      <Text style={s.importPreviewLabel}>PREVIEW — {importRows.length} CONTACT{importRows.length !== 1 ? 'S' : ''}</Text>
+                      {importRows.map((r, i) => (
+                        <View key={i} style={s.importPreviewRow}>
+                          <View style={s.importRowNum}><Text style={s.importRowNumText}>{i + 1}</Text></View>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Text style={s.importRowName}>{r.name}</Text>
+                            {r.phone ? <Text style={s.importRowSub}>📞 {r.phone}</Text> : null}
+                            {r.reference ? <Text style={s.importRowSub}>Ref: {r.reference}</Text> : null}
+                          </View>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={[s.modalSaveBtn, importingContacts && s.modalSaveBtnDisabled]}
+                        onPress={handleImportContacts}
+                        disabled={importingContacts}
+                      >
+                        {importingContacts
+                          ? <ActivityIndicator color={theme.color.white} size="small" />
+                          : <Text style={s.modalSaveBtnText}>Import {importRows.length} Contact{importRows.length !== 1 ? 's' : ''}</Text>}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </ScrollView>
+              ) : !showNetworkForm ? (
                 /* ── LIST VIEW body ── */
                 <>
                   <View style={s.mgmtSearchRow}>
@@ -1621,7 +1855,61 @@ export default function CreateScreen() {
                           <TouchableOpacity style={s.docAddBtn} onPress={() => handleAddDoc(svc.id)} disabled={savingDoc || !newDocTitle.trim()}>
                             {savingDoc ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docAddBtnText}>＋</Text>}
                           </TouchableOpacity>
+                          <TouchableOpacity
+                            style={s.docImportToggleBtn}
+                            onPress={() => {
+                              if (docImportSvcId === svc.id) {
+                                setDocImportSvcId(null); setDocImportRaw(''); setDocImportTitles([]);
+                              } else {
+                                setDocImportSvcId(svc.id); setDocImportRaw(''); setDocImportTitles([]);
+                              }
+                            }}
+                          >
+                            <Text style={s.docImportToggleBtnText}>📥</Text>
+                          </TouchableOpacity>
                         </View>
+                        {/* Excel import panel */}
+                        {docImportSvcId === svc.id && (
+                          <View style={s.docImportPanel}>
+                            <Text style={s.docImportLabel}>Paste from Excel (one title per row):</Text>
+                            <TextInput
+                              style={s.docImportTextArea}
+                              value={docImportRaw}
+                              onChangeText={(t) => { setDocImportRaw(t); setDocImportTitles([]); }}
+                              placeholder="Paste Excel column here..."
+                              placeholderTextColor={theme.color.textMuted}
+                              multiline
+                              textAlignVertical="top"
+                            />
+                            {docImportTitles.length === 0 ? (
+                              <TouchableOpacity
+                                style={s.docImportPreviewBtn}
+                                onPress={() => setDocImportTitles(parseDocImport(docImportRaw))}
+                                disabled={!docImportRaw.trim()}
+                              >
+                                <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <>
+                                {docImportTitles.map((t, i) => (
+                                  <View key={i} style={s.docImportPreviewRow}>
+                                    <Text style={s.docCheck}>☐</Text>
+                                    <Text style={s.docImportPreviewTitle} numberOfLines={1}>{t}</Text>
+                                  </View>
+                                ))}
+                                <TouchableOpacity
+                                  style={s.docImportConfirmBtn}
+                                  onPress={handleImportDocs}
+                                  disabled={importingDocs}
+                                >
+                                  {importingDocs
+                                    ? <ActivityIndicator size="small" color={theme.color.white} />
+                                    : <Text style={s.docImportConfirmBtnText}>Import {docImportTitles.length} document{docImportTitles.length !== 1 ? 's' : ''}</Text>}
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        )}
                         {/* Reset checks */}
                         {checkedCount > 0 && (
                           <TouchableOpacity style={s.docResetBtn} onPress={() => handleResetChecks(svc.id)}>
@@ -1762,6 +2050,66 @@ const s = StyleSheet.create({
     justifyContent:    'center',
   },
   modalAddBtnText: { ...theme.typography.label, color: theme.color.primaryText, fontWeight: '700' },
+  modalImportBtn: {
+    backgroundColor:   theme.color.infoDim,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space1 + 2,
+    borderWidth:       1,
+    borderColor:       theme.color.info + '55',
+    minHeight:         theme.touchTarget.min,
+    justifyContent:    'center',
+  },
+  modalImportBtnText: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
+  // Import view
+  importInstructions: {
+    backgroundColor: theme.color.infoDim,
+    borderRadius:    theme.radius.md,
+    padding:         theme.spacing.space3,
+    borderWidth:     1,
+    borderColor:     theme.color.info + '44',
+    gap:             theme.spacing.space1,
+  },
+  importInstructionsTitle: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
+  importInstructionsText:  { ...theme.typography.caption, color: theme.color.textSecondary, lineHeight: 18 },
+  importTextArea: {
+    backgroundColor:   theme.color.bgSurface,
+    borderRadius:      theme.radius.md,
+    padding:           theme.spacing.space3,
+    minHeight:         140,
+    color:             theme.color.textPrimary,
+    ...theme.typography.body,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    textAlignVertical: 'top',
+  },
+  importPreviewBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingVertical: theme.spacing.space3,
+    alignItems:      'center',
+  },
+  importPreviewBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
+  importPreviewLabel:   { ...theme.typography.sectionDivider, marginTop: theme.spacing.space2 },
+  importPreviewRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgBase,
+  },
+  importRowNum: {
+    width:           24,
+    height:          24,
+    borderRadius:    12,
+    backgroundColor: theme.color.bgSubtle,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  importRowNumText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' },
+  importRowName:    { ...theme.typography.body, fontWeight: '700' },
+  importRowSub:     { ...theme.typography.caption, color: theme.color.textMuted },
   modalBody: {
     padding: theme.spacing.space4,
     gap:     theme.spacing.space3,
@@ -2296,4 +2644,74 @@ const s = StyleSheet.create({
     borderColor:      theme.color.border,
   },
   docResetBtnText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '600' },
+
+  // Document Excel import
+  docImportToggleBtn: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    paddingHorizontal: 10,
+    paddingVertical:   8,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  docImportToggleBtnText: { fontSize: 16 },
+  docImportPanel: {
+    marginHorizontal: theme.spacing.space3,
+    marginTop:        theme.spacing.space2,
+    backgroundColor:  theme.color.bgBase,
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    padding:          theme.spacing.space3,
+    gap:              8,
+  },
+  docImportLabel: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700', marginBottom: 4 },
+  docImportTextArea: {
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.sm,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    padding:          10,
+    minHeight:        80,
+    color:            theme.color.textPrimary,
+    ...theme.typography.body,
+    textAlignVertical: 'top',
+  },
+  docImportPreviewBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingVertical: 8,
+    alignItems:      'center',
+  },
+  docImportPreviewBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+  docImportPreviewRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           8,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgSurface,
+  },
+  docImportPreviewTitle: { ...theme.typography.body, color: theme.color.textPrimary, flex: 1 },
+  docImportConfirmBtn: {
+    backgroundColor: theme.color.success,
+    borderRadius:    theme.radius.md,
+    paddingVertical: 8,
+    alignItems:      'center',
+    marginTop:       4,
+  },
+  docImportConfirmBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+
+  // ID / QR scanner button (in New Client modal header)
+  scanIdBtn: {
+    backgroundColor: theme.color.primary + '22',
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '66',
+    paddingHorizontal: 10,
+    paddingVertical:   6,
+  },
+  scanIdBtnText: { color: theme.color.primary, fontWeight: '700', fontSize: 12 },
 });

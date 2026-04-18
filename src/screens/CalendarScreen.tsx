@@ -40,9 +40,9 @@ export default function CalendarScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stops, setStops] = useState<StopWithTask[]>([]);
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [currentMonth, setCurrentMonth] = useState<string>(todayStr);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -111,11 +111,19 @@ export default function CalendarScreen() {
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
         <Text style={s.title}>Calendar</Text>
+        <TouchableOpacity
+          style={s.todayBtn}
+          onPress={() => { setSelectedDate(todayStr); setCurrentMonth(todayStr); }}
+        >
+          <Text style={s.todayBtnText}>Today</Text>
+        </TouchableOpacity>
       </View>
 
       <Calendar
         markingType="multi-dot"
         markedDates={calendarMarks}
+        current={currentMonth}
+        onMonthChange={(month: { dateString: string }) => setCurrentMonth(month.dateString)}
         onDayPress={(day: { dateString: string }) => setSelectedDate(day.dateString)}
         theme={{
           backgroundColor: theme.color.bgBase,
@@ -232,11 +240,21 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: theme.color.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
   header: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
     paddingHorizontal: theme.spacing.space4,
     paddingTop:        theme.spacing.space4,
     paddingBottom:     theme.spacing.space2,
   },
   title:    { ...theme.typography.heading, fontSize: 24, fontWeight: '800' },
+  todayBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  todayBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
   calendar: { borderBottomWidth: 1, borderBottomColor: theme.color.bgSurface },
   dateHeader: {
     flexDirection:     'row',
