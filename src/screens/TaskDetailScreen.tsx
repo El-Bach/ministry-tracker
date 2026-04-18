@@ -226,6 +226,11 @@ export default function TaskDetailScreen() {
   const [statusMsg, setStatusMsg] = useState('');
   const [duplicating, setDuplicating] = useState(false);
 
+  // Exchange rate for LBP → USD conversion in P&L
+  const [exchangeRate, setExchangeRate] = useState(89500);
+  const [editingRate, setEditingRate]   = useState(false);
+  const [rateInput, setRateInput]       = useState('89500');
+
   // Per-stage city / assignee
   const [allCities, setAllCities] = useState<City[]>([]);
   const [extAssignees, setExtAssignees] = useState<any[]>([]);
@@ -1237,6 +1242,7 @@ export default function TaskDetailScreen() {
   const totalExpenseLBP = transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount_lbp, 0);
   const balanceLBP = totalRevenueLBP - totalExpenseLBP;
   const outstandingLBP = contractPriceLBP - totalRevenueLBP;
+  const totalCombinedUSD = balanceUSD + (balanceLBP / exchangeRate);
 
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
@@ -2175,6 +2181,39 @@ export default function TaskDetailScreen() {
               <Text style={[s.balanceColLBP, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}>
                 {balanceLBP >= 0 ? '+' : '-'} {fmtLBP(balanceLBP)}
               </Text>
+            </View>
+            <View style={s.balanceDivider} />
+            {/* TOTAL USD = USD P&L + (LBP P&L / rate) */}
+            <View style={s.balanceRow}>
+              <Text style={s.balanceTotalLabel}>TOTAL USD</Text>
+              <Text style={[s.balanceCol, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}>
+                {totalCombinedUSD >= 0 ? '+' : '-'} ${Math.abs(totalCombinedUSD).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              </Text>
+              <View style={{ width: 120, alignItems: 'flex-end' }}>
+                {editingRate ? (
+                  <TextInput
+                    style={s.rateInput}
+                    value={rateInput}
+                    onChangeText={setRateInput}
+                    keyboardType="number-pad"
+                    autoFocus
+                    onBlur={() => {
+                      const v = parseInt(rateInput.replace(/,/g, ''), 10);
+                      if (!isNaN(v) && v > 0) { setExchangeRate(v); setRateInput(v.toLocaleString('en-US')); }
+                      setEditingRate(false);
+                    }}
+                    onSubmitEditing={() => {
+                      const v = parseInt(rateInput.replace(/,/g, ''), 10);
+                      if (!isNaN(v) && v > 0) { setExchangeRate(v); setRateInput(v.toLocaleString('en-US')); }
+                      setEditingRate(false);
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity onPress={() => { setRateInput(exchangeRate.toLocaleString('en-US')); setEditingRate(true); }}>
+                    <Text style={s.rateDisplay}>÷ {exchangeRate.toLocaleString('en-US')} ✎</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
 
@@ -3559,6 +3598,24 @@ const s = StyleSheet.create({
   balanceTotal:        { fontSize: 14, fontWeight: '800' },
   positive:            { color: theme.color.success },
   negative:            { color: theme.color.danger },
+  rateInput: {
+    color:           theme.color.textPrimary,
+    fontSize:        11,
+    fontWeight:      '600',
+    borderWidth:     1,
+    borderColor:     theme.color.primary,
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    textAlign:       'right',
+    minWidth:        80,
+  },
+  rateDisplay: {
+    color:      theme.color.primary,
+    fontSize:   10,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   txForm: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.lg,
