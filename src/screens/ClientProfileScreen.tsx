@@ -21,6 +21,7 @@ import { useRoute, useNavigation, RouteProp, useFocusEffect } from '@react-navig
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
+import { formatPhoneDisplay } from '../lib/phone';
 import { theme } from '../theme';
 import { Client, Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
@@ -264,7 +265,7 @@ export default function ClientProfileScreen() {
   .footer{margin-top:16px;color:#94a3b8;font-size:10px}
 </style></head><body>
 <h1>${client.name}</h1>
-<div class="meta">ID: ${client.client_id}${client.phone ? ' · ' + client.phone : ''}${client.reference_name ? ' · via ' + client.reference_name : ''}</div>
+<div class="meta">ID: ${client.client_id}${client.phone ? ' · ' + formatPhoneDisplay(client.phone) : ''}${client.reference_name ? ' · via ' + client.reference_name : ''}</div>
 <table><thead><tr><th>Service</th><th>Status</th><th>Due</th><th>Contract</th><th>Received</th><th>Balance</th></tr></thead>
 <tbody>${rows}
 <tr class="total"><td colspan="3">TOTAL (${tasks.length} file${tasks.length !== 1 ? 's' : ''})</td>
@@ -335,14 +336,14 @@ export default function ClientProfileScreen() {
                     <Text
                       style={s.clientPhoneLink}
                       onPress={() => handlePhonePress(client.reference_phone!, client.reference_name ?? undefined)}
-                    >{` · ${client.reference_phone}`}</Text>
+                    >{` · ${formatPhoneDisplay(client.reference_phone)}`}</Text>
                   ) : null}
                 </Text>
               )}
               <Text style={s.clientId}>{client.client_id}</Text>
               {client.phone ? (
                 <TouchableOpacity onPress={() => handlePhonePress(client.phone!, client.name)}>
-                  <Text style={s.clientPhone}>{client.phone}</Text>
+                  <Text style={s.clientPhone}>{formatPhoneDisplay(client.phone)}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>

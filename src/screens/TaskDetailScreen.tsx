@@ -46,6 +46,7 @@ type SpeechErrorEvent   = { error?: { message?: string } };
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { sendPushNotification } from '../lib/notifications';
+import { formatPhoneDisplay } from '../lib/phone';
 import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { useOfflineQueue } from '../store/offlineQueue';
@@ -1378,7 +1379,7 @@ export default function TaskDetailScreen() {
               </TouchableOpacity>
               {task.client?.phone && (
                 <TouchableOpacity onPress={() => handlePhonePress(task.client!.phone!, task.client?.name)}>
-                  <Text style={[s.clientSub, { color: theme.color.primary }]}>{task.client.phone}</Text>
+                  <Text style={[s.clientSub, { color: theme.color.primary }]}>{formatPhoneDisplay(task.client.phone)}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -2068,7 +2069,7 @@ export default function TaskDetailScreen() {
                               onPress={() => handleSetStopAssignee(stop.id, null, a.id)}>
                               <View style={{ flex: 1 }}>
                                 <Text style={s.cityDropdownItemText}>{a.name}</Text>
-                                {a.phone ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📞 {a.phone}</Text> : null}
+                                {a.phone ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📞 {formatPhoneDisplay(a.phone)}</Text> : null}
                                 {a.reference ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>عبر {a.reference}</Text> : null}
                                 {a.city?.name ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📍 {a.city.name}</Text> : null}
                               </View>

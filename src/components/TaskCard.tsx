@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, I18nManager, Alert,
 import { Task } from '../types';
 import StatusBadge from './StatusBadge';
 import { theme } from '../theme';
+import { formatPhoneDisplay } from '../lib/phone';
 
 // ─── Props (unchanged) ────────────────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ function TaskCard({
                 activeOpacity={0.7}
               >
                 <Text style={styles.clientPhoneInline} numberOfLines={1}>
-                  📞 {task.client.phone}
+                  📞 {formatPhoneDisplay(task.client.phone)}
                 </Text>
               </TouchableOpacity>
             )}
@@ -236,7 +237,7 @@ function TaskCard({
               activeOpacity={0.7}
             >
               <Text style={styles.phoneLabel} numberOfLines={1}>
-                📞 {task.client.reference_phone}
+                📞 {formatPhoneDisplay(task.client.reference_phone)}
               </Text>
             </TouchableOpacity>
           )}

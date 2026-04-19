@@ -25,6 +25,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { Client, Service, Ministry, ServiceDocument } from '../types';
+import { formatPhoneDisplay } from '../lib/phone';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -757,7 +758,7 @@ export default function CreateScreen() {
                       )}
                       {c.phone ? (
                         <TouchableOpacity onPress={() => openPhone(c.phone!, c.name)} activeOpacity={0.7}>
-                          <Text style={[s.mgmtItemSub, { color: theme.color.primary }]}>📞 {c.phone}</Text>
+                          <Text style={[s.mgmtItemSub, { color: theme.color.primary }]}>📞 {formatPhoneDisplay(c.phone)}</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -1477,7 +1478,7 @@ export default function CreateScreen() {
                           <View style={s.importRowNum}><Text style={s.importRowNumText}>{i + 1}</Text></View>
                           <View style={{ flex: 1, gap: 2 }}>
                             <Text style={s.importRowName}>{r.name}</Text>
-                            {r.phone ? <Text style={s.importRowSub}>📞 {r.phone}</Text> : null}
+                            {r.phone ? <Text style={s.importRowSub}>📞 {formatPhoneDisplay(r.phone)}</Text> : null}
                             {r.reference ? <Text style={s.importRowSub}>Ref: {r.reference}</Text> : null}
                           </View>
                         </View>
@@ -1512,13 +1513,13 @@ export default function CreateScreen() {
                             <Text style={s.netContactName}>{contact.name}</Text>
                             {contact.phone ? (
                               <TouchableOpacity onPress={() => openPhone(contact.phone, contact.name)}>
-                                <Text style={s.netContactPhone}>📞 {contact.phone}</Text>
+                                <Text style={s.netContactPhone}>📞 {formatPhoneDisplay(contact.phone)}</Text>
                               </TouchableOpacity>
                             ) : null}
                             {contact.reference ? <Text style={s.netContactRef}>عبر {contact.reference}</Text> : null}
                             {contact.reference_phone ? (
                               <TouchableOpacity onPress={() => openPhone(contact.reference_phone, contact.reference || contact.name)}>
-                                <Text style={s.netContactPhone}>📞 {contact.reference_phone}</Text>
+                                <Text style={s.netContactPhone}>📞 {formatPhoneDisplay(contact.reference_phone)}</Text>
                               </TouchableOpacity>
                             ) : null}
                             {contact.city?.name ? <Text style={s.netContactCity}>📍 {contact.city.name}</Text> : null}

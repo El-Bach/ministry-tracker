@@ -27,6 +27,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { TeamMember, Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
+import { formatPhoneDisplay } from '../lib/phone';
 
 function openPhone(phone: string, name?: string) {
   const clean = phone.replace(/[^0-9+]/g, '');
@@ -186,7 +187,7 @@ export default function TeamScreen() {
                   <Text style={s.memberEmail}>{member.email}</Text>
                   {member.phone ? (
                     <TouchableOpacity onPress={() => openPhone(member.phone!, member.name)} activeOpacity={0.7}>
-                      <Text style={s.memberPhone}>📞 {member.phone}</Text>
+                      <Text style={s.memberPhone}>📞 {formatPhoneDisplay(member.phone)}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
