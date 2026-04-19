@@ -1479,6 +1479,7 @@ export default function TaskDetailScreen() {
         {showDueDateCalendar && (
           <View style={s.dueDateCalendarCard}>
             <Calendar
+              firstDay={1}
               current={task.due_date ?? undefined}
               markedDates={task.due_date ? { [task.due_date]: { selected: true, selectedColor: theme.color.primary } } : {}}
               onDayPress={(day: { dateString: string }) => handleSetDueDate(day.dateString)}
@@ -1488,7 +1489,8 @@ export default function TaskDetailScreen() {
                 textSectionTitleColor: theme.color.textMuted,
                 selectedDayBackgroundColor: theme.color.primary,
                 selectedDayTextColor: theme.color.white,
-                todayTextColor: theme.color.primaryText,
+                todayBackgroundColor: theme.color.primary,
+                todayTextColor: theme.color.white,
                 dayTextColor: theme.color.textSecondary,
                 textDisabledColor: theme.color.border,
                 arrowColor: theme.color.primary,
@@ -3045,6 +3047,7 @@ export default function TaskDetailScreen() {
                 </TouchableOpacity>
               )}
               <Calendar
+                firstDay={1}
                 current={
                   (stopDueDatePickerStopId &&
                     task?.route_stops?.find((r) => r.id === stopDueDatePickerStopId)?.due_date) ||
@@ -3066,7 +3069,8 @@ export default function TaskDetailScreen() {
                   textSectionTitleColor: theme.color.textMuted,
                   selectedDayBackgroundColor: theme.color.warning,
                   selectedDayTextColor: theme.color.white,
-                  todayTextColor: theme.color.primaryText,
+                  todayBackgroundColor: theme.color.primary,
+                  todayTextColor: theme.color.white,
                   dayTextColor: theme.color.textSecondary,
                   textDisabledColor: theme.color.border,
                   arrowColor: theme.color.primary,

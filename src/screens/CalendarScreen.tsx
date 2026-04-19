@@ -161,6 +161,7 @@ export default function CalendarScreen() {
 
       <Calendar
         key={calendarKey}
+        firstDay={1}
         markingType="multi-dot"
         markedDates={calendarMarks}
         current={currentMonth}
