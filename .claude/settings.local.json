@@ -1,0 +1,74 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"G:/ministry-tracker-master/.claude/worktrees/jolly-mirzakhani\" && git add -A && git commit -m \"auto: save changes\" && git push || true",
+            "statusMessage": "Auto-committing and pushing to kamal-modif..."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(head -20 __NEW_LINE_89c51569c5ded86c__ echo \"---\" __NEW_LINE_89c51569c5ded86c__ grep -n \"loadSvcStages\\\\|openSvcStages\\\\|showSvcStages\\\\|svcStages\\\\|stagesBtn\\\\|saveService\" \"C:/Users/Administrator/Desktop/Ai Bechara/work app/src/screens/SettingsScreen.tsx\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(p.dependencies['expo-print'], p.dependencies['expo-file-system']\\)\")",
+      "Bash(npm uninstall:*)",
+      "Bash(npx expo:*)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('expo-print:', p.dependencies['expo-print'], '| expo-file-system:', p.dependencies['expo-file-system']\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('expo-camera:', p.dependencies['expo-camera']\\)\")",
+      "Bash(grep -rn \"#[0-9a-fA-F]\\\\{3,8\\\\}\" \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\\\\src\" --include=\"*.tsx\")",
+      "Bash(grep -rn \"#[0-9a-fA-F]\\\\{3,8\\\\}\" \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\\\\src\" --include=\"*.tsx\" --include=\"*.ts\")",
+      "Bash(grep -n \"#[0-9a-fA-F]\\\\{3,8\\\\}\\\\|placeholderTextColor=\\\\\"#\\\\|ActivityIndicator color=\\\\\"#\\\\|thumbColor=\\\\\"#\" \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\\\\src\\\\screens\\\\DashboardScreen.tsx\")",
+      "Bash(grep -n \"#[0-9a-fA-F]\\\\{3,8\\\\}\\\\|placeholderTextColor=\\\\\"#\\\\|ActivityIndicator color=\\\\\"#\" \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\\\\src\\\\screens\\\\FinancialReportScreen.tsx\")",
+      "Bash(eas build:view 683ad646-9390-4f95-a04c-f9b13a6301a5)",
+      "Bash(eas build:logs 683ad646-9390-4f95-a04c-f9b13a6301a5)",
+      "Bash(npx eas-cli@latest build:view 683ad646-9390-4f95-a04c-f9b13a6301a5 --json)",
+      "WebFetch(domain:job-logs.eascdn.net)",
+      "Bash(del \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\\\\.git\\\\index.lock\")",
+      "Bash(tasklist)",
+      "Bash(eas build:*)",
+      "Bash(npx eas-cli@latest build:view 11f66b40-89dc-4b0c-8813-1d80640dec3a --json)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(l\\) for l in d.get\\('logFiles',[]\\)]\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in sorted\\(deps.items\\(\\)\\)]\")",
+      "Bash(del package-lock.json)",
+      "Bash(eas build:view 9f2617d3-e841-4879-8da9-2adc59c358db)",
+      "Bash(npx eas-cli:*)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); pkgs=d.get\\('packages',{}\\); issues=[k for k,v in pkgs.items\\(\\) if k and 'react-native-svg' in k]; print\\('react-native-svg in lockfile:', issues[:5]\\); print\\('Total packages:', len\\(pkgs\\)\\)\")",
+      "Bash(npm ci:*)",
+      "Bash(grep -v \"\\\\.map$\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const p=require\\('/c/Users/Administrator/Desktop/Ai Bechara/work app/node_modules/zustand/package.json'\\); console.log\\(JSON.stringify\\(p.exports,null,2\\)\\)\")",
+      "Bash(python -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('exports',{}\\), indent=2\\)\\)\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Administrator-Desktop-Ai-Bechara-work-app\\\\398284f0-8d23-4520-85e3-4e0d269531e4\\\\tasks\\\\byqds8d7x.output\" -ErrorAction SilentlyContinue)",
+      "Bash(eas build:list --platform android --limit 3)",
+      "Bash(eas build:list --platform android --limit 1 --status in-progress)",
+      "Bash(eas build:list --platform android --limit 4)",
+      "Bash(eas build:list --platform android --limit 1)",
+      "Bash(python3 -c \"import shutil; shutil.copy\\('assets/icon.png', 'dist/assets/icon.png'\\); print\\('done'\\)\")",
+      "Bash(npx netlify-cli:*)",
+      "Bash(npx --yes netlify-cli sites:list)",
+      "WebFetch(domain:ministry-papers.netlify.app)",
+      "Bash(git -C \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\" remote -v)",
+      "Bash(git -C \"C:\\\\Users\\\\Administrator\\\\Desktop\\\\Ai Bechara\\\\work app\" log --oneline -3)",
+      "Bash(gh auth:*)",
+      "Bash(python -c ':*)",
+      "Bash(rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json .graphify_python .graphify_semantic_new.json .graphify_cached.json .graphify_uncached.txt)",
+      "Bash(sed -n '625,650p' src/screens/TaskDetailScreen.tsx)",
+      "Bash(sed -n '820,845p' src/screens/TaskDetailScreen.tsx)",
+      "Bash(python:*)",
+      "Bash(eas whoami:*)",
+      "Bash(rm -rf src/screens/graphify-out)",
+      "Bash(rm -f .graphify_incremental.json)",
+      "Bash(eas build:list --platform android --limit 1 --status new)",
+      "Bash(eas build:list --platform android --limit 2)",
+      "Bash(eas build:cancel ef8f1a97-37c1-4b8b-bae5-e8f140119401)"
+    ]
+  }
+}

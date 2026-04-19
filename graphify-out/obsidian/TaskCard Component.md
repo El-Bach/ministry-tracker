@@ -1,0 +1,17 @@
+---
+source_file: "CLAUDE.md"
+type: "document"
+community: "Data Model & DB Schema Docs"
+location: "File Structure / components"
+tags:
+  - graphify/document
+  - graphify/EXTRACTED
+  - community/Data_Model_&_DB_Schema_Docs
+---
+
+# TaskCard Component
+
+## Connections
+- [[DashboardScreen]] - `references` [EXTRACTED]
+
+#graphify/document #graphify/EXTRACTED #community/Data_Model_&_DB_Schema_Docs
