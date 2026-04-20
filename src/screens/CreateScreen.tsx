@@ -1103,7 +1103,7 @@ export default function CreateScreen() {
       >
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <View style={[s.modalSheet, { maxHeight: '90%' }]}>
+            <View style={[s.modalSheet, showSvcImportModal ? { height: '90%' } : { maxHeight: '90%' }]}>
 
               {/* ── HEADER — import view or list view ── */}
               {showSvcImportModal ? (
@@ -1507,7 +1507,7 @@ export default function CreateScreen() {
       <Modal visible={manageSection === 'network'} transparent animationType="slide" onRequestClose={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView style={{ flex: 1, justifyContent: 'flex-end' }} behavior="padding">
-            <View style={[s.modalSheet, { maxHeight: '92%' }]}>
+            <View style={[s.modalSheet, showImportModal ? { height: '92%' } : { maxHeight: '92%' }]}>
 
               {/* ── HEADER — import / list / form ── */}
               {showImportModal ? (
