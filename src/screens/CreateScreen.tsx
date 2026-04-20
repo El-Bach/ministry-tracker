@@ -1140,7 +1140,7 @@ export default function CreateScreen() {
               )}
               {showSvcImportModal ? (
                 /* ── IMPORT VIEW body ── */
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
                   <View style={s.importInstructions}>
                     <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
                     <Text style={s.importInstructionsText}>
@@ -1563,7 +1563,7 @@ export default function CreateScreen() {
 
               {showImportModal ? (
                 /* ── IMPORT VIEW body ── */
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
                   <View style={s.importInstructions}>
                     <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
                     <Text style={s.importInstructionsText}>
@@ -2180,20 +2180,21 @@ const s = StyleSheet.create({
   importInstructions: {
     backgroundColor: theme.color.infoDim,
     borderRadius:    theme.radius.md,
-    padding:         theme.spacing.space3,
+    padding:         theme.spacing.space4,
     borderWidth:     1,
     borderColor:     theme.color.info + '44',
-    gap:             theme.spacing.space1,
+    gap:             theme.spacing.space2,
   },
-  importInstructionsTitle: { ...theme.typography.label, color: theme.color.info, fontWeight: '700' },
-  importInstructionsText:  { ...theme.typography.caption, color: theme.color.textSecondary, lineHeight: 18 },
+  importInstructionsTitle: { fontSize: 16, color: theme.color.info, fontWeight: '700' },
+  importInstructionsText:  { fontSize: 14, color: theme.color.textSecondary, lineHeight: 22 },
   importTextArea: {
     backgroundColor:   theme.color.bgSurface,
     borderRadius:      theme.radius.md,
-    padding:           theme.spacing.space3,
-    minHeight:         140,
+    padding:           theme.spacing.space4,
+    minHeight:         160,
     color:             theme.color.textPrimary,
-    ...theme.typography.body,
+    fontSize:          15,
+    lineHeight:        22,
     borderWidth:       1,
     borderColor:       theme.color.border,
     textAlignVertical: 'top',
@@ -2201,30 +2202,30 @@ const s = StyleSheet.create({
   importPreviewBtn: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.md,
-    paddingVertical: theme.spacing.space3,
+    paddingVertical: theme.spacing.space4,
     alignItems:      'center',
   },
-  importPreviewBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
-  importPreviewLabel:   { ...theme.typography.sectionDivider, marginTop: theme.spacing.space2 },
+  importPreviewBtnText: { fontSize: 16, color: theme.color.white, fontWeight: '700' },
+  importPreviewLabel:   { fontSize: 13, color: theme.color.textMuted, fontWeight: '700', letterSpacing: 0.8, marginTop: theme.spacing.space3 },
   importPreviewRow: {
     flexDirection:     'row',
     alignItems:        'center',
     gap:               theme.spacing.space3,
-    paddingVertical:   theme.spacing.space2,
+    paddingVertical:   theme.spacing.space3,
     borderBottomWidth: 1,
     borderBottomColor: theme.color.bgBase,
   },
   importRowNum: {
-    width:           24,
-    height:          24,
-    borderRadius:    12,
+    width:           30,
+    height:          30,
+    borderRadius:    15,
     backgroundColor: theme.color.bgSubtle,
     alignItems:      'center',
     justifyContent:  'center',
   },
-  importRowNumText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' },
-  importRowName:    { ...theme.typography.body, fontWeight: '700' },
-  importRowSub:     { ...theme.typography.caption, color: theme.color.textMuted },
+  importRowNumText: { fontSize: 13, color: theme.color.textMuted, fontWeight: '700' },
+  importRowName:    { fontSize: 16, color: theme.color.textPrimary, fontWeight: '700' },
+  importRowSub:     { fontSize: 14, color: theme.color.textMuted, marginTop: 2 },
   modalBody: {
     padding: theme.spacing.space4,
     gap:     theme.spacing.space3,
