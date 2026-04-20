@@ -146,6 +146,12 @@ export default function CreateScreen() {
   const [importRows, setImportRows]                 = useState<{ name: string; phone: string; reference: string }[]>([]);
   const [importingContacts, setImportingContacts]   = useState(false);
 
+  // Service import
+  const [showSvcImportModal, setShowSvcImportModal]     = useState(false);
+  const [svcImportRaw, setSvcImportRaw]                 = useState('');
+  const [svcImportRows, setSvcImportRows]               = useState<{ name: string; priceUSD: string; priceLBP: string }[]>([]);
+  const [importingServices, setImportingServices]       = useState(false);
+
   // ── Service documents checklist ───────────────────────────
   const [serviceDocs, setServiceDocs] = useState<Record<string, ServiceDocument[]>>({});
   const [expandedDocSvcId, setExpandedDocSvcId] = useState<string | null>(null);
@@ -527,6 +533,39 @@ export default function CreateScreen() {
     const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
     if (data) setNetwork(data as any[]);
     Alert.alert('Imported ✓', `${inserts.length} contact${inserts.length !== 1 ? 's' : ''} added to Network.`);
+  };
+
+  // ── Service import helpers ───────────────────────────────────
+  const parseSvcImportText = (raw: string) => {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    return lines.map(l => {
+      const cols = l.split('\t');
+      return {
+        name:     (cols[0] ?? '').trim(),
+        priceUSD: (cols[1] ?? '').replace(/[^\d.]/g, '').trim(),
+        priceLBP: (cols[2] ?? '').replace(/[^\d]/g, '').trim(),
+      };
+    }).filter(r => r.name);
+  };
+
+  const handleImportServices = async () => {
+    if (!svcImportRows.length) return;
+    setImportingServices(true);
+    const inserts = svcImportRows.map(r => ({
+      name:                r.name,
+      base_price_usd:      parseFloat(r.priceUSD) || 0,
+      base_price_lbp:      parseInt(r.priceLBP, 10) || 0,
+      estimated_duration_days: 0,
+    }));
+    const { error } = await supabase.from('services').insert(inserts);
+    setImportingServices(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setShowSvcImportModal(false);
+    setSvcImportRaw('');
+    setSvcImportRows([]);
+    const { data } = await supabase.from('services').select('*').order('name');
+    if (data) setServices(data as Service[]);
+    Alert.alert('Imported ✓', `${inserts.length} service${inserts.length !== 1 ? 's' : ''} added.`);
   };
 
   // ── Service document handlers ─────────────────────────────
@@ -1060,22 +1099,105 @@ export default function CreateScreen() {
         visible={manageSection === 'services'}
         transparent
         animationType="slide"
-        onRequestClose={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); }}
+        onRequestClose={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); setShowSvcImportModal(false); }}
       >
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[s.modalSheet, { maxHeight: '90%' }]}>
-              <View style={s.modalHeader}>
-                <View>
-                  <Text style={s.modalTitle}>Services</Text>
-                  <Text style={s.modalSubtitle}>
-                    {serviceSearch ? `${services.filter(sv => sv.name.toLowerCase().includes(serviceSearch.toLowerCase())).length} of ${services.length}` : `${services.length} total`}
-                  </Text>
+
+              {/* ── HEADER — import view or list view ── */}
+              {showSvcImportModal ? (
+                <View style={s.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowSvcImportModal(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
+                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  </TouchableOpacity>
+                  <Text style={s.modalTitle}>📥 Import Services</Text>
+                  <TouchableOpacity onPress={() => { setManageSection(null); setShowSvcImportModal(false); setServiceSearch(''); }}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); }}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
+              ) : (
+                <View style={s.modalHeader}>
+                  <View>
+                    <Text style={s.modalTitle}>Services</Text>
+                    <Text style={s.modalSubtitle}>
+                      {serviceSearch ? `${services.filter(sv => sv.name.toLowerCase().includes(serviceSearch.toLowerCase())).length} of ${services.length}` : `${services.length} total`}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      style={s.modalImportBtn}
+                      onPress={() => { setSvcImportRaw(''); setSvcImportRows([]); setShowSvcImportModal(true); }}
+                    >
+                      <Text style={s.modalImportBtnText}>📥 Import</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); }}>
+                      <Text style={s.modalClose}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {showSvcImportModal ? (
+                /* ── IMPORT VIEW body ── */
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+                  <View style={s.importInstructions}>
+                    <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
+                    <Text style={s.importInstructionsText}>
+                      {'1. Make sure columns are: A = Service Name  |  B = Price USD  |  C = Price LBP\n2. Select all data rows (not the header)\n3. Press Ctrl+C (or Cmd+C on Mac)\n4. Long-press in the box below → Paste'}
+                    </Text>
+                  </View>
+
+                  <TextInput
+                    style={s.importTextArea}
+                    value={svcImportRaw}
+                    onChangeText={setSvcImportRaw}
+                    placeholder={'Paste Excel data here...\n\nExample:\nPassport Renewal\t150\t225000\nVisa Application\t200\t300000'}
+                    placeholderTextColor={theme.color.textMuted}
+                    multiline
+                    numberOfLines={6}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+
+                  <TouchableOpacity
+                    style={s.importPreviewBtn}
+                    onPress={() => {
+                      const rows = parseSvcImportText(svcImportRaw);
+                      if (!rows.length) { Alert.alert('Nothing found', 'No valid rows detected. Make sure the service name is in the first column.'); return; }
+                      setSvcImportRows(rows);
+                    }}
+                  >
+                    <Text style={s.importPreviewBtnText}>Preview ({parseSvcImportText(svcImportRaw).length} rows)</Text>
+                  </TouchableOpacity>
+
+                  {svcImportRows.length > 0 && (
+                    <>
+                      <Text style={s.importPreviewLabel}>PREVIEW — {svcImportRows.length} SERVICE{svcImportRows.length !== 1 ? 'S' : ''}</Text>
+                      {svcImportRows.map((r, i) => (
+                        <View key={i} style={s.importPreviewRow}>
+                          <View style={s.importRowNum}><Text style={s.importRowNumText}>{i + 1}</Text></View>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Text style={s.importRowName}>{r.name}</Text>
+                            {r.priceUSD ? <Text style={s.importRowSub}>$ {parseFloat(r.priceUSD).toLocaleString('en-US', { maximumFractionDigits: 0 })}</Text> : null}
+                            {r.priceLBP ? <Text style={s.importRowSub}>LBP {parseInt(r.priceLBP, 10).toLocaleString('en-US')}</Text> : null}
+                          </View>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={[s.modalSaveBtn, importingServices && s.modalSaveBtnDisabled]}
+                        onPress={handleImportServices}
+                        disabled={importingServices}
+                      >
+                        {importingServices
+                          ? <ActivityIndicator color={theme.color.white} size="small" />
+                          : <Text style={s.modalSaveBtnText}>Import {svcImportRows.length} Service{svcImportRows.length !== 1 ? 's' : ''}</Text>}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </ScrollView>
+              ) : (
+                <>
               <View style={s.mgmtSearchRow}>
                 <TextInput
                   style={s.mgmtSearchInput}
@@ -1201,6 +1323,8 @@ export default function CreateScreen() {
                   <Text style={s.mgmtEmpty}>No services match "{serviceSearch}"</Text>
                 )}
               </ScrollView>
+                </>
+              )}
             </View>
           </KeyboardAvoidingView>
         </View>
