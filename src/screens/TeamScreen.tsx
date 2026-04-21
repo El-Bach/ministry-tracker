@@ -54,21 +54,35 @@ export default function TeamScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Custom field definitions + values
+  interface FieldDef {
+    id: string; label: string; field_key: string; field_type: string;
+    options?: string; is_active: boolean; sort_order: number;
+  }
+  interface FieldVal {
+    id?: string; team_member_id: string; field_id: string;
+    value_text?: string; value_number?: number; value_boolean?: boolean; value_json?: unknown;
+  }
+  const [fieldDefs, setFieldDefs] = useState<FieldDef[]>([]);
+  const [fieldValuesByMember, setFieldValuesByMember] = useState<Record<string, FieldVal[]>>({});
+
   // Edit member state
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editFieldValues, setEditFieldValues] = useState<Record<string, string>>({});
 
   const fetchData = useCallback(async () => {
-    const [membersRes, tasksRes, labelsRes] = await Promise.all([
+    const [membersRes, tasksRes, labelsRes, defsRes] = await Promise.all([
       supabase.from('team_members').select('*').order('name'),
       supabase
         .from('tasks')
         .select('*, client:clients(*), service:services(*)')
         .not('assigned_to', 'is', null),
       supabase.from('status_labels').select('*').order('sort_order'),
+      supabase.from('team_member_field_definitions').select('*').eq('is_active', true).order('sort_order'),
     ]);
 
     if (membersRes.data && tasksRes.data) {
@@ -78,8 +92,26 @@ export default function TeamScreen() {
         tasks: allTasks.filter((t) => t.assigned_to === m.id),
       }));
       setMembers(combined);
+
+      // Load field values for all members
+      const memberIds = (membersRes.data as TeamMember[]).map(m => m.id);
+      if (memberIds.length > 0) {
+        const { data: valData } = await supabase
+          .from('team_member_field_values')
+          .select('*')
+          .in('team_member_id', memberIds);
+        if (valData) {
+          const byMember: Record<string, FieldVal[]> = {};
+          (valData as FieldVal[]).forEach(v => {
+            if (!byMember[v.team_member_id]) byMember[v.team_member_id] = [];
+            byMember[v.team_member_id].push(v);
+          });
+          setFieldValuesByMember(byMember);
+        }
+      }
     }
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
+    if (defsRes.data) setFieldDefs(defsRes.data as FieldDef[]);
     setLoading(false);
     setRefreshing(false);
   }, []);
@@ -100,6 +132,17 @@ export default function TeamScreen() {
     setEditName(member.name);
     setEditRole(member.role);
     setEditPhone(member.phone ?? '');
+    // Load existing custom field values into edit state
+    const vals = fieldValuesByMember[member.id] ?? [];
+    const valMap: Record<string, string> = {};
+    vals.forEach(v => {
+      const def = fieldDefs.find(d => d.id === v.field_id);
+      if (!def) return;
+      if (def.field_type === 'boolean') valMap[v.field_id] = v.value_boolean ? 'true' : 'false';
+      else if (def.field_type === 'number' || def.field_type === 'currency') valMap[v.field_id] = v.value_number != null ? String(v.value_number) : '';
+      else valMap[v.field_id] = v.value_text ?? '';
+    });
+    setEditFieldValues(valMap);
   };
 
   const handleSaveEditMember = async () => {
@@ -108,10 +151,36 @@ export default function TeamScreen() {
       return;
     }
     setSavingEdit(true);
+    // Save core fields
     await supabase
       .from('team_members')
       .update({ name: editName.trim(), role: editRole.trim(), phone: editPhone.trim() || null })
       .eq('id', editingMember.id);
+
+    // Upsert custom field values
+    const upserts = Object.entries(editFieldValues)
+      .filter(([, val]) => val.trim() !== '')
+      .map(([fieldId, val]) => {
+        const def = fieldDefs.find(d => d.id === fieldId);
+        const base = { team_member_id: editingMember.id, field_id: fieldId };
+        if (def?.field_type === 'boolean') return { ...base, value_boolean: val === 'true' };
+        if (def?.field_type === 'number' || def?.field_type === 'currency') return { ...base, value_number: parseFloat(val) || 0 };
+        return { ...base, value_text: val };
+      });
+    if (upserts.length > 0) {
+      await supabase.from('team_member_field_values').upsert(upserts, { onConflict: 'team_member_id,field_id' });
+    }
+    // Delete cleared values
+    const cleared = Object.entries(editFieldValues)
+      .filter(([, val]) => val.trim() === '')
+      .map(([fieldId]) => fieldId);
+    for (const fieldId of cleared) {
+      await supabase.from('team_member_field_values')
+        .delete()
+        .eq('team_member_id', editingMember.id)
+        .eq('field_id', fieldId);
+    }
+
     setSavingEdit(false);
     setEditingMember(null);
     fetchData();
@@ -119,6 +188,14 @@ export default function TeamScreen() {
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
+
+  const renderFieldDisplayValue = (def: { id: string; field_type: string }, vals: FieldVal[]): string => {
+    const v = vals.find(fv => fv.field_id === def.id);
+    if (!v) return '—';
+    if (def.field_type === 'boolean') return v.value_boolean ? '✓ Yes' : '✗ No';
+    if (def.field_type === 'number' || def.field_type === 'currency') return v.value_number != null ? String(v.value_number) : '—';
+    return v.value_text || '—';
+  };
 
   const getInitials = (name: string) =>
     name
@@ -258,6 +335,23 @@ export default function TeamScreen() {
                       </TouchableOpacity>
                     ))
                   )}
+
+                  {/* Custom fields */}
+                  {fieldDefs.length > 0 && (
+                    <View style={s.customFieldsSection}>
+                      <Text style={s.customFieldsSectionTitle}>ADDITIONAL INFO</Text>
+                      <View style={s.customFieldsGrid}>
+                        {fieldDefs.map(def => (
+                          <View key={def.id} style={s.customFieldItem}>
+                            <Text style={s.customFieldLabel}>{def.label}</Text>
+                            <Text style={s.customFieldValue}>
+                              {renderFieldDisplayValue(def, fieldValuesByMember[member.id] ?? [])}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -283,7 +377,7 @@ export default function TeamScreen() {
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <View style={s.modalBody}>
+            <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={s.fieldLabel}>NAME</Text>
               <TextInput
                 style={s.modalInput}
@@ -314,6 +408,46 @@ export default function TeamScreen() {
                 keyboardType="phone-pad"
                 autoCorrect={false}
               />
+
+              {/* Custom fields */}
+              {fieldDefs.map(def => (
+                <View key={def.id}>
+                  <Text style={[s.fieldLabel, { marginTop: 12 }]}>{def.label.toUpperCase()}</Text>
+                  {def.field_type === 'boolean' ? (
+                    <View style={s.boolRow}>
+                      <TouchableOpacity
+                        style={[s.boolBtn, editFieldValues[def.id] === 'true' && s.boolBtnActive]}
+                        onPress={() => setEditFieldValues(v => ({ ...v, [def.id]: 'true' }))}
+                      >
+                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'true' && s.boolBtnTextActive]}>Yes</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.boolBtn, editFieldValues[def.id] === 'false' && s.boolBtnActive]}
+                        onPress={() => setEditFieldValues(v => ({ ...v, [def.id]: 'false' }))}
+                      >
+                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'false' && s.boolBtnTextActive]}>No</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TextInput
+                      style={s.modalInput}
+                      value={editFieldValues[def.id] ?? ''}
+                      onChangeText={val => setEditFieldValues(v => ({ ...v, [def.id]: val }))}
+                      placeholder={def.label}
+                      placeholderTextColor={theme.color.textMuted}
+                      keyboardType={
+                        def.field_type === 'number' || def.field_type === 'currency' ? 'decimal-pad'
+                        : def.field_type === 'phone' ? 'phone-pad'
+                        : def.field_type === 'email' ? 'email-address'
+                        : 'default'
+                      }
+                      multiline={def.field_type === 'textarea'}
+                      autoCorrect={false}
+                    />
+                  )}
+                </View>
+              ))}
+
               <TouchableOpacity
                 style={[s.saveBtn, savingEdit && s.saveBtnDisabled]}
                 onPress={handleSaveEditMember}
@@ -323,7 +457,7 @@ export default function TeamScreen() {
                   ? <ActivityIndicator color={theme.color.white} size="small" />
                   : <Text style={s.saveBtnText}>Save Changes</Text>}
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -484,4 +618,47 @@ const s = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
+
+  // Custom fields — expanded display
+  customFieldsSection: {
+    marginTop: theme.spacing.space3,
+    paddingTop: theme.spacing.space3,
+    borderTopWidth: 1,
+    borderTopColor: theme.color.bgBase,
+  },
+  customFieldsSectionTitle: {
+    ...theme.typography.sectionDivider,
+    marginBottom: theme.spacing.space2,
+  },
+  customFieldsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  customFieldItem: {
+    minWidth: '45%',
+    flex: 1,
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.space2 + 2,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  customFieldLabel: { ...theme.typography.caption, color: theme.color.textMuted, marginBottom: 2 },
+  customFieldValue: { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 13, fontWeight: '600' },
+
+  // Boolean toggle in edit modal
+  boolRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  boolBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.bgBase,
+  },
+  boolBtnActive: { backgroundColor: theme.color.primary, borderColor: theme.color.primary },
+  boolBtnText: { ...theme.typography.body, color: theme.color.textMuted, fontWeight: '600' },
+  boolBtnTextActive: { color: theme.color.white },
 });
