@@ -15,6 +15,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -213,6 +214,17 @@ export default function AccountScreen() {
           <Text style={s.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
+        {/* Legal links */}
+        <View style={s.legalRow}>
+          <TouchableOpacity onPress={() => Linking.openURL('https://ministry-papers.netlify.app/privacy.html')}>
+            <Text style={s.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={s.legalDot}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://ministry-papers.netlify.app/terms.html')}>
+            <Text style={s.legalLink}>Terms of Service</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={s.version}>ClearTrack v1.0.0</Text>
       </ScrollView>
 
@@ -368,7 +380,10 @@ const s = StyleSheet.create({
     marginTop:       theme.spacing.space2,
   },
   signOutText: { color: theme.color.danger, fontSize: 16, fontWeight: '700' },
-  version:     { ...theme.typography.caption, color: theme.color.border, textAlign: 'center' },
+  version:     { ...theme.typography.caption, color: theme.color.border, textAlign: 'center', marginTop: 4 },
+  legalRow:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: theme.spacing.space4, marginBottom: 4 },
+  legalLink:   { ...theme.typography.caption, color: theme.color.textMuted },
+  legalDot:    { ...theme.typography.caption, color: theme.color.border },
 
   // Modals
   modalOverlay: {

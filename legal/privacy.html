@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — ClearTrack</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      line-height: 1.7;
+      padding: 0 16px 80px;
+    }
+    .wrap { max-width: 740px; margin: 0 auto; }
+    header {
+      padding: 48px 0 32px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 40px;
+    }
+    .logo { color: #6366f1; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    h1 { font-size: 32px; font-weight: 800; color: #f1f5f9; margin-top: 12px; }
+    .meta { color: #64748b; font-size: 14px; margin-top: 6px; }
+    h2 {
+      font-size: 18px; font-weight: 700; color: #f1f5f9;
+      margin: 36px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1e293b;
+    }
+    p { color: #94a3b8; margin-bottom: 14px; }
+    ul { color: #94a3b8; padding-left: 22px; margin-bottom: 14px; }
+    li { margin-bottom: 6px; }
+    strong { color: #e2e8f0; }
+    a { color: #6366f1; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .callout {
+      background: #1e293b;
+      border-left: 4px solid #6366f1;
+      border-radius: 0 8px 8px 0;
+      padding: 16px 20px;
+      margin: 20px 0;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid #1e293b;
+      color: #475569;
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">ClearTrack</div>
+      <h1>Privacy Policy</h1>
+      <p class="meta">Last updated: April 21, 2025 &nbsp;·&nbsp; Effective: April 21, 2025</p>
+    </header>
+
+    <div class="callout">
+      <strong>Plain-language summary:</strong> ClearTrack is a business tool for tracking client files through government clearance processes. We collect only the data needed to run your account. We never sell your data, never use it for advertising, and you can delete everything at any time.
+    </div>
+
+    <h2>1. Who We Are</h2>
+    <p>ClearTrack ("we", "our", "the Service") is a mobile and web application that helps clearance offices, law firms, notary offices, and government brokers manage client files and track progress through ministry pipelines.</p>
+    <p>For questions about this policy, contact us at: <a href="mailto:privacy@cleartrack.app">privacy@cleartrack.app</a></p>
+
+    <h2>2. What Data We Collect</h2>
+    <p>We collect only the information necessary to provide the Service:</p>
+    <ul>
+      <li><strong>Account information:</strong> Your name, email address or phone number, and password (stored as a secure hash — we never see your plaintext password).</li>
+      <li><strong>Organization information:</strong> Your company name.</li>
+      <li><strong>Client data you enter:</strong> Client names, phone numbers, reference contacts, and any custom fields your organization creates (e.g., ID numbers, addresses).</li>
+      <li><strong>File / case data:</strong> Service names, stage names, status updates, due dates, financial transaction records, comments, and voice notes you attach to files.</li>
+      <li><strong>Documents and scanned images:</strong> Photos of documents you scan or upload within the app. These are stored in your organization's private storage bucket.</li>
+      <li><strong>Location data (optional):</strong> If your organization uses the "Location" custom field type, the app requests GPS permission to auto-fill coordinates. This is entirely opt-in and only triggered when you tap "Use current location." We do not collect location data in the background.</li>
+      <li><strong>Push notification token:</strong> A device token used solely to deliver in-app push notifications about file updates.</li>
+      <li><strong>Device information:</strong> Basic technical data (OS, app version) included in crash reports for debugging purposes.</li>
+    </ul>
+
+    <h2>3. How We Use Your Data</h2>
+    <ul>
+      <li>To provide, operate, and improve the ClearTrack service.</li>
+      <li>To send push notifications about file status changes and assignments (only to your organization's devices).</li>
+      <li>To support you when you contact us with a problem or question.</li>
+      <li>To detect and prevent security issues or abuse.</li>
+    </ul>
+    <p>We do <strong>not</strong> use your data for advertising, profiling, or sale to third parties. Ever.</p>
+
+    <h2>4. Data Storage and Security</h2>
+    <p>Your data is stored on <strong>Supabase</strong> (a managed PostgreSQL service hosted on AWS infrastructure). All data is encrypted in transit (TLS 1.2+) and at rest. Row-Level Security (RLS) policies ensure that each organization's data is completely isolated — users from one organization cannot access data from another.</p>
+    <p>Scanned documents and images are stored in a private Supabase Storage bucket accessible only to authenticated members of your organization.</p>
+    <p>We retain your data for as long as your account is active. If you delete your account, all associated data is permanently deleted within 30 days.</p>
+
+    <h2>5. Data Sharing</h2>
+    <p>We do not sell, rent, or share your personal data with third parties for their own purposes. We use the following sub-processors solely to deliver the Service:</p>
+    <ul>
+      <li><strong>Supabase, Inc.</strong> — Database, authentication, and file storage (supabase.com)</li>
+      <li><strong>Expo (Expo Technology, Inc.)</strong> — Push notification delivery service (expo.dev)</li>
+      <li><strong>Netlify, Inc.</strong> — Hosting for the web/PWA version (netlify.com)</li>
+    </ul>
+    <p>We may disclose data if required by applicable law or a valid legal process, and only to the minimum extent necessary.</p>
+
+    <h2>6. Your Rights</h2>
+    <p>Depending on your location, you may have the following rights regarding your personal data:</p>
+    <ul>
+      <li><strong>Access:</strong> Request a copy of the data we hold about you.</li>
+      <li><strong>Correction:</strong> Update or correct inaccurate information through the app's Account settings.</li>
+      <li><strong>Deletion:</strong> Delete your account and all associated data from within the app (Settings → Account → Delete Account) or by emailing <a href="mailto:privacy@cleartrack.app">privacy@cleartrack.app</a>.</li>
+      <li><strong>Portability:</strong> Request an export of your organization's data in a structured format.</li>
+      <li><strong>Objection:</strong> Object to processing in certain circumstances.</li>
+    </ul>
+    <p>To exercise any right, contact us at <a href="mailto:privacy@cleartrack.app">privacy@cleartrack.app</a>. We respond within 30 days.</p>
+
+    <h2>7. Children's Privacy</h2>
+    <p>ClearTrack is a business-to-business tool intended for use by professionals aged 18 and older. We do not knowingly collect data from children under 13. If you believe a child has provided us with personal data, contact us immediately and we will delete it.</p>
+
+    <h2>8. Cookies and Local Storage</h2>
+    <p>The mobile app uses <strong>device local storage</strong> (AsyncStorage) to store your session token and app preferences (such as language/RTL settings). No third-party tracking cookies are used. The web/PWA version may use browser local storage for the same purposes.</p>
+
+    <h2>9. International Data Transfers</h2>
+    <p>Your data may be stored and processed in data centers operated by Supabase/AWS, which may be located in the United States or European Union. By using ClearTrack, you consent to this transfer. We ensure that any such transfers comply with applicable data protection laws.</p>
+
+    <h2>10. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify you of significant changes by updating the "Last updated" date at the top and, where required by law, by sending an in-app notification. Continued use of the Service after changes constitutes acceptance of the revised policy.</p>
+
+    <h2>11. Contact</h2>
+    <p>For privacy-related inquiries, data deletion requests, or questions about this policy:</p>
+    <ul>
+      <li>Email: <a href="mailto:privacy@cleartrack.app">privacy@cleartrack.app</a></li>
+      <li>Website: <a href="https://ministry-papers.netlify.app">ministry-papers.netlify.app</a></li>
+    </ul>
+
+    <footer>
+      &copy; 2025 ClearTrack. All rights reserved.
+      &nbsp;·&nbsp;
+      <a href="terms.html">Terms of Service</a>
+      &nbsp;·&nbsp;
+      <a href="privacy.html">Privacy Policy</a>
+    </footer>
+  </div>
+</body>
+</html>
