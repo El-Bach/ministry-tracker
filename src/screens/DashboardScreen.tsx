@@ -35,6 +35,7 @@ import TaskCard from '../components/TaskCard';
 import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
 import { checkAndNotifyOverdue } from '../lib/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
 const TASK_ROW_HEIGHT = 130;
@@ -293,6 +294,31 @@ export default function DashboardScreen() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [services, setServices] = useState<Service[]>([]);
+
+  // Activity unread badge
+  const ACTIVITY_SEEN_KEY = '@activity_last_seen';
+  const [unreadActivity, setUnreadActivity] = useState(0);
+
+  const refreshUnreadActivity = useCallback(async () => {
+    const lastSeen = await AsyncStorage.getItem(ACTIVITY_SEEN_KEY);
+    const since = lastSeen ?? new Date(0).toISOString();
+    const { count } = await supabase
+      .from('status_updates')
+      .select('id', { count: 'exact', head: true })
+      .gt('created_at', since);
+    setUnreadActivity(count ?? 0);
+  }, []);
+
+  const openActivity = useCallback(async () => {
+    await AsyncStorage.setItem(ACTIVITY_SEEN_KEY, new Date().toISOString());
+    setUnreadActivity(0);
+    navigation.navigate('Activity');
+  }, [navigation]);
+
+  // Refresh unread badge when screen focuses
+  useFocusEffect(useCallback(() => {
+    refreshUnreadActivity();
+  }, [refreshUnreadActivity]));
 
   // Quick status update (long-press card)
   const [quickStatusTask, setQuickStatusTask] = useState<Task | null>(null);
@@ -654,9 +680,16 @@ export default function DashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.globalSearchBtn}
-          onPress={() => navigation.navigate('Activity')}
+          onPress={openActivity}
         >
-          <Text style={styles.globalSearchBtnText}>🔔</Text>
+          <View style={styles.bellWrap}>
+            <Text style={styles.globalSearchBtnText}>🔔</Text>
+            {unreadActivity > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadActivity > 99 ? '99+' : unreadActivity}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -1430,6 +1463,22 @@ const styles = StyleSheet.create({
     minHeight:         theme.touchTarget.min,
   },
   globalSearchBtnText: { fontSize: 16 },
+  bellWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  bellBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    backgroundColor: theme.color.danger,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: theme.color.bgBase,
+  },
+  bellBadgeText: { color: theme.color.white, fontSize: 10, fontWeight: '800' },
 
   // My Files / All Files toggle
   myFilesToggle: {
