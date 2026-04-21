@@ -1854,7 +1854,8 @@ export default function TaskDetailScreen() {
                       </View>
                     )}
 
-                    {/* ── Row 1: Status + Due Date ── */}
+                    {/* ── 2×2 chip grid (Status · Due Date / City · Assignee) ── */}
+                    <View style={s.stageChipGrid}>
                     <View style={s.stageChipRow}>
                       {/* Status chip */}
                       <TouchableOpacity
@@ -1900,7 +1901,7 @@ export default function TaskDetailScreen() {
                           </>
                         )}
                       </TouchableOpacity>
-                    </View>
+                    </View>{/* end Row 1 */}
 
                     {/* Rejection reason — shown inline when status is Rejected */}
                     {stop.status === 'Rejected' && stop.rejection_reason ? (
@@ -1946,7 +1947,8 @@ export default function TaskDetailScreen() {
                           <Text style={[s.stageChipArrow, { color: (stop.assignee || stop.ext_assignee) ? theme.color.success + 'BB' : theme.color.border }]}>▾</Text>
                         </>
                       </TouchableOpacity>
-                    </View>
+                    </View>{/* end Row 2 */}
+                    </View>{/* end stageChipGrid */}
 
                     {/* Saving indicator + History toggle */}
                     {(savingStopField === stop.id || stopHistory.length > 0) && (
@@ -3360,20 +3362,24 @@ const s = StyleSheet.create({
   // Route
   routeContainer: { gap: theme.spacing.space1 },
   // ── Unified stage chips (status / due date / city / assignee) ──
+  stageChipGrid: {
+    gap:             theme.spacing.space2,   // consistent vertical gap between row 1 and row 2
+  },
   stageChipRow: {
     flexDirection:   'row',
+    alignItems:      'stretch',              // both chips in a row match the taller one
     gap:             theme.spacing.space2,
   },
   stageChip: {
-    flex:            1,
+    flex:            1,                      // equal width within each row
     flexDirection:   'row',
     alignItems:      'center',
-    gap:             5,
+    justifyContent:  'flex-start',
+    gap:             6,
     borderRadius:    theme.radius.lg,
     borderWidth:     1.5,
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    minHeight:       36,
+    height:          40,                     // fixed height — all 4 chips identical
     overflow:        'hidden',
   },
   stageChipDot: {
@@ -3383,18 +3389,23 @@ const s = StyleSheet.create({
     flexShrink:      0,
   },
   stageChipIcon: {
-    fontSize:        13,
+    fontSize:        14,
+    lineHeight:      18,                     // normalise emoji vertical rhythm across platforms
     flexShrink:      0,
+    width:           18,
+    textAlign:       'center',
   },
   stageChipLabel: {
     flex:            1,
     fontSize:        12,
     fontWeight:      '600',
+    lineHeight:      16,
   },
   stageChipArrow: {
     fontSize:        10,
     fontWeight:      '700',
     flexShrink:      0,
+    lineHeight:      14,
   },
 
   // kept for any remaining references
