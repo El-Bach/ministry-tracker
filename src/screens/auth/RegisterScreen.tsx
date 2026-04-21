@@ -1,6 +1,7 @@
 // src/screens/auth/RegisterScreen.tsx
 // Public registration: create account + organization
-// Session 26 — Phase 1 commercialization
+// OR join an existing org if invited by email
+// Session 26 Phase 1+2 — commercialization
 
 import React, { useState } from 'react';
 import {
@@ -25,16 +26,46 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function RegisterScreen() {
   const navigation = useNavigation<Nav>();
 
-  const [fullName,     setFullName]     = useState('');
-  const [companyName,  setCompanyName]  = useState('');
-  const [email,        setEmail]        = useState('');
-  const [password,     setPassword]     = useState('');
-  const [confirmPass,  setConfirmPass]  = useState('');
-  const [loading,      setLoading]      = useState(false);
+  const [fullName,    setFullName]    = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [loading,     setLoading]     = useState(false);
+
+  // When user types their email, check for a pending invitation
+  const [invitePreview, setInvitePreview] = useState<{ orgName: string; role: string } | null>(null);
+  const [checkingInvite, setCheckingInvite] = useState(false);
+
+  const checkInvitation = async (emailVal: string) => {
+    const trimmed = emailVal.trim().toLowerCase();
+    if (!trimmed.includes('@')) { setInvitePreview(null); return; }
+    setCheckingInvite(true);
+    const { data } = await supabase
+      .from('invitations')
+      .select('role, org_id, organizations(name)')
+      .eq('email', trimmed)
+      .is('accepted_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    setCheckingInvite(false);
+    if (data) {
+      const org = data.organizations as any;
+      setInvitePreview({ orgName: org?.name ?? 'an organization', role: data.role });
+    } else {
+      setInvitePreview(null);
+    }
+  };
 
   const handleRegister = async () => {
-    if (!fullName.trim() || !companyName.trim() || !email.trim() || !password) {
-      Alert.alert('Required', 'Please fill in all fields.');
+    const trimEmail = email.trim().toLowerCase();
+    if (!fullName.trim() || !trimEmail || !password) {
+      Alert.alert('Required', 'Please fill in name, email and password.');
+      return;
+    }
+    // Company name only required when NOT joining via invite
+    if (!invitePreview && !companyName.trim()) {
+      Alert.alert('Required', 'Please enter your company name.');
       return;
     }
     if (password.length < 6) {
@@ -50,46 +81,78 @@ export default function RegisterScreen() {
     try {
       // 1. Create Supabase auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: trimEmail,
         password,
       });
       if (authError) throw new Error(authError.message);
       if (!authData.user) throw new Error('Account creation failed. Please try again.');
 
-      // 2. Create organization
-      const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({ name: companyName.trim(), slug: `${slug}-${Date.now()}`, plan: 'free' })
-        .select()
-        .single();
-      if (orgError) throw new Error('Failed to create organization: ' + orgError.message);
+      const authUserId = authData.user.id;
 
-      // 3. Create team_member row (owner)
-      const { error: memberError } = await supabase
-        .from('team_members')
-        .insert({
-          name:    fullName.trim(),
-          email:   email.trim().toLowerCase(),
-          role:    'owner',
-          org_id:  orgData.id,
-          auth_id: authData.user.id,
-        });
-      if (memberError) throw new Error('Failed to create user profile: ' + memberError.message);
+      // 2a. Invited user → join existing org
+      if (invitePreview) {
+        const { data: invite } = await supabase
+          .from('invitations')
+          .select('id, org_id, role')
+          .eq('email', trimEmail)
+          .is('accepted_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
 
-      // 4. Insert default status labels for new org
-      const defaultLabels = [
-        { label: 'Submitted',         color: '#6366f1', sort_order: 1, org_id: orgData.id },
-        { label: 'In Review',         color: '#f59e0b', sort_order: 2, org_id: orgData.id },
-        { label: 'Pending Signature', color: '#8b5cf6', sort_order: 3, org_id: orgData.id },
-        { label: 'Done',              color: '#10b981', sort_order: 4, org_id: orgData.id },
-        { label: 'Rejected',          color: '#ef4444', sort_order: 5, org_id: orgData.id },
-        { label: 'Closed',            color: '#64748b', sort_order: 6, org_id: orgData.id },
-      ];
-      await supabase.from('status_labels').insert(defaultLabels);
+        if (!invite) throw new Error('Invitation not found or expired. Please ask for a new one.');
 
-      // Auth state change in useAuth will pick up the new session and redirect
-      // navigation is handled by the root navigator reacting to auth state
+        // Create team_member in the inviting org
+        const { error: memberErr } = await supabase
+          .from('team_members')
+          .upsert({
+            name:    fullName.trim(),
+            email:   trimEmail,
+            role:    invite.role,
+            org_id:  invite.org_id,
+            auth_id: authUserId,
+          }, { onConflict: 'email' });
+        if (memberErr) throw new Error('Failed to join organization: ' + memberErr.message);
+
+        // Mark invitation accepted
+        await supabase
+          .from('invitations')
+          .update({ accepted_at: new Date().toISOString() })
+          .eq('id', invite.id);
+
+      // 2b. New user → create new org
+      } else {
+        const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .insert({ name: companyName.trim(), slug: `${slug}-${Date.now()}`, plan: 'free' })
+          .select()
+          .single();
+        if (orgError) throw new Error('Failed to create organization: ' + orgError.message);
+
+        const { error: memberError } = await supabase
+          .from('team_members')
+          .insert({
+            name:    fullName.trim(),
+            email:   trimEmail,
+            role:    'owner',
+            org_id:  orgData.id,
+            auth_id: authUserId,
+          });
+        if (memberError) throw new Error('Failed to create user profile: ' + memberError.message);
+
+        // Default status labels for new org
+        const defaultLabels = [
+          { label: 'Submitted',         color: '#6366f1', sort_order: 1, org_id: orgData.id },
+          { label: 'In Review',         color: '#f59e0b', sort_order: 2, org_id: orgData.id },
+          { label: 'Pending Signature', color: '#8b5cf6', sort_order: 3, org_id: orgData.id },
+          { label: 'Done',              color: '#10b981', sort_order: 4, org_id: orgData.id },
+          { label: 'Rejected',          color: '#ef4444', sort_order: 5, org_id: orgData.id },
+          { label: 'Closed',            color: '#64748b', sort_order: 6, org_id: orgData.id },
+        ];
+        await supabase.from('status_labels').insert(defaultLabels);
+      }
+
+      // useAuth will pick up the new session → routes to Onboarding or Main
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message);
     } finally {
@@ -112,8 +175,25 @@ export default function RegisterScreen() {
             <Text style={s.logoIcon}>⊞</Text>
           </View>
           <Text style={s.title}>Create Account</Text>
-          <Text style={s.subtitle}>Set up your organization and start tracking files</Text>
+          <Text style={s.subtitle}>
+            {invitePreview
+              ? `You've been invited to join ${invitePreview.orgName}`
+              : 'Set up your organization and start tracking files'}
+          </Text>
         </View>
+
+        {/* Invite banner */}
+        {invitePreview && (
+          <View style={s.inviteBanner}>
+            <Text style={s.inviteBannerIcon}>🎉</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.inviteBannerTitle}>Invitation found</Text>
+              <Text style={s.inviteBannerSub}>
+                You'll join <Text style={{ fontWeight: '700' }}>{invitePreview.orgName}</Text> as <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{invitePreview.role}</Text>
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Form */}
         <View style={s.form}>
@@ -130,30 +210,36 @@ export default function RegisterScreen() {
           </View>
 
           <View style={s.field}>
-            <Text style={s.label}>COMPANY / OFFICE NAME</Text>
-            <TextInput
-              style={s.input}
-              value={companyName}
-              onChangeText={setCompanyName}
-              placeholder="Your company or office name"
-              placeholderTextColor={theme.color.textMuted}
-              autoCapitalize="words"
-            />
-          </View>
-
-          <View style={s.field}>
             <Text style={s.label}>EMAIL</Text>
             <TextInput
               style={s.input}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(v) => { setEmail(v); checkInvitation(v); }}
               placeholder="your@company.com"
               placeholderTextColor={theme.color.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {checkingInvite && (
+              <Text style={s.checkingText}>Checking for invitation…</Text>
+            )}
           </View>
+
+          {/* Company name — hidden if joining via invite */}
+          {!invitePreview && (
+            <View style={s.field}>
+              <Text style={s.label}>COMPANY / OFFICE NAME</Text>
+              <TextInput
+                style={s.input}
+                value={companyName}
+                onChangeText={setCompanyName}
+                placeholder="Your company or office name"
+                placeholderTextColor={theme.color.textMuted}
+                autoCapitalize="words"
+              />
+            </View>
+          )}
 
           <View style={s.field}>
             <Text style={s.label}>PASSWORD</Text>
@@ -188,7 +274,9 @@ export default function RegisterScreen() {
             {loading ? (
               <ActivityIndicator color={theme.color.white} />
             ) : (
-              <Text style={s.buttonText}>Create Account</Text>
+              <Text style={s.buttonText}>
+                {invitePreview ? 'Join Organization' : 'Create Account'}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -207,7 +295,7 @@ export default function RegisterScreen() {
 
 const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: theme.color.bgBase },
-  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 32 },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 28 },
   header:    { alignItems: 'center', gap: 10 },
   logoBox: {
     width:           64,
@@ -218,12 +306,26 @@ const s = StyleSheet.create({
     alignItems:      'center',
     marginBottom:    4,
   },
-  logoIcon:   { fontSize: 32, color: theme.color.white },
-  title:      { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
-  subtitle:   { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', textAlign: 'center' },
-  form:       { gap: 18 },
-  field:      { gap: 6 },
-  label:      { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  logoIcon:     { fontSize: 32, color: theme.color.white },
+  title:        { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
+  subtitle:     { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', textAlign: 'center' },
+  inviteBanner: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             12,
+    backgroundColor: theme.color.success + '18',
+    borderRadius:    theme.radius.lg,
+    padding:         theme.spacing.space3,
+    borderWidth:     1,
+    borderColor:     theme.color.success + '44',
+  },
+  inviteBannerIcon:  { fontSize: 24 },
+  inviteBannerTitle: { ...theme.typography.body, color: theme.color.success, fontWeight: '700' },
+  inviteBannerSub:   { ...theme.typography.label, color: theme.color.textSecondary, marginTop: 2 },
+  checkingText:      { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
+  form:         { gap: 18 },
+  field:        { gap: 6 },
+  label:        { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
   input: {
     backgroundColor: theme.color.bgSurface,
     borderWidth:     1,

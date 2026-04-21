@@ -1,6 +1,7 @@
 // src/hooks/useAuth.ts
 // Auth state hook — exposes session, user, teamMember profile, organization, sign in/out
-// Session 26: fetch teamMember by auth.uid() (not email); expose Organization
+// Session 26 Phase 1: fetch teamMember by auth.uid(); expose Organization
+// Session 26 Phase 2: role helpers (isOwner, isAdmin, canManage, canEdit, canView)
 
 import { useState, useEffect } from 'react';
 import { Session, User } from '@supabase/supabase-js';
@@ -15,6 +16,13 @@ interface AuthState {
   organization: Organization | null;
   loading: boolean;
   needsOnboarding: boolean;   // true when logged in but no team_member row yet
+
+  // Role helpers — derived from teamMember.role
+  isOwner: boolean;     // role === 'owner'
+  isAdmin: boolean;     // role === 'owner' | 'admin'
+  canManage: boolean;   // can create/edit/delete records (owner | admin | member)
+  canView: boolean;     // read-only minimum — all roles
+
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshTeamMember: () => Promise<void>;
@@ -27,6 +35,13 @@ export function useAuth(): AuthState {
   const [organization, setOrg]      = useState<Organization | null>(null);
   const [loading, setLoading]       = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  // Derived role booleans
+  const role      = teamMember?.role ?? 'viewer';
+  const isOwner   = role === 'owner';
+  const isAdmin   = role === 'owner' || role === 'admin';
+  const canManage = role === 'owner' || role === 'admin' || role === 'member';
+  const canView   = true; // all authenticated users can view
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -56,14 +71,14 @@ export function useAuth(): AuthState {
   }, []);
 
   const fetchTeamMember = async (authUser: User) => {
-    // Primary: look up by auth_id (new multi-tenant way)
+    // Primary: look up by auth_id (multi-tenant)
     let { data } = await supabase
       .from('team_members')
       .select('*')
       .eq('auth_id', authUser.id)
       .maybeSingle();
 
-    // Fallback: legacy lookup by email (for existing users before migration)
+    // Fallback: legacy lookup by email (for users before migration_organizations.sql)
     if (!data && authUser.email) {
       const res = await supabase
         .from('team_members')
@@ -71,7 +86,7 @@ export function useAuth(): AuthState {
         .eq('email', authUser.email)
         .maybeSingle();
       data = res.data;
-      // Backfill auth_id if found by email but auth_id not yet set
+      // Backfill auth_id automatically
       if (data && !data.auth_id) {
         supabase
           .from('team_members')
@@ -106,7 +121,8 @@ export function useAuth(): AuthState {
         }
       });
     } else {
-      // Logged in but no team_member row → needs onboarding (new org registration)
+      // Logged in but no team_member row — check if there's a pending invitation
+      // If invited user registers, RegisterScreen handles joining; here just flag onboarding
       setTeamMember(null);
       setOrg(null);
       setNeedsOnboarding(true);
@@ -129,5 +145,9 @@ export function useAuth(): AuthState {
     await supabase.auth.signOut();
   };
 
-  return { session, user, teamMember, organization, loading, needsOnboarding, signIn, signOut, refreshTeamMember };
+  return {
+    session, user, teamMember, organization, loading, needsOnboarding,
+    isOwner, isAdmin, canManage, canView,
+    signIn, signOut, refreshTeamMember,
+  };
 }

@@ -33,11 +33,13 @@ function Section({
  count,
  children,
  onAdd,
+ addLabel,
 }: {
  title: string;
  count: number;
  children: React.ReactNode;
- onAdd: () => void;
+ onAdd?: () => void;
+ addLabel?: string;
 }) {
  const [expanded, setExpanded] = useState(false);
  return (
@@ -52,15 +54,14 @@ function Section({
  <Text style={ss.sectionCount}>{count} items</Text>
  </View>
  <View style={ss.sectionHeaderRight}>
- <TouchableOpacity
- style={ss.addBtn}
- onPress={(e) => {
- e.stopPropagation();
- onAdd();
- }}
- >
- <Text style={ss.addBtnText}>+ Add</Text>
- </TouchableOpacity>
+ {onAdd && (
+   <TouchableOpacity
+     style={ss.addBtn}
+     onPress={(e) => { e.stopPropagation(); onAdd(); }}
+   >
+     <Text style={ss.addBtnText}>{addLabel ?? '+ Add'}</Text>
+   </TouchableOpacity>
+ )}
  <Text style={[ss.chevron, expanded && ss.chevronOpen]}>›</Text>
  </View>
  </TouchableOpacity>
@@ -74,23 +75,36 @@ function ListItem({
  label,
  sublabel,
  accent,
+ badge,
+ badgeColor,
  onDelete,
 }: {
  label: string;
  sublabel?: string;
  accent?: string;
- onDelete: () => void;
+ badge?: string;
+ badgeColor?: string;
+ onDelete?: () => void;
 }) {
  return (
  <View style={ss.listItem}>
  {accent && <View style={[ss.accentDot, { backgroundColor: accent }]} />}
  <View style={{ flex: 1 }}>
- <Text style={ss.listItemLabel}>{label}</Text>
- {sublabel && <Text style={ss.listItemSub}>{sublabel}</Text>}
+   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+     <Text style={ss.listItemLabel}>{label}</Text>
+     {badge && (
+       <View style={[ss.roleBadge, { backgroundColor: (badgeColor ?? '#6366f1') + '22', borderColor: (badgeColor ?? '#6366f1') + '55' }]}>
+         <Text style={[ss.roleBadgeText, { color: badgeColor ?? '#6366f1' }]}>{badge}</Text>
+       </View>
+     )}
+   </View>
+   {sublabel && <Text style={ss.listItemSub}>{sublabel}</Text>}
  </View>
- <TouchableOpacity onPress={onDelete} style={ss.deleteBtn}>
- <Text style={ss.deleteBtnText}>✕</Text>
- </TouchableOpacity>
+ {onDelete && (
+   <TouchableOpacity onPress={onDelete} style={ss.deleteBtn}>
+     <Text style={ss.deleteBtnText}>✕</Text>
+   </TouchableOpacity>
+ )}
  </View>
  );
 }
@@ -270,7 +284,7 @@ type ActiveModal =
  | null;
 
 export default function SettingsScreen() {
- const { teamMember, signOut } = useAuth();
+ const { teamMember, signOut, isOwner, isAdmin } = useAuth();
 
  const [ministries, setMinistries] = useState<Ministry[]>([]);
  const [services, setServices] = useState<Service[]>([]);
@@ -282,6 +296,13 @@ export default function SettingsScreen() {
  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
  const [saving, setSaving] = useState(false);
  const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
+
+ // Invite member state
+ const [showInviteModal, setShowInviteModal] = useState(false);
+ const [inviteEmail, setInviteEmail] = useState('');
+ const [inviteRole, setInviteRole]   = useState<'admin' | 'member' | 'viewer'>('member');
+ const [inviting, setInviting]       = useState(false);
+ const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; email: string; role: string; expires_at: string }>>([]);
 
  // Service stages modal
  const [showSvcStages, setShowSvcStages] = useState(false);
@@ -319,16 +340,18 @@ export default function SettingsScreen() {
  };
 
  const fetchData = useCallback(async () => {
- const [miniRes, svcRes, lblRes, tmRes] = await Promise.all([
+ const [miniRes, svcRes, lblRes, tmRes, invRes] = await Promise.all([
  supabase.from('ministries').select('*').order('type').order('name'),
  supabase.from('services').select('*, ministry:ministries(*)').order('name'),
  supabase.from('status_labels').select('*').order('sort_order'),
  supabase.from('team_members').select('*').order('name'),
+ supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
  ]);
  if (miniRes.data) setMinistries(miniRes.data as Ministry[]);
  if (svcRes.data) setServices(svcRes.data as Service[]);
  if (lblRes.data) setStatusLabels(lblRes.data as StatusLabel[]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);
+ if (invRes.data) setPendingInvites(invRes.data as any[]);
  setLoading(false);
  }, []);
 
@@ -526,23 +549,62 @@ export default function SettingsScreen() {
  const saveMember = async () => {
  const name = (formValues.name as string)?.trim();
  const email = (formValues.email as string)?.trim().toLowerCase();
- const role = (formValues.role as string)?.trim() || 'Agent';
+ const role = (formValues.role as string)?.trim() || 'member';
  const phone = (formValues.phone as string)?.trim() || null;
  if (!name || !email) { Alert.alert('Required', 'Name and email are required.'); return; }
  setSaving(true);
- // Create auth user (Supabase Admin API not available client-side; insert profile only)
- // In production: use Supabase Edge Function to create auth user + insert profile
- const { error } = await supabase.from('team_members').insert({ name, email, role, phone });
+ const { error } = await supabase.from('team_members').insert({
+   name, email, role, phone,
+   org_id: teamMember?.org_id,
+ });
  setSaving(false);
  if (error) Alert.alert('Error', error.message);
  else {
- setActiveModal(null);
- fetchData();
- Alert.alert(
- 'Member Added',
- `${name} has been added. Remember to create their Supabase Auth account so they can log in.`
- );
+   setActiveModal(null);
+   fetchData();
+   Alert.alert('Member Added', `${name} has been added. They will be linked automatically when they sign in.`);
  }
+ };
+
+ const sendInvite = async () => {
+   const trimEmail = inviteEmail.trim().toLowerCase();
+   if (!trimEmail.includes('@')) { Alert.alert('Required', 'Enter a valid email address.'); return; }
+   if (!teamMember?.org_id) return;
+   setInviting(true);
+   // Create invitation row — token is auto-generated by DB default
+   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+   const { data: inv, error } = await supabase
+     .from('invitations')
+     .insert({
+       org_id:     teamMember.org_id,
+       email:      trimEmail,
+       role:       inviteRole,
+       invited_by: teamMember.id,
+       expires_at: expires,
+     })
+     .select('token')
+     .single();
+   setInviting(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   setShowInviteModal(false);
+   setInviteEmail('');
+   setInviteRole('member');
+   fetchData();
+   Alert.alert(
+     '✉️ Invite Sent',
+     `Invitation created for ${trimEmail}.\n\nAsk them to download the app and register with this email — they will automatically join your organization.`,
+     [{ text: 'OK' }]
+   );
+ };
+
+ const revokeInvite = async (inviteId: string, email: string) => {
+   Alert.alert('Revoke Invite', `Remove pending invite for ${email}?`, [
+     { text: 'Cancel', style: 'cancel' },
+     { text: 'Revoke', style: 'destructive', onPress: async () => {
+       await supabase.from('invitations').delete().eq('id', inviteId);
+       fetchData();
+     }},
+   ]);
  };
 
  const parentMinistries = ministries.filter((m) => m.type === 'parent');
@@ -717,22 +779,51 @@ export default function SettingsScreen() {
 
  {/* Team Members */}
  <Section
- title="Team Members"
- count={teamMembers.length}
- onAdd={() => openModal('member', { name: '', email: '', role: 'Agent', phone: '' })}
+   title="Team Members"
+   count={teamMembers.length}
+   onAdd={isAdmin ? () => setShowInviteModal(true) : undefined}
+   addLabel="✉️ Invite"
  >
- {teamMembers.map((tm) => (
- <ListItem
- key={tm.id}
- label={tm.name}
- sublabel={`${tm.role} · ${tm.email}`}
- onDelete={() =>
- tm.id === teamMember?.id
- ? Alert.alert('Cannot Delete', 'You cannot remove your own account.')
- : deleteRecord('team_members', tm.id, tm.name)
- }
- />
- ))}
+   {teamMembers.map((tm) => {
+     const roleBadgeColor =
+       tm.role === 'owner'  ? theme.color.primary :
+       tm.role === 'admin'  ? theme.color.warning :
+       tm.role === 'viewer' ? theme.color.textMuted :
+       theme.color.success;
+     return (
+       <ListItem
+         key={tm.id}
+         label={tm.name + (tm.id === teamMember?.id ? ' (you)' : '')}
+         sublabel={`${tm.email}${tm.phone ? ' · ' + tm.phone : ''}`}
+         badge={tm.role}
+         badgeColor={roleBadgeColor}
+         onDelete={isAdmin && tm.id !== teamMember?.id
+           ? () => deleteRecord('team_members', tm.id, tm.name)
+           : undefined
+         }
+       />
+     );
+   })}
+
+   {/* Pending invitations */}
+   {pendingInvites.length > 0 && (
+     <View style={ss.invitesHeader}>
+       <Text style={ss.invitesHeaderText}>PENDING INVITES ({pendingInvites.length})</Text>
+     </View>
+   )}
+   {pendingInvites.map((inv) => (
+     <View key={inv.id} style={ss.pendingInviteRow}>
+       <View style={{ flex: 1 }}>
+         <Text style={ss.pendingInviteEmail}>{inv.email}</Text>
+         <Text style={ss.pendingInviteRole}>{inv.role} · expires {new Date(inv.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
+       </View>
+       {isAdmin && (
+         <TouchableOpacity onPress={() => revokeInvite(inv.id, inv.email)} style={ss.revokeBtn}>
+           <Text style={ss.revokeBtnText}>Revoke</Text>
+         </TouchableOpacity>
+       )}
+     </View>
+   ))}
  </Section>
 
  {/* RTL toggle */}
@@ -959,6 +1050,68 @@ export default function SettingsScreen() {
  onClose={() => setActiveModal(null)}
  saving={saving}
  />
+
+ {/* ── INVITE MEMBER MODAL ── */}
+ <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
+   <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+     <View style={ss.inviteOverlay}>
+       <View style={ss.inviteSheet}>
+         <Text style={ss.inviteTitle}>✉️ Invite Team Member</Text>
+         <Text style={ss.inviteDesc}>They'll receive instructions to download the app and register with this email — they'll automatically join your organization.</Text>
+
+         <View style={ss.field}>
+           <Text style={ss.fieldLabel}>EMAIL ADDRESS</Text>
+           <TextInput
+             style={ss.fieldInput}
+             value={inviteEmail}
+             onChangeText={setInviteEmail}
+             placeholder="colleague@company.com"
+             placeholderTextColor={theme.color.textMuted}
+             keyboardType="email-address"
+             autoCapitalize="none"
+             autoCorrect={false}
+           />
+         </View>
+
+         <View style={ss.field}>
+           <Text style={ss.fieldLabel}>ROLE</Text>
+           <View style={ss.roleRow}>
+             {(['admin', 'member', 'viewer'] as const).map((r) => (
+               <TouchableOpacity
+                 key={r}
+                 style={[ss.roleChip, inviteRole === r && ss.roleChipActive]}
+                 onPress={() => setInviteRole(r)}
+               >
+                 <Text style={[ss.roleChipText, inviteRole === r && ss.roleChipTextActive]}>
+                   {r === 'admin' ? '🔑 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+                 </Text>
+               </TouchableOpacity>
+             ))}
+           </View>
+           <Text style={ss.roleDesc}>
+             {inviteRole === 'admin'  ? 'Can manage settings, invite members, view all data' :
+              inviteRole === 'member' ? 'Can create and edit files, add stages and documents' :
+              'Read-only access — cannot create or edit any records'}
+           </Text>
+         </View>
+
+         <TouchableOpacity
+           style={[ss.inviteBtn, inviting && { opacity: 0.6 }]}
+           onPress={sendInvite}
+           disabled={inviting}
+         >
+           {inviting
+             ? <ActivityIndicator color={theme.color.white} />
+             : <Text style={ss.inviteBtnText}>Send Invite</Text>
+           }
+         </TouchableOpacity>
+         <TouchableOpacity style={ss.inviteCancelBtn} onPress={() => setShowInviteModal(false)}>
+           <Text style={ss.inviteCancelText}>Cancel</Text>
+         </TouchableOpacity>
+       </View>
+     </View>
+   </KeyboardAvoidingView>
+ </Modal>
 
  {/* ── SERVICE STAGES MODAL ── */}
  <Modal
@@ -1296,4 +1449,91 @@ const ss = StyleSheet.create({
     textAlign: 'center',
     marginTop: theme.spacing.space2,
   },
+
+  // Role badge on list items
+  roleBadge: {
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth:     1,
+  },
+  roleBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+
+  // Pending invites
+  invitesHeader: { paddingVertical: 8, paddingHorizontal: 4 },
+  invitesHeaderText: { ...theme.typography.sectionDivider, letterSpacing: 1 },
+  pendingInviteRow: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.space3,
+    backgroundColor: theme.color.warning + '0D',
+    borderRadius:    theme.radius.md,
+    marginBottom:    6,
+    borderWidth:     1,
+    borderColor:     theme.color.warning + '33',
+  },
+  pendingInviteEmail: { ...theme.typography.body, color: theme.color.textPrimary, fontWeight: '600' },
+  pendingInviteRole:  { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  revokeBtn: {
+    backgroundColor: theme.color.danger + '18',
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth:     1,
+    borderColor:     theme.color.danger + '44',
+  },
+  revokeBtnText: { ...theme.typography.caption, color: theme.color.danger, fontWeight: '700' },
+
+  // Invite modal
+  inviteOverlay: {
+    flex:            1,
+    backgroundColor: theme.color.overlayDark,
+    justifyContent:  'flex-end',
+  },
+  inviteSheet: {
+    backgroundColor: theme.color.bgSurface,
+    borderTopLeftRadius:  theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding:         theme.spacing.space5,
+    gap:             18,
+    paddingBottom:   40,
+  },
+  inviteTitle: { ...theme.typography.heading, fontSize: 20, fontWeight: '700' },
+  inviteDesc:  { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 22 },
+  field:       { gap: 6 },
+  fieldLabel:  { ...theme.typography.sectionDivider, letterSpacing: 1.1 },
+  fieldInput: {
+    backgroundColor: theme.color.bgBase,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.lg,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: 12,
+    color:           theme.color.textPrimary,
+    fontSize:        15,
+  },
+  roleRow:          { flexDirection: 'row', gap: 8 },
+  roleChip: {
+    flex:              1,
+    paddingVertical:   9,
+    borderRadius:      theme.radius.md,
+    alignItems:        'center',
+    backgroundColor:   theme.color.bgBase,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+  },
+  roleChipActive:     { backgroundColor: theme.color.primary, borderColor: theme.color.primary },
+  roleChipText:       { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
+  roleChipTextActive: { color: theme.color.white },
+  roleDesc:           { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
+  inviteBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.lg,
+    paddingVertical: 15,
+    alignItems:      'center',
+  },
+  inviteBtnText:    { color: theme.color.white, fontSize: 16, fontWeight: '700' },
+  inviteCancelBtn:  { alignItems: 'center', paddingVertical: 4 },
+  inviteCancelText: { ...theme.typography.body, color: theme.color.textMuted },
 });
