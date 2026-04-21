@@ -1854,8 +1854,28 @@ export default function TaskDetailScreen() {
                       </View>
                     )}
 
-                    {/* Status badge */}
-                    <StatusBadge label={stop.status} color={getStatusColor(stop.status)} size="sm" />
+                    {/* Clickable status chip — tap to change status */}
+                    <TouchableOpacity
+                      style={[s.statusChip, {
+                        borderColor: getStatusColor(stop.status) + '70',
+                        backgroundColor: getStatusColor(stop.status) + '18',
+                      }]}
+                      onPress={() => { setSelectedStop(stop); setShowStatusPicker(true); }}
+                      disabled={updatingStop === stop.id}
+                      activeOpacity={0.7}
+                    >
+                      {updatingStop === stop.id ? (
+                        <ActivityIndicator size="small" color={getStatusColor(stop.status)} />
+                      ) : (
+                        <>
+                          <View style={[s.statusChipDot, { backgroundColor: getStatusColor(stop.status) }]} />
+                          <Text style={[s.statusChipLabel, { color: getStatusColor(stop.status) }]}>
+                            {stop.status}
+                          </Text>
+                          <Text style={[s.statusChipArrow, { color: getStatusColor(stop.status) + 'CC' }]}>▾</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
 
                     {/* Rejection reason — shown inline when status is Rejected */}
                     {stop.status === 'Rejected' && stop.rejection_reason ? (
@@ -1877,40 +1897,25 @@ export default function TaskDetailScreen() {
                       }
                     </TouchableOpacity>
 
-                    {/* 2×2 button grid */}
+                    {/* City + Assignee chips row */}
                     <View style={s.stageBtnGrid}>
-                      {/* Left column: Update Status → Set city */}
-                      <View style={s.stageBtnCol}>
-                        <TouchableOpacity
-                          style={s.updateStopBtn}
-                          onPress={() => { setSelectedStop(stop); setShowStatusPicker(true); }}
-                          disabled={updatingStop === stop.id}
-                        >
-                          {updatingStop === stop.id
-                            ? <ActivityIndicator color={theme.color.primary} size="small" />
-                            : <Text style={s.updateStopBtnText}>↺ Update Status</Text>}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={s.stopMetaChip}
-                          onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
-                        >
-                          <Text style={s.stopMetaChipText}>
-                            {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity
+                        style={[s.stageBtnCol, s.stopMetaChip]}
+                        onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
+                      >
+                        <Text style={s.stopMetaChipText}>
+                          {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                        </Text>
+                      </TouchableOpacity>
 
-                      {/* Right column: Set assignee */}
-                      <View style={s.stageBtnCol}>
-                        <TouchableOpacity
-                          style={s.stopMetaChip}
-                          onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setStopAssigneeSearch(''); }}
-                        >
-                          <Text style={s.stopMetaChipText}>
-                            {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity
+                        style={[s.stageBtnCol, s.stopMetaChip]}
+                        onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setStopAssigneeSearch(''); }}
+                      >
+                        <Text style={s.stopMetaChipText}>
+                          {stop.assignee?.name ?? stop.ext_assignee?.name ?? '👤 Set assignee'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     {/* Saving indicator + History toggle */}
@@ -3324,6 +3329,33 @@ const s = StyleSheet.create({
 
   // Route
   routeContainer: { gap: theme.spacing.space1 },
+  // Clickable status chip (replaces static StatusBadge + Update Status button)
+  statusChip: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    alignSelf:       'flex-start',
+    gap:             6,
+    borderRadius:    theme.radius.lg,
+    borderWidth:     1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    minHeight:       34,
+  },
+  statusChipDot: {
+    width:           8,
+    height:          8,
+    borderRadius:    4,
+  },
+  statusChipLabel: {
+    fontSize:        13,
+    fontWeight:      '700',
+  },
+  statusChipArrow: {
+    fontSize:        11,
+    fontWeight:      '700',
+  },
+
+  // kept for any remaining references
   updateStopBtn: {
     borderWidth:     1,
     borderColor:     theme.color.primary + '55',
