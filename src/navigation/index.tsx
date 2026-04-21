@@ -5,7 +5,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../hooks/useAuth';
@@ -42,6 +42,23 @@ const Root = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DashStack = createNativeStackNavigator<DashboardStackParamList>();
 
+// ─── GovPilot logo header title ─────────────────────────────
+function GovPilotLogo() {
+  return (
+    <View style={styles.logoRow}>
+      <Image
+        source={require('../../assets/icon.png')}
+        style={styles.logoIcon}
+        resizeMode="contain"
+      />
+      <Text style={styles.logoText}>
+        <Text style={styles.logoGov}>Gov</Text>
+        <Text style={styles.logoPilot}>Pilot</Text>
+      </Text>
+    </View>
+  );
+}
+
 // ─── Tab bar icon component ─────────────────────────────────
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   const icons: Record<string, string> = {
@@ -75,7 +92,7 @@ function DashboardStack() {
       <DashStack.Screen
         name="DashboardHome"
         component={DashboardScreen}
-        options={{ title: 'ClearTrack', headerShown: true }}
+        options={{ headerTitle: () => <GovPilotLogo />, headerShown: true }}
       />
       <DashStack.Screen
         name="NewTask"
@@ -175,8 +192,16 @@ export default function AppNavigator() {
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color={theme.color.primary} />
-        <Text style={styles.loaderText}>Ministry Tracker</Text>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.loaderIcon}
+          resizeMode="contain"
+        />
+        <Text style={styles.loaderText}>
+          <Text style={{ color: theme.color.primary }}>Gov</Text>
+          <Text style={{ color: theme.color.textPrimary }}>Pilot</Text>
+        </Text>
+        <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 8 }} />
       </View>
     );
   }
@@ -218,11 +243,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.space4,
   },
+  loaderIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    marginBottom: 4,
+  },
   loaderText: {
-    color: theme.color.primary,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 26,
+    fontWeight: '800',
   },
   tabBar: {
     backgroundColor: theme.color.bgBase,
@@ -245,6 +274,26 @@ const styles = StyleSheet.create({
   },
   tabIconFocused: {
     color: theme.color.primary,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+  },
+  logoText: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  logoGov: {
+    color: theme.color.primary,
+  },
+  logoPilot: {
+    color: theme.color.textPrimary,
   },
   tabActiveBar: {
     width: 20,
