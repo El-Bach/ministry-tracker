@@ -1,5 +1,5 @@
 // src/screens/SettingsScreen.tsx
-// Admin settings: manage ministries, sub-ministries, services, status labels, team members
+// Settings: account, notifications, team members, RTL, sign out
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -18,14 +18,13 @@ import {
  I18nManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
-import { Ministry, Service, StatusLabel, TeamMember } from '../types';
+import { TeamMember } from '../types';
 import { normalizeToEmail, isPhoneInput, IDENTIFIER_LABEL, IDENTIFIER_PLACEHOLDER } from '../lib/authHelpers';
 
 // ─── Section wrapper ──────────────────────────────────────────
@@ -276,27 +275,14 @@ const mf = StyleSheet.create({
 });
 
 // ─── Main screen ──────────────────────────────────────────────
-type ActiveModal =
- | 'ministry'
- | 'subministry'
- | 'service'
- | 'status'
- | 'member'
- | null;
-
 export default function SettingsScreen() {
- const { teamMember, signOut, isOwner, isAdmin } = useAuth();
+ const { teamMember, signOut, isAdmin } = useAuth();
 
- const [ministries, setMinistries] = useState<Ministry[]>([]);
- const [services, setServices] = useState<Service[]>([]);
- const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
  const [loading, setLoading] = useState(true);
 
  const navigation = useNavigation<any>();
- const [activeModal, setActiveModal] = useState<ActiveModal>(null);
  const [saving, setSaving] = useState(false);
- const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
 
  // Invite member state
  const [showInviteModal, setShowInviteModal] = useState(false);
@@ -304,25 +290,6 @@ export default function SettingsScreen() {
  const [inviteRole, setInviteRole]   = useState<'admin' | 'member' | 'viewer'>('member');
  const [inviting, setInviting]       = useState(false);
  const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; email: string; role: string; expires_at: string }>>([]);
-
- // Service stages modal
- const [showSvcStages, setShowSvcStages] = useState(false);
- const [svcStagesId, setSvcStagesId] = useState<string | null>(null);
- const [svcStagesName, setSvcStagesName] = useState('');
- const [svcStages, setSvcStages] = useState<Array<{ id: string; ministry_id: string; ministry_name: string; stop_order: number }>>([]);
- const [loadingSvcStages, setLoadingSvcStages] = useState(false);
- const [svcNewStageName, setSvcNewStageName] = useState('');
- const [addingSvcStage, setAddingSvcStage] = useState(false);
- const [showSvcStagePicker, setShowSvcStagePicker] = useState(false);
-
- // New service creation (dedicated modal, replaces ModalForm)
- const [showCreateSvc, setShowCreateSvc] = useState(false);
- const [newSvcName, setNewSvcName] = useState('');
- const [newSvcPriceUSD, setNewSvcPriceUSD] = useState('');
- const [newSvcPriceLBP, setNewSvcPriceLBP] = useState('');
- const [newSvcStageNames, setNewSvcStageNames] = useState<string[]>([]);
- const [newSvcStageInput, setNewSvcStageInput] = useState('');
- const [savingNewSvc, setSavingNewSvc] = useState(false);
 
  // RTL
  const [isRTL, setIsRTL] = useState(false);
@@ -341,30 +308,16 @@ export default function SettingsScreen() {
  };
 
  const fetchData = useCallback(async () => {
- const [miniRes, svcRes, lblRes, tmRes, invRes] = await Promise.all([
- supabase.from('ministries').select('*').order('type').order('name'),
- supabase.from('services').select('*, ministry:ministries(*)').order('name'),
- supabase.from('status_labels').select('*').order('sort_order'),
+ const [tmRes, invRes] = await Promise.all([
  supabase.from('team_members').select('*').order('name'),
  supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
  ]);
- if (miniRes.data) setMinistries(miniRes.data as Ministry[]);
- if (svcRes.data) setServices(svcRes.data as Service[]);
- if (lblRes.data) setStatusLabels(lblRes.data as StatusLabel[]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);
  if (invRes.data) setPendingInvites(invRes.data as any[]);
  setLoading(false);
  }, []);
 
  useEffect(() => { fetchData(); }, [fetchData]);
-
- const setField = (key: string, value: string | boolean) =>
- setFormValues((prev) => ({ ...prev, [key]: value }));
-
- const openModal = (type: ActiveModal, defaults: Record<string, string | boolean> = {}) => {
- setFormValues(defaults);
- setActiveModal(type);
- };
 
  // ─── Delete helpers ───────────────────────────────────────
  const confirmDelete = (label: string, onConfirm: () => void) => {
@@ -384,191 +337,6 @@ export default function SettingsScreen() {
  if (error) Alert.alert('Error', error.message);
  else fetchData();
  });
- };
-
- // ─── Service stages helpers ───────────────────────────────
- const loadSvcStages = async (serviceId: string) => {
-   setLoadingSvcStages(true);
-   const { data } = await supabase
-     .from('service_default_stages')
-     .select('*, ministry:ministries(id, name)')
-     .eq('service_id', serviceId)
-     .order('stop_order');
-   setSvcStages(
-     (data ?? []).map((d: any) => ({
-       id: d.id,
-       ministry_id: d.ministry_id,
-       ministry_name: d.ministry?.name ?? '',
-       stop_order: d.stop_order,
-     }))
-   );
-   setLoadingSvcStages(false);
- };
-
- const openSvcStages = (service: Service) => {
-   setSvcStagesId(service.id);
-   setSvcStagesName(service.name);
-   loadSvcStages(service.id);
-   setShowSvcStages(true);
- };
-
- const removeSvcStage = async (stageId: string) => {
-   await supabase.from('service_default_stages').delete().eq('id', stageId);
-   setSvcStages((prev) => prev.filter((s) => s.id !== stageId));
- };
-
- const moveSvcStage = async (idx: number, dir: -1 | 1) => {
-   const arr = [...svcStages];
-   const target = idx + dir;
-   if (target < 0 || target >= arr.length) return;
-   [arr[idx], arr[target]] = [arr[target], arr[idx]];
-   await Promise.all([
-     supabase.from('service_default_stages').update({ stop_order: idx + 1 }).eq('id', arr[idx].id),
-     supabase.from('service_default_stages').update({ stop_order: target + 1 }).eq('id', arr[target].id),
-   ]);
-   setSvcStages(arr.map((s, i) => ({ ...s, stop_order: i + 1 })));
- };
-
- const addSvcStageFromMinistry = async (ministry: Ministry) => {
-   if (!svcStagesId) return;
-   if (svcStages.find((s) => s.ministry_id === ministry.id)) return;
-   const nextOrder = svcStages.length + 1;
-   const { data, error } = await supabase
-     .from('service_default_stages')
-     .insert({ service_id: svcStagesId, ministry_id: ministry.id, stop_order: nextOrder })
-     .select()
-     .single();
-   if (!error && data) {
-     setSvcStages((prev) => [...prev, { id: data.id, ministry_id: ministry.id, ministry_name: ministry.name, stop_order: nextOrder }]);
-   }
-   setShowSvcStagePicker(false);
- };
-
- const addSvcStageNew = async () => {
-   if (!svcNewStageName.trim() || !svcStagesId) return;
-   setAddingSvcStage(true);
-   const { data: mData, error: mErr } = await supabase
-     .from('ministries')
-     .insert({ name: svcNewStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
-     .select()
-     .single();
-   if (mErr) { Alert.alert('Error', mErr.message); setAddingSvcStage(false); return; }
-   const nextOrder = svcStages.length + 1;
-   const { data, error } = await supabase
-     .from('service_default_stages')
-     .insert({ service_id: svcStagesId, ministry_id: mData.id, stop_order: nextOrder })
-     .select()
-     .single();
-   setAddingSvcStage(false);
-   if (!error && data) {
-     setSvcStages((prev) => [...prev, { id: data.id, ministry_id: mData.id, ministry_name: mData.name, stop_order: nextOrder }]);
-     fetchData();
-   }
-   setSvcNewStageName('');
- };
-
- // ─── Save handlers ────────────────────────────────────────
- const saveMinistry = async () => {
- const name = (formValues.name as string)?.trim();
- if (!name) { Alert.alert('Required', 'Ministry name is required.'); return; }
- setSaving(true);
- const { error } = await supabase.from('ministries').insert({
- name,
- type: 'parent',
- org_id: teamMember?.org_id ?? null,
- });
- setSaving(false);
- if (error) Alert.alert('Error', error.message);
- else { setActiveModal(null); fetchData(); }
- };
-
- const saveSubMinistry = async () => {
- const name = (formValues.name as string)?.trim();
- const parentId = formValues.parentId as string;
- if (!name) { Alert.alert('Required', 'Sub-ministry name is required.'); return; }
- if (!parentId) { Alert.alert('Required', 'Select a parent ministry.'); return; }
- setSaving(true);
- const { error } = await supabase.from('ministries').insert({
- name,
- type: 'child',
- parent_id: parentId,
- org_id: teamMember?.org_id ?? null,
- });
- setSaving(false);
- if (error) Alert.alert('Error', error.message);
- else { setActiveModal(null); fetchData(); }
- };
-
- const handleCreateService = async () => {
- if (!newSvcName.trim()) { Alert.alert('Required', 'Service name is required.'); return; }
- setSavingNewSvc(true);
- const { data: svcData, error: svcErr } = await supabase
-   .from('services')
-   .insert({
-     name: newSvcName.trim(),
-     estimated_duration_days: 0,
-     base_price_usd: parseFloat(newSvcPriceUSD) || 0,
-     base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0,
-     org_id: teamMember?.org_id ?? null,
-   })
-   .select().single();
- if (svcErr) { Alert.alert('Error', svcErr.message); setSavingNewSvc(false); return; }
- // Create ministries + link as default stages
- const names = newSvcStageNames.filter((n) => n.trim());
- for (let i = 0; i < names.length; i++) {
-   const { data: mData } = await supabase
-     .from('ministries').insert({ name: names[i].trim(), type: 'parent', org_id: teamMember?.org_id ?? null }).select().single();
-   if (mData) {
-     await supabase.from('service_default_stages').insert({
-       service_id: svcData.id, ministry_id: mData.id, stop_order: i + 1,
-     });
-   }
- }
- setSavingNewSvc(false);
- setNewSvcName('');
- setNewSvcPriceUSD('');
- setNewSvcPriceLBP('');
- setNewSvcStageNames([]);
- setNewSvcStageInput('');
- setShowCreateSvc(false);
- fetchData();
- };
-
- const saveStatus = async () => {
- const label = (formValues.label as string)?.trim();
- const color = (formValues.color as string)?.trim() || '#6366f1';
- if (!label) { Alert.alert('Required', 'Status label is required.'); return; }
- setSaving(true);
- const maxOrder = Math.max(0, ...statusLabels.map((s) => s.sort_order));
- const { error } = await supabase.from('status_labels').insert({
- label,
- color,
- sort_order: maxOrder + 1,
- org_id: teamMember?.org_id ?? null,
- });
- setSaving(false);
- if (error) Alert.alert('Error', error.message);
- else { setActiveModal(null); fetchData(); }
- };
-
- const saveMember = async () => {
- const name = (formValues.name as string)?.trim();
- const email = (formValues.email as string)?.trim().toLowerCase();
- const role = (formValues.role as string)?.trim() || 'member';
- const phone = (formValues.phone as string)?.trim() || null;
- if (!name || !email) { Alert.alert('Required', 'Name and email are required.'); return; }
- setSaving(true);
- const { error } = await supabase.from('team_members').insert({
-   name, email, role, phone,
-   org_id: teamMember?.org_id,
- });
- setSaving(false);
- if (error) Alert.alert('Error', error.message);
- else {
-   setActiveModal(null);
-   fetchData();
-   Alert.alert('Member Added', `${name} has been added. They will be linked automatically when they sign in.`);
- }
  };
 
  const sendInvite = async () => {
@@ -611,9 +379,6 @@ export default function SettingsScreen() {
      }},
    ]);
  };
-
- const parentMinistries = ministries.filter((m) => m.type === 'parent');
- const subMinistries = ministries.filter((m) => m.type === 'child');
 
  if (loading) {
  return (
@@ -710,90 +475,21 @@ export default function SettingsScreen() {
  <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
 
- {/* Ministries */}
- <Section
- title="Ministries"
- count={parentMinistries.length}
- onAdd={() => openModal('ministry', { name: '' })}
+ {/* Notifications */}
+ <TouchableOpacity
+ style={ss.navCard}
+ onPress={() => navigation.navigate('NotificationSettings')}
+ activeOpacity={0.75}
  >
- {parentMinistries.map((m) => (
- <ListItem
- key={m.id}
- label={m.name}
- sublabel="Parent ministry"
- onDelete={() => deleteRecord('ministries', m.id, m.name)}
- />
- ))}
- </Section>
-
- {/* Sub-ministries */}
- <Section
- title="Sub-Ministries"
- count={subMinistries.length}
- onAdd={() =>
- openModal('subministry', {
- name: '',
- parentId: parentMinistries[0]?.id ?? '',
- })
- }
- >
- {subMinistries.map((m) => {
- const parent = parentMinistries.find((p) => p.id === m.parent_id);
- return (
- <ListItem
- key={m.id}
- label={m.name}
- sublabel={parent ? `Under: ${parent.name}` : 'No parent'}
- onDelete={() => deleteRecord('ministries', m.id, m.name)}
- />
- );
- })}
- </Section>
-
- {/* Services */}
- <Section
- title="Services"
- count={services.length}
- onAdd={() => { setNewSvcName(''); setNewSvcStageNames([]); setNewSvcStageInput(''); setShowCreateSvc(true); }}
- >
- {services.map((sv) => (
- <View key={sv.id} style={ss.svcItem}>
-   <View style={{ flex: 1 }}>
-     <Text style={ss.listItemLabel}>{sv.name}</Text>
-     {(sv.base_price_usd > 0 || sv.base_price_lbp > 0) && (
-       <Text style={ss.svcPriceText}>
-         {sv.base_price_usd > 0 ? `$${sv.base_price_usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
-         {sv.base_price_usd > 0 && sv.base_price_lbp > 0 ? '  ·  ' : ''}
-         {sv.base_price_lbp > 0 ? `ل.ل${sv.base_price_lbp.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}
-       </Text>
-     )}
-   </View>
-   <TouchableOpacity style={ss.stagesBtn} onPress={() => openSvcStages(sv)}>
-     <Text style={ss.stagesBtnText}>✎ Stages</Text>
-   </TouchableOpacity>
-   <TouchableOpacity onPress={() => deleteRecord('services', sv.id, sv.name)} style={ss.deleteBtn}>
-     <Text style={ss.deleteBtnText}>✕</Text>
-   </TouchableOpacity>
+ <View style={ss.navCardLeft}>
+ <Text style={ss.navCardIcon}>🔔</Text>
+ <View>
+ <Text style={ss.navCardTitle}>Notifications</Text>
+ <Text style={ss.navCardSubtitle}>Types, muted members, and push preferences</Text>
  </View>
- ))}
- </Section>
-
- {/* Status Labels */}
- <Section
- title="Status Labels"
- count={statusLabels.length}
- onAdd={() => openModal('status', { label: '', color: '#6366f1' })}
- >
- {statusLabels.map((sl) => (
- <ListItem
- key={sl.id}
- label={sl.label}
- accent={sl.color}
- sublabel={sl.color}
- onDelete={() => deleteRecord('status_labels', sl.id, sl.label)}
- />
- ))}
- </Section>
+ </View>
+ <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
 
  {/* Team Members */}
  <Section
@@ -871,203 +567,9 @@ export default function SettingsScreen() {
  <Text style={ss.signOutText}>Sign Out</Text>
  </TouchableOpacity>
 
- <Text style={ss.version}>Ministry Tracker v1.0.0</Text>
+ <Text style={ss.version}>GovPilot v1.0.0</Text>
  </ScrollView>
 
- {/* Ministry modal */}
- <ModalForm
- visible={activeModal === 'ministry'}
- title="New Ministry"
- fields={[{ key: 'name', label: 'MINISTRY NAME', placeholder: 'Ministry of Finance' }]}
- values={formValues}
- onChange={setField}
- onSubmit={saveMinistry}
- onClose={() => setActiveModal(null)}
- saving={saving}
- />
-
- {/* Sub-ministry modal */}
- <ModalForm
- visible={activeModal === 'subministry'}
- title="New Sub-Ministry"
- fields={[
- { key: 'name', label: 'SUB-MINISTRY NAME', placeholder: 'Tax Department' },
- {
- key: 'parentId',
- label: 'PARENT MINISTRY',
- options: parentMinistries.map((m) => ({ value: m.id, label: m.name })),
- },
- ]}
- values={formValues}
- onChange={setField}
- onSubmit={saveSubMinistry}
- onClose={() => setActiveModal(null)}
- saving={saving}
- />
-
- {/* Create service modal */}
- <Modal
- visible={showCreateSvc}
- transparent
- animationType="slide"
- onRequestClose={() => setShowCreateSvc(false)}
- >
- <View style={mf.overlay}>
-   <KeyboardAvoidingView
-     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-     style={{ flex: 1, justifyContent: 'flex-end' }}
-   >
-     <View style={[mf.sheet, { maxHeight: '85%' }]}>
-       <View style={mf.header}>
-         <Text style={mf.title}>New Service</Text>
-         <TouchableOpacity onPress={() => setShowCreateSvc(false)}>
-           <Text style={mf.close}>✕</Text>
-         </TouchableOpacity>
-       </View>
-       <ScrollView contentContainerStyle={mf.body} keyboardShouldPersistTaps="handled">
-         {/* Service name */}
-         <View style={mf.field}>
-           <Text style={mf.label}>SERVICE NAME</Text>
-           <TextInput
-             style={mf.input}
-             value={newSvcName}
-             onChangeText={setNewSvcName}
-             placeholder="Trade License Renewal"
-             placeholderTextColor={theme.color.textMuted}
-             autoFocus
-           />
-         </View>
-
-         {/* Base price */}
-         <View style={mf.field}>
-           <Text style={mf.label}>BASE PRICE</Text>
-           <View style={{ flexDirection: 'row', gap: 8 }}>
-             <View style={{ flex: 1 }}>
-               <Text style={ss.priceInputLabel}>USD ($)</Text>
-               <TextInput
-                 style={mf.input}
-                 value={newSvcPriceUSD}
-                 onChangeText={setNewSvcPriceUSD}
-                 placeholder="0.00"
-                 placeholderTextColor={theme.color.textMuted}
-                 keyboardType="decimal-pad"
-               />
-             </View>
-             <View style={{ flex: 1 }}>
-               <Text style={ss.priceInputLabel}>LBP (ل.ل)</Text>
-               <TextInput
-                 style={mf.input}
-                 value={newSvcPriceLBP}
-                 onChangeText={(v) => {
-                   const d = v.replace(/,/g, '');
-                   if (d === '' || /^\d*$/.test(d)) setNewSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US'));
-                 }}
-                 placeholder="0"
-                 placeholderTextColor={theme.color.textMuted}
-                 keyboardType="number-pad"
-               />
-             </View>
-           </View>
-         </View>
-
-         {/* Stages */}
-         <View style={mf.field}>
-           <Text style={mf.label}>DEFAULT STAGES</Text>
-           {newSvcStageNames.map((name, idx) => (
-             <View key={idx} style={ss.newSvcStageRow}>
-               <View style={ss.svcStageIndex}>
-                 <Text style={ss.svcStageIndexText}>{idx + 1}</Text>
-               </View>
-               <Text style={ss.svcStageName}>{name}</Text>
-               <TouchableOpacity onPress={() => setNewSvcStageNames((prev) => prev.filter((_, i) => i !== idx))}>
-                 <Text style={ss.svcStageRemove}>✕</Text>
-               </TouchableOpacity>
-             </View>
-           ))}
-           <View style={ss.svcNewStageRow}>
-             <TextInput
-               style={[mf.input, { flex: 1 }]}
-               value={newSvcStageInput}
-               onChangeText={setNewSvcStageInput}
-               placeholder="Stage name"
-               placeholderTextColor={theme.color.textMuted}
-               onSubmitEditing={() => {
-                 if (newSvcStageInput.trim()) {
-                   setNewSvcStageNames((prev) => [...prev, newSvcStageInput.trim()]);
-                   setNewSvcStageInput('');
-                 }
-               }}
-               returnKeyType="done"
-             />
-             <TouchableOpacity
-               style={ss.svcAddPlusBtn}
-               onPress={() => {
-                 if (newSvcStageInput.trim()) {
-                   setNewSvcStageNames((prev) => [...prev, newSvcStageInput.trim()]);
-                   setNewSvcStageInput('');
-                 }
-               }}
-             >
-               <Text style={ss.svcAddPlusBtnText}>+</Text>
-             </TouchableOpacity>
-           </View>
-         </View>
-
-         <TouchableOpacity
-           style={[mf.submitBtn, savingNewSvc && mf.submitBtnDisabled]}
-           onPress={handleCreateService}
-           disabled={savingNewSvc}
-         >
-           {savingNewSvc
-             ? <ActivityIndicator color={theme.color.white} />
-             : <Text style={mf.submitText}>Create Service</Text>}
-         </TouchableOpacity>
-       </ScrollView>
-     </View>
-   </KeyboardAvoidingView>
- </View>
- </Modal>
-
- {/* Status label modal */}
- <ModalForm
- visible={activeModal === 'status'}
- title="New Status Label"
- fields={[
- { key: 'label', label: 'STATUS NAME', placeholder: 'Pending Signature' },
- {
- key: 'color',
- label: 'HEX COLOR',
- placeholder: '#6366f1',
- },
- ]}
- values={formValues}
- onChange={setField}
- onSubmit={saveStatus}
- onClose={() => setActiveModal(null)}
- saving={saving}
- />
-
- {/* Team member modal */}
- <ModalForm
- visible={activeModal === 'member'}
- title="New Team Member"
- fields={[
- { key: 'name', label: 'FULL NAME', placeholder: 'Ahmad Khalil' },
- {
- key: 'email',
- label: 'EMAIL',
- placeholder: 'ahmad@company.com',
- keyboardType: 'email-address',
- },
- { key: 'role', label: 'ROLE', placeholder: 'Agent' },
- { key: 'phone', label: 'PHONE (optional)', placeholder: '+961 70 000 000', keyboardType: 'phone-pad' },
- ]}
- values={formValues}
- onChange={setField}
- onSubmit={saveMember}
- onClose={() => setActiveModal(null)}
- saving={saving}
- />
 
  {/* ── INVITE MEMBER MODAL ── */}
  <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
@@ -1136,113 +638,6 @@ export default function SettingsScreen() {
    </KeyboardAvoidingView>
  </Modal>
 
- {/* ── SERVICE STAGES MODAL ── */}
- <Modal
- visible={showSvcStages}
- transparent
- animationType="slide"
- onRequestClose={() => setShowSvcStages(false)}
- >
- <View style={mf.overlay}>
-   <KeyboardAvoidingView
-     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-     style={{ flex: 1, justifyContent: 'flex-end' }}
-   >
-     <View style={[mf.sheet, { maxHeight: '90%' }]}>
-       <View style={mf.header}>
-         <View style={{ flex: 1 }}>
-           <Text style={mf.title}>Default Stages</Text>
-           <Text style={ss.stagesModalSubtitle}>{svcStagesName}</Text>
-         </View>
-         <TouchableOpacity onPress={() => { setShowSvcStages(false); setShowSvcStagePicker(false); setSvcNewStageName(''); }}>
-           <Text style={mf.close}>✕</Text>
-         </TouchableOpacity>
-       </View>
-
-       <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 32 }}>
-         {loadingSvcStages ? (
-           <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 24 }} />
-         ) : (
-           <>
-             {svcStages.length === 0 && (
-               <Text style={ss.stagesEmpty}>No default stages yet. Add stages below.</Text>
-             )}
-             {svcStages.map((stage, idx) => (
-               <View key={stage.id} style={ss.svcStageRow}>
-                 <View style={ss.svcStageIndex}>
-                   <Text style={ss.svcStageIndexText}>{idx + 1}</Text>
-                 </View>
-                 <Text style={ss.svcStageName} numberOfLines={1}>{stage.ministry_name}</Text>
-                 <View style={ss.svcStageActions}>
-                   <TouchableOpacity onPress={() => moveSvcStage(idx, -1)} disabled={idx === 0}>
-                     <Text style={[ss.svcStageArrow, idx === 0 && ss.svcStageDisabled]}>↑</Text>
-                   </TouchableOpacity>
-                   <TouchableOpacity onPress={() => moveSvcStage(idx, 1)} disabled={idx === svcStages.length - 1}>
-                     <Text style={[ss.svcStageArrow, idx === svcStages.length - 1 && ss.svcStageDisabled]}>↓</Text>
-                   </TouchableOpacity>
-                   <TouchableOpacity onPress={() => removeSvcStage(stage.id)}>
-                     <Text style={ss.svcStageRemove}>✕</Text>
-                   </TouchableOpacity>
-                 </View>
-               </View>
-             ))}
-
-             {/* Pick from existing ministries */}
-             <TouchableOpacity
-               style={ss.svcAddBtn}
-               onPress={() => setShowSvcStagePicker((v) => !v)}
-             >
-               <Text style={ss.svcAddBtnText}>
-                 {showSvcStagePicker ? '− Cancel' : '+ Add Existing Stage'}
-               </Text>
-             </TouchableOpacity>
-
-             {showSvcStagePicker && (
-               <View style={ss.svcPickerList}>
-                 {ministries
-                   .filter((m) => !svcStages.find((s) => s.ministry_id === m.id))
-                   .map((m) => (
-                     <TouchableOpacity
-                       key={m.id}
-                       style={ss.svcPickerItem}
-                       onPress={() => addSvcStageFromMinistry(m)}
-                     >
-                       <Text style={ss.svcPickerItemText}>{m.name}</Text>
-                       <Text style={ss.svcPickerAdd}>+</Text>
-                     </TouchableOpacity>
-                   ))}
-                 {ministries.filter((m) => !svcStages.find((s) => s.ministry_id === m.id)).length === 0 && (
-                   <Text style={ss.stagesEmpty}>All ministries already added</Text>
-                 )}
-               </View>
-             )}
-
-             {/* Create new stage */}
-             <View style={ss.svcNewStageRow}>
-               <TextInput
-                 style={[mf.input, { flex: 1 }]}
-                 value={svcNewStageName}
-                 onChangeText={setSvcNewStageName}
-                 placeholder="New stage name..."
-                 placeholderTextColor={theme.color.textMuted}
-               />
-               <TouchableOpacity
-                 style={[ss.svcNewStageBtn, addingSvcStage && { opacity: 0.5 }]}
-                 onPress={addSvcStageNew}
-                 disabled={addingSvcStage}
-               >
-                 {addingSvcStage
-                   ? <ActivityIndicator color={theme.color.white} size="small" />
-                   : <Text style={ss.svcNewStageBtnText}>+ Create</Text>}
-               </TouchableOpacity>
-             </View>
-           </>
-         )}
-       </ScrollView>
-     </View>
-   </KeyboardAvoidingView>
- </View>
- </Modal>
  </SafeAreaView>
  );
 }

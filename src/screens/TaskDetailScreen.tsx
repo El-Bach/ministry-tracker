@@ -45,7 +45,7 @@ type SpeechResultsEvent = { value?: string[] };
 type SpeechErrorEvent   = { error?: { message?: string } };
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { sendPushNotification } from '../lib/notifications';
+import { sendPushNotification, sendActivityNotificationToAll } from '../lib/notifications';
 import { formatPhoneDisplay } from '../lib/phone';
 import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
@@ -864,7 +864,7 @@ export default function TaskDetailScreen() {
           Alert.alert('File Completed', 'All stages are done. This file has been moved to the archive.');
         }
 
-        // Notify the assignee if it's not the current user
+        // Notify the assignee if it's not the current user (direct push)
         if (task?.assignee?.push_token && task.assignee.id !== teamMember?.id) {
           sendPushNotification(
             task.assignee.push_token,
@@ -873,6 +873,17 @@ export default function TaskDetailScreen() {
             { taskId }
           );
         }
+
+        // Broadcast status change to all team members
+        const actorName = teamMember?.name ?? 'Someone';
+        sendActivityNotificationToAll(
+          supabase,
+          teamMember?.id,
+          `🔄 ${actorName}`,
+          `${task?.client?.name ?? 'File'} · ${stop.ministry?.name ?? 'Stage'} → ${newStatus}`,
+          'status',
+          { taskId }
+        );
 
         fetchTask();
       } catch (e: unknown) {
@@ -914,6 +925,17 @@ export default function TaskDetailScreen() {
       } else {
         setNewComment('');
         fetchTask();
+        // Notify all team members except the author
+        const clientName  = task?.client?.name  ?? 'a file';
+        const actorName   = teamMember?.name     ?? 'Someone';
+        sendActivityNotificationToAll(
+          supabase,
+          teamMember?.id,
+          `💬 ${actorName}`,
+          `${clientName}: ${newComment.trim()}`,
+          'comment',
+          { taskId }
+        );
       }
     } else {
       await enqueue({

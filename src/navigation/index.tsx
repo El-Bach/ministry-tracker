@@ -31,6 +31,7 @@ import MinistryRequirementsScreen from '../screens/MinistryRequirementsScreen';
 import FinancialReportScreen from '../screens/FinancialReportScreen';
 import AccountScreen from '../screens/AccountScreen';
 import ActivityScreen from '../screens/ActivityScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 
 import {
   RootStackParamList,
@@ -158,6 +159,11 @@ function DashboardStack() {
         name="Activity"
         component={ActivityScreen}
         options={{ title: 'Activity', headerBackTitle: 'Back' }}
+      />
+      <DashStack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{ title: 'Notifications', headerBackTitle: 'Back' }}
       />
     </DashStack.Navigator>
   );

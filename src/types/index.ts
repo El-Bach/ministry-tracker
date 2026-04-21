@@ -256,4 +256,5 @@ export type DashboardStackParamList = {
   GlobalSearch: { query?: string } | undefined;
   Account: undefined;
   Activity: undefined;
+  NotificationSettings: undefined;
 };

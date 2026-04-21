@@ -82,6 +82,57 @@ export async function checkAndNotifyOverdue(
   }
 }
 
+// Send activity notification to ALL team members except the actor,
+// respecting each recipient's notification_prefs row (if it exists).
+// notifType: 'comment' | 'status' | 'file'
+export async function sendActivityNotificationToAll(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  actorId: string | undefined | null,
+  title: string,
+  body: string,
+  notifType: 'comment' | 'status' | 'file',
+  data?: Record<string, unknown>
+): Promise<void> {
+  try {
+    // 1. All team members with a push token, excluding the actor
+    let query = supabase
+      .from('team_members')
+      .select('id, push_token')
+      .not('push_token', 'is', null);
+    if (actorId) query = query.neq('id', actorId);
+    const { data: members } = await query;
+    if (!members?.length) return;
+
+    // 2. Fetch preferences for all recipients in one round-trip
+    const memberIds = (members as { id: string; push_token: string }[]).map((m) => m.id);
+    const { data: prefs } = await supabase
+      .from('notification_prefs')
+      .select('team_member_id, enabled, notify_comments, notify_status_changes, notify_new_files, muted_actor_ids')
+      .in('team_member_id', memberIds);
+
+    const prefsMap = new Map(
+      ((prefs ?? []) as any[]).map((p) => [p.team_member_id as string, p])
+    );
+
+    // 3. Filter and send
+    for (const member of members as { id: string; push_token: string }[]) {
+      if (!member.push_token) continue;
+      const pref = prefsMap.get(member.id) as any;
+      if (pref) {
+        if (!pref.enabled) continue;
+        if (notifType === 'comment' && !pref.notify_comments) continue;
+        if (notifType === 'status'  && !pref.notify_status_changes) continue;
+        if (notifType === 'file'    && !pref.notify_new_files) continue;
+        if (actorId && Array.isArray(pref.muted_actor_ids) && pref.muted_actor_ids.includes(actorId)) continue;
+      }
+      await sendPushNotification(member.push_token, title, body, data);
+    }
+  } catch {
+    // Never block the main action
+  }
+}
+
 // Send a push notification via Expo's push service — best-effort, never throws
 export async function sendPushNotification(
   pushToken: string,
