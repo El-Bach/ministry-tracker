@@ -626,8 +626,8 @@ export default function SettingsScreen() {
  </View>
 
  <ScrollView contentContainerStyle={ss.scroll}>
- {/* Current user card */}
- <View style={ss.profileCard}>
+ {/* Current user card — tappable → Account screen */}
+ <TouchableOpacity style={ss.profileCard} onPress={() => navigation.navigate('Account')} activeOpacity={0.8}>
  <View style={ss.profileAvatar}>
  <Text style={ss.profileAvatarText}>
  {(teamMember?.name ?? '?')
@@ -638,12 +638,25 @@ export default function SettingsScreen() {
  .slice(0, 2)}
  </Text>
  </View>
- <View>
+ <View style={{ flex: 1 }}>
  <Text style={ss.profileName}>{teamMember?.name ?? '—'}</Text>
  <Text style={ss.profileRole}>{teamMember?.role ?? '—'}</Text>
  <Text style={ss.profileEmail}>{teamMember?.email ?? '—'}</Text>
  </View>
+ <Text style={{ color: theme.color.primary, fontSize: 22 }}>›</Text>
+ </TouchableOpacity>
+
+ {/* My Account */}
+ <TouchableOpacity style={ss.navCard} onPress={() => navigation.navigate('Account')} activeOpacity={0.75}>
+ <View style={ss.navCardLeft}>
+ <Text style={ss.navCardIcon}>👤</Text>
+ <View>
+ <Text style={ss.navCardTitle}>My Account</Text>
+ <Text style={ss.navCardSubtitle}>Edit profile, change password, org settings</Text>
  </View>
+ </View>
+ <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
 
  {/* Client Fields */}
  <TouchableOpacity

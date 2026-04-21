@@ -29,6 +29,7 @@ import ServiceStagesScreen from '../screens/ServiceStagesScreen';
 import StageRequirementsScreen from '../screens/StageRequirementsScreen';
 import MinistryRequirementsScreen from '../screens/MinistryRequirementsScreen';
 import FinancialReportScreen from '../screens/FinancialReportScreen';
+import AccountScreen from '../screens/AccountScreen';
 
 import {
   RootStackParamList,
@@ -73,7 +74,7 @@ function DashboardStack() {
       <DashStack.Screen
         name="DashboardHome"
         component={DashboardScreen}
-        options={{ title: 'Ministry Tracker', headerShown: true }}
+        options={{ title: 'ClearTrack', headerShown: true }}
       />
       <DashStack.Screen
         name="NewTask"
@@ -129,6 +130,11 @@ function DashboardStack() {
         name="GlobalSearch"
         component={GlobalSearchScreen}
         options={{ title: 'Search', headerBackTitle: 'Back' }}
+      />
+      <DashStack.Screen
+        name="Account"
+        component={AccountScreen}
+        options={{ title: 'My Account', headerBackTitle: 'Back' }}
       />
     </DashStack.Navigator>
   );

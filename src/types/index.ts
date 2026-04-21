@@ -254,4 +254,5 @@ export type DashboardStackParamList = {
   MinistryRequirements: { ministryId: string; ministryName: string };
   FinancialReport: undefined;
   GlobalSearch: { query?: string } | undefined;
+  Account: undefined;
 };
