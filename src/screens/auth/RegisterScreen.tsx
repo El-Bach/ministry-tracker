@@ -1,0 +1,249 @@
+// src/screens/auth/RegisterScreen.tsx
+// Public registration: create account + organization
+// Session 26 — Phase 1 commercialization
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import supabase from '../../lib/supabase';
+import { theme } from '../../theme';
+import { RootStackParamList } from '../../types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+export default function RegisterScreen() {
+  const navigation = useNavigation<Nav>();
+
+  const [fullName,     setFullName]     = useState('');
+  const [companyName,  setCompanyName]  = useState('');
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const [confirmPass,  setConfirmPass]  = useState('');
+  const [loading,      setLoading]      = useState(false);
+
+  const handleRegister = async () => {
+    if (!fullName.trim() || !companyName.trim() || !email.trim() || !password) {
+      Alert.alert('Required', 'Please fill in all fields.');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPass) {
+      Alert.alert('Password Mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Create Supabase auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (authError) throw new Error(authError.message);
+      if (!authData.user) throw new Error('Account creation failed. Please try again.');
+
+      // 2. Create organization
+      const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .insert({ name: companyName.trim(), slug: `${slug}-${Date.now()}`, plan: 'free' })
+        .select()
+        .single();
+      if (orgError) throw new Error('Failed to create organization: ' + orgError.message);
+
+      // 3. Create team_member row (owner)
+      const { error: memberError } = await supabase
+        .from('team_members')
+        .insert({
+          name:    fullName.trim(),
+          email:   email.trim().toLowerCase(),
+          role:    'owner',
+          org_id:  orgData.id,
+          auth_id: authData.user.id,
+        });
+      if (memberError) throw new Error('Failed to create user profile: ' + memberError.message);
+
+      // 4. Insert default status labels for new org
+      const defaultLabels = [
+        { label: 'Submitted',         color: '#6366f1', sort_order: 1, org_id: orgData.id },
+        { label: 'In Review',         color: '#f59e0b', sort_order: 2, org_id: orgData.id },
+        { label: 'Pending Signature', color: '#8b5cf6', sort_order: 3, org_id: orgData.id },
+        { label: 'Done',              color: '#10b981', sort_order: 4, org_id: orgData.id },
+        { label: 'Rejected',          color: '#ef4444', sort_order: 5, org_id: orgData.id },
+        { label: 'Closed',            color: '#64748b', sort_order: 6, org_id: orgData.id },
+      ];
+      await supabase.from('status_labels').insert(defaultLabels);
+
+      // Auth state change in useAuth will pick up the new session and redirect
+      // navigation is handled by the root navigator reacting to auth state
+    } catch (err: any) {
+      Alert.alert('Registration Failed', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={s.container}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={80}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <View style={s.logoBox}>
+            <Text style={s.logoIcon}>⊞</Text>
+          </View>
+          <Text style={s.title}>Create Account</Text>
+          <Text style={s.subtitle}>Set up your organization and start tracking files</Text>
+        </View>
+
+        {/* Form */}
+        <View style={s.form}>
+          <View style={s.field}>
+            <Text style={s.label}>YOUR NAME</Text>
+            <TextInput
+              style={s.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Full name"
+              placeholderTextColor={theme.color.textMuted}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>COMPANY / OFFICE NAME</Text>
+            <TextInput
+              style={s.input}
+              value={companyName}
+              onChangeText={setCompanyName}
+              placeholder="Your company or office name"
+              placeholderTextColor={theme.color.textMuted}
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>EMAIL</Text>
+            <TextInput
+              style={s.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="your@company.com"
+              placeholderTextColor={theme.color.textMuted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>PASSWORD</Text>
+            <TextInput
+              style={s.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Min. 6 characters"
+              placeholderTextColor={theme.color.textMuted}
+              secureTextEntry
+            />
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>CONFIRM PASSWORD</Text>
+            <TextInput
+              style={s.input}
+              value={confirmPass}
+              onChangeText={setConfirmPass}
+              placeholder="Repeat password"
+              placeholderTextColor={theme.color.textMuted}
+              secureTextEntry
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[s.button, loading && s.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={theme.color.white} />
+            ) : (
+              <Text style={s.buttonText}>Create Account</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Back to login */}
+        <View style={s.loginRow}>
+          <Text style={s.loginText}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+            <Text style={s.loginLink}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAwareScrollView>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  safe:      { flex: 1, backgroundColor: theme.color.bgBase },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 32 },
+  header:    { alignItems: 'center', gap: 10 },
+  logoBox: {
+    width:           64,
+    height:          64,
+    borderRadius:    theme.radius.xl,
+    backgroundColor: theme.color.primary,
+    justifyContent:  'center',
+    alignItems:      'center',
+    marginBottom:    4,
+  },
+  logoIcon:   { fontSize: 32, color: theme.color.white },
+  title:      { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
+  subtitle:   { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', textAlign: 'center' },
+  form:       { gap: 18 },
+  field:      { gap: 6 },
+  label:      { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  input: {
+    backgroundColor: theme.color.bgSurface,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.lg,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: 14,
+    color:           theme.color.textPrimary,
+    fontSize:        15,
+  },
+  button: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.lg,
+    paddingVertical: 16,
+    alignItems:      'center',
+    marginTop:       theme.spacing.space2,
+  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText:     { color: theme.color.white, fontSize: 16, fontWeight: '700' },
+  loginRow:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  loginText:      { ...theme.typography.body, color: theme.color.textSecondary },
+  loginLink:      { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
+});

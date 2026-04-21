@@ -1,17 +1,18 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 25 (Per-stage city + assignee on task_route_stops; inline city/assignee dropdowns per stage row; pinned cities (AsyncStorage); create new city inline; inline due date calendar on TaskDetail header; formatDateOnly() for timezone-safe display; archive Restore swipe button; city filter searches all stages across all files)
+> Last updated: session 26 (Commercialization roadmap added; Phase 1 multi-tenancy: organizations table, org_id on all tables, RLS policies, RegisterScreen, onboarding wizard, updated useAuth)
 
 ---
 
 ## Project Identity
 
-- **Name:** Ministry Tracker
-- **Type:** Internal cross-platform mobile app (iOS + Android)
-- **Purpose:** Track client files through government ministry clearing pipelines
-- **Users:** Company employees only — no public access
-- **Permission model:** Flat — all users equal, no roles, no admin-only features
+- **Name:** Ministry Tracker (internal dev name) → **ClearTrack** / **PaperPath** / **FiloTrack** / **Maktabi** (مكتبي) / **ClearDesk** (candidate public names — see Commercialization Roadmap below)
+- **Type:** Cross-platform mobile app (iOS + Android + PWA) — transitioning from single-tenant internal tool to multi-tenant SaaS
+- **Purpose:** Track client files through government ministry clearing pipelines; used by clearance offices, law firms, notary offices, government brokers
+- **Current state:** Single-tenant (one company, one Supabase project, flat users)
+- **Target state:** Multi-tenant SaaS — each company = one Organization; users self-register; RLS enforces data isolation
+- **Permission model:** Moving from flat → role-based (owner / admin / member / viewer) per organization
 
 ---
 
@@ -563,6 +564,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 26 | **Commercialization Phase 1**: Organizations table + RLS multi-tenancy; `team_members.auth_id` + `org_id`; RegisterScreen (company sign-up); OnboardingScreen (wizard); updated useAuth to fetch by auth.uid(); navigation Auth stack updated with Register route; migration_organizations.sql |
 | 25 | **Per-stage city + assignee**: removed city/assignment from task level; each `task_route_stops` row now has `city_id`, `assigned_to`, `ext_assignee_id` (migration_stop_fields.sql). Per-stage inline dropdowns in TaskDetailScreen: 📍 city (search-first, pinned via AsyncStorage, create new city inline) + 👤 assignee (team members + ext assignees + inline create). Auto-city: assigning a Network contact to a stage auto-fills stage city from contact's city. **Inline due date calendar**: tapping DUE DATE in file header opens inline Calendar directly on detail screen; instant save, no Save button; removed from Edit File Details modal. `formatDateOnly()` helper to avoid UTC midnight timezone shift (Lebanon UTC+3). **Archive Restore swipe**: in archive mode, swipe-left Delete button replaced with green 📋 Restore button (sets `is_archived = false`). **City filter fix**: dashboard city chips now search `task_route_stops.city_id` across all stages (not task-level city); TaskCard shows unique stage cities as tappable chips; city filter counted in active filter badge. |
 | 24 | **Network contacts directory** in CreateScreen: 👥 Network manage section backed by `assignees` table (now with `reference_phone` + `city_id` columns). Full CRUD: search, tappable phone/ref-phone (call/WhatsApp), create/edit (name, phone, reference, ref-phone, city picker), delete. Auto-city: assigning a Network contact to a stage auto-populates the stage's city from the contact's city (if stop has no city set). **Expense→Stage link**: optional stage picker on financial transactions (expense only) — `file_transactions.stop_id` FK; shown as "📌 StageName" in transaction list. Quick Finance modal on dashboard also has stage picker. **Service Document Checklist**: 📋 Documents Required in CreateScreen — per-service numbered checklist in `service_documents` table; tap service → checklist expands; tick/add/delete documents; "↺ Reset checks" clears all ticks for that service. **Reference phone on TaskCard**: `client.reference_phone` shown below `reference_name` as tappable 📞 link. **Bug fixes**: task-level assignee join added to task fetch query (was missing `assignee:team_members!assigned_to`); Android create-assignee form moved outside constrained ScrollView so phone/reference fields are always visible. SQL migrations: `migration_network.sql`, `migration_expense_stage.sql`, `migration_service_documents.sql`. |
 | 23 | Export Financial Report as PDF: `📄 PDF` button added to FinancialReportScreen filter bar (right-aligned, indigo, disabled when 0 rows). Uses `expo-print` `printToFileAsync` to render an HTML report with a totals summary bar + full data table (client, service, status, contract, received, due, expenses, balance columns). Report respects all active filters (service/status/archive/search). File named `financial-report-YYYY-MM-DD.pdf`, saved to cache, then shared via `expo-sharing`. |
@@ -630,6 +632,145 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 - Rows: RECEIVED / DUE (if contract price set) / EXPENSES / divider / NET (P&L)
 - `fmtUSD`: `maximumFractionDigits: 0` (no .00)
 - `fmtLBP`: `maximumFractionDigits: 0` (already was 0)
+
+---
+
+## Commercialization Roadmap
+
+### App Name Ideas
+| Name | Language | Tagline |
+|---|---|---|
+| **ClearTrack** | English | "Track every file, clear every step" |
+| **PaperPath** | English | "From paperwork to done" |
+| **FiloTrack** | English/French | "Your files, in order" |
+| **Maktabi** (مكتبي) | Arabic | "My Office" — resonates with MENA market |
+| **ClearDesk** | English | "A clear desk, every day" |
+| **Missak** | Arabic/Armenian | "Document" — nod to Lebanese market |
+
+**Recommended:** `ClearTrack` (professional, globally readable, SEO-friendly) or `Maktabi` (MENA-specific, strong local brand)
+
+---
+
+### Phase 1 — Multi-Tenancy Foundation (current sprint)
+
+**Goal:** Each company gets isolated data in the same Supabase project using RLS. New users can self-register and create their organization.
+
+**DB Changes:**
+- New `organizations` table: `id, name, slug, plan, created_at`
+- Add `org_id uuid REFERENCES organizations(id)` to: `team_members, clients, tasks, ministries, services, status_labels, assignees, cities, client_field_definitions, service_documents`
+- `task_route_stops`, `task_comments`, `file_transactions`, `stop_requirements`, `task_documents`, etc. inherit isolation via `task_id → tasks.org_id` chain (no direct org_id needed on child tables)
+- `team_members.role` column: `'owner' | 'admin' | 'member' | 'viewer'`
+
+**RLS Policies:** Each table gets `USING (org_id = auth.jwt()->>'org_id')` or via join to `team_members` for the current user's org.
+
+**Auth Changes (`useAuth.ts`):**
+- After login: fetch `team_members` by `auth.uid()` (not email) — includes `org_id`
+- Expose `organization` object from hook: `{ id, name, plan }`
+- If no `team_member` row found → redirect to Onboarding (new org setup)
+- Store `org_id` in AsyncStorage for offline access
+
+**New Screens:**
+- `src/screens/auth/RegisterScreen.tsx` — email + password + full name + company name → creates `organizations` row + `team_members` row (role: 'owner') + Supabase auth user
+- `src/screens/auth/OnboardingScreen.tsx` — wizard: set company name → add first service → add first stage → invite team members (optional skip)
+
+**Navigation update:**
+- `src/navigation/index.tsx`: Auth stack now has `Login | Register` screens; after auth check, if `!teamMember` → show Onboarding; else → Main app
+- `src/screens/auth/LoginScreen.tsx`: add "Don't have an account? Sign up" link → Register
+
+**Migration file:** `supabase/migration_organizations.sql`
+
+---
+
+### Phase 2 — Roles + Team Invites (next sprint)
+
+**Goal:** Organization owner can invite team members by email; role-based access enforced in UI and RLS.
+
+- Invite flow: owner sends invite code / magic link → invitee registers → automatically joined to org
+- Roles: `owner` (all), `admin` (manage settings), `member` (manage files), `viewer` (read-only)
+- UI guards: Settings screen shows/hides destructive actions based on role
+- `invitations` table: `id, org_id, email, role, token, expires_at, accepted_at`
+
+---
+
+### Phase 3 — App Store Submission
+
+**Goal:** Submit to Google Play Store (and eventually Apple App Store).
+
+- Google Play: need Google Play developer account ($25 one-time); upload production AAB (`eas build --profile production`)
+- Apple App Store: need Apple Developer Program ($99/year); submit IPA via EAS
+- App name, description, screenshots in English + Arabic
+- Privacy policy URL required (simple static page on Netlify)
+- Production Supabase project (separate from dev; paid plan for > 500MB storage)
+
+**Pre-submission checklist:**
+- [ ] App name finalized
+- [ ] Icon 512×512 for Play Store
+- [ ] Screenshots (phone + 7" tablet)
+- [ ] Privacy policy URL
+- [ ] Terms of service URL
+- [ ] Production environment variables
+
+---
+
+### Phase 4 — Billing (Freemium → Paid)
+
+**Goal:** Monetize via subscription. Free tier → paid tiers.
+
+| Plan | Limit | Price |
+|---|---|---|
+| Free | 1 user, 50 active files, 100MB storage | $0 |
+| Starter | 5 users, 500 files, 5GB storage | $19/month |
+| Business | Unlimited users + files, 50GB storage | $49/month |
+
+**Implementation:**
+- `organizations.plan`: `'free' | 'starter' | 'business'`
+- RevenueCat (in-app purchase) for mobile; Stripe for web billing
+- Paywall screen shown when limits exceeded
+- `organizations.file_count`, `organizations.user_count` tracked via Supabase triggers
+
+---
+
+### Phase 5 — Scale + Localization
+
+**Goal:** Expand beyond Lebanon to MENA region.
+
+- Full Arabic localization (all strings in `i18n/ar.ts` + `i18n/en.ts`)
+- Persian / French secondary languages
+- Regional data residency (Supabase EU or custom Postgres)
+- WhatsApp Business API integration (automated status updates to clients)
+- SMS notifications via Twilio / Vonage
+- Analytics dashboard (files processed per month, average turnaround, revenue)
+
+---
+
+### Multi-Tenancy Technical Notes
+
+**Supabase RLS Strategy:**
+```sql
+-- Every protected table uses a helper function:
+CREATE OR REPLACE FUNCTION auth_org_id() RETURNS uuid AS $$
+  SELECT org_id FROM team_members WHERE auth_id = auth.uid() LIMIT 1
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- Example policy on `tasks`:
+CREATE POLICY "org_isolation" ON tasks
+  USING (org_id = auth_org_id());
+```
+
+**`useAuth` hook after multi-tenancy:**
+```ts
+// Returns: { session, user, teamMember, organization, loading, signIn, signOut }
+// teamMember includes: id, name, role, org_id, push_token
+// organization includes: id, name, plan
+```
+
+**RegisterScreen flow:**
+1. User enters: full name, company name, email, password
+2. `supabase.auth.signUp({ email, password })`
+3. Insert `organizations` row: `{ name: companyName, plan: 'free' }`
+4. Insert `team_members` row: `{ name, email, role: 'owner', org_id, auth_id: user.id }`
+5. Navigate to Onboarding wizard
+6. Onboarding: pre-populates default status labels, suggests first service
 
 ---
 

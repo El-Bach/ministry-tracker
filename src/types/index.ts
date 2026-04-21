@@ -1,14 +1,24 @@
 // src/types/index.ts
 // All shared TypeScript types matching the Supabase schema
 
+export interface Organization {
+  id: string;
+  name: string;
+  slug?: string;
+  plan: 'free' | 'starter' | 'business';
+  created_at: string;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
-  role: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer' | string;
   avatar_url?: string;
   email: string;
   phone?: string;
   push_token?: string;
+  org_id?: string;
+  auth_id?: string;
   created_at: string;
 }
 
@@ -193,6 +203,8 @@ export interface OfflineAction {
 // Navigation param types
 export type RootStackParamList = {
   Login: undefined;
+  Register: undefined;
+  Onboarding: undefined;
   Main: undefined;
 };
 

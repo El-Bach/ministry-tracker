@@ -11,6 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { theme } from '../theme';
 import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import OnboardingScreen from '../screens/auth/OnboardingScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import NewTaskScreen from '../screens/NewTaskScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen';
@@ -156,7 +158,7 @@ function MainTabs() {
 
 // ─── Root navigator ──────────────────────────────────────────
 export default function AppNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, teamMember, needsOnboarding } = useAuth();
 
   if (loading) {
     return (
@@ -167,13 +169,29 @@ export default function AppNavigator() {
     );
   }
 
+  // Determine which screen to show:
+  // 1. Not logged in → Login / Register
+  // 2. Logged in but no team_member row yet → Onboarding (just registered)
+  // 3. Logged in and has team_member → Main app
+  const getInitialScreen = () => {
+    if (!session) return 'auth';
+    if (needsOnboarding || !teamMember) return 'onboarding';
+    return 'main';
+  };
+  const screen = getInitialScreen();
+
   return (
     <NavigationContainer>
       <Root.Navigator screenOptions={{ headerShown: false }}>
-        {session ? (
+        {screen === 'main' ? (
           <Root.Screen name="Main" component={MainTabs} />
+        ) : screen === 'onboarding' ? (
+          <Root.Screen name="Onboarding" component={OnboardingScreen} />
         ) : (
-          <Root.Screen name="Login" component={LoginScreen} />
+          <>
+            <Root.Screen name="Login"    component={LoginScreen}    />
+            <Root.Screen name="Register" component={RegisterScreen} />
+          </>
         )}
       </Root.Navigator>
     </NavigationContainer>

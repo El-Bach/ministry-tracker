@@ -15,11 +15,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../hooks/useAuth';
 import { theme } from '../../theme';
+import { RootStackParamList } from '../../types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const navigation = useNavigation<Nav>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -97,7 +103,15 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>Company employees only · Contact IT for access</Text>
+        {/* Sign up link */}
+        <View style={styles.signupRow}>
+          <Text style={styles.signupText}>New to ClearTrack? </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.signupLink}>Create an account</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>Your data is private and secure</Text>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
@@ -141,5 +155,8 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText:     { color: theme.color.white, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  signupRow:  { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  signupText: { ...theme.typography.body, color: theme.color.textSecondary },
+  signupLink: { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
   footer:         { ...theme.typography.label, color: theme.color.border, textAlign: 'center' },
 });
