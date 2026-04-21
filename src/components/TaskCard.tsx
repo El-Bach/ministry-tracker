@@ -15,6 +15,7 @@ interface Props {
   task: Task;
   statusColor: string;
   onPress: () => void;
+  onLongPress?: () => void;
   onClientPress?: () => void;
   onCityPress?: (cityId: string) => void;
   onServicePress?: () => void;
@@ -86,6 +87,7 @@ function TaskCard({
   task,
   statusColor,
   onPress,
+  onLongPress,
   onClientPress,
   onCityPress,
   onServicePress,
@@ -174,6 +176,8 @@ function TaskCard({
         cardStyle,
       ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityLabel={`${task.client?.name ?? 'Unknown client'}, ${task.service?.name ?? ''}, status ${displayStatus}`}

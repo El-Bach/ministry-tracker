@@ -34,6 +34,7 @@ import { Task, StatusLabel, TeamMember, Ministry, Client, Service, City, Dashboa
 import TaskCard from '../components/TaskCard';
 import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
+import { checkAndNotifyOverdue } from '../lib/notifications';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
 const TASK_ROW_HEIGHT = 130;
@@ -48,6 +49,7 @@ function SwipeableTaskRow({
   statusColor,
   allStatusColors,
   onPress,
+  onLongPress,
   onClientPress,
   onCityPress,
   onServicePress,
@@ -61,6 +63,7 @@ function SwipeableTaskRow({
   statusColor: string;
   allStatusColors: Record<string, string>;
   onPress: () => void;
+  onLongPress: () => void;
   onClientPress: () => void;
   onCityPress: (cityId: string) => void;
   onServicePress: () => void;
@@ -168,6 +171,7 @@ function SwipeableTaskRow({
           statusColor={statusColor}
           allStatusColors={allStatusColors}
           onPress={() => { if (isOpen.current) { close(); } else { onPress(); } }}
+          onLongPress={() => { if (isOpen.current) { close(); } else { onLongPress(); } }}
           onClientPress={onClientPress}
           onCityPress={onCityPress}
           onServicePress={onServicePress}
@@ -290,6 +294,32 @@ export default function DashboardScreen() {
 
   const [services, setServices] = useState<Service[]>([]);
 
+  // Quick status update (long-press card)
+  const [quickStatusTask, setQuickStatusTask] = useState<Task | null>(null);
+  const [savingQuickStatus, setSavingQuickStatus] = useState(false);
+
+  const openQuickStatus = (task: Task) => setQuickStatusTask(task);
+
+  const applyQuickStatus = async (newStatus: string) => {
+    if (!quickStatusTask || !teamMember) return;
+    setSavingQuickStatus(true);
+    const { error } = await supabase
+      .from('tasks')
+      .update({ current_status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', quickStatusTask.id);
+    if (!error) {
+      await supabase.from('status_updates').insert({
+        task_id: quickStatusTask.id,
+        updated_by: teamMember.id,
+        old_status: quickStatusTask.current_status,
+        new_status: newStatus,
+      });
+    }
+    setSavingQuickStatus(false);
+    setQuickStatusTask(null);
+    fetchData();
+  };
+
   // Quick-add financial transaction (swipe right)
   const [showQuickFinance, setShowQuickFinance] = useState(false);
   const [quickFinanceTask, setQuickFinanceTask] = useState<Task | null>(null);
@@ -351,6 +381,13 @@ export default function DashboardScreen() {
   useFocusEffect(useCallback(() => {
     fetchData();
   }, [fetchData]));
+
+  // Overdue check — once per day, fires a local notification for past-due files
+  useEffect(() => {
+    if (teamMember?.id) {
+      checkAndNotifyOverdue(teamMember.id, supabase);
+    }
+  }, [teamMember?.id]);
 
   // Realtime refresh
   useRealtime(
@@ -565,6 +602,7 @@ export default function DashboardScreen() {
           statusColor={getStatusColor(item.current_status)}
           allStatusColors={allStatusColorsMap}
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
+          onLongPress={() => openQuickStatus(item)}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
           onServicePress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
@@ -576,7 +614,7 @@ export default function DashboardScreen() {
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, openQuickStatus]
   );
 
   if (loading) {
@@ -937,6 +975,59 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Quick Status Update Modal (long-press) ── */}
+      <Modal
+        visible={!!quickStatusTask}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setQuickStatusTask(null)}
+      >
+        <TouchableOpacity
+          style={styles.qsOverlay}
+          activeOpacity={1}
+          onPress={() => setQuickStatusTask(null)}
+        >
+          <View style={styles.qsSheet}>
+            <View style={styles.qsHandle} />
+            <Text style={styles.qsTitle}>Update Status</Text>
+            {quickStatusTask && (
+              <Text style={styles.qsSubtitle} numberOfLines={1}>
+                {quickStatusTask.client?.name} · {quickStatusTask.service?.name}
+              </Text>
+            )}
+            <View style={styles.qsGrid}>
+              {statusLabels.map((sl) => {
+                const isCurrent = sl.label === quickStatusTask?.current_status;
+                return (
+                  <TouchableOpacity
+                    key={sl.id}
+                    style={[
+                      styles.qsChip,
+                      { borderColor: sl.color + '88', backgroundColor: sl.color + '18' },
+                      isCurrent && { backgroundColor: sl.color, borderColor: sl.color },
+                    ]}
+                    onPress={() => applyQuickStatus(sl.label)}
+                    disabled={savingQuickStatus || isCurrent}
+                    activeOpacity={0.75}
+                  >
+                    {savingQuickStatus && isCurrent ? (
+                      <ActivityIndicator size="small" color={theme.color.white} />
+                    ) : (
+                      <Text style={[styles.qsChipText, { color: isCurrent ? theme.color.white : sl.color }]}>
+                        {isCurrent ? '✓ ' : ''}{sl.label}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setQuickStatusTask(null)}>
+              <Text style={styles.qsCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
     </SafeAreaView>
@@ -1363,4 +1454,59 @@ const styles = StyleSheet.create({
     color: theme.color.white,
   },
 
+  // Quick Status bottom sheet
+  qsOverlay: {
+    flex: 1,
+    backgroundColor: theme.color.overlayDark,
+    justifyContent: 'flex-end',
+  },
+  qsSheet: {
+    backgroundColor: theme.color.bgSurface,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding: theme.spacing.space5,
+    gap: 16,
+    paddingBottom: 40,
+  },
+  qsHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.color.border,
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
+  qsTitle: {
+    ...theme.typography.heading,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  qsSubtitle: {
+    ...theme.typography.body,
+    color: theme.color.textSecondary,
+  },
+  qsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  qsChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1.5,
+  },
+  qsChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  qsCancelBtn: {
+    alignItems: 'center',
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  qsCancelText: {
+    ...theme.typography.body,
+    color: theme.color.textMuted,
+  },
 });
