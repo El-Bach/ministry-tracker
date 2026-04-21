@@ -295,6 +295,54 @@ export default function DashboardScreen() {
 
   const [services, setServices] = useState<Service[]>([]);
 
+  // Bulk select mode
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatusVisible, setBulkStatusVisible] = useState(false);
+  const [savingBulk, setSavingBulk] = useState(false);
+
+  const enterSelectMode = useCallback((taskId?: string) => {
+    setSelectMode(true);
+    if (taskId) setSelectedIds(new Set([taskId]));
+    else setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkStatusVisible(false);
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const applyBulkStatus = async (newStatus: string) => {
+    if (!selectedIds.size) return;
+    setSavingBulk(true);
+    const ids = Array.from(selectedIds);
+    const now = new Date().toISOString();
+    await supabase.from('tasks')
+      .update({ current_status: newStatus, updated_at: now })
+      .in('id', ids);
+    // Insert status_updates for each
+    const inserts = ids.map(id => ({
+      task_id: id,
+      updated_by: teamMember?.id,
+      new_status: newStatus,
+    }));
+    await supabase.from('status_updates').insert(inserts);
+    setSavingBulk(false);
+    setBulkStatusVisible(false);
+    exitSelectMode();
+    fetchData();
+  };
+
   // Activity unread badge
   const ACTIVITY_SEEN_KEY = '@activity_last_seen';
   const [unreadActivity, setUnreadActivity] = useState(0);
@@ -622,13 +670,37 @@ export default function DashboardScreen() {
 
   const renderTaskRow = useCallback(
     ({ item }: { item: Task }) => {
+      const isSelected = selectedIds.has(item.id);
+      if (selectMode) {
+        return (
+          <TouchableOpacity
+            onPress={() => toggleSelect(item.id)}
+            activeOpacity={0.8}
+            style={[styles.selectRow, isSelected && styles.selectRowActive]}
+          >
+            <View style={[styles.selectCheck, isSelected && styles.selectCheckActive]}>
+              {isSelected && <Text style={styles.selectCheckMark}>✓</Text>}
+            </View>
+            <View style={{ flex: 1 }}>
+              <TaskCard
+                task={item}
+                statusColor={getStatusColor(item.current_status)}
+                allStatusColors={allStatusColorsMap}
+                onPress={() => toggleSelect(item.id)}
+                cardStyle={{ marginBottom: 0 }}
+                selected={isSelected}
+              />
+            </View>
+          </TouchableOpacity>
+        );
+      }
       return (
         <SwipeableTaskRow
           task={item}
           statusColor={getStatusColor(item.current_status)}
           allStatusColors={allStatusColorsMap}
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onLongPress={() => openQuickStatus(item)}
+          onLongPress={() => enterSelectMode(item.id)}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
           onServicePress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
@@ -640,7 +712,7 @@ export default function DashboardScreen() {
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, openQuickStatus]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, selectMode, selectedIds, toggleSelect, enterSelectMode]
   );
 
   if (loading) {
@@ -692,6 +764,16 @@ export default function DashboardScreen() {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Select mode entry button */}
+      {!selectMode && (
+        <TouchableOpacity
+          style={styles.selectModeBtn}
+          onPress={() => enterSelectMode()}
+        >
+          <Text style={styles.selectModeBtnText}>☑ Select</Text>
+        </TouchableOpacity>
+      )}
 
       {/* My Files / All Files toggle */}
       <View style={styles.myFilesToggle}>
@@ -1063,6 +1145,67 @@ export default function DashboardScreen() {
               })}
             </View>
             <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setQuickStatusTask(null)}>
+              <Text style={styles.qsCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Bulk action bar (select mode) ── */}
+      {selectMode && (
+        <View style={styles.bulkBar}>
+          <Text style={styles.bulkCount}>
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Tap files to select'}
+          </Text>
+          <View style={styles.bulkActions}>
+            {selectedIds.size > 0 && (
+              <TouchableOpacity
+                style={styles.bulkActionBtn}
+                onPress={() => setBulkStatusVisible(true)}
+                disabled={savingBulk}
+              >
+                <Text style={styles.bulkActionBtnText}>🔄 Status</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.bulkCancelBtn} onPress={exitSelectMode}>
+              <Text style={styles.bulkCancelBtnText}>✕ Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Bulk Status Modal ── */}
+      <Modal
+        visible={bulkStatusVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBulkStatusVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.qsOverlay}
+          activeOpacity={1}
+          onPress={() => setBulkStatusVisible(false)}
+        >
+          <View style={styles.qsSheet}>
+            <View style={styles.qsHandle} />
+            <Text style={styles.qsTitle}>Set Status</Text>
+            <Text style={styles.qsSubtitle}>{selectedIds.size} file{selectedIds.size !== 1 ? 's' : ''} selected</Text>
+            <View style={styles.qsGrid}>
+              {statusLabels.map((sl) => (
+                <TouchableOpacity
+                  key={sl.id}
+                  style={[styles.qsChip, { borderColor: sl.color + '88', backgroundColor: sl.color + '18' }]}
+                  onPress={() => applyBulkStatus(sl.label)}
+                  disabled={savingBulk}
+                  activeOpacity={0.75}
+                >
+                  {savingBulk
+                    ? <ActivityIndicator size="small" color={sl.color} />
+                    : <Text style={[styles.qsChipText, { color: sl.color }]}>{sl.label}</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setBulkStatusVisible(false)}>
               <Text style={styles.qsCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1564,4 +1707,79 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.color.textMuted,
   },
+
+  // Select mode
+  selectModeBtn: {
+    alignSelf: 'flex-end',
+    marginHorizontal: theme.spacing.space4,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.bgSurface,
+  },
+  selectModeBtnText: { ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' },
+  selectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.space4,
+    marginBottom: theme.spacing.space2,
+    gap: 10,
+  },
+  selectRowActive: {
+    backgroundColor: theme.color.primary + '10',
+    borderRadius: theme.radius.lg,
+  },
+  selectCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.bgSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectCheckActive: {
+    borderColor: theme.color.primary,
+    backgroundColor: theme.color.primary,
+  },
+  selectCheckMark: { color: theme.color.white, fontSize: 13, fontWeight: '800' },
+
+  // Bulk action bar
+  bulkBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.color.bgSurface,
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: theme.spacing.space3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 32,
+  },
+  bulkCount: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '700' },
+  bulkActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  bulkActionBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  bulkActionBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
+  bulkCancelBtn: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  bulkCancelBtnText: { color: theme.color.textMuted, fontWeight: '700', fontSize: 13 },
 });
