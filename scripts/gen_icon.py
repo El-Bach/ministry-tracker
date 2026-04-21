@@ -1,192 +1,188 @@
 """
-GovPilot Icon Generator
-Design: teal gradient bg + white card + compass rose (upper) + government columns (lower) + green badge
+GovPilot Icon Generator — App Store & Google Play ready
+Outputs:
+  assets/icon.png              1024×1024 RGB  — iOS App Store + Expo base icon
+  assets/adaptive-icon.png     1024×1024 RGBA — Android adaptive icon foreground (transparent bg)
+  assets/google-play-icon.png    512×512  RGB  — Google Play store listing
+  assets/icon-fullbleed.png    1024×1024 RGB  — PWA apple-touch-icon
+
+Android adaptive icon rules:
+  • Canvas 1024×1024; OS clips to various shapes (circle, squircle, etc.)
+  • Safe zone  = center 66% = 676×676 (pixels 174-850). ALL content must be here.
+  • Bleed zone = full 1024×1024. Background fill (teal) covers this.
+  • backgroundColor in app.json provides the background; this file is FOREGROUND only.
 """
 from PIL import Image, ImageDraw
-import math, os
+import math, os, shutil
 
-SIZE = 1024
-img = Image.new('RGB', (SIZE, SIZE))
-draw = ImageDraw.Draw(img)
+BASE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSETS = os.path.join(BASE, 'assets')
 
-# ── 1. TEAL GRADIENT BACKGROUND (matches existing icon palette) ──
-for y in range(SIZE):
-    t = y / SIZE
-    # #5DE0CE (93,224,206) → #1E8FA0 (30,143,160)
-    r = int(93  * (1 - t) + 30  * t)
-    g = int(224 * (1 - t) + 143 * t)
-    b = int(206 * (1 - t) + 160 * t)
-    draw.line([(0, y), (SIZE, y)], fill=(r, g, b))
+# ─── Teal gradient: top #5DE0CE → bottom #1E8FA0 ──────────────────────────
+TEAL_TOP    = (93,  224, 206)
+TEAL_BOTTOM = (30,  143, 160)
+BG_COLOR_HEX = '#3EC4C0'   # midpoint teal used as adaptive icon backgroundColor
 
-# Slight diagonal highlight (top-left brighter)
-for y in range(SIZE):
-    for x_band in range(0, SIZE // 2, 1):
-        t_x = x_band / (SIZE // 2)
-        t_y = y / SIZE
-        brightness = int(20 * (1 - t_x) * (1 - t_y))
-        px_y = img.getpixel((x_band, y))
-        img.putpixel((x_band, y), (
-            min(255, px_y[0] + brightness),
-            min(255, px_y[1] + brightness),
-            min(255, px_y[2] + brightness)
-        ))
+def teal_gradient(img: Image.Image):
+    """Fill image with teal gradient (top→bottom)."""
+    draw = ImageDraw.Draw(img)
+    W, H = img.size
+    for y in range(H):
+        t = y / H
+        r = int(TEAL_TOP[0]*(1-t) + TEAL_BOTTOM[0]*t)
+        g = int(TEAL_TOP[1]*(1-t) + TEAL_BOTTOM[1]*t)
+        b = int(TEAL_TOP[2]*(1-t) + TEAL_BOTTOM[2]*t)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+    # Subtle top-left brightness highlight
+    for y in range(H):
+        for x in range(0, W // 2, 2):
+            tx, ty = x / (W/2), y / H
+            boost = int(18 * (1-tx) * (1-ty))
+            if boost > 0:
+                px = img.getpixel((x, y))
+                img.putpixel((x, y), (min(255,px[0]+boost), min(255,px[1]+boost), min(255,px[2]+boost)))
 
-draw = ImageDraw.Draw(img)
 
-# ── 2. WHITE DOCUMENT CARD ──
-doc = [195, 125, 825, 855]
-draw.rounded_rectangle(doc, radius=55, fill=(255, 255, 255))
-
-# Subtle inner shadow top edge
-for i in range(6):
-    alpha = int(12 - i * 2)
-    draw.line([(doc[0] + 55, doc[1] + i), (doc[2] - 55, doc[1] + i)],
-              fill=(180, 210, 220), width=1)
-
-# ── 3. COMPASS ROSE (upper portion of card) ──
-cx, cy = SIZE // 2, 400
-cr = 168  # compass radius
-
-# Outer decorative ring
-draw.ellipse([cx - cr - 14, cy - cr - 14, cx + cr + 14, cy + cr + 14],
-             outline=(210, 235, 245), width=10)
-draw.ellipse([cx - cr - 4, cy - cr - 4, cx + cr + 4, cy + cr + 4],
-             outline=(185, 220, 240), width=5)
-
-# 8-point compass star
-for i, angle_deg in enumerate(range(0, 360, 45)):
-    angle = math.radians(angle_deg - 90)   # 0° = North (top)
-    is_cardinal = (i % 2 == 0)
-
-    if is_cardinal:
-        tip_r   = cr * 0.84
-        side_r  = cr * 0.155
-        inner_r = cr * 0.22
-        # North = coral/red, others = indigo blue
-        if angle_deg == 0:
-            fill_col = (239, 90, 90)    # coral north
+def draw_compass(draw, cx, cy, cr):
+    """8-point compass rose centered at cx,cy with radius cr."""
+    draw.ellipse([cx-cr-14, cy-cr-14, cx+cr+14, cy+cr+14], outline=(210,235,245), width=10)
+    draw.ellipse([cx-cr-4,  cy-cr-4,  cx+cr+4,  cy+cr+4],  outline=(185,220,240), width=5)
+    for i, deg in enumerate(range(0, 360, 45)):
+        angle = math.radians(deg - 90)   # 0° = North (top)
+        cardinal = (i % 2 == 0)
+        if cardinal:
+            tip_r, side_r, inner_r = cr*0.84, cr*0.155, cr*0.22
+            col = (239, 90, 90) if deg == 0 else (79, 121, 213)
         else:
-            fill_col = (79, 121, 213)   # indigo
-    else:
-        tip_r   = cr * 0.52
-        side_r  = cr * 0.09
-        inner_r = cr * 0.14
-        fill_col = (185, 210, 240)      # light blue ordinal
+            tip_r, side_r, inner_r = cr*0.52, cr*0.09, cr*0.14
+            col = (185, 210, 240)
+        tip  = (cx + tip_r  * math.cos(angle), cy + tip_r  * math.sin(angle))
+        perp = angle + math.pi/2
+        lft  = (cx + side_r * math.cos(perp),  cy + side_r * math.sin(perp))
+        rgt  = (cx - side_r * math.cos(perp),  cy - side_r * math.sin(perp))
+        back = (cx - inner_r* math.cos(angle), cy - inner_r* math.sin(angle))
+        draw.polygon([tip, lft, back, rgt], fill=col)
+    # Center rings
+    draw.ellipse([cx-26, cy-26, cx+26, cy+26], fill=(79, 121, 213))
+    draw.ellipse([cx-17, cy-17, cx+17, cy+17], fill=(255, 255, 255))
+    draw.ellipse([cx-8,  cy-8,  cx+8,  cy+8],  fill=(79, 121, 213))
 
-    tip_x  = cx + tip_r  * math.cos(angle)
-    tip_y  = cy + tip_r  * math.sin(angle)
-    perp   = angle + math.pi / 2
-    left_x = cx + side_r * math.cos(perp)
-    left_y = cy + side_r * math.sin(perp)
-    right_x= cx - side_r * math.cos(perp)
-    right_y= cy - side_r * math.sin(perp)
-    back_x = cx - inner_r * math.cos(angle)
-    back_y = cy - inner_r * math.sin(angle)
 
-    draw.polygon(
-        [(tip_x, tip_y), (left_x, left_y), (back_x, back_y), (right_x, right_y)],
-        fill=fill_col
-    )
+def draw_building(draw, bld_cx, bld_top, scale=1.0):
+    """Government building (columns + pediment + steps)."""
+    col_color = (190, 215, 242)
+    ped_color = (205, 225, 246)
+    S = scale
+    col_count, col_w, col_h, spacing = 5, int(32*S), int(108*S), int(72*S)
+    total_w = (col_count-1)*spacing + col_w
+    L = bld_cx - total_w//2
+    # Pediment
+    draw.polygon([(L-int(28*S), bld_top), (bld_cx+col_w//2, bld_top-int(72*S)),
+                  (L+total_w+col_w+int(28*S), bld_top)], fill=ped_color)
+    # Entablature
+    draw.rectangle([L-int(22*S), bld_top, L+total_w+col_w+int(22*S), bld_top+int(22*S)], fill=col_color)
+    # Columns
+    for i in range(col_count):
+        x = L + i*spacing
+        draw.rounded_rectangle([x, bld_top+int(22*S), x+col_w, bld_top+int(22*S)+col_h], radius=5, fill=col_color)
+        draw.rectangle([x-int(4*S), bld_top+int(18*S), x+col_w+int(4*S), bld_top+int(26*S)], fill=(200,222,246))
+        draw.rectangle([x-int(4*S), bld_top+int(22*S)+col_h-int(4*S),
+                        x+col_w+int(4*S), bld_top+int(22*S)+col_h+int(6*S)], fill=(200,222,246))
+    # Steps
+    for s in range(3):
+        sw = total_w + col_w + int((44+s*28)*S)
+        sx = bld_cx - sw//2
+        sy = bld_top + int(22*S) + col_h + int(6*S) + s*int(15*S)
+        draw.rectangle([sx, sy, sx+sw, sy+int(13*S)], fill=(200, 220, 244))
 
-# Compass center rings
-draw.ellipse([cx - 26, cy - 26, cx + 26, cy + 26], fill=(79, 121, 213))
-draw.ellipse([cx - 17, cy - 17, cx + 17, cy + 17], fill=(255, 255, 255))
-draw.ellipse([cx -  8, cy -  8, cx +  8, cy +  8], fill=(79, 121, 213))
 
-# ── 4. GOVERNMENT BUILDING (lower portion of card) ──
-bld_cx   = SIZE // 2
-bld_top  = 640
-col_color = (190, 215, 242)
-ped_color = (205, 225, 246)
+def draw_badge(draw, bcx, bcy, br):
+    """Green compass badge."""
+    draw.ellipse([bcx-br+5, bcy-br+5, bcx+br+5, bcy+br+5], fill=(0, 100, 80))
+    draw.ellipse([bcx-br,   bcy-br,   bcx+br,   bcy+br],   fill=(34, 180, 132))
+    draw.ellipse([bcx-br+9, bcy-br+9, bcx+br-9, bcy+br-9], fill=(52, 211, 153))
+    draw.polygon([(bcx, bcy-int(br*0.58)), (bcx-int(br*0.16), bcy+int(br*0.08)),
+                  (bcx+int(br*0.16), bcy+int(br*0.08))], fill=(255, 255, 255))
+    draw.polygon([(bcx, bcy+int(br*0.58)), (bcx-int(br*0.10), bcy-int(br*0.04)),
+                  (bcx+int(br*0.10), bcy-int(br*0.04))], fill=(170, 240, 215))
+    draw.ellipse([bcx-int(br*0.11), bcy-int(br*0.11), bcx+int(br*0.11), bcy+int(br*0.11)], fill=(255,255,255))
+    draw.ellipse([bcx-int(br*0.05), bcy-int(br*0.05), bcx+int(br*0.05), bcy+int(br*0.05)], fill=(52,211,153))
 
-col_count = 5
-col_w     = 32
-col_h     = 108
-spacing   = 72
-total_w   = (col_count - 1) * spacing + col_w
-bld_left  = bld_cx - total_w // 2
 
-# Pediment (triangle roof)
-roof_pts = [
-    (bld_left - 28, bld_top),
-    (bld_cx + col_w // 2, bld_top - 72),
-    (bld_left + total_w + col_w + 28, bld_top)
-]
-draw.polygon(roof_pts, fill=ped_color)
+def draw_sparkles(draw, positions):
+    """4-ray sparkles at given (x, y, size, width) tuples."""
+    for sx, sy, size, w in positions:
+        draw.line([sx, sy-size, sx, sy+size], fill=(255,255,255), width=w)
+        draw.line([sx-size, sy, sx+size, sy], fill=(255,255,255), width=w)
+        d = int(size * 0.62)
+        draw.line([sx-d, sy-d, sx+d, sy+d], fill=(255,255,255), width=max(1,w-2))
+        draw.line([sx+d, sy-d, sx-d, sy+d], fill=(255,255,255), width=max(1,w-2))
 
-# Entablature (frieze)
-draw.rectangle(
-    [bld_left - 22, bld_top, bld_left + total_w + col_w + 22, bld_top + 22],
-    fill=col_color
-)
 
-# Columns
-for i in range(col_count):
-    x = bld_left + i * spacing
-    # shaft
-    draw.rounded_rectangle(
-        [x, bld_top + 22, x + col_w, bld_top + 22 + col_h],
-        radius=5, fill=col_color
-    )
-    # capital
-    draw.rectangle([x - 4, bld_top + 18, x + col_w + 4, bld_top + 26], fill=(200, 222, 246))
-    # base
-    draw.rectangle([x - 4, bld_top + 22 + col_h - 4, x + col_w + 4, bld_top + 22 + col_h + 6],
-                   fill=(200, 222, 246))
+# ══════════════════════════════════════════════════════════════════
+# 1.  icon.png — 1024×1024 RGB (iOS App Store & Expo base icon)
+#     • No transparency (required by App Store)
+#     • Apple applies rounded corners automatically — no need to pre-round
+#     • Full bleed: gradient reaches all 4 corners
+# ══════════════════════════════════════════════════════════════════
+SIZE = 1024
+ios = Image.new('RGB', (SIZE, SIZE))
+teal_gradient(ios)
+d = ImageDraw.Draw(ios)
 
-# Steps
-for s in range(3):
-    sw = total_w + col_w + 44 + s * 28
-    sx = bld_cx - sw // 2
-    sy = bld_top + 22 + col_h + 6 + s * 15
-    draw.rectangle([sx, sy, sx + sw, sy + 13], fill=(200, 220, 244))
+# White card
+d.rounded_rectangle([195, 125, 825, 855], radius=55, fill=(255, 255, 255))
 
-# ── 5. GREEN BADGE (bottom-right) ──
-bcx, bcy = 728, 762
-br = 96
+# Content
+draw_compass(d, cx=512, cy=400, cr=168)
+draw_building(d, bld_cx=512, bld_top=640, scale=1.0)
+draw_badge(d, bcx=728, bcy=762, br=96)
+draw_sparkles(d, [(125,155,26,5), (882,205,20,4), (98,792,17,4), (876,832,22,5)])
 
-# Shadow
-draw.ellipse([bcx - br + 5, bcy - br + 5, bcx + br + 5, bcy + br + 5],
-             fill=(0, 100, 80))
+ios.save(os.path.join(ASSETS, 'icon.png'))
+print('✓ icon.png             1024×1024  RGB  — iOS App Store')
 
-# Outer green ring
-draw.ellipse([bcx - br, bcy - br, bcx + br, bcy + br], fill=(34, 180, 132))
+# ══════════════════════════════════════════════════════════════════
+# 2.  adaptive-icon.png — 1024×1024 RGBA (Android adaptive foreground)
+#     • Transparent background (teal comes from app.json backgroundColor)
+#     • ALL content inside safe zone: pixels 174–850 (center 66%)
+#     • Card 560×630, centered at (512, 492) → top=177, bottom=807 ✓
+#     • Badge at (702, 726) → within safe zone ✓
+# ══════════════════════════════════════════════════════════════════
+fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+df = ImageDraw.Draw(fg)
 
-# Inner lighter green
-draw.ellipse([bcx - br + 9, bcy - br + 9, bcx + br - 9, bcy + br - 9],
-             fill=(52, 211, 153))
+SAFE = 174   # safe zone starts at x=174, y=174 (ends at x=850, y=850)
 
-# White compass needle (N = white solid, S = translucent)
-# North pointer (white)
-draw.polygon(
-    [(bcx, bcy - 56), (bcx - 15, bcy + 8), (bcx + 15, bcy + 8)],
-    fill=(255, 255, 255)
-)
-# South pointer (tinted)
-draw.polygon(
-    [(bcx, bcy + 56), (bcx - 10, bcy - 4), (bcx + 10, bcy - 4)],
-    fill=(170, 240, 215)
-)
-# Center pin
-draw.ellipse([bcx - 11, bcy - 11, bcx + 11, bcy + 11], fill=(255, 255, 255))
-draw.ellipse([bcx -  5, bcy -  5, bcx +  5, bcy +  5], fill=(52, 211, 153))
+# White card — fits inside safe zone
+card_cx, card_cy, card_w, card_h = 512, 492, 556, 630
+df.rounded_rectangle([card_cx-card_w//2, card_cy-card_h//2,
+                       card_cx+card_w//2, card_cy+card_h//2],
+                      radius=48, fill=(255, 255, 255))
 
-# ── 6. SPARKLES ──
-sparkle_color = (255, 255, 255)
-sparkles = [
-    (125, 155, 26, 5),
-    (882, 205, 20, 4),
-    ( 98, 792, 17, 4),
-    (876, 832, 22, 5),
-]
-for sx, sy, size, w in sparkles:
-    draw.line([sx, sy - size, sx, sy + size], fill=sparkle_color, width=w)
-    draw.line([sx - size, sy, sx + size, sy], fill=sparkle_color, width=w)
-    d = int(size * 0.62)
-    draw.line([sx - d, sy - d, sx + d, sy + d], fill=sparkle_color, width=w - 2)
-    draw.line([sx + d, sy - d, sx - d, sy + d], fill=sparkle_color, width=w - 2)
+# Compass (smaller to stay in safe zone)
+draw_compass(df, cx=512, cy=370, cr=140)
+draw_building(df, bld_cx=512, bld_top=602, scale=0.84)
+draw_badge(df, bcx=704, bcy=724, br=80)
 
-# ── SAVE ──
-out_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'icon.png')
-img.save(out_path)
-print(f"Saved: {out_path}  ({SIZE}x{SIZE})")
+fg.save(os.path.join(ASSETS, 'adaptive-icon.png'))
+print('✓ adaptive-icon.png    1024×1024  RGBA — Android adaptive foreground')
+
+# ══════════════════════════════════════════════════════════════════
+# 3.  google-play-icon.png — 512×512 RGB (Google Play store listing)
+#     • Simple downscale of icon.png
+#     • LANCZOS for maximum quality
+# ══════════════════════════════════════════════════════════════════
+play = ios.resize((512, 512), Image.LANCZOS)
+play.save(os.path.join(ASSETS, 'google-play-icon.png'))
+print('✓ google-play-icon.png   512×512  RGB  — Google Play store listing')
+
+# ══════════════════════════════════════════════════════════════════
+# 4.  icon-fullbleed.png — copy of icon.png (PWA / apple-touch-icon)
+# ══════════════════════════════════════════════════════════════════
+shutil.copy(os.path.join(ASSETS, 'icon.png'),
+            os.path.join(ASSETS, 'icon-fullbleed.png'))
+print('✓ icon-fullbleed.png   1024×1024  RGB  — PWA apple-touch-icon')
+
+print(f'\nAll assets saved to: {ASSETS}')
+print(f'Use backgroundColor: "{BG_COLOR_HEX}" in app.json adaptiveIcon')

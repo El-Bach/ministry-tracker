@@ -7,8 +7,17 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
+    "ios": {
+      "bundleIdentifier": "com.bechara.govpilot",
+      "buildNumber": "1",
+      "supportsTablet": false
+    },
     "android": {
-      "package": "com.bechara.ministrytracker",
+      "package": "com.bechara.govpilot",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#3EC4C0"
+      },
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
