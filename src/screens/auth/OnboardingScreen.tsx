@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { useAuth } from '../../hooks/useAuth';
+import { normalizeToEmail, isPhoneInput, IDENTIFIER_LABEL, IDENTIFIER_PLACEHOLDER } from '../../lib/authHelpers';
 
 const TOTAL_STEPS = 3;
 
@@ -105,14 +106,17 @@ export default function OnboardingScreen() {
     const orgId = teamMember?.org_id;
     if (inviteName.trim() && inviteEmail.trim() && orgId) {
       setLoading(true);
-      // Create a pending team_member row (no auth yet — they'll sign up with this email)
+      const normalizedEmail = normalizeToEmail(inviteEmail.trim());
+      // Create invitation row so they auto-join on sign-up
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase
-        .from('team_members')
+        .from('invitations')
         .insert({
-          name:   inviteName.trim(),
-          email:  inviteEmail.trim().toLowerCase(),
-          role:   'member',
-          org_id: orgId,
+          org_id:     orgId,
+          email:      normalizedEmail,
+          role:       'member',
+          invited_by: teamMember?.id,
+          expires_at: expires,
         });
       setLoading(false);
       if (error && !error.message.includes('duplicate')) {
@@ -235,14 +239,14 @@ export default function OnboardingScreen() {
               />
             </View>
             <View style={s.field}>
-              <Text style={s.label}>TEAMMATE EMAIL</Text>
+              <Text style={s.label}>{IDENTIFIER_LABEL}</Text>
               <TextInput
                 style={s.input}
                 value={inviteEmail}
                 onChangeText={setInviteEmail}
-                placeholder="colleague@company.com"
+                placeholder={IDENTIFIER_PLACEHOLDER}
                 placeholderTextColor={theme.color.textMuted}
-                keyboardType="email-address"
+                keyboardType={isPhoneInput(inviteEmail) && inviteEmail.length > 2 ? 'phone-pad' : 'email-address'}
                 autoCapitalize="none"
                 autoCorrect={false}
               />

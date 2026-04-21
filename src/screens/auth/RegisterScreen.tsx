@@ -1,7 +1,7 @@
 // src/screens/auth/RegisterScreen.tsx
 // Public registration: create account + organization
-// OR join an existing org if invited by email
-// Session 26 Phase 1+2 — commercialization
+// OR join an existing org if invited by email or phone
+// Session 26 Phase 1+2+phone — phone-as-username support
 
 import React, { useState } from 'react';
 import {
@@ -20,6 +20,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
+import {
+  normalizeToEmail,
+  normalizePhone,
+  isPhoneInput,
+  IDENTIFIER_LABEL,
+  IDENTIFIER_PLACEHOLDER,
+} from '../../lib/authHelpers';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -28,23 +35,25 @@ export default function RegisterScreen() {
 
   const [fullName,    setFullName]    = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [email,       setEmail]       = useState('');
+  const [identifier,  setIdentifier]  = useState('');   // email or phone
   const [password,    setPassword]    = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [loading,     setLoading]     = useState(false);
 
-  // When user types their email, check for a pending invitation
   const [invitePreview, setInvitePreview] = useState<{ orgName: string; role: string } | null>(null);
   const [checkingInvite, setCheckingInvite] = useState(false);
 
-  const checkInvitation = async (emailVal: string) => {
-    const trimmed = emailVal.trim().toLowerCase();
-    if (!trimmed.includes('@')) { setInvitePreview(null); return; }
+  const isPhone = isPhoneInput(identifier) && identifier.trim().length > 3;
+
+  const checkInvitation = async (raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length < 4) { setInvitePreview(null); return; }
     setCheckingInvite(true);
+    const normalized = normalizeToEmail(trimmed);  // either real email or phone-derived
     const { data } = await supabase
       .from('invitations')
       .select('role, org_id, organizations(name)')
-      .eq('email', trimmed)
+      .eq('email', normalized)
       .is('accepted_at', null)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
@@ -58,12 +67,11 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    const trimEmail = email.trim().toLowerCase();
-    if (!fullName.trim() || !trimEmail || !password) {
-      Alert.alert('Required', 'Please fill in name, email and password.');
+    const trimmedId = identifier.trim();
+    if (!fullName.trim() || !trimmedId || !password) {
+      Alert.alert('Required', 'Please fill in name, email/phone and password.');
       return;
     }
-    // Company name only required when NOT joining via invite
     if (!invitePreview && !companyName.trim()) {
       Alert.alert('Required', 'Please enter your company name.');
       return;
@@ -77,16 +85,19 @@ export default function RegisterScreen() {
       return;
     }
 
+    // Derive Supabase auth email and real phone (if phone login)
+    const authEmail = normalizeToEmail(trimmedId);
+    const realPhone = isPhoneInput(trimmedId) ? normalizePhone(trimmedId) : null;
+
     setLoading(true);
     try {
       // 1. Create Supabase auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: trimEmail,
+        email: authEmail,
         password,
       });
       if (authError) throw new Error(authError.message);
       if (!authData.user) throw new Error('Account creation failed. Please try again.');
-
       const authUserId = authData.user.id;
 
       // 2a. Invited user → join existing org
@@ -94,32 +105,31 @@ export default function RegisterScreen() {
         const { data: invite } = await supabase
           .from('invitations')
           .select('id, org_id, role')
-          .eq('email', trimEmail)
+          .eq('email', authEmail)
           .is('accepted_at', null)
           .gt('expires_at', new Date().toISOString())
           .maybeSingle();
 
         if (!invite) throw new Error('Invitation not found or expired. Please ask for a new one.');
 
-        // Create team_member in the inviting org
         const { error: memberErr } = await supabase
           .from('team_members')
           .upsert({
             name:    fullName.trim(),
-            email:   trimEmail,
+            email:   authEmail,
+            phone:   realPhone,
             role:    invite.role,
             org_id:  invite.org_id,
             auth_id: authUserId,
           }, { onConflict: 'email' });
         if (memberErr) throw new Error('Failed to join organization: ' + memberErr.message);
 
-        // Mark invitation accepted
         await supabase
           .from('invitations')
           .update({ accepted_at: new Date().toISOString() })
           .eq('id', invite.id);
 
-      // 2b. New user → create new org
+      // 2b. New user → create org
       } else {
         const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         const { data: orgData, error: orgError } = await supabase
@@ -133,14 +143,15 @@ export default function RegisterScreen() {
           .from('team_members')
           .insert({
             name:    fullName.trim(),
-            email:   trimEmail,
+            email:   authEmail,
+            phone:   realPhone,
             role:    'owner',
             org_id:  orgData.id,
             auth_id: authUserId,
           });
         if (memberError) throw new Error('Failed to create user profile: ' + memberError.message);
 
-        // Default status labels for new org
+        // Default status labels
         const defaultLabels = [
           { label: 'Submitted',         color: '#6366f1', sort_order: 1, org_id: orgData.id },
           { label: 'In Review',         color: '#f59e0b', sort_order: 2, org_id: orgData.id },
@@ -151,8 +162,6 @@ export default function RegisterScreen() {
         ];
         await supabase.from('status_labels').insert(defaultLabels);
       }
-
-      // useAuth will pick up the new session → routes to Onboarding or Main
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message);
     } finally {
@@ -189,7 +198,8 @@ export default function RegisterScreen() {
             <View style={{ flex: 1 }}>
               <Text style={s.inviteBannerTitle}>Invitation found</Text>
               <Text style={s.inviteBannerSub}>
-                You'll join <Text style={{ fontWeight: '700' }}>{invitePreview.orgName}</Text> as <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{invitePreview.role}</Text>
+                You'll join <Text style={{ fontWeight: '700' }}>{invitePreview.orgName}</Text> as{' '}
+                <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{invitePreview.role}</Text>
               </Text>
             </View>
           </View>
@@ -210,23 +220,28 @@ export default function RegisterScreen() {
           </View>
 
           <View style={s.field}>
-            <Text style={s.label}>EMAIL</Text>
-            <TextInput
-              style={s.input}
-              value={email}
-              onChangeText={(v) => { setEmail(v); checkInvitation(v); }}
-              placeholder="your@company.com"
-              placeholderTextColor={theme.color.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {checkingInvite && (
-              <Text style={s.checkingText}>Checking for invitation…</Text>
-            )}
+            <Text style={s.label}>{IDENTIFIER_LABEL}</Text>
+            <View style={s.inputRow}>
+              <TextInput
+                style={[s.input, { flex: 1 }]}
+                value={identifier}
+                onChangeText={(v) => { setIdentifier(v); checkInvitation(v); }}
+                placeholder={IDENTIFIER_PLACEHOLDER}
+                placeholderTextColor={theme.color.textMuted}
+                keyboardType={isPhone ? 'phone-pad' : 'email-address'}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {identifier.trim().length > 2 && (
+                <View style={[s.typeTag, isPhone ? s.typeTagPhone : s.typeTagEmail]}>
+                  <Text style={s.typeTagText}>{isPhone ? '📱' : '✉️'}</Text>
+                </View>
+              )}
+            </View>
+            {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
           </View>
 
-          {/* Company name — hidden if joining via invite */}
+          {/* Company name — hidden when joining via invite */}
           {!invitePreview && (
             <View style={s.field}>
               <Text style={s.label}>COMPANY / OFFICE NAME</Text>
@@ -281,7 +296,6 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Back to login */}
         <View style={s.loginRow}>
           <Text style={s.loginText}>Already have an account? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Login')}>
@@ -323,9 +337,10 @@ const s = StyleSheet.create({
   inviteBannerTitle: { ...theme.typography.body, color: theme.color.success, fontWeight: '700' },
   inviteBannerSub:   { ...theme.typography.label, color: theme.color.textSecondary, marginTop: 2 },
   checkingText:      { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
-  form:         { gap: 18 },
-  field:        { gap: 6 },
-  label:        { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  form:              { gap: 18 },
+  field:             { gap: 6 },
+  label:             { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  inputRow:          { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: {
     backgroundColor: theme.color.bgSurface,
     borderWidth:     1,
@@ -336,6 +351,17 @@ const s = StyleSheet.create({
     color:           theme.color.textPrimary,
     fontSize:        15,
   },
+  typeTag: {
+    width:          36,
+    height:         36,
+    borderRadius:   theme.radius.md,
+    justifyContent: 'center',
+    alignItems:     'center',
+    borderWidth:    1,
+  },
+  typeTagPhone:   { backgroundColor: theme.color.success + '18', borderColor: theme.color.success + '44' },
+  typeTagEmail:   { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary + '44' },
+  typeTagText:    { fontSize: 18 },
   button: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.lg,
