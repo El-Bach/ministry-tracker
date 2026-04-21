@@ -1029,6 +1029,7 @@ export default function NewTaskScreen() {
  is_active: true,
  options: options ? JSON.stringify(options) : null,
  sort_order: 999,
+ org_id: teamMember?.org_id ?? null,
  })
  .select()
  .single();
@@ -1056,6 +1057,7 @@ export default function NewTaskScreen() {
  name: newClientName.trim(),
  client_id: autoId,
  phone: newClientPhone.trim() || null,
+ org_id: teamMember?.org_id ?? null,
  })
  .select()
  .single();
@@ -1089,7 +1091,7 @@ export default function NewTaskScreen() {
    setSavingService(true);
    const { data, error } = await supabase
      .from('services')
-     .insert({ name: newServiceName.trim(), estimated_duration_days: 0 })
+     .insert({ name: newServiceName.trim(), estimated_duration_days: 0, org_id: teamMember?.org_id ?? null })
      .select()
      .single();
    if (error) { Alert.alert('Error', error.message); setSavingService(false); return; }
@@ -1100,7 +1102,7 @@ export default function NewTaskScreen() {
    for (let i = 0; i < names.length; i++) {
      const { data: mData } = await supabase
        .from('ministries')
-       .insert({ name: names[i], type: 'child' })
+       .insert({ name: names[i], type: 'child', org_id: teamMember?.org_id ?? null })
        .select()
        .single();
      if (mData) {
@@ -1129,7 +1131,7 @@ export default function NewTaskScreen() {
  setSavingStage(true);
  const { data, error } = await supabase
  .from('ministries')
- .insert({ name: newStageName.trim(), type: 'parent' })
+ .insert({ name: newStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
  .select()
  .single();
  setSavingStage(false);
@@ -1200,6 +1202,7 @@ export default function NewTaskScreen() {
  price_lbp: (selectedService as any).base_price_lbp ?? 0,
  created_at: createdAt.toISOString(),
  updated_at: createdAt.toISOString(),
+ org_id: teamMember?.org_id ?? null,
  })
  .select()
  .single();
@@ -1229,7 +1232,7 @@ export default function NewTaskScreen() {
  if (!finalMinistryId) {
    const { data: newMin, error: minErr } = await supabase
      .from('ministries')
-     .insert({ name: FINAL_STAGE_NAME, type: 'parent' })
+     .insert({ name: FINAL_STAGE_NAME, type: 'parent', org_id: teamMember?.org_id ?? null })
      .select()
      .single();
    if (minErr) throw minErr;

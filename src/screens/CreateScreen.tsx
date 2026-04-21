@@ -24,6 +24,7 @@ import { Calendar } from 'react-native-calendars';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument } from '../types';
 import { formatPhoneDisplay } from '../lib/phone';
 
@@ -40,6 +41,8 @@ function openPhone(phone: string, name?: string) {
 
 export default function CreateScreen() {
   const navigation = useNavigation<any>();
+  const { teamMember } = useAuth();
+  const orgId = teamMember?.org_id ?? null;
 
   // Data
   const [clients, setClients] = useState<Client[]>([]);
@@ -239,7 +242,7 @@ export default function CreateScreen() {
     const autoId = `CLT-${Date.now()}`;
     const { data, error } = await supabase
       .from('clients')
-      .insert({ name: newClientName.trim(), client_id: autoId, phone: newClientPhone.trim() || null, reference_name: newClientRefName.trim() || null, reference_phone: newClientRefPhone.trim() || null })
+      .insert({ name: newClientName.trim(), client_id: autoId, phone: newClientPhone.trim() || null, reference_name: newClientRefName.trim() || null, reference_phone: newClientRefPhone.trim() || null, org_id: orgId })
       .select()
       .single();
     if (error || !data) { setSavingClient(false); Alert.alert('Error', error?.message ?? 'Failed'); return; }
@@ -283,7 +286,7 @@ export default function CreateScreen() {
   const handleCreateService = async () => {
     if (!newSvcName.trim()) { Alert.alert('Required', 'Service name is required.'); return; }
     setSavingNewSvc(true);
-    await supabase.from('services').insert({ name: newSvcName.trim(), estimated_duration_days: 0, base_price_usd: parseFloat(newSvcPriceUSD) || 0, base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0 });
+    await supabase.from('services').insert({ name: newSvcName.trim(), estimated_duration_days: 0, base_price_usd: parseFloat(newSvcPriceUSD) || 0, base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0, org_id: orgId });
     setSavingNewSvc(false);
     setNewSvcName(''); setNewSvcPriceUSD(''); setNewSvcPriceLBP('');
     fetchData();
@@ -313,7 +316,7 @@ export default function CreateScreen() {
   const handleCreateStage = async () => {
     if (!newStageName.trim()) { Alert.alert('Required', 'Stage name is required.'); return; }
     setSavingNewStage(true);
-    await supabase.from('ministries').insert({ name: newStageName.trim(), type: 'parent' });
+    await supabase.from('ministries').insert({ name: newStageName.trim(), type: 'parent', org_id: orgId });
     setSavingNewStage(false);
     setNewStageName('');
     fetchData();
@@ -368,7 +371,7 @@ export default function CreateScreen() {
     if (existing) {
       ministryId = existing.id;
     } else {
-      const { data: mData } = await supabase.from('ministries').insert({ name, type: 'parent' }).select().single();
+      const { data: mData } = await supabase.from('ministries').insert({ name, type: 'parent', org_id: orgId }).select().single();
       if (!mData) { setSavingNewSvcStage(false); return; }
       ministryId = (mData as any).id;
     }
@@ -486,6 +489,7 @@ export default function CreateScreen() {
       reference: netReference.trim() || null,
       reference_phone: netRefPhone.trim() || null,
       city_id: netCityId ?? null,
+      org_id: orgId,
     };
     let assigneeId: string;
     if (editNetworkId) {
@@ -535,6 +539,7 @@ export default function CreateScreen() {
       name:      r.name,
       phone:     r.phone || null,
       reference: r.reference || null,
+      org_id:    orgId,
     }));
     const { error } = await supabase.from('assignees').insert(inserts);
     setImportingContacts(false);
@@ -568,6 +573,7 @@ export default function CreateScreen() {
       base_price_usd:      parseFloat(r.priceUSD) || 0,
       base_price_lbp:      parseInt(r.priceLBP, 10) || 0,
       estimated_duration_days: 0,
+      org_id:              orgId,
     }));
     const { error } = await supabase.from('services').insert(inserts);
     setImportingServices(false);
@@ -599,7 +605,7 @@ export default function CreateScreen() {
     const docs = serviceDocs[serviceId] ?? [];
     const maxOrder = docs.length > 0 ? Math.max(...docs.map(d => d.sort_order)) : 0;
     const { data } = await supabase.from('service_documents')
-      .insert({ service_id: serviceId, title, sort_order: maxOrder + 1 })
+      .insert({ service_id: serviceId, title, sort_order: maxOrder + 1, org_id: orgId })
       .select().single();
     setSavingDoc(false);
     if (data) {
@@ -646,6 +652,7 @@ export default function CreateScreen() {
       phone: r.phone || null,
       reference_name: r.refName || null,
       reference_phone: r.refPhone || null,
+      org_id: orgId,
     }));
     const { error } = await supabase.from('clients').insert(inserts);
     setImportingClients(false);
@@ -663,7 +670,7 @@ export default function CreateScreen() {
   const handleImportStages = async () => {
     if (!stageImportNames.length) return;
     setImportingStages(true);
-    const inserts = stageImportNames.map(name => ({ name, type: 'parent' as const }));
+    const inserts = stageImportNames.map(name => ({ name, type: 'parent' as const, org_id: orgId }));
     const { data, error } = await supabase.from('ministries').insert(inserts).select();
     setImportingStages(false);
     if (error) { Alert.alert('Error', error.message); return; }
@@ -682,6 +689,7 @@ export default function CreateScreen() {
       title,
       sort_order: maxOrder + i + 1,
       is_checked: false,
+      org_id: orgId,
     }));
     const { data, error } = await supabase.from('service_documents').insert(inserts).select();
     setImportingDocs(false);

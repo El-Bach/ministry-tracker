@@ -449,7 +449,7 @@ export default function SettingsScreen() {
    setAddingSvcStage(true);
    const { data: mData, error: mErr } = await supabase
      .from('ministries')
-     .insert({ name: svcNewStageName.trim(), type: 'parent' })
+     .insert({ name: svcNewStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
      .select()
      .single();
    if (mErr) { Alert.alert('Error', mErr.message); setAddingSvcStage(false); return; }
@@ -475,6 +475,7 @@ export default function SettingsScreen() {
  const { error } = await supabase.from('ministries').insert({
  name,
  type: 'parent',
+ org_id: teamMember?.org_id ?? null,
  });
  setSaving(false);
  if (error) Alert.alert('Error', error.message);
@@ -491,6 +492,7 @@ export default function SettingsScreen() {
  name,
  type: 'child',
  parent_id: parentId,
+ org_id: teamMember?.org_id ?? null,
  });
  setSaving(false);
  if (error) Alert.alert('Error', error.message);
@@ -507,6 +509,7 @@ export default function SettingsScreen() {
      estimated_duration_days: 0,
      base_price_usd: parseFloat(newSvcPriceUSD) || 0,
      base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0,
+     org_id: teamMember?.org_id ?? null,
    })
    .select().single();
  if (svcErr) { Alert.alert('Error', svcErr.message); setSavingNewSvc(false); return; }
@@ -514,7 +517,7 @@ export default function SettingsScreen() {
  const names = newSvcStageNames.filter((n) => n.trim());
  for (let i = 0; i < names.length; i++) {
    const { data: mData } = await supabase
-     .from('ministries').insert({ name: names[i].trim(), type: 'parent' }).select().single();
+     .from('ministries').insert({ name: names[i].trim(), type: 'parent', org_id: teamMember?.org_id ?? null }).select().single();
    if (mData) {
      await supabase.from('service_default_stages').insert({
        service_id: svcData.id, ministry_id: mData.id, stop_order: i + 1,
@@ -541,6 +544,7 @@ export default function SettingsScreen() {
  label,
  color,
  sort_order: maxOrder + 1,
+ org_id: teamMember?.org_id ?? null,
  });
  setSaving(false);
  if (error) Alert.alert('Error', error.message);

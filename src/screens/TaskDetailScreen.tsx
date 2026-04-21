@@ -596,7 +596,7 @@ export default function TaskDetailScreen() {
     setSavingNewStage(true);
     const { data, error } = await supabase
       .from('ministries')
-      .insert({ name: newStageName.trim(), type: 'parent' })
+      .insert({ name: newStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
       .select()
       .single();
     setSavingNewStage(false);
@@ -627,7 +627,7 @@ export default function TaskDetailScreen() {
         } else {
           const { data: newMin, error: minErr } = await supabase
             .from('ministries')
-            .insert({ name: FINAL_STAGE_NAME, type: 'parent' })
+            .insert({ name: FINAL_STAGE_NAME, type: 'parent', org_id: teamMember?.org_id ?? null })
             .select()
             .single();
           if (minErr) throw minErr;
@@ -1172,7 +1172,7 @@ export default function TaskDetailScreen() {
     setSavingExtAssignee(true);
     const { data, error } = await supabase
       .from('assignees')
-      .insert({ name: newExtName.trim(), phone: newExtPhone.trim() || null, reference: newExtReference.trim() || null, created_by: teamMember?.id })
+      .insert({ name: newExtName.trim(), phone: newExtPhone.trim() || null, reference: newExtReference.trim() || null, created_by: teamMember?.id, org_id: teamMember?.org_id ?? null })
       .select('*, creator:team_members!created_by(name)')
       .single();
     setSavingExtAssignee(false);
@@ -1200,7 +1200,7 @@ export default function TaskDetailScreen() {
   const handleCreateCity = async (stopId: string) => {
     if (!newCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
     setSavingCity(true);
-    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim() }).select().single();
+    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
     setSavingCity(false);
     if (error) { Alert.alert('Error', error.message); return; }
     const created = data as City;
@@ -1317,6 +1317,7 @@ export default function TaskDetailScreen() {
                   price_lbp: task.price_lbp ?? 0,
                   created_at: now,
                   updated_at: now,
+                  org_id: teamMember?.org_id ?? null,
                 })
                 .select()
                 .single();

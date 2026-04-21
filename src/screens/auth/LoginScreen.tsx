@@ -67,8 +67,8 @@ export default function LoginScreen() {
           <View style={styles.logoBox}>
             <Text style={styles.logoIcon}>⊞</Text>
           </View>
-          <Text style={styles.title}>ClearTrack</Text>
-          <Text style={styles.subtitle}>Government File Management</Text>
+          <Text style={styles.title}>GovPilot</Text>
+          <Text style={styles.subtitle}>Government File Tracking</Text>
         </View>
 
         {/* Form */}
@@ -123,7 +123,7 @@ export default function LoginScreen() {
 
         {/* Sign up link */}
         <View style={styles.signupRow}>
-          <Text style={styles.signupText}>New to ClearTrack? </Text>
+          <Text style={styles.signupText}>New to GovPilot? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={styles.signupLink}>Create an account</Text>
           </TouchableOpacity>
