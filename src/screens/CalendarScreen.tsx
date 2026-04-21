@@ -1,7 +1,7 @@
 // src/screens/CalendarScreen.tsx
 // Calendar view: task due dates + stage due dates as marked dots; tap to see items due that day
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
@@ -70,9 +70,7 @@ export default function CalendarScreen() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
@@ -98,9 +96,10 @@ export default function CalendarScreen() {
 
   filteredStops.forEach((stop) => {
     if (!stop.due_date) return;
+    const isOverdue = stop.due_date < todayStr && stop.task?.current_status !== 'Done';
     if (!markedDates[stop.due_date]) markedDates[stop.due_date] = { dots: [] };
     if (markedDates[stop.due_date].dots.length < 3)
-      markedDates[stop.due_date].dots.push({ color: theme.color.warning });
+      markedDates[stop.due_date].dots.push({ color: isOverdue ? theme.color.danger : theme.color.warning });
   });
 
   // Add selected date marker
@@ -242,14 +241,16 @@ export default function CalendarScreen() {
             ))}
 
             {/* ── Stage due dates ── */}
-            {stopsForDate.map((stop) => (
+            {stopsForDate.map((stop) => {
+              const isOverdue = stop.due_date < todayStr && stop.task?.current_status !== 'Done';
+              return (
               <TouchableOpacity
                 key={stop.id}
-                style={s.stageCard}
+                style={[s.stageCard, isOverdue && s.stageCardOverdue]}
                 onPress={() => stop.task?.id && navigation.navigate('TaskDetail', { taskId: stop.task.id })}
                 activeOpacity={0.75}
               >
-                <View style={s.stageStripe} />
+                <View style={[s.stageStripe, isOverdue && { backgroundColor: theme.color.danger }]} />
                 <View style={s.eventBody}>
                   <View style={s.eventTop}>
                     <Text style={s.eventClient} numberOfLines={1}>
@@ -263,6 +264,9 @@ export default function CalendarScreen() {
                   <Text style={s.stageLabel}>
                     {stop.ministry?.name ?? 'Stage'}
                   </Text>
+                  {isOverdue && (
+                    <Text style={s.overdueLabel}>⚠ Overdue</Text>
+                  )}
                   {stop.task?.current_status && (
                     <StatusBadge
                       label={stop.task.current_status}
@@ -272,7 +276,8 @@ export default function CalendarScreen() {
                   )}
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </>
         )}
       </ScrollView>
@@ -388,4 +393,9 @@ const s = StyleSheet.create({
   },
   stagePillText: { color: theme.color.warning, fontSize: 11, fontWeight: '700' },
   stageLabel:    { ...theme.typography.label, color: theme.color.warning, fontWeight: '600' },
+  stageCardOverdue: {
+    backgroundColor: theme.color.danger + '18',
+    borderColor:     theme.color.danger + '55',
+  },
+  overdueLabel: { ...theme.typography.caption, color: theme.color.danger, fontWeight: '700' },
 });

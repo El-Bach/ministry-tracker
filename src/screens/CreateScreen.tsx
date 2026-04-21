@@ -104,6 +104,18 @@ export default function CreateScreen() {
   const [clientFormFieldValues, setClientFormFieldValues] = useState<Record<string, string>>({});
   const [loadingClientFields, setLoadingClientFields] = useState(false);
 
+  // Client Excel import
+  const [showClientImport, setShowClientImport]   = useState(false);
+  const [clientImportRaw, setClientImportRaw]     = useState('');
+  const [clientImportRows, setClientImportRows]   = useState<{name:string;phone:string;refName:string;refPhone:string}[]>([]);
+  const [importingClients, setImportingClients]   = useState(false);
+
+  // Stages Excel import
+  const [showStageImport, setShowStageImport]     = useState(false);
+  const [stageImportRaw, setStageImportRaw]       = useState('');
+  const [stageImportNames, setStageImportNames]   = useState<string[]>([]);
+  const [importingStages, setImportingStages]     = useState(false);
+
   // ID / QR scanner for new client form
   const [showIdScanner, setShowIdScanner]   = useState(false);
   const [scannerPerm, requestScannerPerm]   = useCameraPermissions();
@@ -618,6 +630,48 @@ export default function CreateScreen() {
   const parseDocImport = (raw: string): string[] =>
     raw.split(/\r?\n/).map(l => l.split('\t')[0].trim()).filter(Boolean);
 
+  // ── Client import helpers ─────────────────────────────────
+  const parseClientImport = (raw: string) =>
+    raw.split(/\r?\n/).map(l => {
+      const c = l.split('\t');
+      return { name:(c[0]??'').trim(), phone:(c[1]??'').trim(), refName:(c[2]??'').trim(), refPhone:(c[3]??'').trim() };
+    }).filter(r => r.name);
+
+  const handleImportClients = async () => {
+    if (!clientImportRows.length) return;
+    setImportingClients(true);
+    const inserts = clientImportRows.map((r, i) => ({
+      name: r.name,
+      client_id: `CLT-${Date.now()}-${i}`,
+      phone: r.phone || null,
+      reference_name: r.refName || null,
+      reference_phone: r.refPhone || null,
+    }));
+    const { error } = await supabase.from('clients').insert(inserts);
+    setImportingClients(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    const { data } = await supabase.from('clients').select('*').order('name');
+    if (data) setClients(data as Client[]);
+    setShowClientImport(false); setClientImportRaw(''); setClientImportRows([]);
+    Alert.alert('Imported', `${inserts.length} client${inserts.length !== 1 ? 's' : ''} added.`);
+  };
+
+  // ── Stages import helpers ─────────────────────────────────
+  const parseStageImport = (raw: string): string[] =>
+    raw.split(/\r?\n/).map(l => l.split('\t')[0].trim()).filter(Boolean);
+
+  const handleImportStages = async () => {
+    if (!stageImportNames.length) return;
+    setImportingStages(true);
+    const inserts = stageImportNames.map(name => ({ name, type: 'parent' as const }));
+    const { data, error } = await supabase.from('ministries').insert(inserts).select();
+    setImportingStages(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    if (data) setMinistries(prev => [...prev, ...(data as any[])].sort((a,b) => a.name.localeCompare(b.name)));
+    setShowStageImport(false); setStageImportRaw(''); setStageImportNames([]);
+    Alert.alert('Imported', `${inserts.length} stage${inserts.length !== 1 ? 's' : ''} added.`);
+  };
+
   const handleImportDocs = async () => {
     if (!docImportSvcId || !docImportTitles.length) return;
     setImportingDocs(true);
@@ -830,7 +884,7 @@ export default function CreateScreen() {
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
               <View style={s.modalHeader}>
                 <Text style={s.modalTitle}>New Client</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TouchableOpacity
                     style={s.scanIdBtn}
                     onPress={async () => {
@@ -842,14 +896,55 @@ export default function CreateScreen() {
                       setShowIdScanner(true);
                     }}
                   >
-                    <Text style={s.scanIdBtnText}>📷 Scan ID / QR</Text>
+                    <Text style={s.scanIdBtnText}>📷 Scan</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setShowClientForm(false)}>
+                  <TouchableOpacity
+                    style={s.docImportToggleBtn}
+                    onPress={() => { setShowClientImport(v => !v); setClientImportRaw(''); setClientImportRows([]); }}
+                  >
+                    <Text style={s.docImportToggleBtnText}>📥</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setShowClientForm(false); setShowClientImport(false); }}>
                     <Text style={s.modalClose}>✕</Text>
                   </TouchableOpacity>
                 </View>
               </View>
               <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
+                {/* ── Excel Import Panel ── */}
+                {showClientImport && (
+                  <View style={s.docImportPanel}>
+                    <Text style={s.docImportLabel}>Paste from Excel: Name | Phone | Ref Name | Ref Phone</Text>
+                    <TextInput
+                      style={s.docImportTextArea}
+                      value={clientImportRaw}
+                      onChangeText={(t) => { setClientImportRaw(t); setClientImportRows([]); }}
+                      placeholder={'Paste Excel rows here...\n\nExample:\nAhmad Khalil\t+961 70 111\tSara\t+961 71 222'}
+                      placeholderTextColor={theme.color.textMuted}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                    {clientImportRows.length === 0 ? (
+                      <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setClientImportRows(parseClientImport(clientImportRaw))} disabled={!clientImportRaw.trim()}>
+                        <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        {clientImportRows.map((r, i) => (
+                          <View key={i} style={s.docImportPreviewRow}>
+                            <View style={{ flex: 1, gap: 2 }}>
+                              <Text style={[s.docImportPreviewTitle, { fontWeight: '700' }]}>{r.name}</Text>
+                              {r.phone ? <Text style={s.docImportLabel}>📞 {r.phone}</Text> : null}
+                              {r.refName ? <Text style={s.docImportLabel}>Ref: {r.refName}{r.refPhone ? ` · ${r.refPhone}` : ''}</Text> : null}
+                            </View>
+                          </View>
+                        ))}
+                        <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportClients} disabled={importingClients}>
+                          {importingClients ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>Import {clientImportRows.length} client{clientImportRows.length !== 1 ? 's' : ''}</Text>}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                )}
                 <TextInput
                   style={s.modalInput}
                   value={newClientName}
@@ -1335,7 +1430,7 @@ export default function CreateScreen() {
         visible={manageSection === 'stages'}
         transparent
         animationType="slide"
-        onRequestClose={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); }}
+        onRequestClose={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); setShowStageImport(false); }}
       >
         <View style={s.modalOverlay}>
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
@@ -1347,10 +1442,49 @@ export default function CreateScreen() {
                     {stageSearch ? `${ministries.filter(m => m.name.toLowerCase().includes(stageSearch.toLowerCase())).length} of ${ministries.length}` : `${ministries.length} total`}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); }}>
-                  <Text style={s.modalClose}>✕</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    style={s.docImportToggleBtn}
+                    onPress={() => { setShowStageImport(v => !v); setStageImportRaw(''); setStageImportNames([]); }}
+                  >
+                    <Text style={s.docImportToggleBtnText}>📥</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); setShowStageImport(false); }}>
+                    <Text style={s.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+              {/* Stage import panel */}
+              {showStageImport && (
+                <View style={[s.docImportPanel, { marginHorizontal: theme.spacing.space3, marginBottom: theme.spacing.space2 }]}>
+                  <Text style={s.docImportLabel}>Paste from Excel (one stage name per row):</Text>
+                  <TextInput
+                    style={s.docImportTextArea}
+                    value={stageImportRaw}
+                    onChangeText={(t) => { setStageImportRaw(t); setStageImportNames([]); }}
+                    placeholder="Paste stage names here..."
+                    placeholderTextColor={theme.color.textMuted}
+                    multiline
+                    textAlignVertical="top"
+                  />
+                  {stageImportNames.length === 0 ? (
+                    <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setStageImportNames(parseStageImport(stageImportRaw))} disabled={!stageImportRaw.trim()}>
+                      <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      {stageImportNames.map((name, i) => (
+                        <View key={i} style={s.docImportPreviewRow}>
+                          <Text style={s.docImportPreviewTitle} numberOfLines={1}>{name}</Text>
+                        </View>
+                      ))}
+                      <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportStages} disabled={importingStages}>
+                        {importingStages ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>Import {stageImportNames.length} stage{stageImportNames.length !== 1 ? 's' : ''}</Text>}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              )}
               <View style={s.mgmtSearchRow}>
                 <TextInput
                   style={s.mgmtSearchInput}

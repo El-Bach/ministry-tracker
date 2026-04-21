@@ -648,7 +648,7 @@ export default function TaskDetailScreen() {
           task_id: taskId,
           ministry_id: s.id,
           stop_order: idx + 1,
-          status: 'Pending',
+          status: task?.route_stops?.find(r => r.ministry_id === s.id)?.status ?? 'Pending',
           city_id: editStageCities[s.id]?.cityId ?? null,
         })),
         {
@@ -1612,15 +1612,6 @@ export default function TaskDetailScreen() {
                 {uploadingVoice
                   ? <ActivityIndicator color={theme.color.white} size="small" />
                   : <Text style={s.commentSendBtnText}>Save</Text>}
-              </TouchableOpacity>
-
-              {/* Text — live speech recognition (no API key needed) */}
-              <TouchableOpacity
-                style={s.voiceTextBtn}
-                onPress={handleTextFromVoice}
-                disabled={uploadingVoice}
-              >
-                <Text style={s.voiceTextBtnText}>Text</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -3910,6 +3901,8 @@ const s = StyleSheet.create({
   editStageDisabled:  { opacity: 0.3 },
   editStageCityChip: {
     alignSelf:         'flex-start',
+    flexShrink:        0,
+    maxWidth:          200,
     backgroundColor:   theme.color.bgBase,
     borderRadius:      theme.radius.sm,
     paddingHorizontal: theme.spacing.space2 + 2,
@@ -3919,7 +3912,7 @@ const s = StyleSheet.create({
     borderWidth:       1,
     borderColor:       theme.color.border,
   },
-  editStageCityChipText: { ...theme.typography.caption, color: theme.color.textSecondary },
+  editStageCityChipText: { ...theme.typography.caption, color: theme.color.textSecondary, flexShrink: 0, flexWrap: 'wrap' },
   editStageCityDropdown: {
     backgroundColor:  theme.color.bgSurface,
     borderRadius:     theme.radius.md,
@@ -4211,8 +4204,8 @@ const s = StyleSheet.create({
 
   // Per-stage city + assignee
   stopMetaRow:      { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space2, marginTop: theme.spacing.space2, flexWrap: 'wrap' },
-  stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border, alignItems: 'center', justifyContent: 'center' },
-  stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary },
+  stopMetaChip:     { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 5, borderWidth: 1, borderColor: theme.color.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0, maxWidth: 200 },
+  stopMetaChipText: { fontSize: 12, color: theme.color.textSecondary, flexWrap: 'wrap' },
   stopDropdown:     { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, marginTop: theme.spacing.space1, overflow: 'hidden' },
   stopAssigneeSearch: { margin: theme.spacing.space2, paddingHorizontal: theme.spacing.space3, paddingVertical: 8, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.color.border, color: theme.color.textPrimary, fontSize: 13 },
   dueDateCalendarCard: { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
