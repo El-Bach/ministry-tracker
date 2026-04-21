@@ -30,6 +30,7 @@ import StageRequirementsScreen from '../screens/StageRequirementsScreen';
 import MinistryRequirementsScreen from '../screens/MinistryRequirementsScreen';
 import FinancialReportScreen from '../screens/FinancialReportScreen';
 import AccountScreen from '../screens/AccountScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 
 import {
   RootStackParamList,
@@ -135,6 +136,11 @@ function DashboardStack() {
         name="Account"
         component={AccountScreen}
         options={{ title: 'My Account', headerBackTitle: 'Back' }}
+      />
+      <DashStack.Screen
+        name="Activity"
+        component={ActivityScreen}
+        options={{ title: 'Activity', headerBackTitle: 'Back' }}
       />
     </DashStack.Navigator>
   );

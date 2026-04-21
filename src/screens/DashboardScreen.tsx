@@ -652,6 +652,12 @@ export default function DashboardScreen() {
         >
           <Text style={styles.globalSearchBtnText}>🔍</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.globalSearchBtn}
+          onPress={() => navigation.navigate('Activity')}
+        >
+          <Text style={styles.globalSearchBtnText}>🔔</Text>
+        </TouchableOpacity>
       </View>
 
       {/* My Files / All Files toggle */}

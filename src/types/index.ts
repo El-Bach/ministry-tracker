@@ -255,4 +255,5 @@ export type DashboardStackParamList = {
   FinancialReport: undefined;
   GlobalSearch: { query?: string } | undefined;
   Account: undefined;
+  Activity: undefined;
 };
