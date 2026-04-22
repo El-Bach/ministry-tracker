@@ -1,6 +1,6 @@
 // src/screens/auth/LoginScreen.tsx
-// Email + password OR phone number + password login
-// Session 26: phone-as-username (Option A) — normalizeToEmail() converts phone to internal email
+// Separate Email tab and Phone tab login.
+// Both use the same Supabase auth via normalizeToEmail().
 
 import React, { useState } from 'react';
 import {
@@ -9,8 +9,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -21,37 +19,45 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../hooks/useAuth';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
-import {
-  normalizeToEmail,
-  isPhoneInput,
-  IDENTIFIER_LABEL,
-  IDENTIFIER_PLACEHOLDER,
-} from '../../lib/authHelpers';
+import { normalizeToEmail } from '../../lib/authHelpers';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type LoginMode = 'email' | 'phone';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const navigation = useNavigation<Nav>();
-  const [identifier, setIdentifier] = useState('');   // email or phone
-  const [password,   setPassword]   = useState('');
-  const [loading,    setLoading]    = useState(false);
+
+  const [mode,     setMode]     = useState<LoginMode>('email');
+  const [email,    setEmail]    = useState('');
+  const [phone,    setPhone]    = useState('');
+  const [password, setPassword] = useState('');
+  const [loading,  setLoading]  = useState(false);
+
+  const identifier = mode === 'email' ? email : phone;
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Required', 'Please enter your email or phone number and password.');
+      Alert.alert('Required', mode === 'email'
+        ? 'Please enter your email address and password.'
+        : 'Please enter your phone number and password.');
       return;
     }
     setLoading(true);
-    const email = normalizeToEmail(identifier);
-    const { error } = await signIn(email, password);
+    const supabaseEmail = normalizeToEmail(identifier);
+    const { error } = await signIn(supabaseEmail, password);
     setLoading(false);
     if (error) {
-      Alert.alert('Login Failed', 'Incorrect phone/email or password. Please try again.');
+      Alert.alert('Login Failed', 'Incorrect credentials. Please try again.');
     }
   };
 
-  const isPhone = isPhoneInput(identifier) && identifier.trim().length > 3;
+  const switchMode = (next: LoginMode) => {
+    setMode(next);
+    setEmail('');
+    setPhone('');
+    setPassword('');
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -71,29 +77,59 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Government File Tracking</Text>
         </View>
 
+        {/* Mode toggle tabs */}
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[styles.tab, mode === 'email' && styles.tabActive]}
+            onPress={() => switchMode('email')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, mode === 'email' && styles.tabTextActive]}>
+              ✉️  Email
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, mode === 'phone' && styles.tabActive]}
+            onPress={() => switchMode('phone')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, mode === 'phone' && styles.tabTextActive]}>
+              📱  Phone
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Form */}
         <View style={styles.form}>
-          <View style={styles.field}>
-            <Text style={styles.label}>{IDENTIFIER_LABEL}</Text>
-            <View style={styles.inputRow}>
+          {mode === 'email' ? (
+            <View style={styles.field}>
+              <Text style={styles.label}>EMAIL ADDRESS</Text>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={identifier}
-                onChangeText={setIdentifier}
-                placeholder={IDENTIFIER_PLACEHOLDER}
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="your@email.com"
                 placeholderTextColor={theme.color.textMuted}
-                keyboardType={isPhone ? 'phone-pad' : 'email-address'}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {/* Live indicator */}
-              {identifier.trim().length > 2 && (
-                <View style={[styles.typeTag, isPhone ? styles.typeTagPhone : styles.typeTagEmail]}>
-                  <Text style={styles.typeTagText}>{isPhone ? '📱' : '✉️'}</Text>
-                </View>
-              )}
             </View>
-          </View>
+          ) : (
+            <View style={styles.field}>
+              <Text style={styles.label}>PHONE NUMBER</Text>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+961 70 123 456"
+                placeholderTextColor={theme.color.textMuted}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          )}
 
           <View style={styles.field}>
             <Text style={styles.label}>PASSWORD</Text>
@@ -137,7 +173,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: theme.color.bgBase },
-  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, gap: 40 },
+  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 28, gap: 32 },
   header:    { alignItems: 'center', gap: 10 },
   logoBox: {
     width:           64,
@@ -148,34 +184,52 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     marginBottom:    4,
   },
-  logoIcon:    { fontSize: 32, color: theme.color.white },
-  title:       { ...theme.typography.heading, fontSize: 26, fontWeight: '800', letterSpacing: 0.5 },
-  subtitle:    { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', letterSpacing: 0.3 },
-  form:        { gap: 20 },
-  field:       { gap: 6 },
-  label:       { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
-  inputRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: {
+  logoIcon:  { fontSize: 32, color: theme.color.white },
+  title:     { ...theme.typography.heading, fontSize: 26, fontWeight: '800', letterSpacing: 0.5 },
+  subtitle:  { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', letterSpacing: 0.3 },
+
+  // Tabs
+  tabs: {
+    flexDirection:   'row',
     backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.lg,
     borderWidth:     1,
     borderColor:     theme.color.border,
-    borderRadius:    theme.radius.lg,
+    padding:         4,
+    gap:             4,
+  },
+  tab: {
+    flex:           1,
+    paddingVertical: 10,
+    alignItems:     'center',
+    borderRadius:   theme.radius.md,
+  },
+  tabActive: {
+    backgroundColor: theme.color.primary,
+  },
+  tabText: {
+    ...theme.typography.label,
+    color:      theme.color.textSecondary,
+    fontWeight: '600',
+    fontSize:   14,
+  },
+  tabTextActive: {
+    color: theme.color.white,
+  },
+
+  form:    { gap: 18 },
+  field:   { gap: 6 },
+  label:   { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  input: {
+    backgroundColor:  theme.color.bgSurface,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    borderRadius:     theme.radius.lg,
     paddingHorizontal: theme.spacing.space4,
-    paddingVertical: 14,
-    color:           theme.color.textPrimary,
-    fontSize:        15,
+    paddingVertical:  14,
+    color:            theme.color.textPrimary,
+    fontSize:         15,
   },
-  typeTag: {
-    width:         36,
-    height:        36,
-    borderRadius:  theme.radius.md,
-    justifyContent: 'center',
-    alignItems:    'center',
-    borderWidth:   1,
-  },
-  typeTagPhone: { backgroundColor: theme.color.success + '18', borderColor: theme.color.success + '44' },
-  typeTagEmail: { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary + '44' },
-  typeTagText:  { fontSize: 18 },
   button: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.lg,

@@ -263,7 +263,7 @@ export default function TaskDetailScreen() {
         .from('tasks')
         .select(
           `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(id,name,role,push_token),
-           route_stops:task_route_stops(*, ministry:ministries(*), updater:team_members!updated_by(*), city:cities(id,name), assignee:team_members!assigned_to(id,name,role,push_token), ext_assignee:assignees!ext_assignee_id(id,name,phone))`
+           route_stops:task_route_stops(*, ministry:ministries(*, city:cities(id,name)), updater:team_members!updated_by(*), city:cities(id,name), assignee:team_members!assigned_to(id,name,role,push_token), ext_assignee:assignees!ext_assignee_id(id,name,phone))`
         )
         .eq('id', taskId)
         .single(),
@@ -334,10 +334,10 @@ export default function TaskDetailScreen() {
       .order('created_at', { ascending: false });
     if (docsData) setDocuments(docsData as TaskDocument[]);
 
-    // Load all available stages
+    // Load all available stages (with default city)
     const { data: stagesData } = await supabase
       .from('ministries')
-      .select('*')
+      .select('*, city:cities(id,name)')
       .order('name');
     if (stagesData) setAllStages(stagesData as Ministry[]);
 
@@ -556,9 +556,12 @@ export default function TaskDetailScreen() {
     }));
     setEditingStops(current);
     // Populate city map from existing route_stops (editable only)
+    // Fall back to the ministry's default city if the stop has no city set yet
     const cityMap: Record<string, { cityId: string | null; cityName: string | null }> = {};
     for (const s of editable) {
-      cityMap[s.ministry_id] = { cityId: s.city_id ?? null, cityName: (s.city as any)?.name ?? null };
+      const stopCity   = s.city_id  ?? (s.ministry as any)?.city_id  ?? null;
+      const stopCityNm = (s.city as any)?.name ?? (s.ministry as any)?.city?.name ?? null;
+      cityMap[s.ministry_id] = { cityId: stopCity, cityName: stopCityNm };
     }
     setEditStageCities(cityMap);
     setEditCityPickerMiniId(null);
@@ -570,6 +573,14 @@ export default function TaskDetailScreen() {
       setEditingStops((prev) => prev.filter((r) => r.id !== stage.id));
     } else {
       setEditingStops((prev) => [...prev, stage]);
+      // Auto-populate city from ministry default if not already mapped
+      setEditStageCities(prev => {
+        if (prev[stage.id]) return prev; // already has a city mapping
+        const defCityId = stage.city_id ?? null;
+        const defCityNm = stage.city?.name ?? null;
+        if (!defCityId) return prev;
+        return { ...prev, [stage.id]: { cityId: defCityId, cityName: defCityNm } };
+      });
     }
   };
 
@@ -649,7 +660,8 @@ export default function TaskDetailScreen() {
           ministry_id: s.id,
           stop_order: idx + 1,
           status: task?.route_stops?.find(r => r.ministry_id === s.id)?.status ?? 'Pending',
-          city_id: editStageCities[s.id]?.cityId ?? null,
+          // Use the mapped city; fall back to ministry's default city for newly added stages
+          city_id: editStageCities[s.id]?.cityId ?? s.city_id ?? null,
         })),
         {
           task_id: taskId,

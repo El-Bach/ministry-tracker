@@ -38,6 +38,8 @@ export interface Ministry {
   type: 'parent' | 'child';
   parent_id?: string;
   parent?: Ministry;
+  city_id?: string | null;
+  city?: { id: string; name: string } | null;
   created_at: string;
 }
 

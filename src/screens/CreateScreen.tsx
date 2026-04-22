@@ -81,6 +81,9 @@ export default function CreateScreen() {
   const [editStageId, setEditStageId] = useState<string | null>(null);
   const [editStageName, setEditStageName] = useState('');
   const [savingEditStage, setSavingEditStage] = useState(false);
+  // Stage city picker
+  const [stageCityPickerId, setStageCityPickerId] = useState<string | null>(null);
+  const [stageCitySearch, setStageCitySearch] = useState('');
 
   // Inline service stages
   const [expandedSvcId, setExpandedSvcId] = useState<string | null>(null);
@@ -202,7 +205,7 @@ export default function CreateScreen() {
     const [c, s, m, net, cities, fieldDefs] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
-      supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
+      supabase.from('ministries').select('*, city:cities(id,name)').eq('type', 'parent').order('name'),
       supabase.from('assignees').select('*, city:cities(id,name)').order('name'),
       supabase.from('cities').select('*').order('name'),
       supabase.from('client_field_definitions').select('*').eq('is_active', true).order('sort_order'),
@@ -341,6 +344,13 @@ export default function CreateScreen() {
         { text: 'Delete', style: 'destructive', onPress: doDelete },
       ]);
     }
+  };
+
+  const handleSetStageCity = async (ministryId: string, cityId: string | null) => {
+    await supabase.from('ministries').update({ city_id: cityId }).eq('id', ministryId);
+    setStageCityPickerId(null);
+    setStageCitySearch('');
+    fetchData();
   };
 
   // ── Inline Service Stages ─────────────────────────────────
@@ -1530,20 +1540,76 @@ export default function CreateScreen() {
                     ) : (
                       <View>
                         <View style={s.mgmtItemRow}>
-                          <Text style={[s.mgmtItemName, { flex: 1 }]}>{m.name}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.mgmtItemName}>{m.name}</Text>
+                            {/* City chip */}
+                            <TouchableOpacity
+                              style={s.stageCityChip}
+                              onPress={() => {
+                                setStageCityPickerId(v => v === m.id ? null : m.id);
+                                setStageCitySearch('');
+                                setExpandedStageReqId(null);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[s.stageCityChipText, m.city_id && { color: theme.color.primary }]}>
+                                📍 {m.city ? m.city.name : 'Set city'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
                           <TouchableOpacity
                             style={[s.mgmtReqBtn, expandedStageReqId === m.id && { backgroundColor: theme.color.successDim }]}
-                            onPress={() => handleToggleStageReqExpand(m.id)}
+                            onPress={() => { setStageCityPickerId(null); handleToggleStageReqExpand(m.id); }}
                           >
                             <Text style={s.mgmtReqBtnText}>{expandedStageReqId === m.id ? '▲ Req' : '📋 Req'}</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setExpandedStageReqId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
+                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setExpandedStageReqId(null); setStageCityPickerId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
                             <Text style={s.mgmtEditBtnText}>✎</Text>
                           </TouchableOpacity>
                           <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
                             <Text style={s.mgmtDelBtnText}>✕</Text>
                           </TouchableOpacity>
                         </View>
+                        {/* City picker dropdown */}
+                        {stageCityPickerId === m.id && (
+                          <View style={s.stageCityPanel}>
+                            <TextInput
+                              style={s.mgmtSearchInput}
+                              value={stageCitySearch}
+                              onChangeText={setStageCitySearch}
+                              placeholder="Search city..."
+                              placeholderTextColor={theme.color.textMuted}
+                              autoCorrect={false}
+                            />
+                            <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                              {m.city_id && (
+                                <TouchableOpacity
+                                  style={s.stageCityItem}
+                                  onPress={() => handleSetStageCity(m.id, null)}
+                                >
+                                  <Text style={{ color: theme.color.danger, fontSize: 13 }}>✕ Remove city</Text>
+                                </TouchableOpacity>
+                              )}
+                              {allCities
+                                .filter(c => !stageCitySearch.trim() || c.name.toLowerCase().includes(stageCitySearch.toLowerCase()))
+                                .map(city => (
+                                  <TouchableOpacity
+                                    key={city.id}
+                                    style={[s.stageCityItem, m.city_id === city.id && s.stageCityItemActive]}
+                                    onPress={() => handleSetStageCity(m.id, city.id)}
+                                  >
+                                    <Text style={[s.stageCityItemText, m.city_id === city.id && { color: theme.color.primary, fontWeight: '600' }]}>
+                                      {city.name}
+                                    </Text>
+                                    {m.city_id === city.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                                  </TouchableOpacity>
+                                ))}
+                              {allCities.filter(c => !stageCitySearch.trim() || c.name.toLowerCase().includes(stageCitySearch.toLowerCase())).length === 0 && (
+                                <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: 12 }}>No cities match "{stageCitySearch}"</Text>
+                              )}
+                            </ScrollView>
+                          </View>
+                        )}
                         {expandedStageReqId === m.id && (
                           <View style={s.inlinePanel}>
                             {loadingStageReqs === m.id ? (
@@ -2567,6 +2633,39 @@ const s = StyleSheet.create({
   },
   mgmtItemName:  { ...theme.typography.body, fontWeight: '600' },
   mgmtItemRef:   { ...theme.typography.caption, fontStyle: 'italic', marginTop: theme.spacing.space1 - 3 },
+  stageCityChip: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    marginTop:       4,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius:    theme.radius.sm,
+    alignSelf:       'flex-start',
+    backgroundColor: theme.color.bgBase,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  stageCityChipText: { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 12 },
+  stageCityPanel: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    marginTop:       4,
+    marginBottom:    4,
+    overflow:        'hidden',
+  },
+  stageCityItem: {
+    flexDirection:   'row',
+    justifyContent:  'space-between',
+    alignItems:      'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.bgSurface,
+  },
+  stageCityItemActive: { backgroundColor: theme.color.primary + '14' },
+  stageCityItemText:   { ...theme.typography.body, color: theme.color.textPrimary },
   mgmtItemSub:   { ...theme.typography.caption, marginTop: theme.spacing.space1 - 2 },
   mgmtItemPrice: { ...theme.typography.caption, color: theme.color.primary, fontWeight: '600', marginTop: theme.spacing.space1 - 2 },
   mgmtEditBtn: {
