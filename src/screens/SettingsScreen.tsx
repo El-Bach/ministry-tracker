@@ -291,6 +291,11 @@ export default function SettingsScreen() {
  const [inviting, setInviting]       = useState(false);
  const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; email: string; role: string; expires_at: string }>>([]);
 
+ // Help & FAQ modals
+ const [showHelp, setShowHelp] = useState(false);
+ const [showFaq,  setShowFaq]  = useState(false);
+ const [openFaqId, setOpenFaqId] = useState<number | null>(null);
+
  // RTL
  const [isRTL, setIsRTL] = useState(false);
  useEffect(() => {
@@ -540,6 +545,33 @@ export default function SettingsScreen() {
    ))}
  </Section>
 
+ {/* ── SUPPORT SECTION DIVIDER ── */}
+ <Text style={ss.sectionDividerLabel}>SUPPORT</Text>
+
+ {/* Help Guide */}
+ <TouchableOpacity style={ss.navCard} onPress={() => setShowHelp(true)} activeOpacity={0.75}>
+   <View style={ss.navCardLeft}>
+     <Text style={ss.navCardIcon}>📖</Text>
+     <View>
+       <Text style={ss.navCardTitle}>Help Guide</Text>
+       <Text style={ss.navCardSubtitle}>How to use every feature of GovPilot</Text>
+     </View>
+   </View>
+   <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
+
+ {/* FAQ */}
+ <TouchableOpacity style={ss.navCard} onPress={() => setShowFaq(true)} activeOpacity={0.75}>
+   <View style={ss.navCardLeft}>
+     <Text style={ss.navCardIcon}>💬</Text>
+     <View>
+       <Text style={ss.navCardTitle}>FAQ</Text>
+       <Text style={ss.navCardSubtitle}>Frequently asked questions</Text>
+     </View>
+   </View>
+   <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
+
  {/* RTL toggle */}
  <View style={ss.rtlRow}>
    <View style={{ flex: 1 }}>
@@ -570,6 +602,205 @@ export default function SettingsScreen() {
  <Text style={ss.version}>GovPilot v1.0.0</Text>
  </ScrollView>
 
+
+ {/* ── HELP GUIDE MODAL ── */}
+ <Modal visible={showHelp} transparent animationType="slide" onRequestClose={() => setShowHelp(false)}>
+   <View style={ss.helpOverlay}>
+     <View style={ss.helpSheet}>
+       <View style={ss.helpHeader}>
+         <Text style={ss.helpTitle}>📖 Help Guide</Text>
+         <TouchableOpacity onPress={() => setShowHelp(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+           <Text style={ss.helpClose}>✕</Text>
+         </TouchableOpacity>
+       </View>
+       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+         {[
+           {
+             icon: '📁',
+             title: 'Creating a File',
+             steps: [
+               'Go to the Dashboard and tap ＋ New File.',
+               'Select or create a client — enter their name, phone, and reference contact.',
+               'Choose a service — this loads its default stages automatically.',
+               'Set a contract price (optional) and a due date, then tap Create.',
+             ],
+           },
+           {
+             icon: '🗂',
+             title: 'Managing Stages',
+             steps: [
+               'Open a file → tap ✎ Edit Stages to add, remove, or reorder stages.',
+               'Each stage has its own status: Pending → In Review → Done (or Rejected).',
+               'Tap the status badge on a stage to update it — you can also add a rejection reason.',
+               'Set a city 📍 per stage to track where each step happens.',
+               'Stages with due dates appear on the Calendar with color-coded dots.',
+             ],
+           },
+           {
+             icon: '👥',
+             title: 'Assigning People',
+             steps: [
+               'File-level: open a file and tap the Assignee row to assign a team member.',
+               'Stage-level: each stage has its own assignee chip — tap 👤 to assign.',
+               'Network contacts (external agents/lawyers) can be assigned at stage level too.',
+               'Assigned members receive a push notification when a stage is updated.',
+             ],
+           },
+           {
+             icon: '📄',
+             title: 'Documents',
+             steps: [
+               'Inside a file, scroll to DOCUMENTS and tap 📷 Scan or 🖼 Library.',
+               'Frame your document inside the A4 guide and capture.',
+               'Give it a name and optionally link it to a stage requirement.',
+               'Documents can be viewed in-app or shared as a file via the share button.',
+             ],
+           },
+           {
+             icon: '💰',
+             title: 'Financial Tracking',
+             steps: [
+               'Inside a file, scroll to FINANCIALS to see the contract price and balance.',
+               'Tap ＋ Add to record an expense or a payment received.',
+               'Swipe right on any Dashboard card for a quick-add finance shortcut.',
+               'Visit Financial Report (Settings) for a full P&L across all files.',
+             ],
+           },
+           {
+             icon: '📅',
+             title: 'Calendar',
+             steps: [
+               'The Calendar tab shows all files with a due date as colored dots.',
+               'Overdue stages appear in red — tap a date to see the day\'s stages.',
+               'Set a stage due date inside the file detail under each stage row.',
+             ],
+           },
+           {
+             icon: '🔍',
+             title: 'Search',
+             steps: [
+               'Tap the 🔍 icon on the Dashboard to open Global Search.',
+               'Search across files, clients, stages, and documents at once.',
+               'Tap any result to navigate directly to that file or client.',
+             ],
+           },
+           {
+             icon: '🌐',
+             title: 'Network (Contacts)',
+             steps: [
+               'Go to Create → 👥 Network to manage your external contacts.',
+               'Add lawyers, agents, or any external parties with name, phone, and reference.',
+               'Import multiple contacts at once using 📥 Import (paste from Excel).',
+               'Contacts can be assigned to specific stages inside a file.',
+             ],
+           },
+         ].map((section, i) => (
+           <View key={i} style={ss.helpSection}>
+             <View style={ss.helpSectionHeader}>
+               <Text style={ss.helpSectionIcon}>{section.icon}</Text>
+               <Text style={ss.helpSectionTitle}>{section.title}</Text>
+             </View>
+             {section.steps.map((step, j) => (
+               <View key={j} style={ss.helpStep}>
+                 <View style={ss.helpStepDot} />
+                 <Text style={ss.helpStepText}>{step}</Text>
+               </View>
+             ))}
+           </View>
+         ))}
+       </ScrollView>
+     </View>
+   </View>
+ </Modal>
+
+ {/* ── FAQ MODAL ── */}
+ <Modal visible={showFaq} transparent animationType="slide" onRequestClose={() => setShowFaq(false)}>
+   <View style={ss.helpOverlay}>
+     <View style={ss.helpSheet}>
+       <View style={ss.helpHeader}>
+         <Text style={ss.helpTitle}>💬 Frequently Asked Questions</Text>
+         <TouchableOpacity onPress={() => setShowFaq(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+           <Text style={ss.helpClose}>✕</Text>
+         </TouchableOpacity>
+       </View>
+       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+         {[
+           {
+             q: 'How do I create a new file?',
+             a: 'From the Dashboard, tap the ＋ New File button. Select a client, choose a service (which loads stages automatically), set a price and due date, then tap Create.',
+           },
+           {
+             q: 'How do I change a file\'s status?',
+             a: 'Open the file, find the stage you want to update, and tap its status badge. You\'ll see a list of all available statuses. The file\'s overall status is always the most critical active stage.',
+           },
+           {
+             q: 'What is the difference between stages and status?',
+             a: 'Stages are the steps a file goes through (e.g. Submit Documents → Ministry Review → Signature). Each stage has its own status. The file\'s overall status reflects the most urgent stage status.',
+           },
+           {
+             q: 'Can I assign a file to multiple people?',
+             a: 'Each file has one main assignee. However, every individual stage can have its own assigned person — so different team members or external contacts can handle different stages of the same file.',
+           },
+           {
+             q: 'What is the difference between Team Members and Network?',
+             a: 'Team Members are your colleagues who log in to GovPilot. Network (external assignees) are outside contacts like lawyers or agents — they don\'t have app accounts but can be assigned to stages for tracking.',
+           },
+           {
+             q: 'How do I track payments?',
+             a: 'Open a file, scroll to FINANCIALS. The contract price is the agreed fee. Use ＋ Add to record expenses or payments received. The balance shows (payments received − expenses).',
+           },
+           {
+             q: 'What happens when all stages are Done?',
+             a: 'The file is automatically archived and marked as closed. It moves from the Active list to the Archive list on the Dashboard. You can still view it and its financial history.',
+           },
+           {
+             q: 'How do I delete a file?',
+             a: 'Swipe left on any file card on the Dashboard and tap ✕ Delete. You\'ll be asked to confirm. Alternatively, open the file and use the ⋯ menu in the header.',
+           },
+           {
+             q: 'Can I use the app offline?',
+             a: 'Comments and some actions are queued offline and sync when your connection returns. However, loading files, updating stages, and uploading documents require an internet connection.',
+           },
+           {
+             q: 'How do I import multiple clients or stages at once?',
+             a: 'In Create → Clients modal, tap 📥 Import and paste rows copied directly from Excel (columns: Name, Phone, Reference Name, Reference Phone). For stages, use the same import button in the Stages modal.',
+           },
+           {
+             q: 'How do I set a city for a stage?',
+             a: 'In a file, each stage row has a 📍 city chip. Tap it to select or search a city. You can also set a default city per stage type in Create → Stages — new files will auto-fill that city.',
+           },
+           {
+             q: 'How do I add requirements to a stage?',
+             a: 'Inside a file, each stage has a 📋 Requirements button. Tap it to add documents, tasks, or signature requirements. You can also define template requirements per stage type in Create → Stages → 📋 Req.',
+           },
+           {
+             q: 'How do I print or share a file summary?',
+             a: 'Open the file and tap the 🖨 print icon in the header. This generates a formatted PDF summary of the file, stages, and financials which you can share or print.',
+           },
+           {
+             q: 'How do I invite a team member?',
+             a: 'Go to Settings → Team Members → ✉️ Invite. Enter their email or phone number and choose their role. They register in the app with that same identifier and are automatically added to your organization.',
+           },
+         ].map((item, i) => (
+           <TouchableOpacity
+             key={i}
+             style={[ss.faqItem, openFaqId === i && ss.faqItemOpen]}
+             onPress={() => setOpenFaqId(v => v === i ? null : i)}
+             activeOpacity={0.75}
+           >
+             <View style={ss.faqQuestion}>
+               <Text style={ss.faqQ}>{item.q}</Text>
+               <Text style={[ss.faqChevron, openFaqId === i && ss.faqChevronOpen]}>›</Text>
+             </View>
+             {openFaqId === i && (
+               <Text style={ss.faqA}>{item.a}</Text>
+             )}
+           </TouchableOpacity>
+         ))}
+       </ScrollView>
+     </View>
+   </View>
+ </Modal>
 
  {/* ── INVITE MEMBER MODAL ── */}
  <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
@@ -955,4 +1186,132 @@ const ss = StyleSheet.create({
   inviteCancelBtn:  { alignItems: 'center', paddingVertical: 4 },
   inviteCancelText: { ...theme.typography.body, color: theme.color.textMuted },
   inviteIdHint:     { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
+
+  // Support section divider label
+  sectionDividerLabel: {
+    ...theme.typography.sectionDivider,
+    letterSpacing: 1.2,
+    paddingHorizontal: 4,
+    marginTop: theme.spacing.space2,
+    marginBottom: -4,
+  },
+
+  // Help & FAQ shared modal chrome
+  helpOverlay: {
+    flex:            1,
+    backgroundColor: theme.color.overlayDark,
+    justifyContent:  'flex-end',
+  },
+  helpSheet: {
+    backgroundColor:      theme.color.bgSurface,
+    borderTopLeftRadius:  theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding:              theme.spacing.space5,
+    maxHeight:            '90%',
+    gap:                  16,
+  },
+  helpHeader: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'center',
+  },
+  helpTitle: {
+    ...theme.typography.heading,
+    fontSize:   20,
+    fontWeight: '700',
+    flex:       1,
+  },
+  helpClose: {
+    color:    theme.color.textMuted,
+    fontSize: 18,
+    padding:  4,
+  },
+
+  // Help guide sections
+  helpSection: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.lg,
+    padding:         theme.spacing.space4,
+    marginBottom:    10,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    gap:             8,
+  },
+  helpSectionHeader: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           10,
+    marginBottom:  4,
+  },
+  helpSectionIcon:  { fontSize: 20 },
+  helpSectionTitle: {
+    ...theme.typography.body,
+    color:      theme.color.textPrimary,
+    fontSize:   15,
+    fontWeight: '700',
+  },
+  helpStep: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    gap:           10,
+  },
+  helpStepDot: {
+    width:           6,
+    height:          6,
+    borderRadius:    3,
+    backgroundColor: theme.color.primary,
+    marginTop:       6,
+    flexShrink:      0,
+  },
+  helpStepText: {
+    ...theme.typography.body,
+    color:      theme.color.textSecondary,
+    lineHeight: 22,
+    flex:       1,
+  },
+
+  // FAQ accordion items
+  faqItem: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.lg,
+    padding:         theme.spacing.space4,
+    marginBottom:    8,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  faqItemOpen: {
+    borderColor:     theme.color.primary + '55',
+    backgroundColor: theme.color.primary + '08',
+  },
+  faqQuestion: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    gap:            12,
+  },
+  faqQ: {
+    ...theme.typography.body,
+    color:      theme.color.textPrimary,
+    fontWeight: '600',
+    flex:       1,
+    lineHeight: 22,
+  },
+  faqChevron: {
+    color:    theme.color.border,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  faqChevronOpen: {
+    color:     theme.color.primary,
+    transform: [{ rotate: '90deg' }],
+  },
+  faqA: {
+    ...theme.typography.body,
+    color:      theme.color.textSecondary,
+    lineHeight: 22,
+    marginTop:  10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+  },
 });
