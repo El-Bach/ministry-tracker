@@ -1,7 +1,6 @@
 // src/components/DocumentScannerModal.tsx
-// Native-first document scanning:
-//   Android / iOS native → react-native-document-scanner-plugin (ML Kit / VisionKit)
-//   Web (iOS PWA) → CameraView with A4 guide frame
+// Document scanning:
+//   Camera → CameraView with A4 guide frame + expo-image-manipulator crop
 //   Library → expo-image-picker
 // Preview: A4 proportioned, edge-to-edge (no white bars)
 // Filters: Original · Document (B&W crisp) · Grayscale · Enhance
@@ -31,15 +30,6 @@ import { WebView } from 'react-native-webview';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 
-// Native document scanner — only available in EAS custom builds
-let DocumentScanner: any = null;
-try {
-  if (Platform.OS !== 'web') {
-    DocumentScanner = require('react-native-document-scanner-plugin').default;
-  }
-} catch {
-  DocumentScanner = null;
-}
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -182,8 +172,7 @@ export default function DocumentScannerModal({
     webReadyRef.current  = false;
     pendingMsgRef.current = null;
     if (startMode === 'camera') {
-      if (DocumentScanner) { handleScanNative(); }
-      else                  { setStep('camera'); }
+      setStep('camera');
     } else {
       handlePickLibrary();
     }
@@ -214,23 +203,7 @@ export default function DocumentScannerModal({
     setStep('preview');
   }
 
-  // ─── Native scanner ────────────────────────────────────────────────────────
-  async function handleScanNative() {
-    try {
-      const { scannedImages, status } = await DocumentScanner.scanDocument({
-        croppedImageQuality: 100,
-        maxNumDocuments: 1,
-        responseType: 'imageFilePath',
-      });
-      if (status === 'cancel' || !scannedImages?.length) { handleClose(); return; }
-      goToPreview(scannedImages[0] as string, 'camera');
-    } catch (e: any) {
-      Alert.alert('Scanner error', e?.message ?? 'Could not open scanner.',
-        [{ text: 'OK', onPress: handleClose }]);
-    }
-  }
-
-  // ─── Web camera capture ────────────────────────────────────────────────────
+  // ─── Camera capture ────────────────────────────────────────────────────────
   async function captureWebPhoto() {
     if (!cameraRef.current || capturing) return;
     setCapturing(true);
