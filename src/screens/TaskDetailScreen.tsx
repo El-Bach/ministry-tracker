@@ -36,11 +36,9 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// @react-native-voice/voice is a native module — not available in Expo Go.
-// Lazy-require with a fallback so the app doesn't crash in Expo Go.
-// In an EAS APK / dev-client build the real module is used.
-let VoiceModule: any = null;
-try { VoiceModule = require('@react-native-voice/voice').default; } catch (_) {}
+// Speech-to-text removed (package caused Android Gradle duplicate-class errors).
+// Voice note recording via expo-av still works.
+const VoiceModule: any = null;
 type SpeechResultsEvent = { value?: string[] };
 type SpeechErrorEvent   = { error?: { message?: string } };
 import supabase from '../lib/supabase';
