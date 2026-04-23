@@ -24,9 +24,8 @@ import {
   normalizeToEmail,
   normalizePhone,
   isPhoneInput,
-  IDENTIFIER_LABEL,
-  IDENTIFIER_PLACEHOLDER,
 } from '../../lib/authHelpers';
+import { DEFAULT_COUNTRY } from '../../components/PhoneInput';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -35,7 +34,10 @@ export default function RegisterScreen() {
 
   const [fullName,    setFullName]    = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [identifier,  setIdentifier]  = useState('');   // email or phone
+  const [email,       setEmail]       = useState('');
+  const [phone,       setPhone]       = useState('');
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
+  const [inputMode,   setInputMode]   = useState<'email' | 'phone'>('email');
   const [password,    setPassword]    = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [loading,     setLoading]     = useState(false);
@@ -43,13 +45,16 @@ export default function RegisterScreen() {
   const [invitePreview, setInvitePreview] = useState<{ orgName: string; role: string } | null>(null);
   const [checkingInvite, setCheckingInvite] = useState(false);
 
-  const isPhone = isPhoneInput(identifier) && identifier.trim().length > 3;
+  // The active identifier (email or phone with country code)
+  const identifier = inputMode === 'email'
+    ? email.trim()
+    : phone.trim() ? `${countryCode}${phone.trim()}` : '';
 
   const checkInvitation = async (raw: string) => {
     const trimmed = raw.trim();
     if (trimmed.length < 4) { setInvitePreview(null); return; }
     setCheckingInvite(true);
-    const normalized = normalizeToEmail(trimmed);  // either real email or phone-derived
+    const normalized = normalizeToEmail(trimmed);
     const { data } = await supabase
       .from('invitations')
       .select('role, org_id, organizations(name)')
@@ -219,27 +224,57 @@ export default function RegisterScreen() {
             />
           </View>
 
-          <View style={s.field}>
-            <Text style={s.label}>{IDENTIFIER_LABEL}</Text>
-            <View style={s.inputRow}>
+          {/* Email / Phone toggle */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+            <TouchableOpacity
+              style={[s.modeBtn, inputMode === 'email' && s.modeBtnActive]}
+              onPress={() => setInputMode('email')}
+            >
+              <Text style={[s.modeBtnText, inputMode === 'email' && s.modeBtnTextActive]}>✉️ Email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.modeBtn, inputMode === 'phone' && s.modeBtnActive]}
+              onPress={() => setInputMode('phone')}
+            >
+              <Text style={[s.modeBtnText, inputMode === 'phone' && s.modeBtnTextActive]}>📱 Phone</Text>
+            </TouchableOpacity>
+          </View>
+
+          {inputMode === 'email' ? (
+            <View style={s.field}>
+              <Text style={s.label}>EMAIL ADDRESS</Text>
               <TextInput
-                style={[s.input, { flex: 1 }]}
-                value={identifier}
-                onChangeText={(v) => { setIdentifier(v); checkInvitation(v); }}
-                placeholder={IDENTIFIER_PLACEHOLDER}
+                style={s.input}
+                value={email}
+                onChangeText={(v) => { setEmail(v); checkInvitation(v); }}
+                placeholder="your@email.com"
                 placeholderTextColor={theme.color.textMuted}
-                keyboardType={isPhone ? 'phone-pad' : 'email-address'}
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {identifier.trim().length > 2 && (
-                <View style={[s.typeTag, isPhone ? s.typeTagPhone : s.typeTagEmail]}>
-                  <Text style={s.typeTagText}>{isPhone ? '📱' : '✉️'}</Text>
-                </View>
-              )}
+              {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
             </View>
-            {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
-          </View>
+          ) : (
+            <View style={s.field}>
+              <Text style={s.label}>PHONE NUMBER</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={[s.input, { flexDirection: 'row', alignItems: 'center', flex: 0, minWidth: 100, gap: 4 }]}>
+                  <Text style={{ fontSize: 16 }}>🇱🇧</Text>
+                  <Text style={{ color: theme.color.textPrimary, fontWeight: '600' }}>{countryCode}</Text>
+                </View>
+                <TextInput
+                  style={[s.input, { flex: 1 }]}
+                  value={phone}
+                  onChangeText={(v) => { setPhone(v); checkInvitation(`${countryCode}${v}`); }}
+                  placeholder="70 123 456"
+                  placeholderTextColor={theme.color.textMuted}
+                  keyboardType="phone-pad"
+                />
+              </View>
+              {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
+            </View>
+          )}
 
           {/* Company name — hidden when joining via invite */}
           {!invitePreview && (
@@ -351,6 +386,13 @@ const s = StyleSheet.create({
     color:           theme.color.textPrimary,
     fontSize:        15,
   },
+  modeBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+    backgroundColor: theme.color.bgSurface, borderWidth: 1, borderColor: theme.color.border,
+  },
+  modeBtnActive: { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary },
+  modeBtnText: { fontSize: 14, fontWeight: '600', color: theme.color.textMuted },
+  modeBtnTextActive: { color: theme.color.primary },
   typeTag: {
     width:          36,
     height:         36,

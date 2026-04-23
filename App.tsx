@@ -6,6 +6,8 @@ import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/index';
 import { useOfflineQueue } from './src/store/offlineQueue';
+import { loadLanguage, isFirstLaunchKey } from './src/lib/i18n';
+import LanguageSelectScreen from './src/screens/auth/LanguageSelectScreen';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -20,14 +22,23 @@ Notifications.setNotificationHandler({
 export default function App() {
   const { loadQueue, setOnline } = useOfflineQueue();
   const [ready, setReady] = useState(false);
+  const [needsLanguageSelect, setNeedsLanguageSelect] = useState(false);
 
   useEffect(() => {
-    // Apply RTL preference before first render
-    AsyncStorage.getItem('@rtl_enabled').then((val) => {
-      I18nManager.forceRTL(val === 'true');
-      setReady(true);
-    });
+    const init = async () => {
+      // Load saved language (also applies RTL)
+      await loadLanguage();
 
+      // Check if user has ever selected a language
+      const langSelected = await AsyncStorage.getItem(isFirstLaunchKey());
+      if (!langSelected) {
+        setNeedsLanguageSelect(true);
+      }
+
+      setReady(true);
+    };
+
+    init();
     loadQueue();
     const unsubscribe = NetInfo.addEventListener((state) => {
       setOnline(!!state.isConnected && !!state.isInternetReachable);
@@ -36,6 +47,14 @@ export default function App() {
   }, []);
 
   if (!ready) return null;
+
+  if (needsLanguageSelect) {
+    return (
+      <SafeAreaProvider>
+        <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>

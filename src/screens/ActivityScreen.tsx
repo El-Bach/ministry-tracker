@@ -1,12 +1,12 @@
 // src/screens/ActivityScreen.tsx
-// Recent activity feed: status updates + comments across all org files
+// Recent activity feed: status updates + comments + deletions, grouped by day
 
 import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -18,41 +18,81 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { DashboardStackParamList } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
 interface ActivityItem {
   id: string;
-  type: 'status' | 'comment' | 'assignment';
+  type: 'status' | 'comment' | 'deleted' | 'other';
   created_at: string;
-  task_id: string;
+  task_id?: string;
   client_name?: string;
   service_name?: string;
   actor_name?: string;
   old_status?: string;
   new_status?: string;
   comment_body?: string;
-  status_color?: string;
 }
 
-function timeAgo(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+interface DaySection {
+  title: string;        // e.g. "Today", "Yesterday", "Mon 21 Apr"
+  dayIndex: number;     // for rotating color
+  data: ActivityItem[];
+}
+
+// Rotating background colors for day headers
+const DAY_COLORS = [
+  '#6366f122', // indigo
+  '#10b98122', // teal
+  '#f59e0b22', // amber
+  '#ec489922', // pink
+  '#3b82f622', // blue
+  '#8b5cf622', // violet
+  '#14b8a622', // cyan
+];
+
+const DAY_BORDER_COLORS = [
+  '#6366f144',
+  '#10b98144',
+  '#f59e0b44',
+  '#ec489944',
+  '#3b82f644',
+  '#8b5cf644',
+  '#14b8a644',
+];
+
+function formatDay(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((today.getTime() - itemDay.getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
 export default function ActivityScreen() {
   const navigation = useNavigation<Nav>();
-  const [items, setItems] = useState<ActivityItem[]>([]);
+  const { teamMember } = useAuth();
+  const [sections, setSections] = useState<DaySection[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchActivity = useCallback(async () => {
     try {
-      const [statusRes, commentRes] = await Promise.all([
+      const [statusRes, commentRes, logRes] = await Promise.all([
         supabase
           .from('status_updates')
           .select(`
@@ -61,7 +101,7 @@ export default function ActivityScreen() {
             updater:team_members(name)
           `)
           .order('created_at', { ascending: false })
-          .limit(80),
+          .limit(100),
         supabase
           .from('task_comments')
           .select(`
@@ -70,12 +110,17 @@ export default function ActivityScreen() {
             author:team_members(name)
           `)
           .order('created_at', { ascending: false })
-          .limit(80),
+          .limit(100),
+        supabase
+          .from('activity_log')
+          .select('id, created_at, event_type, client_name, service_name, actor_name, description')
+          .order('created_at', { ascending: false })
+          .limit(50),
       ]);
 
       const statusItems: ActivityItem[] = (statusRes.data ?? []).map((r: any) => ({
         id: `s_${r.id}`,
-        type: 'status',
+        type: 'status' as const,
         created_at: r.created_at,
         task_id: r.task_id,
         client_name: r.task?.client?.name,
@@ -87,7 +132,7 @@ export default function ActivityScreen() {
 
       const commentItems: ActivityItem[] = (commentRes.data ?? []).map((r: any) => ({
         id: `c_${r.id}`,
-        type: 'comment',
+        type: 'comment' as const,
         created_at: r.created_at,
         task_id: r.task_id,
         client_name: r.task?.client?.name,
@@ -96,39 +141,75 @@ export default function ActivityScreen() {
         comment_body: r.body,
       }));
 
-      // Merge and sort all items by date
-      const all = [...statusItems, ...commentItems].sort(
+      const logItems: ActivityItem[] = (logRes.data ?? []).map((r: any) => ({
+        id: `l_${r.id}`,
+        type: 'deleted' as const,
+        created_at: r.created_at,
+        client_name: r.client_name,
+        service_name: r.service_name,
+        actor_name: r.actor_name,
+        comment_body: r.description,
+      }));
+
+      // Merge and sort
+      const all = [...statusItems, ...commentItems, ...logItems].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setItems(all.slice(0, 100));
+      ).slice(0, 150);
+
+      setTotalCount(all.length);
+
+      // Group by day
+      const dayMap = new Map<string, ActivityItem[]>();
+      for (const item of all) {
+        const key = dayKey(item.created_at);
+        if (!dayMap.has(key)) dayMap.set(key, []);
+        dayMap.get(key)!.push(item);
+      }
+
+      let dayIndex = 0;
+      const sects: DaySection[] = [];
+      for (const [, items] of dayMap) {
+        sects.push({
+          title: formatDay(items[0].created_at),
+          dayIndex: dayIndex % DAY_COLORS.length,
+          data: items,
+        });
+        dayIndex++;
+      }
+
+      setSections(sects);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    fetchActivity();
-  }, [fetchActivity]));
+  useFocusEffect(useCallback(() => { fetchActivity(); }, [fetchActivity]));
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchActivity();
-  };
+  const onRefresh = () => { setRefreshing(true); fetchActivity(); };
 
-  const renderItem = ({ item }: { item: ActivityItem }) => {
-    const isStatus = item.type === 'status';
+  const renderItem = ({ item, section }: { item: ActivityItem; section: DaySection }) => {
+    const isStatus  = item.type === 'status';
     const isComment = item.type === 'comment';
-    const icon = isStatus ? '🔄' : isComment ? '💬' : '👤';
+    const isDeleted = item.type === 'deleted';
+
+    const icon  = isStatus ? '🔄' : isComment ? '💬' : isDeleted ? '🗑' : '📋';
+    const color = isDeleted
+      ? theme.color.danger
+      : isStatus
+        ? theme.color.primary
+        : theme.color.textSecondary;
 
     return (
       <TouchableOpacity
         style={s.item}
-        onPress={() => item.task_id && navigation.navigate('TaskDetail', { taskId: item.task_id })}
-        activeOpacity={0.7}
+        onPress={() => item.task_id
+          ? navigation.navigate('TaskDetail', { taskId: item.task_id })
+          : undefined}
+        activeOpacity={item.task_id ? 0.7 : 1}
       >
         {/* Icon stripe */}
-        <View style={[s.iconCol, isComment && { backgroundColor: theme.color.infoDim ?? theme.color.bgSurface }]}>
+        <View style={[s.iconCol, { backgroundColor: color + '18' }]}>
           <Text style={s.icon}>{icon}</Text>
         </View>
 
@@ -150,7 +231,7 @@ export default function ActivityScreen() {
               {' changed status'}
               {item.old_status ? ` from ${item.old_status}` : ''}
               {' → '}
-              <Text style={[s.newStatus]}>{item.new_status}</Text>
+              <Text style={[s.newStatus, { color }]}>{item.new_status}</Text>
             </Text>
           )}
           {isComment && (
@@ -160,12 +241,30 @@ export default function ActivityScreen() {
               {item.comment_body}
             </Text>
           )}
+          {isDeleted && (
+            <Text style={[s.desc, { color: theme.color.danger }]} numberOfLines={2}>
+              <Text style={[s.actor, { color: theme.color.danger }]}>{item.actor_name ?? 'Someone'}</Text>
+              {' deleted this file'}
+            </Text>
+          )}
 
-          <Text style={s.time}>{timeAgo(item.created_at)}</Text>
+          <Text style={s.time}>{formatTime(item.created_at)}</Text>
         </View>
       </TouchableOpacity>
     );
   };
+
+  const renderSectionHeader = ({ section }: { section: DaySection }) => (
+    <View style={[
+      s.dayHeader,
+      {
+        backgroundColor: DAY_COLORS[section.dayIndex],
+        borderColor: DAY_BORDER_COLORS[section.dayIndex],
+      }
+    ]}>
+      <Text style={s.dayHeaderText}>{section.title}</Text>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -179,24 +278,26 @@ export default function ActivityScreen() {
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
         <Text style={s.title}>Activity</Text>
-        <Text style={s.subtitle}>{items.length} events</Text>
+        <Text style={s.subtitle}>{totalCount} events</Text>
       </View>
 
-      {items.length === 0 ? (
+      {sections.length === 0 ? (
         <View style={s.center}>
           <Text style={s.emptyText}>No activity yet</Text>
-          <Text style={s.emptySubtext}>Status changes and comments will appear here</Text>
+          <Text style={s.emptySubtext}>Status changes, comments, and deletions will appear here</Text>
         </View>
       ) : (
-        <FlatList
-          data={items}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
           contentContainerStyle={s.list}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.color.primary} />
           }
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
     </SafeAreaView>
@@ -218,22 +319,40 @@ const s = StyleSheet.create({
   },
   title:       { ...theme.typography.heading, fontSize: 24, fontWeight: '800' },
   subtitle:    { ...theme.typography.body, color: theme.color.textMuted, fontWeight: '600' },
-  list:        { paddingTop: theme.spacing.space2 },
-  item: {
-    flexDirection:  'row',
-    backgroundColor: theme.color.bgSurface,
+  list:        { paddingTop: theme.spacing.space2, paddingBottom: 32 },
+
+  dayHeader: {
     marginHorizontal: theme.spacing.space4,
-    marginBottom:   theme.spacing.space2,
-    borderRadius:   theme.radius.lg,
-    borderWidth:    1,
-    borderColor:    theme.color.border,
-    overflow:       'hidden',
+    marginTop: theme.spacing.space3,
+    marginBottom: theme.spacing.space2,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 6,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+  },
+  dayHeaderText: {
+    ...theme.typography.label,
+    fontWeight: '800',
+    fontSize: 11,
+    color: theme.color.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  item: {
+    flexDirection:    'row',
+    backgroundColor:  theme.color.bgSurface,
+    marginHorizontal: theme.spacing.space4,
+    marginBottom:     theme.spacing.space2,
+    borderRadius:     theme.radius.lg,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    overflow:         'hidden',
   },
   iconCol: {
     width: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.color.bgBase,
     paddingVertical: theme.spacing.space3,
   },
   icon:  { fontSize: 18 },
@@ -243,7 +362,7 @@ const s = StyleSheet.create({
   serviceText: { ...theme.typography.caption, color: theme.color.textMuted, flexShrink: 1 },
   desc:        { ...theme.typography.body, color: theme.color.textSecondary, fontSize: 13 },
   actor:       { fontWeight: '700', color: theme.color.textPrimary },
-  newStatus:   { fontWeight: '700', color: theme.color.primary },
+  newStatus:   { fontWeight: '700' },
   time:        { ...theme.typography.caption, color: theme.color.textMuted },
   emptyText:    { ...theme.typography.body, color: theme.color.textMuted, fontWeight: '700' },
   emptySubtext: { ...theme.typography.caption, color: theme.color.border, textAlign: 'center', marginHorizontal: 40 },

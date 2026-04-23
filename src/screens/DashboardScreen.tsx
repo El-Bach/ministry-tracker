@@ -295,53 +295,7 @@ export default function DashboardScreen() {
 
   const [services, setServices] = useState<Service[]>([]);
 
-  // Bulk select mode
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkStatusVisible, setBulkStatusVisible] = useState(false);
-  const [savingBulk, setSavingBulk] = useState(false);
-
-  const enterSelectMode = useCallback((taskId?: string) => {
-    setSelectMode(true);
-    if (taskId) setSelectedIds(new Set([taskId]));
-    else setSelectedIds(new Set());
-  }, []);
-
-  const exitSelectMode = useCallback(() => {
-    setSelectMode(false);
-    setSelectedIds(new Set());
-    setBulkStatusVisible(false);
-  }, []);
-
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const applyBulkStatus = async (newStatus: string) => {
-    if (!selectedIds.size) return;
-    setSavingBulk(true);
-    const ids = Array.from(selectedIds);
-    const now = new Date().toISOString();
-    await supabase.from('tasks')
-      .update({ current_status: newStatus, updated_at: now })
-      .in('id', ids);
-    // Insert status_updates for each
-    const inserts = ids.map(id => ({
-      task_id: id,
-      updated_by: teamMember?.id,
-      new_status: newStatus,
-    }));
-    await supabase.from('status_updates').insert(inserts);
-    setSavingBulk(false);
-    setBulkStatusVisible(false);
-    exitSelectMode();
-    fetchData();
-  };
+  // Bulk select mode — removed per user request
 
   // Activity unread badge
   const ACTIVITY_SEEN_KEY = '@activity_last_seen';
@@ -568,6 +522,16 @@ export default function DashboardScreen() {
   const handleDeleteTask = (task: Task) => {
     const label = task.client?.name ?? 'this file';
     const doDelete = async () => {
+      // Log deletion to activity_log before deleting (so it survives the cascade)
+      await supabase.from('activity_log').insert({
+        org_id: teamMember?.org_id ?? null,
+        actor_id: teamMember?.id ?? null,
+        actor_name: teamMember?.name ?? 'Someone',
+        event_type: 'file_deleted',
+        client_name: task.client?.name ?? null,
+        service_name: task.service?.name ?? null,
+        description: `Deleted file for ${task.client?.name ?? 'Unknown'} — ${task.service?.name ?? ''}`,
+      }).select(); // ignore error if table doesn't exist yet
       await supabase.from('tasks').delete().eq('id', task.id);
       fetchData();
     };
@@ -670,37 +634,13 @@ export default function DashboardScreen() {
 
   const renderTaskRow = useCallback(
     ({ item }: { item: Task }) => {
-      const isSelected = selectedIds.has(item.id);
-      if (selectMode) {
-        return (
-          <TouchableOpacity
-            onPress={() => toggleSelect(item.id)}
-            activeOpacity={0.8}
-            style={[styles.selectRow, isSelected && styles.selectRowActive]}
-          >
-            <View style={[styles.selectCheck, isSelected && styles.selectCheckActive]}>
-              {isSelected && <Text style={styles.selectCheckMark}>✓</Text>}
-            </View>
-            <View style={{ flex: 1 }}>
-              <TaskCard
-                task={item}
-                statusColor={getStatusColor(item.current_status)}
-                allStatusColors={allStatusColorsMap}
-                onPress={() => toggleSelect(item.id)}
-                cardStyle={{ marginBottom: 0 }}
-                selected={isSelected}
-              />
-            </View>
-          </TouchableOpacity>
-        );
-      }
       return (
         <SwipeableTaskRow
           task={item}
           statusColor={getStatusColor(item.current_status)}
           allStatusColors={allStatusColorsMap}
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onLongPress={() => enterSelectMode(item.id)}
+          onLongPress={() => {}}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
           onServicePress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
@@ -712,7 +652,7 @@ export default function DashboardScreen() {
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, selectMode, selectedIds, toggleSelect, enterSelectMode]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
   );
 
   if (loading) {
@@ -764,16 +704,6 @@ export default function DashboardScreen() {
           </View>
         </TouchableOpacity>
       </View>
-
-      {/* Select mode entry button */}
-      {!selectMode && (
-        <TouchableOpacity
-          style={styles.selectModeBtn}
-          onPress={() => enterSelectMode()}
-        >
-          <Text style={styles.selectModeBtnText}>☑ Select</Text>
-        </TouchableOpacity>
-      )}
 
       {/* My Files / All Files toggle */}
       <View style={styles.myFilesToggle}>
@@ -1145,67 +1075,6 @@ export default function DashboardScreen() {
               })}
             </View>
             <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setQuickStatusTask(null)}>
-              <Text style={styles.qsCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* ── Bulk action bar (select mode) ── */}
-      {selectMode && (
-        <View style={styles.bulkBar}>
-          <Text style={styles.bulkCount}>
-            {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Tap files to select'}
-          </Text>
-          <View style={styles.bulkActions}>
-            {selectedIds.size > 0 && (
-              <TouchableOpacity
-                style={styles.bulkActionBtn}
-                onPress={() => setBulkStatusVisible(true)}
-                disabled={savingBulk}
-              >
-                <Text style={styles.bulkActionBtnText}>🔄 Status</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.bulkCancelBtn} onPress={exitSelectMode}>
-              <Text style={styles.bulkCancelBtnText}>✕ Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* ── Bulk Status Modal ── */}
-      <Modal
-        visible={bulkStatusVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setBulkStatusVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.qsOverlay}
-          activeOpacity={1}
-          onPress={() => setBulkStatusVisible(false)}
-        >
-          <View style={styles.qsSheet}>
-            <View style={styles.qsHandle} />
-            <Text style={styles.qsTitle}>Set Status</Text>
-            <Text style={styles.qsSubtitle}>{selectedIds.size} file{selectedIds.size !== 1 ? 's' : ''} selected</Text>
-            <View style={styles.qsGrid}>
-              {statusLabels.map((sl) => (
-                <TouchableOpacity
-                  key={sl.id}
-                  style={[styles.qsChip, { borderColor: sl.color + '88', backgroundColor: sl.color + '18' }]}
-                  onPress={() => applyBulkStatus(sl.label)}
-                  disabled={savingBulk}
-                  activeOpacity={0.75}
-                >
-                  {savingBulk
-                    ? <ActivityIndicator size="small" color={sl.color} />
-                    : <Text style={[styles.qsChipText, { color: sl.color }]}>{sl.label}</Text>}
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setBulkStatusVisible(false)}>
               <Text style={styles.qsCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>

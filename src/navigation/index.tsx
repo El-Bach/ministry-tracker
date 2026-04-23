@@ -46,16 +46,19 @@ const DashStack = createNativeStackNavigator<DashboardStackParamList>();
 // ─── GovPilot logo header title ─────────────────────────────
 function GovPilotLogo() {
   return (
-    <View style={styles.logoRow}>
-      <Image
-        source={require('../../assets/icon.png')}
-        style={styles.logoIcon}
-        resizeMode="contain"
-      />
-      <Text style={styles.logoText}>
-        <Text style={styles.logoGov}>Gov</Text>
-        <Text style={styles.logoPilot}>Pilot</Text>
-      </Text>
+    <View style={styles.logoCol}>
+      <View style={styles.logoRow}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logoIcon}
+          resizeMode="contain"
+        />
+        <Text style={styles.logoText}>
+          <Text style={styles.logoGov}>Gov</Text>
+          <Text style={styles.logoPilot}>Pilot</Text>
+        </Text>
+      </View>
+      <Text style={styles.poweredBy}>Powered by KTS</Text>
     </View>
   );
 }
@@ -281,10 +284,21 @@ const styles = StyleSheet.create({
   tabIconFocused: {
     color: theme.color.primary,
   },
+  logoCol: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
   logoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  poweredBy: {
+    fontSize: 9,
+    color: theme.color.textMuted,
+    fontWeight: '500',
+    marginLeft: 38,
+    marginTop: -2,
   },
   logoIcon: {
     width: 30,
