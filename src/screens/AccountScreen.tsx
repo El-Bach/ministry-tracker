@@ -202,7 +202,7 @@ export default function AccountScreen() {
     setJoiningCompany(true);
     const { data, error } = await supabase
       .from('org_join_codes')
-      .select('id, org_id, is_active, use_count, organizations(name, plan)')
+      .select('id, org_id, role, is_active, use_count, organizations(name, plan)')
       .eq('code', cleaned)
       .single();
     if (error || !data) {
@@ -218,7 +218,7 @@ export default function AccountScreen() {
     const orgName = (data.organizations as any)?.name ?? 'the company';
     const { error: updateErr } = await supabase
       .from('team_members')
-      .update({ org_id: data.org_id, role: 'member' })
+      .update({ org_id: data.org_id, role: data.role ?? 'member' })
       .eq('id', teamMember!.id);
     if (updateErr) { setJoiningCompany(false); Alert.alert('Error', updateErr.message); return; }
     await supabase.from('org_join_codes')

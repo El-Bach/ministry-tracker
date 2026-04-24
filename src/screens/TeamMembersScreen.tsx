@@ -1,5 +1,5 @@
 // src/screens/TeamMembersScreen.tsx
-// Team members list + invite flow — navigated from SettingsScreen
+// Team members list + role-specific invite codes — owner/admin only
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
@@ -8,12 +8,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,10 +19,10 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { TeamMember } from '../types';
-import { normalizeToEmail } from '../lib/authHelpers';
-import { DEFAULT_COUNTRY, SORTED_COUNTRIES } from '../components/PhoneInput';
 
-// Generates a readable 8-char code e.g. "ABCD-1234"
+type InviteRole = 'admin' | 'member' | 'viewer';
+
+// Generates a readable 8-char code e.g. "ABCD-2345" (no 0/O/1/I)
 function makeCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -36,36 +33,30 @@ function makeCode() {
   return code;
 }
 
+const ROLE_META: Record<InviteRole, { label: string; icon: string; color: string; desc: string }> = {
+  admin:  { label: 'Admin',  icon: '🔑', color: theme.color.warning, desc: 'Can manage settings, invite members, view all data' },
+  member: { label: 'Member', icon: '👤', color: theme.color.success, desc: 'Can create and edit files, add stages and documents' },
+  viewer: { label: 'Viewer', icon: '👁', color: theme.color.textMuted, desc: 'Limited access — view and update stages only' },
+};
+
 export default function TeamMembersScreen() {
-  const { teamMember, isAdmin } = useAuth();
+  const { teamMember } = useAuth();
   const isOwnerOrAdmin = teamMember?.role === 'owner' || teamMember?.role === 'admin';
 
-  const [loading, setLoading] = useState(true);
+  const [loading,     setLoading]     = useState(true);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [joinCodes,   setJoinCodes]   = useState<any[]>([]);
 
-  // Join codes
-  const [joinCodes, setJoinCodes] = useState<any[]>([]);
-  const [generatingCode, setGeneratingCode] = useState(false);
+  // Invite code modal
+  const [showModal,       setShowModal]       = useState(false);
+  const [modalRole,       setModalRole]       = useState<InviteRole>('member');
+  const [generating,      setGenerating]      = useState(false);
+  const [generatedCode,   setGeneratedCode]   = useState<string | null>(null);
 
-  // Invite modal
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'viewer'>('member');
-  const [inviteInputType, setInviteInputType] = useState<'email' | 'phone'>('email');
-  const [invitePhone, setInvitePhone] = useState('');
-  const [inviteCountryCode, setInviteCountryCode] = useState(DEFAULT_COUNTRY.code);
-  const [inviting, setInviting] = useState(false);
-
+  // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    const [tmRes, invRes, codeRes] = await Promise.all([
+    const [tmRes, codeRes] = await Promise.all([
       supabase.from('team_members').select('*').order('name'),
-      supabase
-        .from('invitations')
-        .select('id, email, role, expires_at')
-        .is('accepted_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false }),
       supabase
         .from('org_join_codes')
         .select('*')
@@ -73,112 +64,86 @@ export default function TeamMembersScreen() {
         .order('created_at', { ascending: false }),
     ]);
     if (tmRes.data)   setTeamMembers(tmRes.data as TeamMember[]);
-    if (invRes.data)  setPendingInvites(invRes.data as any[]);
     if (codeRes.data) setJoinCodes(codeRes.data);
     setLoading(false);
   }, [teamMember?.org_id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ── Role change ──────────────────────────────────────────────
   const handleChangeRole = async (tm: TeamMember, newRole: string) => {
     if (tm.role === newRole) return;
-    const { error } = await supabase
-      .from('team_members')
-      .update({ role: newRole })
-      .eq('id', tm.id);
+    const { error } = await supabase.from('team_members').update({ role: newRole }).eq('id', tm.id);
     if (error) { Alert.alert('Error', error.message); return; }
     fetchData();
   };
 
+  // ── Generate invite code ─────────────────────────────────────
   const handleGenerateCode = async () => {
     if (!teamMember?.org_id) return;
-    setGeneratingCode(true);
+    setGenerating(true);
     const code = makeCode();
     const { error } = await supabase.from('org_join_codes').insert({
       org_id:     teamMember.org_id,
       code,
+      role:       modalRole,
       created_by: teamMember.id,
     });
-    setGeneratingCode(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    setGenerating(false);
+    if (error) { Alert.alert('Error generating code', error.message); return; }
+    setGeneratedCode(code);
     fetchData();
   };
 
-  const handleDeactivateCode = (codeId: string, code: string) => {
-    Alert.alert('Deactivate Code', `Deactivate code ${code}? Members will no longer be able to use it.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Deactivate', style: 'destructive', onPress: async () => {
-        await supabase.from('org_join_codes').update({ is_active: false }).eq('id', codeId);
-        fetchData();
-      }},
-    ]);
-  };
-
-  const handleShareCode = async (code: string) => {
+  // ── Share code ───────────────────────────────────────────────
+  const handleShare = async (code: string, role: string) => {
+    const meta = ROLE_META[role as InviteRole];
     try {
       await Share.share({
-        message: `Join our company on GovPilot!\n\nDownload the app and go to My Account → My Company → Join a Company, then enter this code:\n\n${code}\n\nThis code lets you join our team directly.`,
+        message:
+          `You've been invited to join our company on GovPilot as a ${meta?.label ?? role}!\n\n` +
+          `Download the app, go to My Account → My Company → Join a Company, and enter this code:\n\n` +
+          `${code}\n\n` +
+          `This code is for your use only.`,
       });
     } catch {}
   };
 
-  const deleteRecord = (table: string, id: string, label: string) => {
-    Alert.alert('Delete', `Delete "${label}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          const { error } = await supabase.from(table).delete().eq('id', id);
-          if (error) Alert.alert('Error', error.message);
-          else fetchData();
-        },
-      },
-    ]);
-  };
-
-  const revokeInvite = (inviteId: string, email: string) => {
-    Alert.alert('Revoke Invite', `Remove pending invite for ${email}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Revoke', style: 'destructive', onPress: async () => {
-          await supabase.from('invitations').delete().eq('id', inviteId);
-          fetchData();
-        },
-      },
-    ]);
-  };
-
-  const sendInvite = async () => {
-    const trimEmail = normalizeToEmail(inviteEmail.trim());
-    if (inviteEmail.trim().length < 4) {
-      Alert.alert('Required', 'Enter an email or phone number.');
-      return;
-    }
-    if (!teamMember?.org_id) return;
-    setInviting(true);
-    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase
-      .from('invitations')
-      .insert({
-        org_id:     teamMember.org_id,
-        email:      trimEmail,
-        role:       inviteRole,
-        invited_by: teamMember.id,
-        expires_at: expires,
-      })
-      .select('token')
-      .single();
-    setInviting(false);
-    if (error) { Alert.alert('Error', error.message); return; }
-    setShowInviteModal(false);
-    setInviteEmail('');
-    setInviteRole('member');
-    fetchData();
+  // ── Deactivate code ──────────────────────────────────────────
+  const handleDeactivate = (codeId: string, code: string) => {
     Alert.alert(
-      '✉️ Invite Sent',
-      `Invitation created for ${trimEmail}.\n\nAsk them to download the app and register with this email — they will automatically join your organization.`,
-      [{ text: 'OK' }]
+      'Deactivate Code',
+      `Deactivate ${code}? No one will be able to use it after this.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Deactivate', style: 'destructive', onPress: async () => {
+          await supabase.from('org_join_codes').update({ is_active: false }).eq('id', codeId);
+          fetchData();
+        }},
+      ]
     );
   };
+
+  // ── Delete member ────────────────────────────────────────────
+  const handleDeleteMember = (tm: TeamMember) => {
+    Alert.alert('Remove Member', `Remove ${tm.name} from the team? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('team_members').delete().eq('id', tm.id);
+        if (error) Alert.alert('Error', error.message);
+        else fetchData();
+      }},
+    ]);
+  };
+
+  // ── Close modal + reset ───────────────────────────────────────
+  const closeModal = () => {
+    setShowModal(false);
+    setGeneratedCode(null);
+    setModalRole('member');
+  };
+
+  // ─────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -190,360 +155,301 @@ export default function TeamMembersScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
-      {/* Invite button in top-right */}
-      {isAdmin && (
-        <TouchableOpacity style={s.inviteBtn} onPress={() => setShowInviteModal(true)}>
-          <Text style={s.inviteBtnText}>+ Invite</Text>
-        </TouchableOpacity>
-      )}
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-      <ScrollView contentContainerStyle={s.scroll}>
-
-        {/* ── JOIN CODES (owner/admin only) ── */}
+        {/* ── INVITE CODES (owner/admin only) ─────────────────── */}
         {isOwnerOrAdmin && (
-          <View style={s.codesSection}>
-            <View style={s.codesSectionHeader}>
-              <View>
-                <Text style={s.codesSectionTitle}>🔑 Company Join Codes</Text>
-                <Text style={s.codesSectionSub}>Share a code with anyone to let them join your company</Text>
+          <View style={s.section}>
+            {/* Section header */}
+            <View style={s.sectionHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.sectionTitle}>🔑 Invite Codes</Text>
+                <Text style={s.sectionSub}>Each code gives one person access with a specific role</Text>
               </View>
-              <TouchableOpacity
-                style={[s.genBtn, generatingCode && { opacity: 0.6 }]}
-                onPress={handleGenerateCode}
-                disabled={generatingCode}
-              >
-                {generatingCode
-                  ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.genBtnText}>+ New Code</Text>}
+              <TouchableOpacity style={s.newBtn} onPress={() => setShowModal(true)} activeOpacity={0.8}>
+                <Text style={s.newBtnText}>＋ New</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Code list */}
             {joinCodes.length === 0 && (
-              <Text style={s.codesEmpty}>No codes yet. Generate one to share with your team.</Text>
+              <Text style={s.emptyHint}>No invite codes yet. Tap ＋ New to create one.</Text>
             )}
-
-            {joinCodes.map((jc) => (
-              <View key={jc.id} style={[s.codeRow, !jc.is_active && s.codeRowInactive]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.codeText, !jc.is_active && s.codeTextInactive]}>{jc.code}</Text>
-                  <Text style={s.codeMeta}>
-                    {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · {jc.is_active ? 'Active' : 'Deactivated'} · {new Date(jc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  </Text>
+            {joinCodes.map((jc) => {
+              const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
+              return (
+                <View key={jc.id} style={[s.codeCard, !jc.is_active && { opacity: 0.45 }]}>
+                  {/* Code + role badge */}
+                  <View style={s.codeCardTop}>
+                    <Text style={[s.codeText, !jc.is_active && { color: theme.color.textMuted }]}>
+                      {jc.code}
+                    </Text>
+                    <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
+                      <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
+                    </View>
+                  </View>
+                  {/* Meta + actions */}
+                  <View style={s.codeCardBottom}>
+                    <Text style={s.codeMeta}>
+                      {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · {jc.is_active ? 'Active' : 'Deactivated'} · {new Date(jc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </Text>
+                    {jc.is_active && (
+                      <View style={s.codeActions}>
+                        <TouchableOpacity style={s.shareBtn} onPress={() => handleShare(jc.code, jc.role)} activeOpacity={0.75}>
+                          <Text style={s.shareBtnText}>Share</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeactivate(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                {jc.is_active && (
-                  <>
-                    <TouchableOpacity style={s.shareBtn} onPress={() => handleShareCode(jc.code)}>
-                      <Text style={s.shareBtnText}>Share</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.deactivateBtn} onPress={() => handleDeactivateCode(jc.id, jc.code)}>
-                      <Text style={s.deactivateBtnText}>✕</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
-        {/* Section divider */}
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionLabel}>TEAM MEMBERS ({teamMembers.length})</Text>
+        {/* ── TEAM MEMBERS ────────────────────────────────────── */}
+        <View style={s.sectionDivider}>
+          <Text style={s.sectionDividerText}>TEAM MEMBERS ({teamMembers.length})</Text>
         </View>
 
-        {/* Team members */}
         {teamMembers.map((tm) => {
-          const roleBadgeColor =
+          const isYou    = tm.id === teamMember?.id;
+          const canEdit  = isOwnerOrAdmin && !isYou && tm.role !== 'owner';
+          const myColor  =
             tm.role === 'owner'  ? theme.color.primary :
             tm.role === 'admin'  ? theme.color.warning :
             tm.role === 'viewer' ? theme.color.textMuted :
             theme.color.success;
-          const isYou = tm.id === teamMember?.id;
-          const canEdit = isOwnerOrAdmin && !isYou && tm.role !== 'owner';
+
           return (
             <View key={tm.id} style={s.memberCard}>
-              {/* Top row: avatar + name + delete */}
+              {/* Top: avatar + name/email + delete */}
               <View style={s.memberTop}>
-                <View style={[s.avatar, { backgroundColor: roleBadgeColor + '33' }]}>
-                  <Text style={[s.avatarText, { color: roleBadgeColor }]}>
-                    {tm.name.charAt(0).toUpperCase()}
+                <View style={[s.avatar, { backgroundColor: myColor + '22' }]}>
+                  <Text style={[s.avatarText, { color: myColor }]}>
+                    {(tm.name ?? '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.name}>{tm.name}{isYou ? ' (you)' : ''}</Text>
-                  <Text style={s.email}>{tm.email}{tm.phone ? ` · ${tm.phone}` : ''}</Text>
+                <View style={s.memberInfo}>
+                  <Text style={s.memberName} numberOfLines={1}>
+                    {tm.name}{isYou ? ' (you)' : ''}
+                  </Text>
+                  <Text style={s.memberEmail} numberOfLines={1}>
+                    {tm.email}{tm.phone ? ` · ${tm.phone}` : ''}
+                  </Text>
                 </View>
                 {canEdit && (
                   <TouchableOpacity
-                    onPress={() => deleteRecord('team_members', tm.id, tm.name)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => handleDeleteMember(tm)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={s.deleteBtn}
                   >
-                    <Text style={{ color: theme.color.danger, fontSize: 16 }}>✕</Text>
+                    <Text style={s.deleteBtnText}>✕</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
-              {/* Role chips row */}
-              <View style={s.roleChipsRow}>
-                {tm.role === 'owner' ? (
-                  <View style={[s.roleChip, { borderColor: theme.color.primary + '55', backgroundColor: theme.color.primary + '18' }]}>
-                    <Text style={[s.roleChipText, { color: theme.color.primary }]}>👑 Owner</Text>
-                  </View>
-                ) : (
-                  (['admin', 'member', 'viewer'] as const).map((r) => {
+              {/* Role chips */}
+              {tm.role === 'owner' ? (
+                <View style={s.ownerChip}>
+                  <Text style={s.ownerChipText}>👑 Owner</Text>
+                </View>
+              ) : (
+                <View style={s.chipRow}>
+                  {(['admin', 'member', 'viewer'] as InviteRole[]).map((r) => {
                     const active = tm.role === r;
-                    const chipColor = r === 'admin' ? theme.color.warning : r === 'viewer' ? theme.color.textMuted : theme.color.success;
+                    const meta   = ROLE_META[r];
                     return (
                       <TouchableOpacity
                         key={r}
                         style={[
-                          s.roleChip,
+                          s.chip,
                           active
-                            ? { borderColor: chipColor, backgroundColor: chipColor + '22' }
+                            ? { borderColor: meta.color, backgroundColor: meta.color + '20' }
                             : { borderColor: theme.color.border, backgroundColor: theme.color.bgBase },
-                          !canEdit && { opacity: 0.5 },
                         ]}
                         onPress={() => canEdit && handleChangeRole(tm, r)}
                         disabled={!canEdit}
                         activeOpacity={canEdit ? 0.7 : 1}
                       >
-                        <Text style={[s.roleChipText, { color: active ? chipColor : theme.color.textMuted }]}>
-                          {r === 'admin' ? '🔑 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+                        <Text style={[s.chipText, { color: active ? meta.color : theme.color.textMuted }]}>
+                          {meta.icon} {meta.label}
                         </Text>
                       </TouchableOpacity>
                     );
-                  })
-                )}
-              </View>
+                  })}
+                </View>
+              )}
 
               {/* Role description */}
               {canEdit && (
                 <Text style={s.roleDesc}>
-                  {tm.role === 'admin'  ? 'Can manage settings, invite members, view all data' :
-                   tm.role === 'member' ? 'Can create and edit files, add stages and documents' :
-                   'Limited access — tap a role above to change'}
+                  {ROLE_META[tm.role as InviteRole]?.desc ?? ''}
                 </Text>
               )}
             </View>
           );
         })}
 
-        {/* Pending invites */}
-        {pendingInvites.length > 0 && (
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionLabel}>PENDING INVITES ({pendingInvites.length})</Text>
-          </View>
-        )}
-        {pendingInvites.map((inv) => (
-          <View key={inv.id} style={s.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.name}>{inv.email}</Text>
-              <Text style={s.email}>
-                {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-              </Text>
-            </View>
-            {isAdmin && (
-              <TouchableOpacity
-                onPress={() => revokeInvite(inv.id, inv.email)}
-                style={s.revokeBtn}
-              >
-                <Text style={s.revokeBtnText}>Revoke</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+        <View style={{ height: 32 }} />
       </ScrollView>
 
-      {/* ── INVITE MODAL ── */}
-      <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={s.overlay}>
-            <View style={s.sheet}>
-              <Text style={s.sheetTitle}>✉️ Invite Team Member</Text>
-              <Text style={s.sheetDesc}>They will automatically join your organization when they register.</Text>
+      {/* ── INVITE CODE MODAL ────────────────────────────────── */}
+      <Modal visible={showModal} transparent animationType="slide" onRequestClose={closeModal}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
 
-              {/* Email / Phone tabs */}
-              <View style={s.roleRow}>
-                <TouchableOpacity
-                  style={[s.roleChip, inviteInputType === 'email' && s.roleChipActive]}
-                  onPress={() => setInviteInputType('email')}
-                >
-                  <Text style={[s.roleChipText, inviteInputType === 'email' && s.roleChipTextActive]}>✉️ Email</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.roleChip, inviteInputType === 'phone' && s.roleChipActive]}
-                  onPress={() => setInviteInputType('phone')}
-                >
-                  <Text style={[s.roleChipText, inviteInputType === 'phone' && s.roleChipTextActive]}>📱 Phone</Text>
-                </TouchableOpacity>
-              </View>
+            {/* ── Step 2: code generated ── */}
+            {generatedCode ? (
+              <>
+                <Text style={s.modalTitle}>✅ Invite Code Ready</Text>
+                <Text style={s.modalSub}>Share this code with the person you want to invite. They enter it in My Account → Join a Company.</Text>
 
-              {inviteInputType === 'email' ? (
-                <TextInput
-                  style={s.input}
-                  value={inviteEmail}
-                  onChangeText={setInviteEmail}
-                  placeholder="their@email.com"
-                  placeholderTextColor={theme.color.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              ) : (
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[s.input, { flex: 0, minWidth: 100, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-                    <Text>{SORTED_COUNTRIES.find(c => c.code === inviteCountryCode)?.flag ?? '🇱🇧'}</Text>
-                    <Text style={{ color: theme.color.textPrimary, fontWeight: '600' }}>{inviteCountryCode}</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[s.input, { flex: 1 }]}
-                    value={invitePhone}
-                    onChangeText={setInvitePhone}
-                    placeholder="70 123 456"
-                    placeholderTextColor={theme.color.textMuted}
-                    keyboardType="phone-pad"
-                  />
-                </View>
-              )}
-
-              <Text style={s.fieldLabel}>ROLE</Text>
-              <View style={s.roleRow}>
-                {(['admin', 'member', 'viewer'] as const).map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[s.roleChip, inviteRole === r && s.roleChipActive]}
-                    onPress={() => setInviteRole(r)}
-                  >
-                    <Text style={[s.roleChipText, inviteRole === r && s.roleChipTextActive]}>
-                      {r === 'admin' ? '🔑 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+                <View style={s.codeDisplay}>
+                  <Text style={s.codeDisplayText}>{generatedCode}</Text>
+                  <View style={[s.rolePill, { borderColor: ROLE_META[modalRole].color + '55', backgroundColor: ROLE_META[modalRole].color + '18', alignSelf: 'center' }]}>
+                    <Text style={[s.rolePillText, { color: ROLE_META[modalRole].color }]}>
+                      {ROLE_META[modalRole].icon} {ROLE_META[modalRole].label}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={s.roleDesc}>
-                {inviteRole === 'admin'  ? 'Can manage settings, invite members, view all data' :
-                 inviteRole === 'member' ? 'Can create and edit files, add stages and documents' :
-                 'Read-only access — cannot create or edit any records'}
-              </Text>
+                  </View>
+                </View>
 
-              <TouchableOpacity style={[s.saveBtn, inviting && { opacity: 0.6 }]} onPress={sendInvite} disabled={inviting}>
-                {inviting
-                  ? <ActivityIndicator color={theme.color.white} />
-                  : <Text style={s.saveBtnText}>Send Invite</Text>
-                }
-              </TouchableOpacity>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowInviteModal(false)}>
-                <Text style={s.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+                <TouchableOpacity
+                  style={s.shareFullBtn}
+                  onPress={() => handleShare(generatedCode, modalRole)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.shareFullBtnText}>📤 Share Code</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.doneBtn} onPress={closeModal}>
+                  <Text style={s.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* ── Step 1: pick role ── */
+              <>
+                <Text style={s.modalTitle}>New Invite Code</Text>
+                <Text style={s.modalSub}>Choose the role this person will have when they join.</Text>
+
+                {(['admin', 'member', 'viewer'] as InviteRole[]).map((r) => {
+                  const meta   = ROLE_META[r];
+                  const active = modalRole === r;
+                  return (
+                    <TouchableOpacity
+                      key={r}
+                      style={[s.roleOption, active && { borderColor: meta.color, backgroundColor: meta.color + '12' }]}
+                      onPress={() => setModalRole(r)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.roleOptionLabel, active && { color: meta.color }]}>
+                          {meta.icon} {meta.label}
+                        </Text>
+                        <Text style={s.roleOptionDesc}>{meta.desc}</Text>
+                      </View>
+                      <View style={[s.radioOuter, active && { borderColor: meta.color }]}>
+                        {active && <View style={[s.radioInner, { backgroundColor: meta.color }]} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={[s.generateBtn, generating && { opacity: 0.6 }]}
+                  onPress={handleGenerateCode}
+                  disabled={generating}
+                  activeOpacity={0.8}
+                >
+                  {generating
+                    ? <ActivityIndicator color={theme.color.white} />
+                    : <Text style={s.generateBtnText}>Generate Code</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={s.doneBtn} onPress={closeModal}>
+                  <Text style={s.doneBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────
+
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: theme.color.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
-  scroll: { padding: theme.spacing.space4, gap: 2 },
+  scroll: { padding: theme.spacing.space4, gap: 12 },
 
-  inviteBtn: {
-    alignSelf:       'flex-end',
-    marginEnd:       theme.spacing.space4,
-    marginTop:       theme.spacing.space3,
-    backgroundColor: theme.color.primary,
-    paddingHorizontal: 14,
-    paddingVertical:   7,
-    borderRadius:    theme.radius.md,
-  },
-  inviteBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 14 },
-
-  row: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             theme.spacing.space3,
-    paddingVertical: theme.spacing.space3,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: 18, fontWeight: '700' },
-  name:  { ...theme.typography.body, fontWeight: '600' },
-  email: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 1 },
-
-  roleBadge: {
-    borderWidth: 1, borderRadius: theme.radius.sm,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  roleBadgeText: { fontSize: 12, fontWeight: '700' },
-
-  // Join codes section
-  codesSection: {
+  // ── Invite codes section ─────────────────────────────────────
+  section: {
     backgroundColor: theme.color.bgSurface,
     borderRadius:    theme.radius.xl,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '30',
     padding:         theme.spacing.space4,
     gap:             12,
-    borderWidth:     1,
-    borderColor:     theme.color.primary + '33',
-    marginBottom:    theme.spacing.space3,
   },
-  codesSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
-  codesSectionTitle: { ...theme.typography.body, fontWeight: '700', color: theme.color.textPrimary, fontSize: 15 },
-  codesSectionSub:   { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
-  genBtn: {
+  sectionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  sectionTitle: { ...theme.typography.body, fontWeight: '700', fontSize: 15 },
+  sectionSub:   { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  newBtn: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical:   8,
   },
-  genBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
-  codesEmpty: { ...theme.typography.caption, color: theme.color.textMuted, textAlign: 'center', paddingVertical: 8 },
-  codeRow: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             10,
+  newBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 14 },
+  emptyHint:  { ...theme.typography.caption, color: theme.color.textMuted, textAlign: 'center', paddingVertical: 8 },
+
+  // Code card
+  codeCard: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.md,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical: 10,
     borderWidth:     1,
     borderColor:     theme.color.border,
+    padding:         theme.spacing.space3,
+    gap:             8,
   },
-  codeRowInactive: { opacity: 0.45 },
+  codeCardTop:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  codeCardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   codeText: {
-    fontSize:    17,
-    fontWeight:  '800',
-    color:       theme.color.primary,
+    fontSize:      18,
+    fontWeight:    '800',
+    color:         theme.color.primary,
     letterSpacing: 1.5,
-    fontVariant: ['tabular-nums'] as any,
+    fontVariant:   ['tabular-nums'] as any,
   },
-  codeTextInactive: { color: theme.color.textMuted },
-  codeMeta: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  codeMeta:    { ...theme.typography.caption, color: theme.color.textMuted },
+  codeActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   shareBtn: {
-    backgroundColor: theme.color.primary + '18',
+    backgroundColor: theme.color.primary + '15',
     borderRadius:    theme.radius.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderWidth:     1,
-    borderColor:     theme.color.primary + '44',
+    borderColor:     theme.color.primary + '40',
+    paddingHorizontal: 10,
+    paddingVertical:   4,
   },
   shareBtnText: { color: theme.color.primary, fontWeight: '700', fontSize: 12 },
-  deactivateBtn: { padding: 4 },
-  deactivateBtnText: { color: theme.color.danger, fontSize: 16, fontWeight: '700' },
 
-  sectionHeader: {
-    paddingTop:    theme.spacing.space2,
-    paddingBottom: theme.spacing.space2,
+  rolePill: {
+    borderWidth:     1,
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical:   3,
   },
-  sectionLabel: {
-    ...theme.typography.sectionDivider,
-    color: theme.color.textMuted,
-  },
+  rolePillText: { fontSize: 12, fontWeight: '700' },
 
-  // Member card (inline role chips)
+  // ── Section divider ──────────────────────────────────────────
+  sectionDivider: { paddingVertical: 4 },
+  sectionDividerText: { ...theme.typography.sectionDivider, color: theme.color.textMuted },
+
+  // ── Member card ──────────────────────────────────────────────
   memberCard: {
     backgroundColor: theme.color.bgSurface,
     borderRadius:    theme.radius.lg,
@@ -551,71 +457,126 @@ const s = StyleSheet.create({
     borderColor:     theme.color.border,
     padding:         theme.spacing.space3,
     gap:             10,
-    marginBottom:    8,
   },
   memberTop: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           theme.spacing.space3,
+    gap:           10,
   },
-  roleChipsRow: {
+  avatar: {
+    width: 42, height: 42,
+    borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarText: { fontSize: 17, fontWeight: '700' },
+  memberInfo: { flex: 1, minWidth: 0 },
+  memberName:  { ...theme.typography.body, fontWeight: '600', fontSize: 15 },
+  memberEmail: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 1 },
+  deleteBtn:   { paddingStart: 4, flexShrink: 0 },
+  deleteBtnText: { color: theme.color.danger, fontSize: 16, fontWeight: '700' },
+
+  // Role chips (3 equal-width chips in a row)
+  chipRow: {
     flexDirection: 'row',
-    gap:           8,
-    flexWrap:      'wrap',
-    paddingStart:  4,
+    gap:           6,
   },
+  chip: {
+    flex:            1,
+    alignItems:      'center',
+    paddingVertical: 7,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+  },
+  chipText: { fontSize: 12, fontWeight: '700' },
 
-  revokeBtn: {
-    borderWidth: 1, borderColor: theme.color.danger,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: 10, paddingVertical: 4,
+  ownerChip: {
+    alignSelf:       'flex-start',
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '55',
+    backgroundColor: theme.color.primary + '18',
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: 12,
+    paddingVertical:   6,
   },
-  revokeBtnText: { color: theme.color.danger, fontSize: 12, fontWeight: '600' },
+  ownerChipText: { color: theme.color.primary, fontWeight: '700', fontSize: 13 },
+  roleDesc:      { ...theme.typography.caption, color: theme.color.textMuted, paddingStart: 2 },
 
-  // Modal shared
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center', padding: theme.spacing.space5,
+  // ── Modal ────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
   },
-  sheet: {
+  modalSheet: {
     backgroundColor: theme.color.bgSurface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.space5,
-    gap: theme.spacing.space3,
+    borderTopLeftRadius:  theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding:  theme.spacing.space5,
+    gap:      theme.spacing.space3,
+    paddingBottom: 36,
   },
-  sheetTitle: { ...theme.typography.heading, fontSize: 17, fontWeight: '700' },
-  sheetDesc:  { ...theme.typography.caption, color: theme.color.textMuted },
+  modalTitle: { ...theme.typography.heading, fontWeight: '700', fontSize: 18 },
+  modalSub:   { ...theme.typography.caption, color: theme.color.textSecondary },
 
-  roleRow:  { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  roleChip: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: theme.radius.md,
-    borderWidth: 1, borderColor: theme.color.border,
-    backgroundColor: theme.color.bgBase,
+  // Role option rows (step 1)
+  roleOption: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    gap:               12,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.md,
+    padding:           theme.spacing.space3,
+    backgroundColor:   theme.color.bgBase,
   },
-  roleChipActive:    { borderColor: theme.color.primary, backgroundColor: theme.color.primary + '18' },
-  roleChipText:      { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '600' },
-  roleChipTextActive:{ color: theme.color.primary },
-  roleDesc:          { ...theme.typography.caption, color: theme.color.textMuted },
-
-  fieldLabel: { ...theme.typography.sectionDivider, color: theme.color.textMuted, marginBottom: 4 },
-  input: {
-    backgroundColor: theme.color.bgBase,
-    borderWidth: 1, borderColor: theme.color.border,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical:   theme.spacing.space2,
-    color: theme.color.textPrimary,
-    fontSize: 15,
+  roleOptionLabel: { ...theme.typography.body, fontWeight: '700', fontSize: 15 },
+  roleOptionDesc:  { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  radioOuter: {
+    width: 20, height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
 
-  saveBtn: {
+  generateBtn: {
     backgroundColor: theme.color.primary,
-    borderRadius: theme.radius.md,
-    paddingVertical: 12,
-    alignItems: 'center',
+    borderRadius:    theme.radius.md,
+    paddingVertical: 14,
+    alignItems:      'center',
+    marginTop:       4,
   },
-  saveBtnText:   { color: theme.color.white, fontWeight: '700', fontSize: 15 },
-  cancelBtn:     { alignItems: 'center', paddingVertical: 8 },
-  cancelBtnText: { color: theme.color.textMuted, fontSize: 14 },
+  generateBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 16 },
+
+  // Code display (step 2)
+  codeDisplay: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.lg,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '40',
+    padding:         theme.spacing.space4,
+    alignItems:      'center',
+    gap:             10,
+  },
+  codeDisplayText: {
+    fontSize:      28,
+    fontWeight:    '900',
+    color:         theme.color.primary,
+    letterSpacing: 3,
+    fontVariant:   ['tabular-nums'] as any,
+  },
+
+  shareFullBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingVertical: 14,
+    alignItems:      'center',
+  },
+  shareFullBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 16 },
+
+  doneBtn:     { alignItems: 'center', paddingVertical: 10 },
+  doneBtnText: { color: theme.color.textMuted, fontSize: 15, fontWeight: '600' },
 });
