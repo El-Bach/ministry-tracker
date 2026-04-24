@@ -677,8 +677,8 @@ export default function SettingsScreen() {
 
 
  {/* ── HELP GUIDE MODAL ── */}
- <Modal visible={showHelp} transparent animationType="slide" onRequestClose={() => setShowHelp(false)}>
-   <View style={ss.helpOverlay}>
+ <Modal visible={showHelp} transparent={false} animationType="slide" onRequestClose={() => setShowHelp(false)}>
+   <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
          <Text style={ss.helpTitle}>📖 Help Guide</Text>
@@ -686,7 +686,7 @@ export default function SettingsScreen() {
            <Text style={ss.helpClose}>✕</Text>
          </TouchableOpacity>
        </View>
-       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
            {
              icon: '📁',
@@ -783,12 +783,12 @@ export default function SettingsScreen() {
          ))}
        </ScrollView>
      </View>
-   </View>
+   </SafeAreaView>
  </Modal>
 
  {/* ── FAQ MODAL ── */}
- <Modal visible={showFaq} transparent animationType="slide" onRequestClose={() => setShowFaq(false)}>
-   <View style={ss.helpOverlay}>
+ <Modal visible={showFaq} transparent={false} animationType="slide" onRequestClose={() => setShowFaq(false)}>
+   <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
          <Text style={ss.helpTitle}>💬 Frequently Asked Questions</Text>
@@ -796,7 +796,7 @@ export default function SettingsScreen() {
            <Text style={ss.helpClose}>✕</Text>
          </TouchableOpacity>
        </View>
-       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
            {
              q: 'How do I create a new file?',
@@ -872,7 +872,7 @@ export default function SettingsScreen() {
          ))}
        </ScrollView>
      </View>
-   </View>
+   </SafeAreaView>
  </Modal>
 
  {/* ── TEAM MEMBERS MODAL ── */}
@@ -1620,16 +1620,12 @@ const ss = StyleSheet.create({
   // Help & FAQ shared modal chrome
   helpOverlay: {
     flex:            1,
-    backgroundColor: theme.color.overlayDark,
-    justifyContent:  'flex-end',
+    backgroundColor: theme.color.bgSurface,
   },
   helpSheet: {
-    backgroundColor:      theme.color.bgSurface,
-    borderTopLeftRadius:  theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    padding:              theme.spacing.space5,
-    maxHeight:            '90%',
-    gap:                  16,
+    flex:    1,
+    padding: theme.spacing.space5,
+    gap:     16,
   },
   helpHeader: {
     flexDirection:  'row',

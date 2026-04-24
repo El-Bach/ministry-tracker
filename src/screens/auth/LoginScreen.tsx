@@ -33,6 +33,7 @@ export default function LoginScreen() {
   const [phone,    setPhone]    = useState('');
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
   const identifier = mode === 'email' ? email : phone;
 
@@ -133,14 +134,26 @@ export default function LoginScreen() {
 
           <View style={styles.field}>
             <Text style={styles.label}>PASSWORD</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={theme.color.textMuted}
-              secureTextEntry
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor={theme.color.textMuted}
+                secureTextEntry={!showPass}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowPass(v => !v)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.eyeIcon}>{showPass ? '🙈' : '👁'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -229,6 +242,23 @@ const styles = StyleSheet.create({
     paddingVertical:  14,
     color:            theme.color.textPrimary,
     fontSize:         15,
+  },
+  passwordRow: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingEnd: 52,
+  },
+  eyeBtn: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 18,
   },
   button: {
     backgroundColor: theme.color.primary,
