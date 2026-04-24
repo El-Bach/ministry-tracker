@@ -43,6 +43,7 @@ type SpeechResultsEvent = { value?: string[] };
 type SpeechErrorEvent   = { error?: { message?: string } };
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { sendPushNotification, sendActivityNotificationToAll } from '../lib/notifications';
 import { formatPhoneDisplay } from '../lib/phone';
 import { useAuth } from '../hooks/useAuth';
@@ -119,6 +120,7 @@ export default function TaskDetailScreen() {
   const { taskId } = route.params;
   const { teamMember } = useAuth();
   const { isOnline, enqueue } = useOfflineQueue();
+  const { t } = useTranslation();
 
   const [task, setTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<TaskComment[]>([]);
@@ -1425,12 +1427,12 @@ export default function TaskDetailScreen() {
             onPress={() => { setShowAssigneePicker(v => !v); setAssigneeSearch(''); }}
             activeOpacity={0.7}
           >
-            <Text style={s.metaLabel}>ASSIGNED TO ✎</Text>
+            <Text style={s.metaLabel}>{t('assignTo').toUpperCase()} ✎</Text>
             {savingAssignee ? (
               <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 2 }} />
             ) : (
               <Text style={[s.assigneeValue, !task.assignee && { color: theme.color.textMuted }]}>
-                {task.assignee ? `👤 ${task.assignee.name}` : '👤 Tap to assign'}
+                {task.assignee ? `👤 ${task.assignee.name}` : `👤 ${t('assignTo')}`}
               </Text>
             )}
           </TouchableOpacity>
@@ -1476,7 +1478,7 @@ export default function TaskDetailScreen() {
               <Text style={s.metaValue}>{task.service?.name}</Text>
             </View>
             <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
-              <Text style={s.metaLabel}>DUE DATE ✎</Text>
+              <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
               <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
                 {task.due_date ? formatDateOnly(task.due_date) : 'Tap to set'}
               </Text>
@@ -1489,7 +1491,7 @@ export default function TaskDetailScreen() {
 
           {task.notes ? (
             <View style={s.notesBlock}>
-              <Text style={s.metaLabel}>NOTES</Text>
+              <Text style={s.metaLabel}>{t('notes').toUpperCase()}</Text>
               <Text style={s.notesText}>{task.notes}</Text>
             </View>
           ) : null}
@@ -1541,7 +1543,7 @@ export default function TaskDetailScreen() {
 
         {/* ── COMMENTS ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>COMMENTS & ACTIVITY</Text>
+          <Text style={s.sectionTitle}>{t('commentsSection').toUpperCase()} & ACTIVITY</Text>
           {comments.length === 0 && (
             <Text style={s.emptyText}>No comments yet.</Text>
           )}
@@ -1581,10 +1583,10 @@ export default function TaskDetailScreen() {
                       <TouchableOpacity style={s.commentSaveBtn} onPress={handleSaveEditComment} disabled={savingEditComment}>
                         {savingEditComment
                           ? <ActivityIndicator size="small" color={theme.color.white} />
-                          : <Text style={s.commentSaveBtnText}>Save</Text>}
+                          : <Text style={s.commentSaveBtnText}>{t('save')}</Text>}
                       </TouchableOpacity>
                       <TouchableOpacity style={s.commentCancelBtn} onPress={() => { setEditingCommentId(null); setEditingCommentBody(''); }}>
-                        <Text style={s.commentCancelBtnText}>Cancel</Text>
+                        <Text style={s.commentCancelBtnText}>{t('cancel')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1644,7 +1646,7 @@ export default function TaskDetailScreen() {
               >
                 {uploadingVoice
                   ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.commentSendBtnText}>Save</Text>}
+                  : <Text style={s.commentSendBtnText}>{t('save')}</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1677,7 +1679,7 @@ export default function TaskDetailScreen() {
                 style={s.commentTextInput}
                 value={newComment}
                 onChangeText={setNewComment}
-                placeholder="Add a comment..."
+                placeholder={t('addComment')}
                 placeholderTextColor={theme.color.textMuted}
                 multiline
               />
@@ -1703,7 +1705,7 @@ export default function TaskDetailScreen() {
         {/* ── DOCUMENTS ── */}
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>DOCUMENTS ({documents.length})</Text>
+            <Text style={s.sectionTitle}>{t('documentsSection').toUpperCase()} ({documents.length})</Text>
             <View style={s.docBtnRow}>
               <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
                 <Text style={s.scanDocBtnText}>📷 Scan</Text>
@@ -1784,12 +1786,12 @@ export default function TaskDetailScreen() {
         {/* ── STAGES ROUTE ── */}
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>STAGES</Text>
+            <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
             <TouchableOpacity style={s.addStageBtn} onPress={openEditStages}>
-              <Text style={s.addStageBtnText}>+ Add Stage</Text>
+              <Text style={s.addStageBtnText}>+ {t('addStage')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.editStagesBtn} onPress={openEditStages}>
-              <Text style={s.editStagesBtnText}>✎ Edit</Text>
+              <Text style={s.editStagesBtnText}>✎ {t('edit')}</Text>
             </TouchableOpacity>
           </View>
           <View style={s.routeContainer}>
@@ -1880,7 +1882,7 @@ export default function TaskDetailScreen() {
                               taskId,
                             })}
                           >
-                            <Text style={[s.stageNameBtnText, { color: theme.color.primary }]}>📋 Requirements</Text>
+                            <Text style={[s.stageNameBtnText, { color: theme.color.primary }]}>📋 {t('requirementsSection')}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2212,12 +2214,12 @@ export default function TaskDetailScreen() {
         <View style={s.section}>
           {/* Title + balance always visible + add button */}
           <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>FINANCIALS</Text>
+            <Text style={s.sectionTitle}>{t('financialsSection').toUpperCase()}</Text>
             <TouchableOpacity
               style={s.addTxBtn}
               onPress={() => setShowAddTransaction((v) => !v)}
             >
-              <Text style={s.addTxBtnText}>{showAddTransaction ? '✕ Cancel' : '+ Add'}</Text>
+              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
             </TouchableOpacity>
           </View>
 
@@ -2225,7 +2227,7 @@ export default function TaskDetailScreen() {
           <View style={s.contractPriceRow}>
             <View style={{ flex: 1 }}>
               <TouchableOpacity onPress={() => setShowPriceHistory(v => !v)} activeOpacity={0.7}>
-                <Text style={s.balanceLabel}>CONTRACT PRICE {showPriceHistory ? '▲' : '▼'}</Text>
+                <Text style={s.balanceLabel}>{t('contractPrice').toUpperCase()} {showPriceHistory ? '▲' : '▼'}</Text>
               </TouchableOpacity>
               <View style={s.balanceAmounts}>
                 <Text style={s.contractPriceVal}>{fmtUSD(contractPriceUSD)}</Text>
@@ -2285,25 +2287,25 @@ export default function TaskDetailScreen() {
           {/* P&L summary */}
           <View style={s.balanceSummary}>
             <View style={s.balanceRow}>
-              <Text style={s.balanceLabel}>RECEIVED</Text>
+              <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
               <Text style={[s.balanceCol, s.balanceRevenue]}>{fmtUSD(totalRevenueUSD)}</Text>
               <Text style={[s.balanceColLBP, s.balanceRevenueLBP]}>{fmtLBP(totalRevenueLBP)}</Text>
             </View>
             {contractPriceUSD > 0 && (
               <View style={s.balanceRow}>
-                <Text style={s.balanceLabel}>DUE</Text>
+                <Text style={s.balanceLabel}>{t('outstanding').toUpperCase()}</Text>
                 <Text style={[s.balanceCol, outstandingUSD > 0 ? s.negative : s.positive]}>{fmtUSD(outstandingUSD)}</Text>
                 <Text style={[s.balanceColLBP, contractPriceLBP > 0 ? (outstandingLBP > 0 ? s.negative : s.positive) : s.balanceRevenueLBP]}>{fmtLBP(outstandingLBP)}</Text>
               </View>
             )}
             <View style={s.balanceRow}>
-              <Text style={s.balanceLabel}>EXPENSES</Text>
+              <Text style={s.balanceLabel}>{t('expense').toUpperCase()}S</Text>
               <Text style={[s.balanceCol, s.balanceExpense]}>- {fmtUSD(totalExpenseUSD)}</Text>
               <Text style={[s.balanceColLBP, s.balanceExpenseLBP]}>- {fmtLBP(totalExpenseLBP)}</Text>
             </View>
             <View style={s.balanceDivider} />
             <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>NET (P&L)</Text>
+              <Text style={s.balanceTotalLabel}>{t('balance').toUpperCase()} (P&L)</Text>
               <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
                 {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
               </Text>
@@ -2356,7 +2358,7 @@ export default function TaskDetailScreen() {
                   onPress={() => setTxType('expense')}
                 >
                   <Text style={[s.txTypeBtnText, txType === 'expense' && s.txTypeBtnTextExpense]}>
-                    ↑ Expense
+                    ↑ {t('expense')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2364,7 +2366,7 @@ export default function TaskDetailScreen() {
                   onPress={() => setTxType('revenue')}
                 >
                   <Text style={[s.txTypeBtnText, txType === 'revenue' && s.txTypeBtnTextRevenue]}>
-                    ↓ Revenue
+                    ↓ {t('revenue')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -2452,7 +2454,7 @@ export default function TaskDetailScreen() {
                   <ActivityIndicator color={theme.color.white} size="small" />
                 ) : (
                   <Text style={s.txSaveBtnText}>
-                    Save {txType === 'expense' ? 'Expense' : 'Revenue'}
+                    {t('save')} {txType === 'expense' ? t('expense') : t('revenue')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -2475,7 +2477,7 @@ export default function TaskDetailScreen() {
                         onPress={() => setEditTxType('expense')}
                       >
                         <Text style={[s.txTypeBtnText, editTxType === 'expense' && s.txTypeBtnTextExpense]}>
-                          ↑ Expense
+                          ↑ {t('expense')}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -2483,7 +2485,7 @@ export default function TaskDetailScreen() {
                         onPress={() => setEditTxType('revenue')}
                       >
                         <Text style={[s.txTypeBtnText, editTxType === 'revenue' && s.txTypeBtnTextRevenue]}>
-                          ↓ Revenue
+                          ↓ {t('revenue')}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -2564,7 +2566,7 @@ export default function TaskDetailScreen() {
                         style={s.txCancelBtn}
                         onPress={() => setEditingTx(null)}
                       >
-                        <Text style={s.txCancelBtnText}>Cancel</Text>
+                        <Text style={s.txCancelBtnText}>{t('cancel')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.txSaveBtn, editTxType === 'expense' ? s.txSaveBtnExpense : s.txSaveBtnRevenue, savingEditTx && s.disabledBtn, { flex: 1 }]}
@@ -2575,7 +2577,7 @@ export default function TaskDetailScreen() {
                           <ActivityIndicator color={theme.color.white} size="small" />
                         ) : (
                           <Text style={s.txSaveBtnText}>
-                            Save {editTxType === 'expense' ? 'Expense' : 'Revenue'}
+                            {t('save')} {editTxType === 'expense' ? t('expense') : t('revenue')}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -2658,7 +2660,7 @@ export default function TaskDetailScreen() {
         >
           <View style={s.modalSheet}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Edit Contract Price</Text>
+              <Text style={s.modalTitle}>{t('edit')} {t('contractPrice')}</Text>
               <TouchableOpacity onPress={() => setShowEditPrice(false)}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -2702,7 +2704,7 @@ export default function TaskDetailScreen() {
               >
                 {savingPrice
                   ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.txSaveBtnText}>Save Price</Text>}
+                  : <Text style={s.txSaveBtnText}>{t('save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -2789,7 +2791,7 @@ export default function TaskDetailScreen() {
                   style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.border, borderWidth: 1 }]}
                   onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}
                 >
-                  <Text style={[s.stageNameBtnText, { color: theme.color.textSecondary }]}>Cancel</Text>
+                  <Text style={[s.stageNameBtnText, { color: theme.color.textSecondary }]}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[s.stageNameBtn, { flex: 2, backgroundColor: theme.color.danger }]}
@@ -2823,7 +2825,7 @@ export default function TaskDetailScreen() {
           >
           <View style={[s.modalSheet, { maxHeight: '90%' }]}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Edit Stages</Text>
+              <Text style={s.modalTitle}>{t('edit')} {t('stagesSection')}</Text>
               <TouchableOpacity onPress={() => { setShowEditStages(false); setEditStageSearch(''); }}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -2968,7 +2970,7 @@ export default function TaskDetailScreen() {
                 onPress={() => setShowNewStageInEdit((v) => !v)}
               >
                 <Text style={s.createStageToggleText}>
-                  {showNewStageInEdit ? '− Cancel' : '+ Create New Stage'}
+                  {showNewStageInEdit ? `− ${t('cancel')}` : `+ ${t('newStage') ?? 'Create New Stage'}`}
                 </Text>
               </TouchableOpacity>
 
@@ -2989,7 +2991,7 @@ export default function TaskDetailScreen() {
                     {savingNewStage ? (
                       <ActivityIndicator color={theme.color.white} size="small" />
                     ) : (
-                      <Text style={s.createStageSaveBtnText}>Save & Add</Text>
+                      <Text style={s.createStageSaveBtnText}>{t('save')} & {t('add')}</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -3006,7 +3008,7 @@ export default function TaskDetailScreen() {
                 {savingStages ? (
                   <ActivityIndicator color={theme.color.white} />
                 ) : (
-                  <Text style={s.editStagesSaveBtnText}>Save Changes</Text>
+                  <Text style={s.editStagesSaveBtnText}>{t('save')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -3042,7 +3044,7 @@ export default function TaskDetailScreen() {
           <TouchableOpacity style={s.renameOverlay} activeOpacity={1} onPress={() => setRenamingDoc(null)}>
             <TouchableOpacity activeOpacity={1} onPress={() => {}}>
               <View style={s.renameSheet}>
-                <Text style={s.renameTitle}>Rename Document</Text>
+                <Text style={s.renameTitle}>{t('edit')} {t('documentsSection')}</Text>
                 <TextInput
                   style={s.renameInput}
                   value={renameText}
@@ -3058,7 +3060,7 @@ export default function TaskDetailScreen() {
                 />
                 <View style={s.renameBtnRow}>
                   <TouchableOpacity style={s.renameCancelBtn} onPress={() => setRenamingDoc(null)}>
-                    <Text style={s.renameCancelText}>Cancel</Text>
+                    <Text style={s.renameCancelText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={s.renameSaveBtn}
@@ -3067,7 +3069,7 @@ export default function TaskDetailScreen() {
                       setRenamingDoc(null);
                     }}
                   >
-                    <Text style={s.renameSaveText}>Save</Text>
+                    <Text style={s.renameSaveText}>{t('save')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -3091,7 +3093,7 @@ export default function TaskDetailScreen() {
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
             <View style={s.modalSheet}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Stage Due Date</Text>
+                <Text style={s.modalTitle}>{t('stageDue')}</Text>
                 <TouchableOpacity onPress={() => setStopDueDatePickerStopId(null)}>
                   <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
@@ -3156,7 +3158,7 @@ export default function TaskDetailScreen() {
           {/* Header */}
           <View style={s.viewerHeader}>
             <TouchableOpacity onPress={() => setViewingDoc(null)} style={s.viewerCloseBtn}>
-              <Text style={s.viewerCloseBtnText}>✕ Close</Text>
+              <Text style={s.viewerCloseBtnText}>✕ {t('close')}</Text>
             </TouchableOpacity>
             <Text style={s.viewerTitle} numberOfLines={1}>
               {viewingDoc?.display_name || viewingDoc?.file_name || 'Document'}
@@ -3165,7 +3167,7 @@ export default function TaskDetailScreen() {
               style={s.viewerShareBtn}
               onPress={() => { if (viewingDoc) handleShareDoc(viewingDoc); }}
             >
-              <Text style={s.viewerShareBtnText}>↗ Share</Text>
+              <Text style={s.viewerShareBtnText}>↗ {t('shareDoc')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -3230,7 +3232,7 @@ export default function TaskDetailScreen() {
                 onPress={() => { if (viewingDoc) handleShareDoc(viewingDoc); }}
                 disabled={!!statusMsg}
               >
-                <Text style={s.viewerActionBtnText}>↗  Share File</Text>
+                <Text style={s.viewerActionBtnText}>↗  {t('shareDoc')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.viewerActionBtn, { flex: 1 }, printingDoc && { opacity: 0.6 }]}
@@ -3260,7 +3262,7 @@ export default function TaskDetailScreen() {
           >
             <View style={[s.modalSheet, { maxHeight: '85%' }]}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Edit File Details</Text>
+                <Text style={s.modalTitle}>{t('edit')} {t('fileDetail')}</Text>
                 <TouchableOpacity onPress={() => setShowEditTask(false)}>
                   <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
@@ -3268,7 +3270,7 @@ export default function TaskDetailScreen() {
 
               <ScrollView contentContainerStyle={s.editTaskScroll}>
                 {/* Service */}
-                <Text style={s.editFieldLabel}>SERVICE</Text>
+                <Text style={s.editFieldLabel}>{t('services').toUpperCase()}</Text>
                 {allServices.map((svc) => (
                   <TouchableOpacity
                     key={svc.id}
@@ -3281,7 +3283,7 @@ export default function TaskDetailScreen() {
                 ))}
 
                 {/* Notes */}
-                <Text style={[s.editFieldLabel, { marginTop: 16 }]}>NOTES</Text>
+                <Text style={[s.editFieldLabel, { marginTop: 16 }]}>{t('notes').toUpperCase()}</Text>
                 <TextInput
                   style={[s.newMemberInput, { minHeight: 80, textAlignVertical: 'top' }]}
                   value={editNotes}
@@ -3302,7 +3304,7 @@ export default function TaskDetailScreen() {
                   {savingEdit ? (
                     <ActivityIndicator color={theme.color.white} />
                   ) : (
-                    <Text style={s.editStagesSaveBtnText}>Save Changes</Text>
+                    <Text style={s.editStagesSaveBtnText}>{t('save')}</Text>
                   )}
                 </TouchableOpacity>
               </View>

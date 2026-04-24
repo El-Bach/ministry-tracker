@@ -23,6 +23,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Calendar } from 'react-native-calendars';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { FieldDefinition, FieldValue, useFieldDefinitions } from '../components/ClientFieldsForm';
 import * as Location from 'expo-location';
 
@@ -809,6 +810,7 @@ export default function NewTaskScreen() {
  const navigation = useNavigation<Nav>();
  const route = useRoute<NewTaskRoute>();
  const { teamMember } = useAuth();
+ const { t } = useTranslation();
 
  const [clients, setClients] = useState<Client[]>([]);
  const [services, setServices] = useState<Service[]>([]);
@@ -1275,9 +1277,9 @@ export default function NewTaskScreen() {
 
  {/* ── CLIENT ── */}
  <View style={s.section}>
- <Text style={s.sectionTitle}>CLIENT</Text>
+ <Text style={s.sectionTitle}>{t('clients').toUpperCase()}</Text>
  <FieldRow
- label="Select Client"
+ label={t('clients')}
  value={selectedClient ? selectedClient.name : ''}
  onPress={() => setModal('client')}
  />
@@ -1286,7 +1288,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewClientForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewClientForm ? '− Cancel' : '+ Create new client'}
+ {showNewClientForm ? `− ${t('cancel')}` : `+ ${t('newClient')}`}
  </Text>
  </TouchableOpacity>
  {showNewClientForm && (
@@ -1352,7 +1354,7 @@ export default function NewTaskScreen() {
  </TouchableOpacity>
 
  <TouchableOpacity style={s.inlineSaveBtn} onPress={handleCreateClient}>
- <Text style={s.inlineSaveBtnText}>Save Client</Text>
+ <Text style={s.inlineSaveBtnText}>{t('save')}</Text>
  </TouchableOpacity>
  </View>
  )}
@@ -1360,9 +1362,9 @@ export default function NewTaskScreen() {
 
  {/* ── SERVICE ── */}
  <View style={s.section}>
- <Text style={s.sectionTitle}>SERVICE</Text>
+ <Text style={s.sectionTitle}>{t('services').toUpperCase()}</Text>
  <FieldRow
- label="Select Service"
+ label={t('services')}
  value={selectedService?.name ?? ''}
  onPress={() => setModal('service')}
  />
@@ -1374,7 +1376,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewServiceForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewServiceForm ? '− Cancel' : '+ Create new service'}
+ {showNewServiceForm ? `− ${t('cancel')}` : `+ ${t('newService')}`}
  </Text>
  </TouchableOpacity>
  {showNewServiceForm && (
@@ -1437,7 +1439,7 @@ export default function NewTaskScreen() {
    >
      {savingService
        ? <ActivityIndicator color={theme.color.white} size="small" />
-       : <Text style={s.inlineSaveBtnText}>Save Service</Text>}
+       : <Text style={s.inlineSaveBtnText}>{t('save')}</Text>}
    </TouchableOpacity>
  </View>
  )}
@@ -1446,7 +1448,7 @@ export default function NewTaskScreen() {
  {/* ── STAGES — appears after service is selected ── */}
  {selectedService && (
  <View style={s.section}>
- <Text style={s.sectionTitle}>STAGES</Text>
+ <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
  {routeStops.length === 0 && (
    <Text style={s.hint}>No default stages for this service. Add stages below.</Text>
  )}
@@ -1630,7 +1632,7 @@ export default function NewTaskScreen() {
  )}
 
  <TouchableOpacity style={s.addStopBtn} onPress={() => setModal('stage')}>
- <Text style={s.addStopBtnText}>+ Add Stage</Text>
+ <Text style={s.addStopBtnText}>+ {t('addStage')}</Text>
  </TouchableOpacity>
 
  <TouchableOpacity
@@ -1638,7 +1640,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewStageForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewStageForm ? '− Cancel' : '+ Create new stage'}
+ {showNewStageForm ? `− ${t('cancel')}` : `+ ${t('newStage')}`}
  </Text>
  </TouchableOpacity>
  {showNewStageForm && (
@@ -1658,7 +1660,7 @@ export default function NewTaskScreen() {
  {savingStage ? (
  <ActivityIndicator color={theme.color.white} size="small" />
  ) : (
- <Text style={s.inlineSaveBtnText}>Save & Add Stage</Text>
+ <Text style={s.inlineSaveBtnText}>{t('save')} & {t('addStage')}</Text>
  )}
  </TouchableOpacity>
  </View>
@@ -1668,7 +1670,7 @@ export default function NewTaskScreen() {
 
  {/* ── SCHEDULE ── */}
  <View style={s.section}>
- <Text style={s.sectionTitle}>SCHEDULE</Text>
+ <Text style={s.sectionTitle}>SCHEDULE</Text>{/* no i18n key for schedule */}
 
  {/* Created time — auto from device */}
  <View style={s.createdRow}>
@@ -1677,11 +1679,11 @@ export default function NewTaskScreen() {
  </View>
 
  {/* Due date — calendar or manual */}
- <Text style={s.fieldLabel}>Due Date <Text style={s.optionalTag}>(optional)</Text></Text>
+ <Text style={s.fieldLabel}>{t('dueDate')} <Text style={s.optionalTag}>(optional)</Text></Text>
  <DatePickerField value={dueDate} onChange={setDueDate} />
 
  <View style={s.notesContainer}>
- <Text style={s.fieldLabel}>Notes <Text style={s.optionalTag}>(optional)</Text></Text>
+ <Text style={s.fieldLabel}>{t('notes')} <Text style={s.optionalTag}>(optional)</Text></Text>
  <TextInput
  style={s.notesInput}
  value={notes}

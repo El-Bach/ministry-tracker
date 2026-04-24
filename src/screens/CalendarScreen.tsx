@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
@@ -42,6 +43,7 @@ type FileFilter = 'all' | 'mine';
 export default function CalendarScreen() {
   const navigation = useNavigation<Nav>();
   const { teamMember } = useAuth();
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stops, setStops] = useState<StopWithTask[]>([]);
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
@@ -125,7 +127,7 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
-        <Text style={s.title}>Calendar</Text>
+        <Text style={s.title}>{t('calendar')}</Text>
         <TouchableOpacity
           style={s.todayBtn}
           onPress={() => {
@@ -145,7 +147,7 @@ export default function CalendarScreen() {
           onPress={() => setFileFilter('all')}
         >
           <Text style={[s.filterChipText, fileFilter === 'all' && s.filterChipTextActive]}>
-            All Files
+            {t('allFiles')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -153,7 +155,7 @@ export default function CalendarScreen() {
           onPress={() => setFileFilter('mine')}
         >
           <Text style={[s.filterChipText, fileFilter === 'mine' && s.filterChipTextActive]}>
-            My Files
+            {t('myFiles')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -204,7 +206,7 @@ export default function CalendarScreen() {
         {totalCount === 0 ? (
           <View style={s.empty}>
             <Text style={s.emptyText}>
-              {fileFilter === 'mine' ? 'No items assigned to you on this date' : 'No items due on this date'}
+              {t('noEventsToday')}
             </Text>
           </View>
         ) : (
@@ -230,7 +232,7 @@ export default function CalendarScreen() {
                   <Text style={s.eventService}>{task.service?.name}</Text>
                   {task.due_date && (
                     <Text style={s.eventDue}>
-                      Due: {new Date(task.due_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {t('dueDate')}: {new Date(task.due_date + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Text>
                   )}
                   <Text style={s.eventAssignee}>
@@ -257,7 +259,7 @@ export default function CalendarScreen() {
                       {stop.task?.client?.name ?? '—'}
                     </Text>
                     <View style={s.stagePill}>
-                      <Text style={s.stagePillText}>📋 Stage</Text>
+                      <Text style={s.stagePillText}>📋 {t('stageDue')}</Text>
                     </View>
                   </View>
                   <Text style={s.eventService}>{stop.task?.service?.name ?? '—'}</Text>
@@ -265,7 +267,7 @@ export default function CalendarScreen() {
                     {stop.ministry?.name ?? 'Stage'}
                   </Text>
                   {isOverdue && (
-                    <Text style={s.overdueLabel}>⚠ Overdue</Text>
+                    <Text style={s.overdueLabel}>⚠ {t('overdue')}</Text>
                   )}
                   {stop.task?.current_status && (
                     <StatusBadge
