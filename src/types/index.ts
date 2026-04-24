@@ -243,6 +243,15 @@ export interface MinistryRequirement {
   created_at: string;
 }
 
+export type SettingsStackParamList = {
+  SettingsHome: undefined;
+  Account: undefined;
+  ClientFieldsSettings: undefined;
+  TeamMemberFields: undefined;
+  FinancialReport: undefined;
+  NotificationSettings: undefined;
+};
+
 export type DashboardStackParamList = {
   DashboardHome: undefined;
   NewTask: { preselectedClientId?: string } | undefined;

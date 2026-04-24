@@ -38,11 +38,13 @@ import {
   RootStackParamList,
   MainTabParamList,
   DashboardStackParamList,
+  SettingsStackParamList,
 } from '../types';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DashStack = createNativeStackNavigator<DashboardStackParamList>();
+const SettStack = createNativeStackNavigator<SettingsStackParamList>();
 
 // ─── GovPilot logo header title ─────────────────────────────
 function GovPilotLogo() {
@@ -174,6 +176,53 @@ function DashboardStack() {
   );
 }
 
+// ─── Settings stack (Settings → sub-screens) ────────────────
+function SettingsStack() {
+  const { t } = useTranslation();
+  return (
+    <SettStack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: theme.color.bgBase },
+        headerShadowVisible: false,
+        headerTintColor: theme.color.textPrimary,
+        headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+        contentStyle: { backgroundColor: theme.color.bgBase },
+      }}
+    >
+      <SettStack.Screen
+        name="SettingsHome"
+        component={SettingsScreen}
+        options={{ headerShown: false }}
+      />
+      <SettStack.Screen
+        name="Account"
+        component={AccountScreen}
+        options={{ title: t('screenMyAccount'), headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="ClientFieldsSettings"
+        component={ClientFieldsSettingsScreen}
+        options={{ title: t('screenClientFields'), headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="TeamMemberFields"
+        component={TeamMemberFieldsScreen}
+        options={{ title: t('screenTeamMemberFields'), headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="FinancialReport"
+        component={FinancialReportScreen}
+        options={{ title: t('screenFinancialReport'), headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{ title: t('screenNotifications'), headerBackTitle: t('screenBack') }}
+      />
+    </SettStack.Navigator>
+  );
+}
+
 // ─── Main bottom tabs ────────────────────────────────────────
 function MainTabs() {
   const insets = useSafeAreaInsets();
@@ -192,7 +241,7 @@ function MainTabs() {
       <Tab.Screen name="Dashboard" component={DashboardStack} options={{ tabBarLabel: t('tabDashboard') }} />
       <Tab.Screen name="Create" component={CreateScreen} options={{ tabBarLabel: t('tabCreate') }} />
       <Tab.Screen name="Calendar" component={CalendarScreen} options={{ tabBarLabel: t('tabCalendar') }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('tabSettings') }} />
+      <Tab.Screen name="Settings" component={SettingsStack} options={{ tabBarLabel: t('tabSettings') }} />
     </Tab.Navigator>
   );
 }

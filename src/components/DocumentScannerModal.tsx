@@ -20,6 +20,7 @@ import {
   TextInput,
   ScrollView,
   Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -403,6 +404,11 @@ export default function DocumentScannerModal({
 
       {/* ── PREVIEW ── */}
       {step === 'preview' && capturedUri && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
         <View style={s.previewScreen}>
           <View style={s.previewHeader}>
             <TouchableOpacity
@@ -512,6 +518,7 @@ export default function DocumentScannerModal({
             scrollEnabled={false}
           />
         </View>
+        </KeyboardAvoidingView>
       )}
 
       {/* ── PROCESSING ── */}
