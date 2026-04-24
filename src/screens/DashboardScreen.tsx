@@ -36,6 +36,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
 import { checkAndNotifyOverdue } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from '../lib/i18n';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
 const TASK_ROW_HEIGHT = 130;
@@ -74,6 +75,7 @@ function SwipeableTaskRow({
   onFinance: () => void;
   isArchived: boolean;
 }) {
+  const { t } = useTranslation();
   const translateX = useRef(new Animated.Value(0)).current;
   const isOpen = useRef<'left' | 'right' | false>(false);
 
@@ -147,21 +149,21 @@ function SwipeableTaskRow({
             style={swipeStyles.unarchiveBtn}
             onPress={() => { close(); onUnarchive(); }}
           >
-            <Text style={swipeStyles.unarchivedBtnText}>📋{'\n'}Restore</Text>
+            <Text style={swipeStyles.unarchivedBtnText}>📋{'\n'}{t('restoreFile')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={swipeStyles.archiveBtn}
             onPress={() => { close(); onArchive(); }}
           >
-            <Text style={swipeStyles.archiveBtnText}>📦{'\n'}Archive</Text>
+            <Text style={swipeStyles.archiveBtnText}>📦{'\n'}{t('archiveFile')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
           style={swipeStyles.deleteBtn}
           onPress={() => { close(); onDelete(); }}
         >
-          <Text style={swipeStyles.deleteBtnText}>✕{'\n'}Delete</Text>
+          <Text style={swipeStyles.deleteBtnText}>✕{'\n'}{t('deleteFile')}</Text>
         </TouchableOpacity>
       </Animated.View>
 
@@ -273,6 +275,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { teamMember } = useAuth();
   const { setOnline } = useOfflineQueue();
+  const { t } = useTranslation();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -541,17 +544,17 @@ export default function DashboardScreen() {
       }
       return;
     }
-    Alert.alert('Delete File', `Delete "${label}"? This cannot be undone.`, [
+    Alert.alert(t('deleteFile'), `Delete "${label}"? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
+      { text: t('deleteFile'), style: 'destructive', onPress: doDelete },
     ]);
   };
 
   const handleArchiveTask = async (task: Task) => {
-    Alert.alert('Archive File', `Move "${task.client?.name ?? 'this file'}" to archive?`, [
+    Alert.alert(t('archiveFile'), `Move "${task.client?.name ?? 'this file'}" to archive?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Archive', style: 'destructive', onPress: async () => {
+        text: t('archiveFile'), style: 'destructive', onPress: async () => {
           await supabase
             .from('tasks')
             .update({ is_archived: true, updated_at: new Date().toISOString() })
@@ -673,7 +676,7 @@ export default function DashboardScreen() {
           style={styles.searchInput}
           value={filters.search}
           onChangeText={(v) => setFilters((f) => ({ ...f, search: v }))}
-          placeholder="Search client or service..."
+          placeholder={t('searchPlaceholder')}
           placeholderTextColor={theme.color.textMuted}
         />
         <TouchableOpacity
@@ -681,7 +684,7 @@ export default function DashboardScreen() {
           onPress={() => setShowFilters((v) => !v)}
         >
           <Text style={styles.filterBtnText}>
-            ⊟ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            {`⊟ ${t('filters')}${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -712,7 +715,7 @@ export default function DashboardScreen() {
           onPress={() => setFilters((f) => ({ ...f, teamMemberId: teamMember?.id ?? '' }))}
         >
           <Text style={[styles.myFilesBtnText, filters.teamMemberId === (teamMember?.id ?? '') && teamMember?.id && styles.myFilesBtnTextActive]}>
-            👤 My Files
+            {t('myFiles')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -720,7 +723,7 @@ export default function DashboardScreen() {
           onPress={() => setFilters((f) => ({ ...f, teamMemberId: '' }))}
         >
           <Text style={[styles.myFilesBtnText, !filters.teamMemberId && styles.myFilesBtnTextActive]}>
-            🌐 All Files
+            {t('allFiles')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -785,7 +788,7 @@ export default function DashboardScreen() {
           onPress={() => setShowArchived(false)}
         >
           <Text style={[styles.archiveTabText, !showArchived && styles.archiveTabTextActive]}>
-            📋 Active ({activeTasks.length})
+            {t('activeTab')} ({activeTasks.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -793,7 +796,7 @@ export default function DashboardScreen() {
           onPress={() => setShowArchived(true)}
         >
           <Text style={[styles.archiveTabText, showArchived && styles.archiveTabTextActive]}>
-            📦 Archive ({archivedTasks.length})
+            {t('archiveTab')} ({archivedTasks.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -855,7 +858,7 @@ export default function DashboardScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>⊞</Text>
-            <Text style={styles.emptyText}>No files found</Text>
+            <Text style={styles.emptyText}>{t('noFilesFound')}</Text>
             <Text style={styles.emptySubtext}>Adjust filters or create a new file</Text>
           </View>
         }
@@ -885,7 +888,7 @@ export default function DashboardScreen() {
             {/* Header */}
             <View style={styles.qfHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.qfTitle}>Add Financial Entry</Text>
+                <Text style={styles.qfTitle}>{t('quickFinance')}</Text>
                 {quickFinanceTask && (
                   <Text style={styles.qfSubtitle} numberOfLines={1}>
                     {quickFinanceTask.client?.name} — {quickFinanceTask.service?.name}
@@ -904,7 +907,7 @@ export default function DashboardScreen() {
                 onPress={() => setQuickTxType('expense')}
               >
                 <Text style={[styles.qfTypeBtnText, quickTxType === 'expense' && styles.qfTypeBtnTextExpense]}>
-                  ↑ Expense
+                  ↑ {t('expense')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -912,7 +915,7 @@ export default function DashboardScreen() {
                 onPress={() => setQuickTxType('revenue')}
               >
                 <Text style={[styles.qfTypeBtnText, quickTxType === 'revenue' && styles.qfTypeBtnTextRevenue]}>
-                  ↓ Revenue
+                  ↓ {t('revenue')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1007,7 +1010,7 @@ export default function DashboardScreen() {
                 <ActivityIndicator color={theme.color.white} size="small" />
               ) : (
                 <Text style={styles.qfSaveBtnText}>
-                  Save {quickTxType === 'expense' ? 'Expense' : 'Revenue'}
+                  Save {quickTxType === 'expense' ? t('expense') : t('revenue')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -1022,7 +1025,7 @@ export default function DashboardScreen() {
                 }
               }}
             >
-              <Text style={styles.qfViewAllText}>View full financials in file →</Text>
+              <Text style={styles.qfViewAllText}>{t('viewFinancials')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
