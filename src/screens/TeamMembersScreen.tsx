@@ -118,7 +118,7 @@ export default function TeamMembersScreen() {
     } catch {}
   };
 
-  // ── Deactivate code ──────────────────────────────────────────
+  // ── Delete code ──────────────────────────────────────────────
   const handleDeactivate = (codeId: string, code: string) => {
     Alert.alert(
       'Delete Code',
@@ -126,8 +126,14 @@ export default function TeamMembersScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: async () => {
-          await supabase.from('org_join_codes').delete().eq('id', codeId);
-          fetchData();
+          // Optimistic: remove instantly from local state
+          setJoinCodes(prev => prev.filter(jc => jc.id !== codeId));
+          const { error } = await supabase.from('org_join_codes').delete().eq('id', codeId);
+          if (error) {
+            // Revert + show error
+            fetchData();
+            Alert.alert('Delete Failed', error.message);
+          }
         }},
       ]
     );
