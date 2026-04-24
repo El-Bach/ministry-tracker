@@ -41,6 +41,8 @@ export default function RegisterScreen() {
   const [password,    setPassword]    = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [loading,     setLoading]     = useState(false);
+  const [showPass,    setShowPass]    = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [invitePreview, setInvitePreview] = useState<{ orgName: string; role: string } | null>(null);
   const [checkingInvite, setCheckingInvite] = useState(false);
@@ -293,26 +295,40 @@ export default function RegisterScreen() {
 
           <View style={s.field}>
             <Text style={s.label}>PASSWORD</Text>
-            <TextInput
-              style={s.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Min. 6 characters"
-              placeholderTextColor={theme.color.textMuted}
-              secureTextEntry
-            />
+            <View style={s.passWrap}>
+              <TextInput
+                style={s.passInput}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Min. 6 characters"
+                placeholderTextColor={theme.color.textMuted}
+                secureTextEntry={!showPass}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity onPress={() => setShowPass(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={s.field}>
             <Text style={s.label}>CONFIRM PASSWORD</Text>
-            <TextInput
-              style={s.input}
-              value={confirmPass}
-              onChangeText={setConfirmPass}
-              placeholder="Repeat password"
-              placeholderTextColor={theme.color.textMuted}
-              secureTextEntry
-            />
+            <View style={s.passWrap}>
+              <TextInput
+                style={s.passInput}
+                value={confirmPass}
+                onChangeText={setConfirmPass}
+                placeholder="Repeat password"
+                placeholderTextColor={theme.color.textMuted}
+                secureTextEntry={!showConfirm}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                <Text style={s.eyeIcon}>{showConfirm ? '🙈' : '👁'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -386,6 +402,25 @@ const s = StyleSheet.create({
     color:           theme.color.textPrimary,
     fontSize:        15,
   },
+  passWrap: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: theme.color.bgSurface,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.lg,
+    paddingEnd:      4,
+  },
+  passInput: {
+    flex:            1,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: 14,
+    color:           theme.color.textPrimary,
+    fontSize:        15,
+  },
+  eyeBtn:  { padding: 10 },
+  eyeIcon: { fontSize: 18 },
+
   modeBtn: {
     flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
     backgroundColor: theme.color.bgSurface, borderWidth: 1, borderColor: theme.color.border,
