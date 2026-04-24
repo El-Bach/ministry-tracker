@@ -33,6 +33,8 @@ import FinancialReportScreen from '../screens/FinancialReportScreen';
 import AccountScreen from '../screens/AccountScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import TeamMembersScreen from '../screens/TeamMembersScreen';
+import VisibilitySettingsScreen from '../screens/VisibilitySettingsScreen';
 
 import {
   RootStackParamList,
@@ -208,6 +210,16 @@ function SettingsStack() {
         name="TeamMemberFields"
         component={TeamMemberFieldsScreen}
         options={{ title: t('screenTeamMemberFields'), headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="TeamMembers"
+        component={TeamMembersScreen}
+        options={{ title: 'Team Members', headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="VisibilitySettings"
+        component={VisibilitySettingsScreen}
+        options={{ title: 'Visibility & Permissions', headerBackTitle: t('screenBack') }}
       />
       <SettStack.Screen
         name="FinancialReport"

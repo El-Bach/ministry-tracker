@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 27 (App renamed to GovPilot everywhere; org_id wired into all INSERT statements across CreateScreen, NewTaskScreen, TaskDetailScreen, SettingsScreen)
+> Last updated: session 28 (Global search expanded to 8 categories; activity notifications broadcast to all users; NotificationSettingsScreen; Settings cleanup — Ministries/Services/Status Labels removed)
 
 ---
 
@@ -109,7 +109,10 @@ ministry-tracker/
 │   ├── migration_stop_due_date.sql     ← session 19 — due_date column on task_route_stops
 │   ├── migration_network.sql           ← session 24 — reference_phone + city_id on assignees
 │   ├── migration_expense_stage.sql     ← session 24 — stop_id on file_transactions
-│   └── migration_service_documents.sql ← session 24 — service_documents table
+│   ├── migration_service_documents.sql ← session 24 — service_documents table
+│   ├── migration_organizations.sql     ← session 26 — organizations table + org_id columns
+│   ├── migration_invitations.sql       ← session 26 — invitations table
+│   └── migration_notification_prefs.sql ← session 28 — per-user notification preferences
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
@@ -144,7 +147,11 @@ ministry-tracker/
         ├── ServiceStagesScreen.tsx
         ├── StageRequirementsScreen.tsx  # 32×32 checkbox; 7 req types; attach docs
         ├── MinistryRequirementsScreen.tsx  ← session 8
-        └── FinancialReportScreen.tsx
+        ├── FinancialReportScreen.tsx
+        ├── GlobalSearchScreen.tsx           # 8-category search: clients, files, docs, comments, reqs, txns, contacts, team
+        ├── AccountScreen.tsx
+        ├── ActivityScreen.tsx
+        └── NotificationSettingsScreen.tsx   # session 28 — master toggle + type filters + per-member mute
 ```
 
 ---
@@ -174,6 +181,7 @@ ministry-tracker/
 | `task_documents` | id, task_id, file_name, display_name, file_url, file_type, uploaded_by, requirement_id, created_at | |
 | `assignees` | id, name, phone, reference, reference_phone, notes, city_id (nullable FK → cities), created_by → team_members, created_at | external assignees (not team members); reference_phone + city_id added session 24 |
 | `service_documents` | id, service_id (FK → services), title, sort_order, is_checked, created_at | required documents per service; is_checked is global (shared checklist, not per-file); added session 24 |
+| `notification_prefs` | id, team_member_id (UNIQUE FK), enabled, notify_comments, notify_status_changes, notify_new_files, muted_actor_ids (UUID[]), updated_at | per-user push prefs; upserted from NotificationSettingsScreen; read by `sendActivityNotificationToAll` before sending each push; added session 28 |
 
 ### Migrations to run (in order)
 1. `supabase/schema.sql`
@@ -197,6 +205,7 @@ ministry-tracker/
 19. `supabase/migration_service_documents.sql`
 20. `supabase/migration_organizations.sql`
 21. `supabase/migration_invitations.sql`
+22. `supabase/migration_notification_prefs.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
@@ -242,6 +251,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | MinistryRequirements | `{ ministryId: string; ministryName: string }` |
 | FinancialReport | — |
 | GlobalSearch | `{ query?: string } \| undefined` |
+| Account | — |
+| Activity | — |
+| NotificationSettings | — |
 
 ---
 
@@ -255,7 +267,8 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | CreateScreen | Quick-action cards (+New File/Client/Service/Stage); Manage sections: Clients, Services, Stages, **Network** (external contacts with name/phone/reference/reference_phone/city; tappable phone numbers), **Documents Required** (per-service numbered checklist — add/tick/delete/reset); CRUD modals with search for all sections |
 | CalendarScreen | Multi-dot calendar; day task list with stage due dates (orange dots) |
 | TeamScreen | Member cards with workload; expandable task list |
-| SettingsScreen | CRUD: ministries, services (✎ Stages modal), status labels, team members; Arabic/RTL toggle |
+| SettingsScreen | Team Members (invite, list, revoke), Arabic/RTL toggle, nav cards to: Account · Client Fields · Team Member Fields · Financial Report · **Notifications**. Ministries/Services/Status Labels removed — managed via CreateScreen |
+| NotificationSettingsScreen | Master on/off toggle; type filters (Comments, Status Changes, New Files); per-member receive filter (mute specific team members); saves to `notification_prefs` Supabase table |
 | ClientFieldsSettingsScreen | Manage custom field definitions: add/edit/reorder/toggle/delete |
 | ClientProfileScreen | Avatar + name + ID + phone + ✎ Edit + ✕ Delete; custom fields; stats; file history with swipe-left (Edit/Delete) |
 | EditClientScreen | Edit name + phone + custom field values; + Add Field picker with inline field creation |
@@ -362,9 +375,14 @@ When `onItemAction` fires, the picker closes automatically (`onClose()` is calle
 
 ## Push Notifications
 
-- `src/lib/notifications.ts`: `registerForPushNotifications()` + `sendPushNotification()`
+- `src/lib/notifications.ts`: `registerForPushNotifications()` + `sendPushNotification()` + `sendActivityNotificationToAll()` + `checkAndNotifyOverdue()`
 - Token registered on login via `useAuth`, stored in `team_members.push_token`
-- Sent to assignee when: stage status changes, task assigned
+- **`sendActivityNotificationToAll(supabase, actorId, title, body, notifType, data)`** — session 28:
+  - Fetches all team members with push tokens, excluding the actor
+  - Reads each recipient's `notification_prefs` row: checks `enabled`, `notify_comments/status_changes/new_files`, and `muted_actor_ids`
+  - If no prefs row exists → sends by default
+  - Called in TaskDetailScreen on: comment save (type `'comment'`) and stage status change (type `'status'`)
+- **`NotificationSettingsScreen`** lets each user configure their own prefs — saved to `notification_prefs` table
 - Uses Expo Push API (`https://exp.host/--/push/v2/send`), best-effort (never throws)
 - `App.tsx` handler includes `shouldShowBanner` and `shouldShowList` (required by newer Expo SDK)
 
@@ -505,7 +523,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 ## Setup Checklist
 
-- [ ] Run all 19 SQL migration files in Supabase SQL Editor (in order)
+- [ ] Run all 22 SQL migration files in Supabase SQL Editor (in order)
 - [ ] Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `src/lib/supabase.ts`
 - [ ] Create Supabase Storage bucket `task-attachments` (public)
 - [ ] Create auth users in Supabase dashboard
@@ -566,6 +584,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 28 | **Global search** expanded to 8 categories: existing (clients, files, comments, requirements) + new (documents by display_name/file_name, financial transactions by description, external contacts/assignees by name/phone/reference, team members by name/email, services by name → returns matching tasks). Result count summary pill. Contacts + team members show inline 📞 call button. **Activity notifications broadcast**: `sendActivityNotificationToAll()` added to `notifications.ts` — called on every comment save and stage status change in TaskDetailScreen; fetches all team members with push tokens (excluding actor); reads each recipient's `notification_prefs` row (enabled + type filters + muted_actor_ids) before sending. **NotificationSettingsScreen** (new): master toggle, type toggles (Comments/Status/New Files), per-member receive checkboxes; saves to Supabase `notification_prefs` table (upsert). RLS policies added for notification_prefs. **SettingsScreen cleanup**: removed Ministries, Sub-Ministries, Services, Status Labels sections + all orphaned state/handlers/modals; added 🔔 Notifications nav card. SQL migration: `migration_notification_prefs.sql`. |
 | 27 | App renamed to **GovPilot**: app.json (name/slug), LoginScreen title + signup link text, CLAUDE.md. `org_id` wired into all INSERT statements: **CreateScreen** — added `useAuth` import + `orgId` constant; all inserts of clients, services, ministries, assignees, service_documents, and all bulk-import inserts now pass `org_id`. **NewTaskScreen** — tasks, clients, services, ministries (inline + FINAL_STAGE), client_field_definitions inserts all pass `org_id`. **TaskDetailScreen** — cities (inline create), assignees (inline create), new stage (edit modal), task duplication — all pass `org_id`. **SettingsScreen** — ministries (parent + child + svc stage), services, status_labels inserts all pass `org_id`. |
 | 26 | **Commercialization Phase 1+2**: Phase 1 — Organizations table + RLS multi-tenancy; `team_members.auth_id` + `org_id`; RegisterScreen (company sign-up, invite-aware: auto-joins org if invited); OnboardingScreen (3-step wizard); updated useAuth to fetch by auth.uid() + role helpers (isOwner/isAdmin/canManage/canView); navigation Auth stack updated. Phase 2 — `invitations` table (migration_invitations.sql); SettingsScreen invite flow (owner/admin only): send invite by email + role picker, pending invites list, revoke; role badges on team member list items; RegisterScreen detects pending invitation and auto-joins org instead of creating new one |
 | 25 | **Per-stage city + assignee**: removed city/assignment from task level; each `task_route_stops` row now has `city_id`, `assigned_to`, `ext_assignee_id` (migration_stop_fields.sql). Per-stage inline dropdowns in TaskDetailScreen: 📍 city (search-first, pinned via AsyncStorage, create new city inline) + 👤 assignee (team members + ext assignees + inline create). Auto-city: assigning a Network contact to a stage auto-fills stage city from contact's city. **Inline due date calendar**: tapping DUE DATE in file header opens inline Calendar directly on detail screen; instant save, no Save button; removed from Edit File Details modal. `formatDateOnly()` helper to avoid UTC midnight timezone shift (Lebanon UTC+3). **Archive Restore swipe**: in archive mode, swipe-left Delete button replaced with green 📋 Restore button (sets `is_archived = false`). **City filter fix**: dashboard city chips now search `task_route_stops.city_id` across all stages (not task-level city); TaskCard shows unique stage cities as tappable chips; city filter counted in active filter badge. |
@@ -777,21 +796,77 @@ CREATE POLICY "org_isolation" ON tasks
 
 ---
 
-## Suggested Next Improvements (pre-evaluated)
+## Feature Brainstorm — Prioritized Improvement Ideas
 
-| # | Feature | Effort | Value |
-|---|---|---|---|
-| 1 | ~~Export Financial Report as PDF~~ | ~~Low~~ | ~~Done (session 23)~~ |
-| 2 | ~~WhatsApp share from TaskDetail~~ | ~~Low~~ | ~~Done (session 22)~~ |
-| 3 | ~~File duplication — clone a task~~ | ~~Low~~ | ~~Done (session 22)~~ |
-| 4 | ~~Network contacts directory~~ | ~~Medium~~ | ~~Done (session 24)~~ |
-| 5 | ~~Expense → Stage link~~ | ~~Low~~ | ~~Done (session 24)~~ |
-| 6 | ~~Service Document Checklist~~ | ~~Medium~~ | ~~Done (session 24)~~ |
-| 7 | ~~Reference phone on TaskCard~~ | ~~Low~~ | ~~Done (session 24)~~ |
-| 8 | Quick status update from dashboard (long-press card → status picker) | Medium | High |
-| 9 | Client statement — printable summary of all files + financial balance per client | Medium | High |
-| 10 | Due date push notification (overdue check on app open) | Medium | Medium |
-| 11 | Notifications inbox / activity feed tab | High | High |
-| 12 | Bulk actions on dashboard (multi-select → assign / change status / archive) | High | Medium |
-| 13 | Offline status updates queue (currently only comments queue offline) | High | Medium |
-| 14 | File tags / labels (color-coded free tags per file for custom grouping) | Low | Medium |
+> Effort: Low = 1 session · Medium = 2–3 sessions · High = 4+ sessions
+> Value: based on daily-use impact for a clearance office team
+
+---
+
+### 🔥 High Impact / Low Effort (do next)
+
+| # | Feature | Notes |
+|---|---|---|
+| 1 | **Quick status update from dashboard** | Long-press a card → bottom sheet with status picker. Saves a round-trip into TaskDetail for simple status changes. |
+| 2 | **Client statement PDF** | Printable per-client summary: all files, stages, amounts paid/due, balance. Uses `expo-print` (already installed). Arabic layout. |
+| 3 | **File tags / color labels** | Free-form color tags per file (e.g. "Urgent", "On Hold", "VIP"). Stored in DB. Filter chips on dashboard. Low friction. |
+| 4 | **Stage completion % on TaskCard** | Show a thin progress bar on each card: N of X stages Done. Replaces the need to open file just to check progress. |
+| 5 | **Overdue push notification** | Already has `checkAndNotifyOverdue()` but only fires once per day. Improve: notify 1 day before + on the day. Also notify stage due dates. |
+| 6 | **Voice note search** | GlobalSearch currently skips audio comments (body = "🎤 Voice note"). Add transcription via Whisper API or just surface them by date in search. |
+
+---
+
+### 💡 High Impact / Medium Effort
+
+| # | Feature | Notes |
+|---|---|---|
+| 7 | **Dashboard Kanban view** | Toggle between list view (current) and Kanban columns by status. Drag card to change status. Uses PanResponder (no gesture-handler). |
+| 8 | **Recurring file templates** | Mark a service as "recurring" (monthly/quarterly). Auto-creates new file at interval, pre-fills client + stages, notifies team. |
+| 9 | **Stage SLA / deadline alerts** | Each stage gets an expected turnaround (e.g. Ministry of Finance = 5 business days). App warns when approaching. Stored in `ministries.expected_days`. |
+| 10 | **Client portal (read-only PWA link)** | Generate a shareable link for each client → they see their file status without app login. Static token-based auth via Supabase. |
+| 11 | **Bulk actions on dashboard** | Multi-select mode (long-press to enter): bulk assign, bulk archive, bulk change status. Useful at end of month. |
+| 12 | **Offline status update queue** | Currently only comments queue offline. Status updates and transaction inserts should also queue via Zustand and sync on reconnect. |
+| 13 | **File timeline / audit log** | Full chronological log per file: who created it, every status change, every comment, every document upload, price changes. Read-only view in TaskDetail. |
+| 14 | **Batch document upload** | Allow picking multiple images at once from gallery (multi-select in `launchImageLibraryAsync`). Each becomes a document row. |
+| 15 | **Stage chat / thread** | Per-stage comment thread (separate from file-level comments). Keeps stage-specific discussion isolated from general file notes. |
+
+---
+
+### 🌍 Growth / Monetization
+
+| # | Feature | Notes |
+|---|---|---|
+| 16 | **WhatsApp Business API integration** | Auto-send status update to client's WhatsApp when stage changes. Use Twilio or official Cloud API. Requires phone number per client. |
+| 17 | **SMS notifications** | Twilio / Vonage — send SMS to client when file reaches a key stage (e.g. "Ready for pickup"). |
+| 18 | **Analytics dashboard** | Files processed per month, average turnaround per service, revenue trend, top clients by volume. Charts via `react-native-svg`. |
+| 19 | **Multi-language UI (i18n)** | Full Arabic / English toggle. Currently RTL layout works but strings are in English. Move all strings to `i18n/en.ts` + `i18n/ar.ts`. |
+| 20 | **Google Play / App Store submission** | Production EAS build; privacy policy; screenshots; Play Store listing. One-time $25 Google Play fee. |
+| 21 | **Web dashboard (React)** | Same Supabase backend. Larger screen = better for bulk data entry, reports, and printing. Could share most business logic with the mobile app. |
+
+---
+
+### 🔧 Polish / UX Improvements
+
+| # | Feature | Notes |
+|---|---|---|
+| 22 | **Dark/light theme toggle** | Currently forced dark. Add theme preference in Account. Store in AsyncStorage. Already has token system — just add `bgBase` light variants. |
+| 23 | **Haptic feedback** | Add `expo-haptics` for swipe confirms, status changes, successful saves. Makes the app feel native. |
+| 24 | **Pinch-to-zoom on Android (non-WebView)** | Current Android document viewer uses WebView (works). Ensure PDF and JPEG both support pinch natively on Android and iOS. |
+| 25 | **Empty state illustrations** | Replace "No files yet" plain text with custom illustrations (SVG). Makes onboarding feel more polished. |
+| 26 | **Onboarding tour** | First-time user walkthrough: highlight dashboard → create file → add stage → update status. Overlay tooltips using `react-native-walkthrough-tooltip`. |
+| 27 | **Document expiry / validity dates** | Some documents (passport, license) expire. Add optional expiry date per `task_document` row. Dashboard badge + notification when approaching. |
+| 28 | **Contact import from phone** | Use `expo-contacts` to import a client's phone number directly from address book instead of typing. |
+| 29 | **Stage reorder by drag** | In TaskDetailScreen Edit Stages modal, allow drag-to-reorder instead of ↑↓ buttons. Uses PanResponder (no gesture-handler needed). |
+| 30 | **Realtime collaboration indicators** | Show "Ahmad is viewing this file" avatar badge when another team member has the same TaskDetail open. Uses Supabase Realtime presence. |
+
+---
+
+### 🏗️ Technical Debt
+
+| # | Task | Notes |
+|---|---|---|
+| 31 | **Split TaskDetailScreen** | At ~3500 lines it's the largest file. Extract into sub-components: `StagesSection`, `FinancialsSection`, `DocumentsSection`, `CommentsSection`. |
+| 32 | **Replace ModalForm** | `SettingsScreen`'s `ModalForm` component is now only used for the Invite modal. Inline it and remove the generic component. |
+| 33 | **Migrate to Expo Router** | Current React Navigation v6 works well. Expo Router (file-based) would simplify deep linking + web routing for future web dashboard. Low urgency. |
+| 34 | **Supabase Edge Functions** | Move push notification sending to a Supabase Edge Function triggered by DB insert. Removes push logic from the client entirely. More reliable. |
+| 35 | **Test coverage** | Add Jest unit tests for: urgency logic, financial calculations (fmtUSD/fmtLBP), formatDateOnly(), sendActivityNotificationToAll() filtering logic. |

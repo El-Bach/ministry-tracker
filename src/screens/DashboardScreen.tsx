@@ -43,7 +43,7 @@ const TASK_ROW_HEIGHT = 130;
 
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
-const SWIPE_ACTION_WIDTH = 130; // left-swipe: Edit + Delete
+const SWIPE_ACTION_WIDTH = 130; // left-swipe: Archive + Delete
 const FINANCE_ACTION_WIDTH = 80;  // right-swipe: Add Financial
 
 function SwipeableTaskRow({
@@ -59,6 +59,7 @@ function SwipeableTaskRow({
   onDelete,
   onUnarchive,
   onFinance,
+  onPin,
   isArchived,
 }: {
   task: Task;
@@ -73,6 +74,7 @@ function SwipeableTaskRow({
   onDelete: () => void;
   onUnarchive: () => void;
   onFinance: () => void;
+  onPin: () => void;
   isArchived: boolean;
 }) {
   const { t } = useTranslation();
@@ -142,7 +144,7 @@ function SwipeableTaskRow({
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Left-swipe: Archive + Delete/Restore actions (right side) — hidden at rest */}
+      {/* Left-swipe: Archive/Restore + Delete (right side) — hidden at rest */}
       <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
         {isArchived ? (
           <TouchableOpacity
@@ -178,6 +180,7 @@ function SwipeableTaskRow({
           onClientPress={onClientPress}
           onCityPress={onCityPress}
           onServicePress={onServicePress}
+          onPin={onPin}
           cardStyle={{ marginBottom: 0 }}
         />
       </Animated.View>
@@ -466,8 +469,14 @@ export default function DashboardScreen() {
   const activeTasks = filteredTasks.filter((t) => !isTaskArchived(t));
   const archivedTasks = filteredTasks.filter((t) => isTaskArchived(t));
 
+  // Pinned tasks float to the top of the active list
+  const sortedActiveTasks = [
+    ...activeTasks.filter((t) => t.is_pinned),
+    ...activeTasks.filter((t) => !t.is_pinned),
+  ];
+
   // Show only the selected section
-  const listData: Task[] = showArchived ? archivedTasks : activeTasks;
+  const listData: Task[] = showArchived ? archivedTasks : sortedActiveTasks;
 
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? theme.color.primary;
@@ -573,6 +582,22 @@ export default function DashboardScreen() {
     fetchData();
   };
 
+  const handlePinTask = async (task: Task) => {
+    await supabase
+      .from('tasks')
+      .update({ is_pinned: true })
+      .eq('id', task.id);
+    fetchData();
+  };
+
+  const handleUnpinTask = async (task: Task) => {
+    await supabase
+      .from('tasks')
+      .update({ is_pinned: false })
+      .eq('id', task.id);
+    fetchData();
+  };
+
 
   // Compute which cities and services appear in the current set (for filter chips)
   const tasksInCurrentSet = useMemo(
@@ -651,11 +676,12 @@ export default function DashboardScreen() {
           onDelete={() => handleDeleteTask(item)}
           onUnarchive={() => handleUnarchiveTask(item)}
           onFinance={() => openQuickFinance(item)}
+          onPin={() => (item.is_pinned ? handleUnpinTask(item) : handlePinTask(item))}
           isArchived={isTaskArchived(item)}
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, handlePinTask, handleUnpinTask]
   );
 
   if (loading) {

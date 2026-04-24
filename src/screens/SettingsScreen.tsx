@@ -15,6 +15,7 @@ import {
  KeyboardAvoidingView,
  Platform,
  I18nManager,
+ Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -329,21 +330,39 @@ export default function SettingsScreen() {
      return;
    }
    setSendingContact(true);
-   // Log to Supabase contact_messages table or just show success
+
    try {
-     await supabase.from('contact_messages').insert({
-       sender_name: contactName.trim() || teamMember?.name,
-       sender_email: contactEmail.trim() || teamMember?.email,
-       subject: contactSubject.trim(),
-       message: contactMessage.trim(),
-       org_id: teamMember?.org_id,
+     // Call Edge Function to send email via Resend
+     const { error: fnError } = await supabase.functions.invoke('send-contact-email', {
+       body: {
+         sender_name:  contactName.trim()  || teamMember?.name  || '',
+         sender_email: contactEmail.trim() || teamMember?.email || '',
+         subject:      contactSubject.trim(),
+         message:      contactMessage.trim(),
+       },
      });
-   } catch (e) { /* table may not exist yet — still show success */ }
-   setSendingContact(false);
-   setShowContactModal(false);
-   setContactSubject('');
-   setContactMessage('');
-   Alert.alert('Message Sent ✅', 'Thank you! Our team at management@kts-lb.com will get back to you shortly.');
+
+     if (fnError) throw fnError;
+
+     // Also save to DB as audit trail
+     await supabase.from('contact_messages').insert({
+       sender_name:  contactName.trim()  || teamMember?.name,
+       sender_email: contactEmail.trim() || teamMember?.email,
+       subject:      contactSubject.trim(),
+       message:      contactMessage.trim(),
+       org_id:       teamMember?.org_id,
+     }).throwOnError();
+
+     setSendingContact(false);
+     setShowContactModal(false);
+     setContactSubject('');
+     setContactMessage('');
+     Alert.alert('Message Sent ✅', 'Your message has been sent to our team. We will get back to you shortly.');
+
+   } catch (err: any) {
+     setSendingContact(false);
+     Alert.alert('Failed to Send', err?.message ?? 'Something went wrong. Please try again.');
+   }
  };
 
  // Report a Bug
@@ -359,19 +378,33 @@ export default function SettingsScreen() {
    }
    setSendingBug(true);
    try {
-     await supabase.from('contact_messages').insert({
-       sender_name: teamMember?.name,
-       sender_email: teamMember?.email,
-       subject: `[BUG] ${bugTitle.trim()}`,
-       message: bugDesc.trim(),
-       org_id: teamMember?.org_id,
+     const { error: fnError } = await supabase.functions.invoke('send-contact-email', {
+       body: {
+         sender_name:  teamMember?.name  ?? '',
+         sender_email: teamMember?.email ?? '',
+         subject:      `[BUG] ${bugTitle.trim()}`,
+         message:      bugDesc.trim(),
+       },
      });
-   } catch (e) { /* ignore */ }
-   setSendingBug(false);
-   setShowBugModal(false);
-   setBugTitle('');
-   setBugDesc('');
-   Alert.alert('Bug Reported ✅', 'Thank you! We\'ll investigate and fix it as soon as possible.');
+     if (fnError) throw fnError;
+
+     await supabase.from('contact_messages').insert({
+       sender_name:  teamMember?.name,
+       sender_email: teamMember?.email,
+       subject:      `[BUG] ${bugTitle.trim()}`,
+       message:      bugDesc.trim(),
+       org_id:       teamMember?.org_id,
+     }).throwOnError();
+
+     setSendingBug(false);
+     setShowBugModal(false);
+     setBugTitle('');
+     setBugDesc('');
+     Alert.alert('Bug Reported ✅', 'Thank you! We\'ll investigate and fix it as soon as possible.');
+   } catch (err: any) {
+     setSendingBug(false);
+     Alert.alert('Failed to Send', err?.message ?? 'Something went wrong. Please try again.');
+   }
  };
 
  // Team member role editing
@@ -398,7 +431,6 @@ export default function SettingsScreen() {
  const [inviteInputType, setInviteInputType] = useState<'email' | 'phone'>('email');
  const [invitePhone, setInvitePhone] = useState('');
  const [inviteCountryCode, setInviteCountryCode] = useState(DEFAULT_COUNTRY.code);
- const [showTeamModal, setShowTeamModal] = useState(false);
 
  const fetchData = useCallback(async () => {
  const [tmRes, invRes] = await Promise.all([
@@ -520,6 +552,32 @@ export default function SettingsScreen() {
  <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
 
+ {/* Team Members — directly after My Account */}
+ <TouchableOpacity style={ss.navCard} onPress={() => navigation.navigate('TeamMembers')} activeOpacity={0.75}>
+   <View style={ss.navCardLeft}>
+     <Text style={ss.navCardIcon}>👥</Text>
+     <View>
+       <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
+       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ''}</Text>
+     </View>
+   </View>
+   <Text style={ss.navCardChevron}>›</Text>
+ </TouchableOpacity>
+
+ {/* Visibility & Permissions — owner/admin only */}
+ {(teamMember?.role === 'owner' || teamMember?.role === 'admin') && (
+   <TouchableOpacity style={ss.navCard} onPress={() => navigation.navigate('VisibilitySettings')} activeOpacity={0.75}>
+     <View style={ss.navCardLeft}>
+       <Text style={ss.navCardIcon}>🔒</Text>
+       <View>
+         <Text style={ss.navCardTitle}>Visibility & Permissions</Text>
+         <Text style={ss.navCardSubtitle}>Control what members and viewers can see and do</Text>
+       </View>
+     </View>
+     <Text style={ss.navCardChevron}>›</Text>
+   </TouchableOpacity>
+ )}
+
  {/* Client Fields */}
  <TouchableOpacity
  style={ss.navCard}
@@ -582,18 +640,6 @@ export default function SettingsScreen() {
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
- </TouchableOpacity>
-
- {/* Team Members — navCard style, clickable */}
- <TouchableOpacity style={ss.navCard} onPress={() => setShowTeamModal(true)} activeOpacity={0.75}>
-   <View style={ss.navCardLeft}>
-     <Text style={ss.navCardIcon}>👥</Text>
-     <View>
-       <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
-       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}` : ''}</Text>
-     </View>
-   </View>
-   <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
 
  {/* Language */}
@@ -875,84 +921,6 @@ export default function SettingsScreen() {
    </SafeAreaView>
  </Modal>
 
- {/* ── TEAM MEMBERS MODAL ── */}
- <Modal visible={showTeamModal} transparent animationType="slide" onRequestClose={() => setShowTeamModal(false)}>
-   <View style={ss.helpOverlay}>
-     <View style={ss.helpSheet}>
-       <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>👥 {t('teamMembers')}</Text>
-         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-           {isAdmin && (
-             <TouchableOpacity onPress={() => { setShowTeamModal(false); setShowInviteModal(true); }}>
-               <Text style={{ color: theme.color.primary, fontWeight: '700', fontSize: 14 }}>+ Invite</Text>
-             </TouchableOpacity>
-           )}
-           <TouchableOpacity onPress={() => setShowTeamModal(false)}>
-             <Text style={ss.helpClose}>✕</Text>
-           </TouchableOpacity>
-         </View>
-       </View>
-       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-         {teamMembers.map((tm) => {
-           const roleBadgeColor =
-             tm.role === 'owner'  ? theme.color.primary :
-             tm.role === 'admin'  ? theme.color.warning :
-             tm.role === 'viewer' ? theme.color.textMuted :
-             theme.color.success;
-           const isYou = tm.id === teamMember?.id;
-           return (
-             <TouchableOpacity
-               key={tm.id}
-               style={ss.tmRow}
-               activeOpacity={isAdmin && !isYou ? 0.7 : 1}
-               onPress={isAdmin && !isYou ? () => handleEditMember(tm) : undefined}
-             >
-               <View style={[ss.tmAvatar, { backgroundColor: roleBadgeColor + '33' }]}>
-                 <Text style={[ss.tmAvatarText, { color: roleBadgeColor }]}>
-                   {tm.name.charAt(0).toUpperCase()}
-                 </Text>
-               </View>
-               <View style={{ flex: 1 }}>
-                 <Text style={ss.tmName}>{tm.name}{isYou ? ' (you)' : ''}</Text>
-                 <Text style={ss.tmEmail}>{tm.email}{tm.phone ? ` · ${tm.phone}` : ''}</Text>
-               </View>
-               <View style={[ss.roleBadge, { backgroundColor: roleBadgeColor + '22', borderColor: roleBadgeColor + '55' }]}>
-                 <Text style={[ss.roleBadgeText, { color: roleBadgeColor }]}>{tm.role}</Text>
-               </View>
-               {isAdmin && !isYou && (
-                 <TouchableOpacity
-                   style={{ paddingLeft: 8 }}
-                   onPress={() => deleteRecord('team_members', tm.id, tm.name)}
-                 >
-                   <Text style={{ color: theme.color.danger, fontSize: 16 }}>✕</Text>
-                 </TouchableOpacity>
-               )}
-             </TouchableOpacity>
-           );
-         })}
-
-         {pendingInvites.length > 0 && (
-           <View style={ss.invitesHeader}>
-             <Text style={ss.invitesHeaderText}>PENDING INVITES ({pendingInvites.length})</Text>
-           </View>
-         )}
-         {pendingInvites.map((inv) => (
-           <View key={inv.id} style={ss.pendingInviteRow}>
-             <View style={{ flex: 1 }}>
-               <Text style={ss.pendingInviteEmail}>{inv.email}</Text>
-               <Text style={ss.pendingInviteRole}>{inv.role} · expires {new Date(inv.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
-             </View>
-             {isAdmin && (
-               <TouchableOpacity onPress={() => revokeInvite(inv.id, inv.email)} style={ss.revokeBtn}>
-                 <Text style={ss.revokeBtnText}>Revoke</Text>
-               </TouchableOpacity>
-             )}
-           </View>
-         ))}
-       </ScrollView>
-     </View>
-   </View>
- </Modal>
 
  {/* ── EDIT MEMBER ROLE MODAL ── */}
  <Modal visible={!!editMemberModal} transparent animationType="fade" onRequestClose={() => setEditMemberModal(null)}>
@@ -1143,133 +1111,139 @@ export default function SettingsScreen() {
  </Modal>
 
  {/* ── CONTACT US MODAL ── */}
- <Modal visible={showContactModal} transparent animationType="slide" onRequestClose={() => setShowContactModal(false)}>
-   <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-     <View style={ss.helpOverlay}>
-       <View style={[ss.inviteSheet, { maxHeight: '85%' }]}>
-         <View style={ss.helpHeader}>
-           <Text style={ss.helpTitle}>✉️ Contact Us</Text>
-           <TouchableOpacity onPress={() => setShowContactModal(false)}>
-             <Text style={ss.helpClose}>✕</Text>
-           </TouchableOpacity>
-         </View>
-         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-           <Text style={ss.inviteDesc}>Our team at management@kts-lb.com will respond as soon as possible.</Text>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>YOUR NAME</Text>
-             <TextInput
-               style={ss.fieldInput}
-               value={contactName}
-               onChangeText={setContactName}
-               placeholder="Full name"
-               placeholderTextColor={theme.color.textMuted}
-             />
-           </View>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>YOUR EMAIL</Text>
-             <TextInput
-               style={ss.fieldInput}
-               value={contactEmail}
-               onChangeText={setContactEmail}
-               placeholder="your@email.com"
-               placeholderTextColor={theme.color.textMuted}
-               keyboardType="email-address"
-               autoCapitalize="none"
-             />
-           </View>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>SUBJECT</Text>
-             <TextInput
-               style={ss.fieldInput}
-               value={contactSubject}
-               onChangeText={setContactSubject}
-               placeholder="What is your message about?"
-               placeholderTextColor={theme.color.textMuted}
-             />
-           </View>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>MESSAGE</Text>
-             <TextInput
-               style={[ss.fieldInput, { height: 120, textAlignVertical: 'top' }]}
-               value={contactMessage}
-               onChangeText={setContactMessage}
-               placeholder="Describe your question, feedback, or request..."
-               placeholderTextColor={theme.color.textMuted}
-               multiline
-             />
-           </View>
-
-           <TouchableOpacity
-             style={[ss.inviteBtn, sendingContact && { opacity: 0.6 }]}
-             onPress={handleSendContact}
-             disabled={sendingContact}
-           >
-             {sendingContact
-               ? <ActivityIndicator color={theme.color.white} />
-               : <Text style={ss.inviteBtnText}>Send Message</Text>
-             }
-           </TouchableOpacity>
-         </ScrollView>
-       </View>
+ <Modal visible={showContactModal} transparent={false} animationType="slide" onRequestClose={() => setShowContactModal(false)}>
+   <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase }} edges={['top', 'bottom']}>
+     {/* Header — fixed at top */}
+     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>✉️ Contact Us</Text>
+       <TouchableOpacity onPress={() => setShowContactModal(false)} style={{ padding: 8, marginRight: -4 }}>
+         <Text style={{ color: theme.color.textMuted, fontSize: 22, fontWeight: '600' }}>✕</Text>
+       </TouchableOpacity>
      </View>
-   </KeyboardAvoidingView>
+     {/* Scrollable body */}
+     <ScrollView
+       style={{ flex: 1 }}
+       contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }}
+       keyboardShouldPersistTaps="handled"
+       showsVerticalScrollIndicator={false}
+     >
+       <Text style={ss.inviteDesc}>Our team at management@kts-lb.com will respond as soon as possible.</Text>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>YOUR NAME</Text>
+         <TextInput
+           style={ss.fieldInput}
+           value={contactName}
+           onChangeText={setContactName}
+           placeholder="Full name"
+           placeholderTextColor={theme.color.textMuted}
+         />
+       </View>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>YOUR EMAIL</Text>
+         <TextInput
+           style={ss.fieldInput}
+           value={contactEmail}
+           onChangeText={setContactEmail}
+           placeholder="your@email.com"
+           placeholderTextColor={theme.color.textMuted}
+           keyboardType="email-address"
+           autoCapitalize="none"
+         />
+       </View>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>SUBJECT</Text>
+         <TextInput
+           style={ss.fieldInput}
+           value={contactSubject}
+           onChangeText={setContactSubject}
+           placeholder="What is your message about?"
+           placeholderTextColor={theme.color.textMuted}
+         />
+       </View>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>MESSAGE</Text>
+         <TextInput
+           style={[ss.fieldInput, { height: 160, textAlignVertical: 'top', paddingTop: 12 }]}
+           value={contactMessage}
+           onChangeText={setContactMessage}
+           placeholder="Describe your question, feedback, or request..."
+           placeholderTextColor={theme.color.textMuted}
+           multiline
+         />
+       </View>
+
+       <TouchableOpacity
+         style={[ss.inviteBtn, sendingContact && { opacity: 0.6 }]}
+         onPress={handleSendContact}
+         disabled={sendingContact}
+       >
+         {sendingContact
+           ? <ActivityIndicator color={theme.color.white} />
+           : <Text style={ss.inviteBtnText}>Send Message</Text>
+         }
+       </TouchableOpacity>
+     </ScrollView>
+   </SafeAreaView>
  </Modal>
 
  {/* ── REPORT BUG MODAL ── */}
- <Modal visible={showBugModal} transparent animationType="slide" onRequestClose={() => setShowBugModal(false)}>
-   <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-     <View style={ss.helpOverlay}>
-       <View style={[ss.inviteSheet, { maxHeight: '75%' }]}>
-         <View style={ss.helpHeader}>
-           <Text style={ss.helpTitle}>🐛 Report a Bug</Text>
-           <TouchableOpacity onPress={() => setShowBugModal(false)}>
-             <Text style={ss.helpClose}>✕</Text>
-           </TouchableOpacity>
-         </View>
-         <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-           <Text style={ss.inviteDesc}>Describe what happened and how to reproduce it. We'll fix it ASAP.</Text>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>BUG TITLE</Text>
-             <TextInput
-               style={ss.fieldInput}
-               value={bugTitle}
-               onChangeText={setBugTitle}
-               placeholder="Short description of the bug"
-               placeholderTextColor={theme.color.textMuted}
-             />
-           </View>
-
-           <View style={ss.field}>
-             <Text style={ss.fieldLabel}>DESCRIPTION</Text>
-             <TextInput
-               style={[ss.fieldInput, { height: 140, textAlignVertical: 'top' }]}
-               value={bugDesc}
-               onChangeText={setBugDesc}
-               placeholder="Steps to reproduce:&#10;1. Go to...&#10;2. Tap...&#10;3. See error..."
-               placeholderTextColor={theme.color.textMuted}
-               multiline
-             />
-           </View>
-
-           <TouchableOpacity
-             style={[ss.inviteBtn, sendingBug && { opacity: 0.6 }]}
-             onPress={handleSendBug}
-             disabled={sendingBug}
-           >
-             {sendingBug
-               ? <ActivityIndicator color={theme.color.white} />
-               : <Text style={ss.inviteBtnText}>Submit Bug Report</Text>
-             }
-           </TouchableOpacity>
-         </ScrollView>
-       </View>
+ <Modal visible={showBugModal} transparent={false} animationType="slide" onRequestClose={() => setShowBugModal(false)}>
+   <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase }} edges={['top', 'bottom']}>
+     {/* Header — fixed at top */}
+     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>🐛 Report a Bug</Text>
+       <TouchableOpacity onPress={() => setShowBugModal(false)} style={{ padding: 8, marginRight: -4 }}>
+         <Text style={{ color: theme.color.textMuted, fontSize: 22, fontWeight: '600' }}>✕</Text>
+       </TouchableOpacity>
      </View>
-   </KeyboardAvoidingView>
+     {/* Scrollable body */}
+     <ScrollView
+       style={{ flex: 1 }}
+       contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }}
+       keyboardShouldPersistTaps="handled"
+       showsVerticalScrollIndicator={false}
+     >
+       <Text style={ss.inviteDesc}>Describe what happened and how to reproduce it. We'll fix it ASAP.</Text>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>BUG TITLE</Text>
+         <TextInput
+           style={ss.fieldInput}
+           value={bugTitle}
+           onChangeText={setBugTitle}
+           placeholder="Short description of the bug"
+           placeholderTextColor={theme.color.textMuted}
+         />
+       </View>
+
+       <View style={ss.field}>
+         <Text style={ss.fieldLabel}>DESCRIPTION</Text>
+         <TextInput
+           style={[ss.fieldInput, { height: 180, textAlignVertical: 'top', paddingTop: 12 }]}
+           value={bugDesc}
+           onChangeText={setBugDesc}
+           placeholder="Steps to reproduce:&#10;1. Go to...&#10;2. Tap...&#10;3. See error..."
+           placeholderTextColor={theme.color.textMuted}
+           multiline
+         />
+       </View>
+
+       <TouchableOpacity
+         style={[ss.inviteBtn, sendingBug && { opacity: 0.6 }]}
+         onPress={handleSendBug}
+         disabled={sendingBug}
+       >
+         {sendingBug
+           ? <ActivityIndicator color={theme.color.white} />
+           : <Text style={ss.inviteBtnText}>Submit Bug Report</Text>
+         }
+       </TouchableOpacity>
+     </ScrollView>
+   </SafeAreaView>
  </Modal>
 
  </SafeAreaView>
@@ -1615,6 +1589,31 @@ const ss = StyleSheet.create({
     paddingHorizontal: 4,
     marginTop: theme.spacing.space2,
     marginBottom: -4,
+  },
+
+  // Team Members bottom sheet
+  teamModalOverlay: {
+    flex:            1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent:  'flex-end',
+  },
+  teamModalSheet: {
+    backgroundColor:       theme.color.bgSurface,
+    borderTopLeftRadius:   20,
+    borderTopRightRadius:  20,
+    paddingHorizontal:     theme.spacing.space5,
+    paddingTop:            theme.spacing.space3,
+    paddingBottom:         theme.spacing.space6,
+    maxHeight:             '80%',
+    gap:                   12,
+  },
+  teamModalHandle: {
+    width:           40,
+    height:          4,
+    borderRadius:    2,
+    backgroundColor: theme.color.border,
+    alignSelf:       'center',
+    marginBottom:    8,
   },
 
   // Help & FAQ shared modal chrome

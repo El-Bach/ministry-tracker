@@ -171,6 +171,7 @@ export interface Task {
   price_usd: number;
   price_lbp: number;
   is_archived?: boolean;
+  is_pinned?: boolean;
   city_id?: string | null;
   city?: City | null;
   created_at: string;
@@ -248,6 +249,8 @@ export type SettingsStackParamList = {
   Account: undefined;
   ClientFieldsSettings: undefined;
   TeamMemberFields: undefined;
+  TeamMembers: undefined;
+  VisibilitySettings: undefined;
   FinancialReport: undefined;
   NotificationSettings: undefined;
 };

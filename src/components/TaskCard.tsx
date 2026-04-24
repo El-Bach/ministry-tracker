@@ -19,6 +19,7 @@ interface Props {
   onClientPress?: () => void;
   onCityPress?: (cityId: string) => void;
   onServicePress?: () => void;
+  onPin?: () => void;
   allStatusColors?: Record<string, string>;
   cardStyle?: object;
   loading?: boolean;
@@ -91,6 +92,7 @@ function TaskCard({
   onClientPress,
   onCityPress,
   onServicePress,
+  onPin,
   allStatusColors = {},
   cardStyle,
   loading = false,
@@ -242,6 +244,19 @@ function TaskCard({
             >
               <Text style={styles.phoneLabel} numberOfLines={1}>
                 📞 {formatPhoneDisplay(task.client.reference_phone)}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {/* Pin / Unpin toggle */}
+          {!!onPin && (
+            <TouchableOpacity
+              onPress={onPin}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              activeOpacity={0.7}
+              style={styles.pinToggle}
+            >
+              <Text style={[styles.pinToggleText, !!task.is_pinned && styles.pinToggleTextActive]}>
+                📌 {task.is_pinned ? 'Pinned' : 'Pin'}
               </Text>
             </TouchableOpacity>
           )}
@@ -432,6 +447,18 @@ const styles = StyleSheet.create({
     color:      theme.color.primaryText,
     fontSize:   theme.typography.label.fontSize,
     fontWeight: '700',
+  },
+  pinToggle: {
+    alignSelf:  'flex-start',
+    marginTop:  2,
+  },
+  pinToggleText: {
+    ...theme.typography.caption,
+    color: theme.color.textMuted,
+  },
+  pinToggleTextActive: {
+    color: theme.color.primary,
+    fontWeight: '600',
   },
 
   // Row 1

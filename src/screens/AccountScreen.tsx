@@ -52,7 +52,7 @@ const PLANS = [
     accentBg: theme.color.bgBase,
     features: [
       { text: 'Up to 3 team members',       included: true  },
-      { text: 'Up to 50 active files',       included: true  },
+      { text: 'Up to 25 active files',       included: true  },
       { text: 'Document scanning & upload',  included: true  },
       { text: 'Basic financial tracking',    included: true  },
       { text: 'Stage & status tracking',     included: true  },
@@ -73,7 +73,7 @@ const PLANS = [
     accentBg: theme.color.primary + '10',
     badge: 'POPULAR',
     features: [
-      { text: 'Up to 15 team members',       included: true  },
+      { text: 'Up to 10 team members',       included: true  },
       { text: 'Unlimited active files',       included: true  },
       { text: 'Document scanning & upload',  included: true  },
       { text: 'Full financial tracking',     included: true  },
@@ -101,8 +101,7 @@ const PLANS = [
       { text: 'Stage & status tracking',     included: true  },
       { text: 'Financial reports & export',  included: true  },
       { text: 'PDF document upload',         included: true  },
-      { text: 'Dedicated account manager',   included: true  },
-      { text: 'Custom branding & API access',included: true  },
+      { text: 'Dedicated account manager',   included: true, info: 'A specific KTS team member is personally assigned to your account — they handle your support, answer questions, and help you directly. You get a direct contact, not a generic support queue.' },
     ],
   },
 ] as const;
@@ -123,22 +122,29 @@ export default function AccountScreen() {
   const [confirmPwd,    setConfirmPwd]    = useState('');
   const [changingPwd,   setChangingPwd]   = useState(false);
 
-  const [showOrgModal,  setShowOrgModal]  = useState(false);
-  const [editOrgName,   setEditOrgName]   = useState(organization?.name ?? '');
-  const [savingOrg,     setSavingOrg]     = useState(false);
+  const [editOrgName,    setEditOrgName]    = useState(organization?.name ?? '');
+  const [savingOrg,      setSavingOrg]      = useState(false);
+  const [editingOrgName, setEditingOrgName] = useState(false);
 
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [billingAnnual,  setBillingAnnual]  = useState(false);
 
+  // Join company via code
+  const [joinCode,       setJoinCode]       = useState('');
+  const [joiningCompany, setJoiningCompany] = useState(false);
+
   useEffect(() => {
     if (teamMember) {
       setEditName(teamMember.name ?? '');
-      // Show real phone if stored separately, or derive from email if phone-based login
       const displayPhone = teamMember.phone
         ?? (teamMember.email?.endsWith('@cleartrack.internal') ? teamMember.email.replace('@cleartrack.internal', '') : '');
       setEditPhone(displayPhone);
     }
   }, [teamMember]);
+
+  useEffect(() => {
+    if (organization?.name) setEditOrgName(organization.name);
+  }, [organization]);
 
   // Display identifier for this user (phone or email)
   const displayIdentifier = teamMember?.email
@@ -186,9 +192,42 @@ export default function AccountScreen() {
     const { error } = await supabase.from('organizations').update({ name: editOrgName.trim() }).eq('id', organization.id);
     setSavingOrg(false);
     if (error) { Alert.alert('Error', error.message); return; }
-    setShowOrgModal(false);
+    setEditingOrgName(false);
     await refreshTeamMember();
-    Alert.alert('Saved', 'Organization name updated.');
+  };
+
+  const handleJoinCompany = async () => {
+    const cleaned = joinCode.trim().toUpperCase();
+    if (cleaned.length < 8) { Alert.alert('Invalid Code', 'Please enter a valid join code.'); return; }
+    setJoiningCompany(true);
+    const { data, error } = await supabase
+      .from('org_join_codes')
+      .select('id, org_id, is_active, use_count, organizations(name, plan)')
+      .eq('code', cleaned)
+      .single();
+    if (error || !data) {
+      setJoiningCompany(false);
+      Alert.alert('Code Not Found', 'No company found with this code. Please check and try again.');
+      return;
+    }
+    if (!data.is_active) {
+      setJoiningCompany(false);
+      Alert.alert('Code Deactivated', 'This code has been deactivated. Ask your admin for a new one.');
+      return;
+    }
+    const orgName = (data.organizations as any)?.name ?? 'the company';
+    const { error: updateErr } = await supabase
+      .from('team_members')
+      .update({ org_id: data.org_id, role: 'member' })
+      .eq('id', teamMember!.id);
+    if (updateErr) { setJoiningCompany(false); Alert.alert('Error', updateErr.message); return; }
+    await supabase.from('org_join_codes')
+      .update({ use_count: (data.use_count ?? 0) + 1 })
+      .eq('id', data.id);
+    setJoiningCompany(false);
+    setJoinCode('');
+    await refreshTeamMember();
+    Alert.alert('✅ Joined!', `You've joined ${orgName}. Welcome to the team!`);
   };
 
   const roleBadgeColor = ROLE_COLORS[teamMember?.role ?? 'member'] ?? theme.color.primary;
@@ -226,35 +265,99 @@ export default function AccountScreen() {
         </View>
 
         {/* Organization card */}
-        <View style={s.card}>
-          <View style={s.cardHeader}>
-            <Text style={s.cardTitle}>🏢 My Company</Text>
-            {isOwner && (
-              <TouchableOpacity onPress={() => { setEditOrgName(organization?.name ?? ''); setShowOrgModal(true); }}>
-                <Text style={s.editLink}>✎ Edit</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={s.orgName}>{organization?.name ?? '—'}</Text>
+        <View style={[s.card, { borderColor: planInfo.color + '55' }]}>
+          <Text style={s.cardTitle}>🏢 My Company</Text>
 
-          {/* Current plan row */}
-          <View style={s.planRow}>
+          {/* Tap-to-edit company name */}
+          {isOwner ? (
+            editingOrgName ? (
+              <View style={s.orgEditRow}>
+                <TextInput
+                  style={s.orgNameInput}
+                  value={editOrgName}
+                  onChangeText={setEditOrgName}
+                  placeholder="Your company name"
+                  placeholderTextColor={theme.color.textMuted}
+                  autoCapitalize="words"
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[s.orgSaveBtn, savingOrg && { opacity: 0.6 }]}
+                  onPress={saveOrgName}
+                  disabled={savingOrg}
+                >
+                  {savingOrg
+                    ? <ActivityIndicator color={theme.color.white} size="small" />
+                    : <Text style={s.orgSaveBtnText}>Save</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.orgCancelBtn}
+                  onPress={() => { setEditingOrgName(false); setEditOrgName(organization?.name ?? ''); }}
+                >
+                  <Text style={s.orgCancelBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={s.orgNameTap}
+                onPress={() => setEditingOrgName(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={s.orgName}>{organization?.name ?? '—'}</Text>
+                <Text style={s.orgNameEditHint}>✎</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            <Text style={s.orgName}>{organization?.name ?? '—'}</Text>
+          )}
+
+          {/* Plan row — tappable → opens plans */}
+          <TouchableOpacity style={s.planRow} onPress={() => setShowPlansModal(true)} activeOpacity={0.75}>
             <View style={[s.planBadge, { backgroundColor: planInfo.color + '18', borderColor: planInfo.color + '33' }]}>
               <Text style={[s.planBadgeText, { color: planInfo.color }]}>{planInfo.label}</Text>
             </View>
-            {isOwner && (
-              <TouchableOpacity
-                style={s.upgradeBtn}
-                onPress={() => setShowPlansModal(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={s.upgradeBtnText}>
-                  {currentPlanKey === 'free' ? '🚀 Upgrade Plan' : '⚙ Manage Plan'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            <Text style={[s.viewPlansLink, { color: planInfo.color }]}>
+              {currentPlanKey === 'free' ? '🚀 View Plans ›' : '⚙ Manage Plan ›'}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Join a Company — shown for non-owners */}
+        {teamMember?.role !== 'owner' && (
+          <View style={s.card}>
+            <View>
+              <Text style={s.cardTitle}>🏢 Join a Company</Text>
+              <Text style={s.joinDesc}>Enter the code your admin shared with you to join their company.</Text>
+            </View>
+            {organization?.name ? (
+              <View style={s.currentOrgRow}>
+                <Text style={s.currentOrgLabel}>Current company:</Text>
+                <Text style={s.currentOrgName}>{organization.name}</Text>
+              </View>
+            ) : null}
+            <View style={s.joinRow}>
+              <TextInput
+                style={[s.input, s.joinInput]}
+                value={joinCode}
+                onChangeText={(v) => setJoinCode(v.toUpperCase())}
+                placeholder="XXXX-XXXX"
+                placeholderTextColor={theme.color.textMuted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={9}
+              />
+              <TouchableOpacity
+                style={[s.joinBtn, joiningCompany && s.btnDisabled]}
+                onPress={handleJoinCompany}
+                disabled={joiningCompany}
+              >
+                {joiningCompany
+                  ? <ActivityIndicator color={theme.color.white} size="small" />
+                  : <Text style={s.joinBtnText}>Join</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Edit profile */}
         <View style={s.card}>
@@ -405,15 +508,12 @@ export default function AccountScreen() {
                       isCurrent && s.planCardCurrent,
                     ]}
                   >
-                    {/* Popular badge */}
-                    {'badge' in plan && plan.badge && !isCurrent && (
-                      <View style={[s.popularBadge, { backgroundColor: plan.color }]}>
-                        <Text style={s.popularBadgeText}>{plan.badge}</Text>
-                      </View>
-                    )}
-                    {isCurrent && (
-                      <View style={[s.popularBadge, { backgroundColor: plan.color + 'CC' }]}>
-                        <Text style={s.popularBadgeText}>CURRENT PLAN</Text>
+                    {/* Badge row — no overlap */}
+                    {(isCurrent || ('badge' in plan && plan.badge && !isCurrent)) && (
+                      <View style={s.badgeRow}>
+                        <View style={[s.popularBadge, { backgroundColor: isCurrent ? plan.color + 'CC' : plan.color }]}>
+                          <Text style={s.popularBadgeText}>{isCurrent ? 'CURRENT PLAN' : (plan as any).badge}</Text>
+                        </View>
                       </View>
                     )}
 
@@ -444,6 +544,16 @@ export default function AccountScreen() {
                             {f.included ? '✓' : '✕'}
                           </Text>
                           <Text style={[s.featureText, !f.included && s.featureTextDimmed]}>{f.text}</Text>
+                          {'info' in f && f.info ? (
+                            <TouchableOpacity
+                              onPress={() => Alert.alert('ℹ️ ' + f.text, f.info)}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <View style={s.infoBtn}>
+                                <Text style={s.infoBtnText}>?</Text>
+                              </View>
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
                       ))}
                     </View>
@@ -477,26 +587,6 @@ export default function AccountScreen() {
         </View>
       </Modal>
 
-      {/* ── Edit Org Name Modal (owner only) ── */}
-      <Modal visible={showOrgModal} transparent animationType="slide" onRequestClose={() => setShowOrgModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={s.modalOverlay}>
-            <View style={s.modalSheet}>
-              <Text style={s.modalTitle}>Organization Name</Text>
-              <View style={s.field}>
-                <Text style={s.label}>COMPANY / OFFICE NAME</Text>
-                <TextInput style={s.input} value={editOrgName} onChangeText={setEditOrgName} autoCapitalize="words" placeholder="Your company name" placeholderTextColor={theme.color.textMuted} />
-              </View>
-              <TouchableOpacity style={[s.saveBtn, savingOrg && s.btnDisabled]} onPress={saveOrgName} disabled={savingOrg}>
-                {savingOrg ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.saveBtnText}>Save</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowOrgModal(false)}>
-                <Text style={s.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -550,6 +640,30 @@ const s = StyleSheet.create({
   cardTitle:  { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 15, fontWeight: '700' },
   editLink:   { ...theme.typography.label, color: theme.color.primary, fontWeight: '700' },
   orgName:    { ...theme.typography.heading, fontSize: 18, fontWeight: '700' },
+  orgNameTap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  orgNameEditHint: { fontSize: 16, color: theme.color.primary, marginTop: 2 },
+  orgEditRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  orgCancelBtn: { padding: 6 },
+  orgCancelBtnText: { color: theme.color.textMuted, fontSize: 18 },
+  orgNameInput: {
+    flex:              1,
+    backgroundColor:   theme.color.bgBase,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.lg,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    color:             theme.color.textPrimary,
+    fontSize:          16,
+    fontWeight:        '700',
+  },
+  orgSaveBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  orgSaveBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 13 },
   planRow: {
     flexDirection:   'row',
     alignItems:      'center',
@@ -571,6 +685,20 @@ const s = StyleSheet.create({
     paddingVertical: 7,
   },
   upgradeBtnText: { color: theme.color.white, fontSize: 13, fontWeight: '700' },
+  viewPlansLink:  { fontSize: 13, fontWeight: '700' },
+  joinDesc: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
+  currentOrgRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  currentOrgLabel: { ...theme.typography.caption, color: theme.color.textMuted },
+  currentOrgName: { ...theme.typography.caption, color: theme.color.primary, fontWeight: '700' },
+  joinRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  joinInput: { flex: 1, fontSize: 18, fontWeight: '700', letterSpacing: 2, textAlign: 'center' },
+  joinBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.lg,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+  },
+  joinBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 15 },
 
   // ── Plans Modal ──────────────────────────────────────────────
   plansSheet: {
@@ -637,21 +765,21 @@ const s = StyleSheet.create({
     borderRadius:    theme.radius.xl,
     borderWidth:     2,
     padding:         theme.spacing.space4,
-    gap:             14,
-    position:        'relative',
-    overflow:        'hidden',
+    gap:             10,
   },
   planCardCurrent: { borderWidth: 2 },
 
-  popularBadge: {
-    position:        'absolute',
-    top:             14,
-    right:           14,
-    borderRadius:    theme.radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  badgeRow: {
+    flexDirection:   'row',
+    marginBottom:    4,
   },
-  popularBadgeText: { color: theme.color.white, fontSize: 10, fontWeight: '800' },
+  popularBadge: {
+    borderRadius:    theme.radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf:       'flex-start',
+  },
+  popularBadgeText: { color: theme.color.white, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   planCardTop:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   planEmoji:    { fontSize: 28, marginTop: 2 },
@@ -667,6 +795,15 @@ const s = StyleSheet.create({
   featureIcon:  { fontSize: 13, fontWeight: '800', width: 16, textAlign: 'center' },
   featureText:  { fontSize: 13, color: theme.color.textSecondary, flex: 1 },
   featureTextDimmed: { color: theme.color.border },
+  infoBtn: {
+    width:           16,
+    height:          16,
+    borderRadius:    8,
+    backgroundColor: theme.color.border,
+    justifyContent:  'center',
+    alignItems:      'center',
+  },
+  infoBtnText: { color: theme.color.textPrimary, fontSize: 10, fontWeight: '800', lineHeight: 12 },
 
   planCta: {
     borderRadius:    theme.radius.lg,
