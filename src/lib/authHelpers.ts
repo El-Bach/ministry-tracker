@@ -3,9 +3,11 @@
 // Session 26 — Phone numbers converted to internal Supabase emails
 //
 // How it works:
-//   User enters phone:  +961 70 123 456  →  +96170123456@cleartrack.internal
+//   User enters phone:  +961 70 123 456  →  p96170123456@cleartrack.internal
 //   User enters email:  john@company.com →  john@company.com  (unchanged)
 //
+// The 'p' prefix replaces '+' so Supabase auth accepts the email ('+' is invalid
+// at the start of an email local part).
 // The internal domain (@cleartrack.internal) is never shown to the user.
 // Users always identify themselves by phone OR real email — never the derived address.
 
@@ -35,22 +37,31 @@ export function normalizePhone(phone: string): string {
 /**
  * Convert any login identifier to a Supabase-compatible email.
  * - Real email  → returned as-is (lowercased)
- * - Phone number → "+96170123456@cleartrack.internal"
+ * - Phone number → "p96170123456@cleartrack.internal"
+ *   ('+' stripped and replaced with 'p' — Supabase rejects '+' at start of local part)
  */
 export function normalizeToEmail(input: string): string {
   const trimmed = input.trim();
   if (!isPhoneInput(trimmed)) return trimmed.toLowerCase();
-  return `${normalizePhone(trimmed)}${INTERNAL_DOMAIN}`;
+  const digits = normalizePhone(trimmed).replace(/^\+/, '');
+  return `p${digits}${INTERNAL_DOMAIN}`;
 }
 
 /**
  * Given a Supabase auth email, return the display identifier for the user.
- * "+96170123456@cleartrack.internal" → "+961 70 123 456"  (kept as stored phone)
- * "john@company.com"                 → "john@company.com"
+ * "p96170123456@cleartrack.internal"  → "+96170123456"  (p-prefix → + prefix)
+ * "+96170123456@cleartrack.internal"  → "+96170123456"  (legacy format, still handled)
+ * "john@company.com"                  → "john@company.com"
  */
 export function emailToDisplay(email: string): string {
   if (email.endsWith(INTERNAL_DOMAIN)) {
-    return email.replace(INTERNAL_DOMAIN, '');
+    const local = email.replace(INTERNAL_DOMAIN, '');
+    // New format: p96170123456 → +96170123456
+    if (local.startsWith('p') && /^p\d+$/.test(local)) {
+      return `+${local.slice(1)}`;
+    }
+    // Legacy format: +96170123456 (stored as-is before the fix)
+    return local;
   }
   return email;
 }
@@ -62,7 +73,7 @@ export function emailToDisplay(email: string): string {
 export function getPhoneFromMember(member: { phone?: string | null; email: string }): string | null {
   if (member.phone) return member.phone;
   if (member.email.endsWith(INTERNAL_DOMAIN)) {
-    return member.email.replace(INTERNAL_DOMAIN, '');
+    return emailToDisplay(member.email);
   }
   return null;
 }

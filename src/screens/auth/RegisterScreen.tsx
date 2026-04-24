@@ -170,7 +170,11 @@ export default function RegisterScreen() {
         await supabase.from('status_labels').insert(defaultLabels);
       }
     } catch (err: any) {
-      Alert.alert('Registration Failed', err.message);
+      // Strip internal email format from error messages before showing to user
+      const msg: string = (err.message ?? 'Something went wrong.')
+        .replace(/p\d+@cleartrack\.internal/g, identifier)
+        .replace(/\+?\d{7,}@cleartrack\.internal/g, identifier);
+      Alert.alert('Registration Failed', msg);
     } finally {
       setLoading(false);
     }

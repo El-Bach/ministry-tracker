@@ -137,7 +137,7 @@ export default function AccountScreen() {
     if (teamMember) {
       setEditName(teamMember.name ?? '');
       const displayPhone = teamMember.phone
-        ?? (teamMember.email?.endsWith('@cleartrack.internal') ? teamMember.email.replace('@cleartrack.internal', '') : '');
+        ?? (teamMember.email?.endsWith('@cleartrack.internal') ? emailToDisplay(teamMember.email) : '');
       setEditPhone(displayPhone);
     }
   }, [teamMember]);
