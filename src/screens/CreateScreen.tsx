@@ -23,6 +23,7 @@ import { Calendar } from 'react-native-calendars';
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
+import { useTranslation } from '../lib/i18n';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument } from '../types';
@@ -42,6 +43,7 @@ function openPhone(phone: string, name?: string) {
 export default function CreateScreen() {
   const navigation = useNavigation<any>();
   const { teamMember } = useAuth();
+  const { t } = useTranslation();
   const orgId = teamMember?.org_id ?? null;
 
   // Data
@@ -240,7 +242,7 @@ export default function CreateScreen() {
   };
 
   const handleCreateClientWithFields = async () => {
-    if (!newClientName.trim()) { Alert.alert('Required', 'Client name is required.'); return; }
+    if (!newClientName.trim()) { Alert.alert(t('required'), 'Client name is required.'); return; }
     setSavingClient(true);
     const autoId = `CLT-${Date.now()}`;
     const { data, error } = await supabase
@@ -279,15 +281,15 @@ export default function CreateScreen() {
     if (Platform.OS === 'web') {
       if ((window as any).confirm(`Delete "${c.name}"? This cannot be undone.`)) doDelete();
     } else {
-      Alert.alert('Delete Client', `Delete "${c.name}"? This cannot be undone.`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      Alert.alert(`${t('delete')} ${t('clients')}`, `Delete "${c.name}"? This cannot be undone.`, [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
 
   const handleCreateService = async () => {
-    if (!newSvcName.trim()) { Alert.alert('Required', 'Service name is required.'); return; }
+    if (!newSvcName.trim()) { Alert.alert(t('required'), 'Service name is required.'); return; }
     setSavingNewSvc(true);
     await supabase.from('services').insert({ name: newSvcName.trim(), estimated_duration_days: 0, base_price_usd: parseFloat(newSvcPriceUSD) || 0, base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0, org_id: orgId });
     setSavingNewSvc(false);
@@ -309,15 +311,15 @@ export default function CreateScreen() {
     if (Platform.OS === 'web') {
       if ((window as any).confirm(`Delete "${sv.name}"?`)) doDelete();
     } else {
-      Alert.alert('Delete Service', `Delete "${sv.name}"?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      Alert.alert(`${t('delete')} ${t('services')}`, `Delete "${sv.name}"?`, [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
 
   const handleCreateStage = async () => {
-    if (!newStageName.trim()) { Alert.alert('Required', 'Stage name is required.'); return; }
+    if (!newStageName.trim()) { Alert.alert(t('required'), 'Stage name is required.'); return; }
     setSavingNewStage(true);
     await supabase.from('ministries').insert({ name: newStageName.trim(), type: 'parent', org_id: orgId });
     setSavingNewStage(false);
@@ -339,9 +341,9 @@ export default function CreateScreen() {
     if (Platform.OS === 'web') {
       if ((window as any).confirm(`Delete "${m.name}"?`)) doDelete();
     } else {
-      Alert.alert('Delete Stage', `Delete "${m.name}"?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      Alert.alert(`${t('delete')} ${t('stages')}`, `Delete "${m.name}"?`, [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: doDelete },
       ]);
     }
   };
@@ -491,7 +493,7 @@ export default function CreateScreen() {
   };
 
   const handleSaveNetworkContact = async () => {
-    if (!netName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+    if (!netName.trim()) { Alert.alert(t('required'), 'Name is required.'); return; }
     setSavingNetwork(true);
     const payload = {
       name: netName.trim(),
@@ -518,10 +520,10 @@ export default function CreateScreen() {
   };
 
   const handleDeleteNetworkContact = (contact: any) => {
-    Alert.alert('Delete Contact', `Delete "${contact.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(`${t('delete')} ${t('network')}`, `Delete "${contact.name}"?`, [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive', onPress: async () => {
+        text: t('delete'), style: 'destructive', onPress: async () => {
           await supabase.from('assignees').delete().eq('id', contact.id);
           setNetwork(prev => prev.filter(n => n.id !== contact.id));
         },
@@ -762,7 +764,7 @@ export default function CreateScreen() {
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.headerTitle}>Create</Text>
+          <Text style={s.headerTitle}>{t('create')}</Text>
         </View>
 
         {/* QUICK ACTIONS */}
@@ -782,7 +784,7 @@ export default function CreateScreen() {
         </View>
 
         {/* MANAGE */}
-        <Text style={[s.sectionLabel, { marginTop: theme.spacing.space4 }]}>MANAGE</Text>
+        <Text style={[s.sectionLabel, { marginTop: theme.spacing.space4 }]}>{t('manage').toUpperCase()}</Text>
         <View style={s.manageList}>
           {manageRows.map((row, i) => (
             <TouchableOpacity
@@ -814,7 +816,7 @@ export default function CreateScreen() {
             <View style={[s.modalSheet, { maxHeight: '82%' }]}>
               <View style={s.modalHeader}>
                 <View>
-                  <Text style={s.modalTitle}>Clients</Text>
+                  <Text style={s.modalTitle}>{t('clients')}</Text>
                   <Text style={s.modalSubtitle}>
                     {clientSearch
                       ? `${clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.phone ?? '').includes(clientSearch)).length} of ${clients.length}`
@@ -826,7 +828,7 @@ export default function CreateScreen() {
                     style={s.modalAddBtn}
                     onPress={() => { setManageSection(null); setClientSearch(''); openNewClientForm(); }}
                   >
-                    <Text style={s.modalAddBtnText}>+ New</Text>
+                    <Text style={s.modalAddBtnText}>+ {t('add')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => { setManageSection(null); setClientSearch(''); }}>
                     <Text style={s.modalClose}>✕</Text>
@@ -838,7 +840,7 @@ export default function CreateScreen() {
                   style={s.mgmtSearchInput}
                   value={clientSearch}
                   onChangeText={setClientSearch}
-                  placeholder="Search clients..."
+                  placeholder={t('searchPlaceholder')}
                   placeholderTextColor={theme.color.textMuted}
                   clearButtonMode="while-editing"
                   autoCorrect={false}
@@ -846,7 +848,7 @@ export default function CreateScreen() {
               </View>
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                 {clients.length === 0 ? (
-                  <Text style={s.mgmtEmpty}>No clients yet.</Text>
+                  <Text style={s.mgmtEmpty}>{t('noFilesFound')}</Text>
                 ) : clients.filter(c =>
                   !clientSearch.trim() ||
                   c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
@@ -943,7 +945,7 @@ export default function CreateScreen() {
                     />
                     {clientImportRows.length === 0 ? (
                       <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setClientImportRows(parseClientImport(clientImportRaw))} disabled={!clientImportRaw.trim()}>
-                        <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                        <Text style={s.docImportPreviewBtnText}>{t('preview')}</Text>
                       </TouchableOpacity>
                     ) : (
                       <>
@@ -1233,7 +1235,7 @@ export default function CreateScreen() {
               ) : (
                 <View style={s.modalHeader}>
                   <View>
-                    <Text style={s.modalTitle}>Services</Text>
+                    <Text style={s.modalTitle}>{t('services')}</Text>
                     <Text style={s.modalSubtitle}>
                       {serviceSearch ? `${services.filter(sv => sv.name.toLowerCase().includes(serviceSearch.toLowerCase())).length} of ${services.length}` : `${services.length} total`}
                     </Text>
@@ -1243,7 +1245,7 @@ export default function CreateScreen() {
                       style={s.modalImportBtn}
                       onPress={() => { setSvcImportRaw(''); setSvcImportRows([]); setShowSvcImportModal(true); }}
                     >
-                      <Text style={s.modalImportBtnText}>📥 Import</Text>
+                      <Text style={s.modalImportBtnText}>{t('importBtn')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setManageSection(null); setEditSvcId(null); setServiceSearch(''); }}>
                       <Text style={s.modalClose}>✕</Text>
@@ -1348,7 +1350,7 @@ export default function CreateScreen() {
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TouchableOpacity style={[s.mgmtSaveBtn, { flex: 1 }]} onPress={handleSaveEditService} disabled={savingEditSvc}>
-                            {savingEditSvc ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>Save</Text>}
+                            {savingEditSvc ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>{t('save')}</Text>}
                           </TouchableOpacity>
                           <TouchableOpacity style={s.mgmtCancelBtn} onPress={() => setEditSvcId(null)}>
                             <Text style={s.mgmtCancelBtnText}>✕</Text>
@@ -1455,7 +1457,7 @@ export default function CreateScreen() {
             <View style={[s.modalSheet, { maxHeight: '90%' }]}>
               <View style={s.modalHeader}>
                 <View>
-                  <Text style={s.modalTitle}>Stages</Text>
+                  <Text style={s.modalTitle}>{t('stages')}</Text>
                   <Text style={s.modalSubtitle}>
                     {stageSearch ? `${ministries.filter(m => m.name.toLowerCase().includes(stageSearch.toLowerCase())).length} of ${ministries.length}` : `${ministries.length} total`}
                   </Text>
@@ -1531,7 +1533,7 @@ export default function CreateScreen() {
                       <View style={s.mgmtEditRow}>
                         <TextInput style={[s.modalInput, { flex: 1 }]} value={editStageName} onChangeText={setEditStageName} placeholder="Stage name" placeholderTextColor={theme.color.textMuted} autoFocus />
                         <TouchableOpacity style={s.mgmtSaveBtn} onPress={handleSaveEditStage} disabled={savingEditStage}>
-                          {savingEditStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>Save</Text>}
+                          {savingEditStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>{t('save')}</Text>}
                         </TouchableOpacity>
                         <TouchableOpacity style={s.mgmtCancelBtn} onPress={() => setEditStageId(null)}>
                           <Text style={s.mgmtCancelBtnText}>✕</Text>
@@ -1733,7 +1735,7 @@ export default function CreateScreen() {
                 /* ── LIST VIEW header ── */
                 <View style={s.modalHeader}>
                   <View>
-                    <Text style={s.modalTitle}>👥 Network</Text>
+                    <Text style={s.modalTitle}>👥 {t('network')}</Text>
                     <Text style={s.modalSubtitle}>
                       {networkSearch.trim()
                         ? `${network.filter(n => matchesNetworkSearch(n, networkSearch)).length} of ${network.length} contacts`
@@ -1745,10 +1747,10 @@ export default function CreateScreen() {
                       style={s.modalImportBtn}
                       onPress={() => { setImportRaw(''); setImportRows([]); setShowImportModal(true); }}
                     >
-                      <Text style={s.modalImportBtnText}>📥 Import</Text>
+                      <Text style={s.modalImportBtnText}>{t('importBtn')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.modalAddBtn} onPress={() => openNetworkForm()}>
-                      <Text style={s.modalAddBtnText}>+ New</Text>
+                      <Text style={s.modalAddBtnText}>+ {t('add')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
                       <Text style={s.modalClose}>✕</Text>
@@ -2210,7 +2212,7 @@ export default function CreateScreen() {
                                 onPress={() => setDocImportTitles(parseDocImport(docImportRaw))}
                                 disabled={!docImportRaw.trim()}
                               >
-                                <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                                <Text style={s.docImportPreviewBtnText}>{t('preview')}</Text>
                               </TouchableOpacity>
                             ) : (
                               <>

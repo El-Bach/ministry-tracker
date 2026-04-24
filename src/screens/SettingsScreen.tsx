@@ -14,6 +14,7 @@ import {
  Modal,
  KeyboardAvoidingView,
  Platform,
+ I18nManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,7 +25,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
 import { TeamMember } from '../types';
 import { normalizeToEmail, isPhoneInput } from '../lib/authHelpers';
-import { LANGUAGES, Language, saveLanguage, getCurrentLang } from '../lib/i18n';
+import { LANGUAGES, Language, saveLanguage, getCurrentLang, useTranslation } from '../lib/i18n';
 import { DEFAULT_COUNTRY, Country, SORTED_COUNTRIES } from '../components/PhoneInput';
 import { FlatList } from 'react-native';
 
@@ -278,6 +279,7 @@ const mf = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────
 export default function SettingsScreen() {
  const { teamMember, signOut, isAdmin } = useAuth();
+ const { t, setLang, lang } = useTranslation();
 
  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
  const [loading, setLoading] = useState(true);
@@ -302,15 +304,15 @@ export default function SettingsScreen() {
  const [showLangModal, setShowLangModal] = useState(false);
  const [langSearch, setLangSearch] = useState('');
 
- const handleSelectLang = async (lang: Language) => {
-   await saveLanguage(lang.code);
-   setCurrentLangState(lang.code);
+ const handleSelectLang = async (selectedLang: Language) => {
+   await setLang(selectedLang.code);  // saves AND triggers re-render
+   setCurrentLangState(selectedLang.code);
+   const needsRTL = selectedLang.rtl ?? false;
+   if (needsRTL !== I18nManager.isRTL) {
+     I18nManager.forceRTL(needsRTL);
+     Alert.alert('Restart Required', 'Please close and reopen the app to apply the language direction.', [{ text: 'OK' }]);
+   }
    setShowLangModal(false);
-   Alert.alert(
-     'Restart Required',
-     'Please close and reopen the app to apply the language change.',
-     [{ text: 'OK' }]
-   );
  };
 
  // Contact Us
@@ -482,7 +484,7 @@ export default function SettingsScreen() {
  return (
  <SafeAreaView style={ss.safe} edges={['top', 'bottom']}>
  <View style={ss.header}>
- <Text style={ss.title}>Settings</Text>
+ <Text style={ss.title}>{t('settings')}</Text>
  </View>
 
  <ScrollView contentContainerStyle={ss.scroll}>
@@ -511,7 +513,7 @@ export default function SettingsScreen() {
  <View style={ss.navCardLeft}>
  <Text style={ss.navCardIcon}>👤</Text>
  <View>
- <Text style={ss.navCardTitle}>My Account</Text>
+ <Text style={ss.navCardTitle}>{t('myAccount')}</Text>
  <Text style={ss.navCardSubtitle}>Edit profile, change password, org settings</Text>
  </View>
  </View>
@@ -527,7 +529,7 @@ export default function SettingsScreen() {
  <View style={ss.navCardLeft}>
  <Text style={ss.navCardIcon}>⊞</Text>
  <View>
- <Text style={ss.navCardTitle}>Client Fields</Text>
+ <Text style={ss.navCardTitle}>{t('clientFields')}</Text>
  <Text style={ss.navCardSubtitle}>Customize what info to collect per client</Text>
  </View>
  </View>
@@ -559,7 +561,7 @@ export default function SettingsScreen() {
  <View style={ss.navCardLeft}>
  <Text style={ss.navCardIcon}>📊</Text>
  <View>
- <Text style={ss.navCardTitle}>Financial Report</Text>
+ <Text style={ss.navCardTitle}>{t('financialReport')}</Text>
  <Text style={ss.navCardSubtitle}>P&L across all files — filter by client or service</Text>
  </View>
  </View>
@@ -575,7 +577,7 @@ export default function SettingsScreen() {
  <View style={ss.navCardLeft}>
  <Text style={ss.navCardIcon}>🔔</Text>
  <View>
- <Text style={ss.navCardTitle}>Notifications</Text>
+ <Text style={ss.navCardTitle}>{t('notifications')}</Text>
  <Text style={ss.navCardSubtitle}>Types, muted members, and push preferences</Text>
  </View>
  </View>
@@ -587,7 +589,7 @@ export default function SettingsScreen() {
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>👥</Text>
      <View>
-       <Text style={ss.navCardTitle}>Team Members</Text>
+       <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
        <Text style={ss.navCardSubtitle}>{teamMembers.length} members{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}` : ''}</Text>
      </View>
    </View>
@@ -599,22 +601,22 @@ export default function SettingsScreen() {
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>🌐</Text>
      <View>
-       <Text style={ss.navCardTitle}>Language</Text>
-       <Text style={ss.navCardSubtitle}>{LANGUAGES.find(l => l.code === currentLang)?.name ?? 'English'}</Text>
+       <Text style={ss.navCardTitle}>{t('language')}</Text>
+       <Text style={ss.navCardSubtitle}>{LANGUAGES.find(l => l.code === lang)?.name ?? 'English'}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
 
  {/* ── SUPPORT SECTION DIVIDER ── */}
- <Text style={ss.sectionDividerLabel}>SUPPORT</Text>
+ <Text style={ss.sectionDividerLabel}>{t('support').toUpperCase()}</Text>
 
  {/* Help Guide */}
  <TouchableOpacity style={ss.navCard} onPress={() => setShowHelp(true)} activeOpacity={0.75}>
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>📖</Text>
      <View>
-       <Text style={ss.navCardTitle}>Help Guide</Text>
+       <Text style={ss.navCardTitle}>{t('helpGuide')}</Text>
        <Text style={ss.navCardSubtitle}>How to use every feature of GovPilot</Text>
      </View>
    </View>
@@ -626,7 +628,7 @@ export default function SettingsScreen() {
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>💬</Text>
      <View>
-       <Text style={ss.navCardTitle}>FAQ</Text>
+       <Text style={ss.navCardTitle}>{t('faq')}</Text>
        <Text style={ss.navCardSubtitle}>Frequently asked questions</Text>
      </View>
    </View>
@@ -638,7 +640,7 @@ export default function SettingsScreen() {
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>🐛</Text>
      <View>
-       <Text style={ss.navCardTitle}>Report a Bug</Text>
+       <Text style={ss.navCardTitle}>{t('reportBug')}</Text>
        <Text style={ss.navCardSubtitle}>Tell us what went wrong</Text>
      </View>
    </View>
@@ -650,7 +652,7 @@ export default function SettingsScreen() {
    <View style={ss.navCardLeft}>
      <Text style={ss.navCardIcon}>✉️</Text>
      <View>
-       <Text style={ss.navCardTitle}>Contact Us</Text>
+       <Text style={ss.navCardTitle}>{t('contactUs')}</Text>
        <Text style={ss.navCardSubtitle}>management@kts-lb.com</Text>
      </View>
    </View>
@@ -661,13 +663,13 @@ export default function SettingsScreen() {
  <TouchableOpacity
  style={ss.signOutBtn}
  onPress={() =>
- Alert.alert('Sign Out', 'Are you sure?', [
- { text: 'Cancel', style: 'cancel' },
- { text: 'Sign Out', style: 'destructive', onPress: signOut },
+ Alert.alert(t('signOut'), 'Are you sure?', [
+ { text: t('cancel'), style: 'cancel' },
+ { text: t('signOut'), style: 'destructive', onPress: signOut },
  ])
  }
  >
- <Text style={ss.signOutText}>Sign Out</Text>
+ <Text style={ss.signOutText}>{t('signOut')}</Text>
  </TouchableOpacity>
 
  <Text style={ss.version}>GovPilot v1.0.0</Text>
@@ -878,7 +880,7 @@ export default function SettingsScreen() {
    <View style={ss.helpOverlay}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>👥 Team Members</Text>
+         <Text style={ss.helpTitle}>👥 {t('teamMembers')}</Text>
          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
            {isAdmin && (
              <TouchableOpacity onPress={() => { setShowTeamModal(false); setShowInviteModal(true); }}>
@@ -981,10 +983,10 @@ export default function SettingsScreen() {
            </Text>
          </View>
          <TouchableOpacity style={ss.inviteBtn} onPress={handleSaveMemberRole}>
-           <Text style={ss.inviteBtnText}>Save Changes</Text>
+           <Text style={ss.inviteBtnText}>{t('save')}</Text>
          </TouchableOpacity>
          <TouchableOpacity style={ss.inviteCancelBtn} onPress={() => setEditMemberModal(null)}>
-           <Text style={ss.inviteCancelText}>Cancel</Text>
+           <Text style={ss.inviteCancelText}>{t('cancel')}</Text>
          </TouchableOpacity>
        </View>
      </View>
@@ -1087,7 +1089,7 @@ export default function SettingsScreen() {
            }
          </TouchableOpacity>
          <TouchableOpacity style={ss.inviteCancelBtn} onPress={() => setShowInviteModal(false)}>
-           <Text style={ss.inviteCancelText}>Cancel</Text>
+           <Text style={ss.inviteCancelText}>{t('cancel')}</Text>
          </TouchableOpacity>
        </View>
      </View>
@@ -1099,7 +1101,7 @@ export default function SettingsScreen() {
    <View style={ss.helpOverlay}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>🌐 Language</Text>
+         <Text style={ss.helpTitle}>🌐 {t('language')}</Text>
          <TouchableOpacity onPress={() => setShowLangModal(false)}>
            <Text style={ss.helpClose}>✕</Text>
          </TouchableOpacity>
@@ -1109,7 +1111,7 @@ export default function SettingsScreen() {
            style={ss.fieldInput}
            value={langSearch}
            onChangeText={setLangSearch}
-           placeholder="Search language..."
+           placeholder={t('searchPlaceholder')}
            placeholderTextColor={theme.color.textMuted}
            autoCorrect={false}
            autoCapitalize="none"
@@ -1121,7 +1123,7 @@ export default function SettingsScreen() {
          keyboardShouldPersistTaps="always"
          renderItem={({ item }) => (
            <TouchableOpacity
-             style={[ss.tmRow, item.code === currentLang && { backgroundColor: theme.color.primary + '12' }]}
+             style={[ss.tmRow, item.code === lang && { backgroundColor: theme.color.primary + '12' }]}
              onPress={() => handleSelectLang(item)}
              activeOpacity={0.7}
            >
@@ -1130,7 +1132,7 @@ export default function SettingsScreen() {
                <Text style={ss.tmName}>{item.name}</Text>
                <Text style={ss.tmEmail}>{item.nameEn}{item.rtl ? ' · RTL' : ''}</Text>
              </View>
-             {item.code === currentLang && (
+             {item.code === lang && (
                <Text style={{ color: theme.color.primary, fontWeight: '700' }}>✓</Text>
              )}
            </TouchableOpacity>
