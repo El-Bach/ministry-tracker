@@ -13,6 +13,7 @@ import {
   Modal,
   Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import supabase from '../lib/supabase';
@@ -52,6 +53,7 @@ export default function TeamMembersScreen() {
   const [modalRole,       setModalRole]       = useState<InviteRole>('member');
   const [generating,      setGenerating]      = useState(false);
   const [generatedCode,   setGeneratedCode]   = useState<string | null>(null);
+  const [copiedCode,      setCopiedCode]      = useState<string | null>(null);
 
   // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -93,6 +95,13 @@ export default function TeamMembersScreen() {
     if (error) { Alert.alert('Error generating code', error.message); return; }
     setGeneratedCode(code);
     fetchData();
+  };
+
+  // ── Copy code to clipboard ───────────────────────────────────
+  const handleCopy = async (code: string) => {
+    await Clipboard.setStringAsync(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   // ── Share code ───────────────────────────────────────────────
@@ -179,13 +188,26 @@ export default function TeamMembersScreen() {
               const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
               return (
                 <View key={jc.id} style={[s.codeCard, !jc.is_active && { opacity: 0.45 }]}>
-                  {/* Code + role badge */}
+                  {/* Code + copy + role badge */}
                   <View style={s.codeCardTop}>
                     <Text style={[s.codeText, !jc.is_active && { color: theme.color.textMuted }]}>
                       {jc.code}
                     </Text>
-                    <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
-                      <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      {jc.is_active && (
+                        <TouchableOpacity
+                          style={[s.copyBtn, copiedCode === jc.code && s.copyBtnDone]}
+                          onPress={() => handleCopy(jc.code)}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={[s.copyBtnText, copiedCode === jc.code && { color: theme.color.success }]}>
+                            {copiedCode === jc.code ? '✓ Copied' : '📋 Copy'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
+                        <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
+                      </View>
                     </View>
                   </View>
                   {/* Meta + actions */}
@@ -310,10 +332,21 @@ export default function TeamMembersScreen() {
 
                 <View style={s.codeDisplay}>
                   <Text style={s.codeDisplayText}>{generatedCode}</Text>
-                  <View style={[s.rolePill, { borderColor: ROLE_META[modalRole].color + '55', backgroundColor: ROLE_META[modalRole].color + '18', alignSelf: 'center' }]}>
-                    <Text style={[s.rolePillText, { color: ROLE_META[modalRole].color }]}>
-                      {ROLE_META[modalRole].icon} {ROLE_META[modalRole].label}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                    <View style={[s.rolePill, { borderColor: ROLE_META[modalRole].color + '55', backgroundColor: ROLE_META[modalRole].color + '18' }]}>
+                      <Text style={[s.rolePillText, { color: ROLE_META[modalRole].color }]}>
+                        {ROLE_META[modalRole].icon} {ROLE_META[modalRole].label}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[s.copyBtn, copiedCode === generatedCode && s.copyBtnDone]}
+                      onPress={() => generatedCode && handleCopy(generatedCode)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[s.copyBtnText, copiedCode === generatedCode && { color: theme.color.success }]}>
+                        {copiedCode === generatedCode ? '✓ Copied!' : '📋 Copy'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -444,6 +477,20 @@ const s = StyleSheet.create({
     paddingVertical:   3,
   },
   rolePillText: { fontSize: 12, fontWeight: '700' },
+
+  copyBtn: {
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical:   3,
+    backgroundColor:   theme.color.bgSurface,
+  },
+  copyBtnDone: {
+    borderColor:     theme.color.success + '55',
+    backgroundColor: theme.color.success + '12',
+  },
+  copyBtnText: { fontSize: 12, fontWeight: '700', color: theme.color.textSecondary },
 
   // ── Section divider ──────────────────────────────────────────
   sectionDivider: { paddingVertical: 4 },
