@@ -1464,7 +1464,7 @@ const ss = StyleSheet.create({
     borderWidth:     1,
     borderColor:     theme.color.primary + '33',
   },
-  navCardLeft:     { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space3 },
+  navCardLeft:     { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space3, flex: 1, paddingEnd: 8 },
   navCardIcon:     { fontSize: 22, color: theme.color.primary },
   navCardTitle:    { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 15, fontWeight: '700' },
   navCardSubtitle: { ...theme.typography.label, color: theme.color.textMuted, marginTop: 2 },
