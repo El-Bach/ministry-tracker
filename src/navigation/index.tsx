@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../hooks/useAuth';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
@@ -83,6 +84,7 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
 
 // ─── Dashboard stack (Dashboard → NewTask → TaskDetail) ─────
 function DashboardStack() {
+  const { t } = useTranslation();
   return (
     <DashStack.Navigator
       screenOptions={{
@@ -101,72 +103,72 @@ function DashboardStack() {
       <DashStack.Screen
         name="NewTask"
         component={NewTaskScreen}
-        options={{ title: 'New File', headerBackTitle: 'Back' }}
+        options={{ title: t('screenNewFile'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="TaskDetail"
         component={TaskDetailScreen}
-        options={{ title: 'File Detail', headerBackTitle: 'Back' }}
+        options={{ title: t('screenFileDetail'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="ClientFieldsSettings"
         component={ClientFieldsSettingsScreen}
-        options={{ title: 'Client Fields', headerBackTitle: 'Back' }}
+        options={{ title: t('screenClientFields'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="TeamMemberFields"
         component={TeamMemberFieldsScreen}
-        options={{ title: 'Team Member Fields', headerBackTitle: 'Back' }}
+        options={{ title: t('screenTeamMemberFields'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="ClientProfile"
         component={ClientProfileScreen}
-        options={{ title: 'Client Profile', headerBackTitle: 'Back' }}
+        options={{ title: t('screenClientProfile'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="EditClient"
         component={EditClientScreen}
-        options={{ title: 'Edit Client', headerBackTitle: 'Back' }}
+        options={{ title: t('screenEditClient'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="ServiceStages"
         component={ServiceStagesScreen}
-        options={({ route }) => ({ title: route.params.serviceName, headerBackTitle: 'Back' })}
+        options={({ route }) => ({ title: route.params.serviceName, headerBackTitle: t('screenBack') })}
       />
       <DashStack.Screen
         name="StageRequirements"
         component={StageRequirementsScreen}
-        options={({ route }) => ({ title: route.params.stageName, headerBackTitle: 'Back' })}
+        options={({ route }) => ({ title: route.params.stageName, headerBackTitle: t('screenBack') })}
       />
       <DashStack.Screen
         name="MinistryRequirements"
         component={MinistryRequirementsScreen}
-        options={({ route }) => ({ title: route.params.ministryName + ' — Requirements', headerBackTitle: 'Back' })}
+        options={({ route }) => ({ title: route.params.ministryName + ' — Requirements', headerBackTitle: t('screenBack') })}
       />
       <DashStack.Screen
         name="FinancialReport"
         component={FinancialReportScreen}
-        options={{ title: 'Financial Report', headerBackTitle: 'Back' }}
+        options={{ title: t('screenFinancialReport'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="GlobalSearch"
         component={GlobalSearchScreen}
-        options={{ title: 'Search', headerBackTitle: 'Back' }}
+        options={{ title: t('screenSearch'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="Account"
         component={AccountScreen}
-        options={{ title: 'My Account', headerBackTitle: 'Back' }}
+        options={{ title: t('screenMyAccount'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="Activity"
         component={ActivityScreen}
-        options={{ title: 'Activity', headerBackTitle: 'Back' }}
+        options={{ title: t('screenActivity'), headerBackTitle: t('screenBack') }}
       />
       <DashStack.Screen
         name="NotificationSettings"
         component={NotificationSettingsScreen}
-        options={{ title: 'Notifications', headerBackTitle: 'Back' }}
+        options={{ title: t('screenNotifications'), headerBackTitle: t('screenBack') }}
       />
     </DashStack.Navigator>
   );
@@ -175,6 +177,7 @@ function DashboardStack() {
 // ─── Main bottom tabs ────────────────────────────────────────
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -186,10 +189,10 @@ function MainTabs() {
         tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardStack} />
-      <Tab.Screen name="Create" component={CreateScreen} />
-      <Tab.Screen name="Calendar" component={CalendarScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Dashboard" component={DashboardStack} options={{ tabBarLabel: t('tabDashboard') }} />
+      <Tab.Screen name="Create" component={CreateScreen} options={{ tabBarLabel: t('tabCreate') }} />
+      <Tab.Screen name="Calendar" component={CalendarScreen} options={{ tabBarLabel: t('tabCalendar') }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('tabSettings') }} />
     </Tab.Navigator>
   );
 }

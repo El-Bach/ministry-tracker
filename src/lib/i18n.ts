@@ -1,7 +1,8 @@
 // src/lib/i18n.ts
-// Simple multi-language system — no external library needed
+// React Context-based multi-language system — no external library needed
 // Supports: ar (Arabic/RTL), en (English), fr (French), + more
 
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nManager } from 'react-native';
 
@@ -35,7 +36,8 @@ export const LANGUAGES: Language[] = [
 ];
 
 // Translation strings
-type TranslationKey =
+export type TranslationKey =
+  // ── existing keys ──────────────────────────────────────────────────────────
   | 'dashboard' | 'calendar' | 'create' | 'settings'
   | 'newFile' | 'fileDetail' | 'activity' | 'search'
   | 'signOut' | 'signIn' | 'register' | 'language'
@@ -47,11 +49,38 @@ type TranslationKey =
   | 'invite' | 'role' | 'owner' | 'admin' | 'member' | 'viewer'
   | 'sendMessage' | 'subject' | 'message' | 'send'
   | 'poweredBy' | 'selectLanguage' | 'continueBtn'
-  | 'welcomeTo';
+  | 'welcomeTo'
+  // ── tab labels ─────────────────────────────────────────────────────────────
+  | 'tabDashboard' | 'tabCalendar' | 'tabCreate' | 'tabSettings'
+  // ── screen titles ──────────────────────────────────────────────────────────
+  | 'screenNewFile' | 'screenFileDetail' | 'screenClientProfile' | 'screenEditClient'
+  | 'screenFinancialReport' | 'screenSearch' | 'screenMyAccount' | 'screenActivity'
+  | 'screenNotifications' | 'screenBack' | 'screenClientFields' | 'screenTeamMemberFields'
+  | 'screenServiceStages' | 'screenStageRequirements'
+  // ── dashboard ──────────────────────────────────────────────────────────────
+  | 'activeTab' | 'archiveTab' | 'manage' | 'clients' | 'services' | 'stages'
+  | 'searchPlaceholder' | 'noFilesFound' | 'noFilesMatch'
+  | 'quickFinance' | 'expense' | 'revenue' | 'viewFinancials'
+  | 'filters' | 'clearFilters' | 'archiveFile' | 'restoreFile' | 'deleteFile' | 'editFile'
+  | 'newClient' | 'newService' | 'newStage' | 'network'
+  // ── file detail sections ───────────────────────────────────────────────────
+  | 'stagesSection' | 'financialsSection' | 'documentsSection' | 'commentsSection'
+  | 'addComment' | 'contractPrice' | 'paymentsReceived' | 'outstanding' | 'balance'
+  | 'addStage' | 'addDocument' | 'requirementsSection' | 'assignTo' | 'dueDate'
+  | 'updateStatus' | 'addRequirement' | 'scanDocument' | 'shareDoc' | 'openDoc'
+  // ── settings ───────────────────────────────────────────────────────────────
+  | 'general' | 'support' | 'about' | 'rtlMode' | 'appVersion' | 'financialReport' | 'clientFields'
+  | 'helpGuide' | 'faq'
+  // ── common ─────────────────────────────────────────────────────────────────
+  | 'yes' | 'no' | 'required' | 'ok' | 'confirm'
+  | 'importBtn' | 'preview'
+  | 'noEventsToday' | 'stageDue'
+  | 'city' | 'reference' | 'notes' | 'loading' | 'noResults' | 'add' | 'remove';
 
 type Translations = Record<TranslationKey, string>;
 
 const ar: Translations = {
+  // ── existing ────────────────────────────────────────────────────────────────
   dashboard: 'لوحة التحكم',
   calendar: 'التقويم',
   create: 'إنشاء',
@@ -99,9 +128,101 @@ const ar: Translations = {
   selectLanguage: 'اختر لغتك',
   continueBtn: 'متابعة',
   welcomeTo: 'مرحباً بك في',
+  // ── tabs ────────────────────────────────────────────────────────────────────
+  tabDashboard: 'الرئيسية',
+  tabCalendar: 'التقويم',
+  tabCreate: 'إنشاء',
+  tabSettings: 'الإعدادات',
+  // ── screen titles ────────────────────────────────────────────────────────────
+  screenNewFile: 'ملف جديد',
+  screenFileDetail: 'تفاصيل الملف',
+  screenClientProfile: 'ملف العميل',
+  screenEditClient: 'تعديل العميل',
+  screenFinancialReport: 'التقرير المالي',
+  screenSearch: 'البحث',
+  screenMyAccount: 'حسابي',
+  screenActivity: 'النشاط',
+  screenNotifications: 'الإشعارات',
+  screenBack: 'رجوع',
+  screenClientFields: 'حقول العميل',
+  screenTeamMemberFields: 'حقول الفريق',
+  screenServiceStages: 'مراحل الخدمة',
+  screenStageRequirements: 'متطلبات المرحلة',
+  // ── dashboard ────────────────────────────────────────────────────────────────
+  activeTab: '📋 نشط',
+  archiveTab: '📦 أرشيف',
+  manage: 'إدارة',
+  clients: 'العملاء',
+  services: 'الخدمات',
+  stages: 'المراحل',
+  searchPlaceholder: 'ابحث عن عميل أو خدمة...',
+  noFilesFound: 'لا توجد ملفات',
+  noFilesMatch: 'لا توجد ملفات مطابقة',
+  quickFinance: 'إضافة مالية سريعة',
+  expense: 'مصروف',
+  revenue: 'إيراد',
+  viewFinancials: 'عرض المالية الكاملة',
+  filters: 'فلاتر',
+  clearFilters: 'مسح الفلاتر',
+  archiveFile: 'أرشفة',
+  restoreFile: 'استعادة',
+  deleteFile: 'حذف',
+  editFile: 'تعديل',
+  newClient: '+ عميل جديد',
+  newService: '+ خدمة جديدة',
+  newStage: '+ مرحلة جديدة',
+  network: 'الشبكة',
+  // ── file detail ──────────────────────────────────────────────────────────────
+  stagesSection: 'المراحل',
+  financialsSection: 'المالية',
+  documentsSection: 'الوثائق',
+  commentsSection: 'التعليقات',
+  addComment: 'إضافة تعليق',
+  contractPrice: 'السعر التعاقدي',
+  paymentsReceived: 'المبالغ المستلمة',
+  outstanding: 'المتبقي',
+  balance: 'الرصيد',
+  addStage: 'إضافة مرحلة',
+  addDocument: 'إضافة وثيقة',
+  requirementsSection: 'المتطلبات',
+  assignTo: 'تعيين إلى',
+  dueDate: 'تاريخ الاستحقاق',
+  updateStatus: 'تحديث الحالة',
+  addRequirement: 'إضافة متطلب',
+  scanDocument: 'مسح وثيقة',
+  shareDoc: 'مشاركة',
+  openDoc: 'فتح',
+  // ── settings ─────────────────────────────────────────────────────────────────
+  general: 'عام',
+  support: 'الدعم',
+  about: 'حول',
+  rtlMode: 'وضع RTL',
+  appVersion: 'إصدار التطبيق',
+  financialReport: 'التقرير المالي',
+  clientFields: 'حقول العميل',
+  helpGuide: 'دليل المساعدة',
+  faq: 'الأسئلة الشائعة',
+  // ── common ───────────────────────────────────────────────────────────────────
+  yes: 'نعم',
+  no: 'لا',
+  required: 'مطلوب',
+  ok: 'موافق',
+  confirm: 'تأكيد',
+  importBtn: '📥 استيراد',
+  preview: 'معاينة',
+  noEventsToday: 'لا توجد أحداث اليوم',
+  stageDue: 'موعد المرحلة',
+  city: 'المدينة',
+  reference: 'المرجع',
+  notes: 'ملاحظات',
+  loading: 'جاري التحميل...',
+  noResults: 'لا توجد نتائج',
+  add: 'إضافة',
+  remove: 'إزالة',
 };
 
 const en: Translations = {
+  // ── existing ────────────────────────────────────────────────────────────────
   dashboard: 'Dashboard',
   calendar: 'Calendar',
   create: 'Create',
@@ -149,9 +270,101 @@ const en: Translations = {
   selectLanguage: 'Choose your language',
   continueBtn: 'Continue',
   welcomeTo: 'Welcome to',
+  // ── tabs ────────────────────────────────────────────────────────────────────
+  tabDashboard: 'Dashboard',
+  tabCalendar: 'Calendar',
+  tabCreate: 'Create',
+  tabSettings: 'Settings',
+  // ── screen titles ────────────────────────────────────────────────────────────
+  screenNewFile: 'New File',
+  screenFileDetail: 'File Detail',
+  screenClientProfile: 'Client Profile',
+  screenEditClient: 'Edit Client',
+  screenFinancialReport: 'Financial Report',
+  screenSearch: 'Search',
+  screenMyAccount: 'My Account',
+  screenActivity: 'Activity',
+  screenNotifications: 'Notifications',
+  screenBack: 'Back',
+  screenClientFields: 'Client Fields',
+  screenTeamMemberFields: 'Team Member Fields',
+  screenServiceStages: 'Service Stages',
+  screenStageRequirements: 'Stage Requirements',
+  // ── dashboard ────────────────────────────────────────────────────────────────
+  activeTab: '📋 Active',
+  archiveTab: '📦 Archive',
+  manage: 'Manage',
+  clients: 'Clients',
+  services: 'Services',
+  stages: 'Stages',
+  searchPlaceholder: 'Search by client or service...',
+  noFilesFound: 'No files found',
+  noFilesMatch: 'No files match',
+  quickFinance: 'Quick Finance',
+  expense: 'Expense',
+  revenue: 'Revenue',
+  viewFinancials: 'View Full Financials',
+  filters: 'Filters',
+  clearFilters: 'Clear Filters',
+  archiveFile: 'Archive',
+  restoreFile: 'Restore',
+  deleteFile: 'Delete',
+  editFile: 'Edit',
+  newClient: '+ New Client',
+  newService: '+ New Service',
+  newStage: '+ New Stage',
+  network: 'Network',
+  // ── file detail ──────────────────────────────────────────────────────────────
+  stagesSection: 'Stages',
+  financialsSection: 'Financials',
+  documentsSection: 'Documents',
+  commentsSection: 'Comments',
+  addComment: 'Add Comment',
+  contractPrice: 'Contract Price',
+  paymentsReceived: 'Payments Received',
+  outstanding: 'Outstanding',
+  balance: 'Balance',
+  addStage: 'Add Stage',
+  addDocument: 'Add Document',
+  requirementsSection: 'Requirements',
+  assignTo: 'Assign To',
+  dueDate: 'Due Date',
+  updateStatus: 'Update Status',
+  addRequirement: 'Add Requirement',
+  scanDocument: 'Scan Document',
+  shareDoc: 'Share',
+  openDoc: 'Open',
+  // ── settings ─────────────────────────────────────────────────────────────────
+  general: 'General',
+  support: 'Support',
+  about: 'About',
+  rtlMode: 'RTL Mode',
+  appVersion: 'App Version',
+  financialReport: 'Financial Report',
+  clientFields: 'Client Fields',
+  helpGuide: 'Help Guide',
+  faq: 'FAQ',
+  // ── common ───────────────────────────────────────────────────────────────────
+  yes: 'Yes',
+  no: 'No',
+  required: 'Required',
+  ok: 'OK',
+  confirm: 'Confirm',
+  importBtn: '📥 Import',
+  preview: 'Preview',
+  noEventsToday: 'No events today',
+  stageDue: 'Stage Due',
+  city: 'City',
+  reference: 'Reference',
+  notes: 'Notes',
+  loading: 'Loading...',
+  noResults: 'No results',
+  add: 'Add',
+  remove: 'Remove',
 };
 
 const fr: Translations = {
+  // ── existing ────────────────────────────────────────────────────────────────
   dashboard: 'Tableau de bord',
   calendar: 'Calendrier',
   create: 'Créer',
@@ -199,10 +412,105 @@ const fr: Translations = {
   selectLanguage: 'Choisissez votre langue',
   continueBtn: 'Continuer',
   welcomeTo: 'Bienvenue sur',
+  // ── tabs ────────────────────────────────────────────────────────────────────
+  tabDashboard: 'Accueil',
+  tabCalendar: 'Calendrier',
+  tabCreate: 'Créer',
+  tabSettings: 'Paramètres',
+  // ── screen titles ────────────────────────────────────────────────────────────
+  screenNewFile: 'Nouveau dossier',
+  screenFileDetail: 'Détail du dossier',
+  screenClientProfile: 'Profil client',
+  screenEditClient: 'Modifier client',
+  screenFinancialReport: 'Rapport financier',
+  screenSearch: 'Rechercher',
+  screenMyAccount: 'Mon compte',
+  screenActivity: 'Activité',
+  screenNotifications: 'Notifications',
+  screenBack: 'Retour',
+  screenClientFields: 'Champs client',
+  screenTeamMemberFields: 'Champs équipe',
+  screenServiceStages: 'Étapes du service',
+  screenStageRequirements: 'Exigences de l\'étape',
+  // ── dashboard ────────────────────────────────────────────────────────────────
+  activeTab: '📋 Actif',
+  archiveTab: '📦 Archives',
+  manage: 'Gérer',
+  clients: 'Clients',
+  services: 'Services',
+  stages: 'Étapes',
+  searchPlaceholder: 'Rechercher par client ou service...',
+  noFilesFound: 'Aucun dossier trouvé',
+  noFilesMatch: 'Aucun dossier correspondant',
+  quickFinance: 'Finance rapide',
+  expense: 'Dépense',
+  revenue: 'Revenu',
+  viewFinancials: 'Voir les finances complètes',
+  filters: 'Filtres',
+  clearFilters: 'Effacer les filtres',
+  archiveFile: 'Archiver',
+  restoreFile: 'Restaurer',
+  deleteFile: 'Supprimer',
+  editFile: 'Modifier',
+  newClient: '+ Nouveau client',
+  newService: '+ Nouveau service',
+  newStage: '+ Nouvelle étape',
+  network: 'Réseau',
+  // ── file detail ──────────────────────────────────────────────────────────────
+  stagesSection: 'Étapes',
+  financialsSection: 'Finances',
+  documentsSection: 'Documents',
+  commentsSection: 'Commentaires',
+  addComment: 'Ajouter un commentaire',
+  contractPrice: 'Prix contractuel',
+  paymentsReceived: 'Paiements reçus',
+  outstanding: 'Solde dû',
+  balance: 'Solde',
+  addStage: 'Ajouter une étape',
+  addDocument: 'Ajouter un document',
+  requirementsSection: 'Exigences',
+  assignTo: 'Assigner à',
+  dueDate: 'Date d\'échéance',
+  updateStatus: 'Mettre à jour le statut',
+  addRequirement: 'Ajouter une exigence',
+  scanDocument: 'Scanner un document',
+  shareDoc: 'Partager',
+  openDoc: 'Ouvrir',
+  // ── settings ─────────────────────────────────────────────────────────────────
+  general: 'Général',
+  support: 'Support',
+  about: 'À propos',
+  rtlMode: 'Mode RTL',
+  appVersion: 'Version de l\'application',
+  financialReport: 'Rapport financier',
+  clientFields: 'Champs client',
+  helpGuide: 'Guide d\'aide',
+  faq: 'FAQ',
+  // ── common ───────────────────────────────────────────────────────────────────
+  yes: 'Oui',
+  no: 'Non',
+  required: 'Requis',
+  ok: 'OK',
+  confirm: 'Confirmer',
+  importBtn: '📥 Importer',
+  preview: 'Aperçu',
+  noEventsToday: 'Aucun événement aujourd\'hui',
+  stageDue: 'Échéance de l\'étape',
+  city: 'Ville',
+  reference: 'Référence',
+  notes: 'Notes',
+  loading: 'Chargement...',
+  noResults: 'Aucun résultat',
+  add: 'Ajouter',
+  remove: 'Supprimer',
 };
 
 // Fallback: use English for all other languages
 const TRANSLATIONS: Record<string, Translations> = { ar, en, fr };
+
+// ─── Legacy module-level API (non-reactive) ──────────────────────────────────
+// These remain for backward compatibility with code that imports t() directly.
+// For reactive updates, use useTranslation() instead.
 
 let currentLang = 'en';
 
@@ -216,7 +524,7 @@ export function getCurrentLang(): string {
 
 export function t(key: TranslationKey): string {
   const dict = TRANSLATIONS[currentLang] ?? TRANSLATIONS['en'];
-  return dict[key] ?? TRANSLATIONS['en'][key] ?? key;
+  return (dict as any)[key] ?? (TRANSLATIONS['en'] as any)[key] ?? key;
 }
 
 export async function loadLanguage(): Promise<string> {
@@ -233,8 +541,57 @@ export async function loadLanguage(): Promise<string> {
 export async function saveLanguage(code: string): Promise<void> {
   await AsyncStorage.setItem(LANG_KEY, code);
   setCurrentLang(code);
+  const lang = LANGUAGES.find(l => l.code === code);
+  if (lang?.rtl !== I18nManager.isRTL) {
+    I18nManager.forceRTL(lang?.rtl ?? false);
+  }
 }
 
 export function isFirstLaunchKey(): string {
   return '@language_selected';
+}
+
+// ─── React Context ───────────────────────────────────────────────────────────
+
+interface LanguageContextType {
+  lang: string;
+  setLang: (code: string) => Promise<void>;
+  t: (key: TranslationKey) => string;
+}
+
+const LanguageContext = createContext<LanguageContextType>({
+  lang: 'en',
+  setLang: async () => {},
+  t: (key) => key,
+});
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState('en');
+
+  useEffect(() => {
+    loadLanguage().then((code) => setLangState(code));
+  }, []);
+
+  const setLang = useCallback(async (code: string) => {
+    await saveLanguage(code);
+    setLangState(code);
+  }, []);
+
+  const tFn = useCallback(
+    (key: TranslationKey): string => {
+      const dict = TRANSLATIONS[lang] ?? TRANSLATIONS['en'];
+      return (dict as any)[key] ?? (TRANSLATIONS['en'] as any)[key] ?? key;
+    },
+    [lang]
+  );
+
+  return (
+    <LanguageContext.Provider value={{ lang, setLang, t: tFn }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export function useTranslation() {
+  return useContext(LanguageContext);
 }
