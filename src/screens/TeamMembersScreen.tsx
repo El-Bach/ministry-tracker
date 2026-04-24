@@ -121,12 +121,12 @@ export default function TeamMembersScreen() {
   // ── Deactivate code ──────────────────────────────────────────
   const handleDeactivate = (codeId: string, code: string) => {
     Alert.alert(
-      'Deactivate Code',
-      `Deactivate ${code}? No one will be able to use it after this.`,
+      'Delete Code',
+      `Delete ${code}? No one will be able to use it after this.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Deactivate', style: 'destructive', onPress: async () => {
-          await supabase.from('org_join_codes').update({ is_active: false }).eq('id', codeId);
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          await supabase.from('org_join_codes').delete().eq('id', codeId);
           fetchData();
         }},
       ]
@@ -187,12 +187,10 @@ export default function TeamMembersScreen() {
             {joinCodes.map((jc) => {
               const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
               return (
-                <View key={jc.id} style={[s.codeCard, !jc.is_active && { opacity: 0.45 }]}>
+                <View key={jc.id} style={s.codeCard}>
                   {/* Code + copy + role badge */}
                   <View style={s.codeCardTop}>
-                    <Text style={[s.codeText, !jc.is_active && { color: theme.color.textMuted }]}>
-                      {jc.code}
-                    </Text>
+                    <Text style={s.codeText}>{jc.code}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       {jc.is_active && (
                         <TouchableOpacity
@@ -213,18 +211,16 @@ export default function TeamMembersScreen() {
                   {/* Meta + actions */}
                   <View style={s.codeCardBottom}>
                     <Text style={s.codeMeta}>
-                      {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · {jc.is_active ? 'Active' : 'Deactivated'} · {new Date(jc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · {new Date(jc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     </Text>
-                    {jc.is_active && (
-                      <View style={s.codeActions}>
-                        <TouchableOpacity style={s.shareBtn} onPress={() => handleShare(jc.code, jc.role)} activeOpacity={0.75}>
-                          <Text style={s.shareBtnText}>Share</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleDeactivate(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                          <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
+                    <View style={s.codeActions}>
+                      <TouchableOpacity style={s.shareBtn} onPress={() => handleShare(jc.code, jc.role)} activeOpacity={0.75}>
+                        <Text style={s.shareBtnText}>Share</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeactivate(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               );
