@@ -183,61 +183,6 @@ export default function TeamMemberFieldsScreen() {
  const typeInfo = (key: string) => FIELD_TYPES.find((t) => t.key === key);
  const needsOptions = ['select', 'multiselect'].includes(formType);
 
- const FieldForm = () => (
-  <ScrollView contentContainerStyle={fm.formScroll}>
-   <View style={fm.field}>
-    <Text style={fm.label}>FIELD LABEL *</Text>
-    <TextInput
-     style={fm.input}
-     value={formLabel}
-     onChangeText={setFormLabel}
-     placeholder="Department"
-     placeholderTextColor={theme.color.textMuted}
-    />
-   </View>
-
-   <View style={fm.field}>
-    <Text style={fm.label}>FIELD TYPE *</Text>
-    <TouchableOpacity style={fm.typeBtn} onPress={() => setShowTypePicker(true)}>
-     <Text style={fm.typeIcon}>{typeInfo(formType)?.icon}</Text>
-     <View style={{ flex: 1 }}>
-      <Text style={fm.typeName}>{typeInfo(formType)?.label}</Text>
-      <Text style={fm.typeDesc}>{typeInfo(formType)?.desc}</Text>
-     </View>
-     <Text style={fm.typeChevron}>›</Text>
-    </TouchableOpacity>
-   </View>
-
-   {needsOptions && (
-    <View style={fm.field}>
-     <Text style={fm.label}>OPTIONS (comma-separated) *</Text>
-     <TextInput
-      style={fm.input}
-      value={formOptions}
-      onChangeText={setFormOptions}
-      placeholder="Option A, Option B, Option C"
-      placeholderTextColor={theme.color.textMuted}
-     />
-    </View>
-   )}
-
-   <View style={fm.field}>
-    <View style={fm.switchRow}>
-     <View>
-      <Text style={fm.label}>REQUIRED</Text>
-      <Text style={fm.switchDesc}>Must be filled when adding a team member</Text>
-     </View>
-     <Switch
-      value={formRequired}
-      onValueChange={setFormRequired}
-      trackColor={{ false: theme.color.border, true: theme.color.primary }}
-      thumbColor={theme.color.white}
-     />
-    </View>
-   </View>
-  </ScrollView>
- );
-
  return (
   <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
    <View style={s.header}>
@@ -324,50 +269,154 @@ export default function TeamMemberFieldsScreen() {
 
    {/* ── ADD MODAL ── */}
    <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
-    <View style={fm.overlay}>
-     <View style={fm.sheet}>
-      <View style={fm.header}>
-       <Text style={fm.title}>New Field</Text>
-       <TouchableOpacity onPress={() => setShowAddModal(false)}>
-        <Text style={fm.close}>✕</Text>
-       </TouchableOpacity>
-      </View>
-      <FieldForm />
-      <View style={fm.footer}>
-       <TouchableOpacity
-        style={[fm.saveBtn, saving && fm.saveBtnDisabled]}
-        onPress={handleAdd}
-        disabled={saving}
-       >
-        {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Create Field</Text>}
-       </TouchableOpacity>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+     <View style={fm.overlay}>
+      <View style={fm.sheet}>
+       <View style={fm.header}>
+        <Text style={fm.title}>New Field</Text>
+        <TouchableOpacity onPress={() => setShowAddModal(false)}>
+         <Text style={fm.close}>✕</Text>
+        </TouchableOpacity>
+       </View>
+       <ScrollView contentContainerStyle={fm.formScroll} keyboardShouldPersistTaps="handled">
+        <View style={fm.field}>
+         <Text style={fm.label}>FIELD LABEL *</Text>
+         <TextInput
+          style={fm.input}
+          value={formLabel}
+          onChangeText={setFormLabel}
+          placeholder="Department"
+          placeholderTextColor={theme.color.textMuted}
+          autoCorrect={false}
+         />
+        </View>
+        <View style={fm.field}>
+         <Text style={fm.label}>FIELD TYPE *</Text>
+         <TouchableOpacity style={fm.typeBtn} onPress={() => setShowTypePicker(true)}>
+          <Text style={fm.typeIcon}>{typeInfo(formType)?.icon}</Text>
+          <View style={{ flex: 1 }}>
+           <Text style={fm.typeName}>{typeInfo(formType)?.label}</Text>
+           <Text style={fm.typeDesc}>{typeInfo(formType)?.desc}</Text>
+          </View>
+          <Text style={fm.typeChevron}>›</Text>
+         </TouchableOpacity>
+        </View>
+        {needsOptions && (
+         <View style={fm.field}>
+          <Text style={fm.label}>OPTIONS (comma-separated) *</Text>
+          <TextInput
+           style={fm.input}
+           value={formOptions}
+           onChangeText={setFormOptions}
+           placeholder="Option A, Option B, Option C"
+           placeholderTextColor={theme.color.textMuted}
+           autoCorrect={false}
+          />
+         </View>
+        )}
+        <View style={fm.field}>
+         <View style={fm.switchRow}>
+          <View>
+           <Text style={fm.label}>REQUIRED</Text>
+           <Text style={fm.switchDesc}>Must be filled when adding a team member</Text>
+          </View>
+          <Switch
+           value={formRequired}
+           onValueChange={setFormRequired}
+           trackColor={{ false: theme.color.border, true: theme.color.primary }}
+           thumbColor={theme.color.white}
+          />
+         </View>
+        </View>
+       </ScrollView>
+       <View style={fm.footer}>
+        <TouchableOpacity
+         style={[fm.saveBtn, saving && fm.saveBtnDisabled]}
+         onPress={handleAdd}
+         disabled={saving}
+        >
+         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Create Field</Text>}
+        </TouchableOpacity>
+       </View>
       </View>
      </View>
-    </View>
+    </KeyboardAvoidingView>
    </Modal>
 
    {/* ── EDIT MODAL ── */}
    <Modal visible={showEditModal} transparent animationType="slide" onRequestClose={() => setShowEditModal(false)}>
-    <View style={fm.overlay}>
-     <View style={fm.sheet}>
-      <View style={fm.header}>
-       <Text style={fm.title}>Edit Field</Text>
-       <TouchableOpacity onPress={() => setShowEditModal(false)}>
-        <Text style={fm.close}>✕</Text>
-       </TouchableOpacity>
-      </View>
-      <FieldForm />
-      <View style={fm.footer}>
-       <TouchableOpacity
-        style={[fm.saveBtn, saving && fm.saveBtnDisabled]}
-        onPress={handleEdit}
-        disabled={saving}
-       >
-        {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Save Changes</Text>}
-       </TouchableOpacity>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+     <View style={fm.overlay}>
+      <View style={fm.sheet}>
+       <View style={fm.header}>
+        <Text style={fm.title}>Edit Field</Text>
+        <TouchableOpacity onPress={() => setShowEditModal(false)}>
+         <Text style={fm.close}>✕</Text>
+        </TouchableOpacity>
+       </View>
+       <ScrollView contentContainerStyle={fm.formScroll} keyboardShouldPersistTaps="handled">
+        <View style={fm.field}>
+         <Text style={fm.label}>FIELD LABEL *</Text>
+         <TextInput
+          style={fm.input}
+          value={formLabel}
+          onChangeText={setFormLabel}
+          placeholder="Department"
+          placeholderTextColor={theme.color.textMuted}
+          autoCorrect={false}
+         />
+        </View>
+        <View style={fm.field}>
+         <Text style={fm.label}>FIELD TYPE *</Text>
+         <TouchableOpacity style={fm.typeBtn} onPress={() => setShowTypePicker(true)}>
+          <Text style={fm.typeIcon}>{typeInfo(formType)?.icon}</Text>
+          <View style={{ flex: 1 }}>
+           <Text style={fm.typeName}>{typeInfo(formType)?.label}</Text>
+           <Text style={fm.typeDesc}>{typeInfo(formType)?.desc}</Text>
+          </View>
+          <Text style={fm.typeChevron}>›</Text>
+         </TouchableOpacity>
+        </View>
+        {needsOptions && (
+         <View style={fm.field}>
+          <Text style={fm.label}>OPTIONS (comma-separated) *</Text>
+          <TextInput
+           style={fm.input}
+           value={formOptions}
+           onChangeText={setFormOptions}
+           placeholder="Option A, Option B, Option C"
+           placeholderTextColor={theme.color.textMuted}
+           autoCorrect={false}
+          />
+         </View>
+        )}
+        <View style={fm.field}>
+         <View style={fm.switchRow}>
+          <View>
+           <Text style={fm.label}>REQUIRED</Text>
+           <Text style={fm.switchDesc}>Must be filled when adding a team member</Text>
+          </View>
+          <Switch
+           value={formRequired}
+           onValueChange={setFormRequired}
+           trackColor={{ false: theme.color.border, true: theme.color.primary }}
+           thumbColor={theme.color.white}
+          />
+         </View>
+        </View>
+       </ScrollView>
+       <View style={fm.footer}>
+        <TouchableOpacity
+         style={[fm.saveBtn, saving && fm.saveBtnDisabled]}
+         onPress={handleEdit}
+         disabled={saving}
+        >
+         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Save Changes</Text>}
+        </TouchableOpacity>
+       </View>
       </View>
      </View>
-    </View>
+    </KeyboardAvoidingView>
    </Modal>
 
    {/* ── TYPE PICKER MODAL ── */}
