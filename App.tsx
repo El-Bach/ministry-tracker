@@ -26,16 +26,21 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
-      // Load saved language (also applies RTL)
-      await loadLanguage();
+      try {
+        // Load saved language (also applies RTL)
+        await loadLanguage();
 
-      // Check if user has ever selected a language
-      const langSelected = await AsyncStorage.getItem(isFirstLaunchKey());
-      if (!langSelected) {
-        setNeedsLanguageSelect(true);
+        // Check if user has ever selected a language
+        const langSelected = await AsyncStorage.getItem(isFirstLaunchKey());
+        if (!langSelected) {
+          setNeedsLanguageSelect(true);
+        }
+      } catch (e) {
+        console.warn('[App] init error:', e);
+      } finally {
+        // Always mark ready so the app never stays blank
+        setReady(true);
       }
-
-      setReady(true);
     };
 
     init();
