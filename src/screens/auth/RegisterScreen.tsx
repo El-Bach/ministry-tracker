@@ -107,11 +107,7 @@ export default function RegisterScreen() {
       if (!authData.user) throw new Error('Account creation failed. Please try again.');
       const authUserId = authData.user.id;
 
-      // 2. Always re-check the invitation from DB after auth.
-      //    The pre-signup checkInvitation() may have been blocked by RLS (user was
-      //    unauthenticated), so invitePreview could be null even for valid invitees.
-      //    Now that the user is authenticated, the invitations_public_read policy
-      //    allows the SELECT to succeed.
+      // 2. Check for a pending invitation (now authenticated, so DB read works).
       const { data: invite } = await supabase
         .from('invitations')
         .select('id, org_id, role')
@@ -121,58 +117,32 @@ export default function RegisterScreen() {
         .maybeSingle();
 
       if (invite) {
-        // 2a. Invited user → join existing org
-        const { error: memberErr } = await supabase
-          .from('team_members')
-          .upsert({
-            name:    fullName.trim(),
-            email:   authEmail,
-            phone:   realPhone,
-            role:    invite.role,
-            org_id:  invite.org_id,
-            auth_id: authUserId,
-          }, { onConflict: 'email' });
-        if (memberErr) throw new Error('Failed to join organization: ' + memberErr.message);
-
-        await supabase
-          .from('invitations')
-          .update({ accepted_at: new Date().toISOString() })
-          .eq('id', invite.id);
+        // 2a. Invited user → join existing org via SECURITY DEFINER RPC
+        //     (bypasses RLS — new user has no team_members row yet)
+        const { error: joinErr } = await supabase.rpc('register_join_org', {
+          p_org_id:    invite.org_id,
+          p_role:      invite.role,
+          p_invite_id: invite.id,
+          p_name:      fullName.trim(),
+          p_email:     authEmail,
+          p_phone:     realPhone,
+        });
+        if (joinErr) throw new Error('Failed to join organization: ' + joinErr.message);
 
       } else {
-        // 2b. New user → create org
+        // 2b. New user → create org via SECURITY DEFINER RPC
+        //     (bypasses RLS — new user has no team_members row yet)
         if (!companyName.trim()) throw new Error('Please enter your company name.');
 
         const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .insert({ name: companyName.trim(), slug: `${slug}-${Date.now()}`, plan: 'free' })
-          .select()
-          .single();
-        if (orgError) throw new Error('Failed to create organization: ' + orgError.message);
-
-        const { error: memberError } = await supabase
-          .from('team_members')
-          .insert({
-            name:    fullName.trim(),
-            email:   authEmail,
-            phone:   realPhone,
-            role:    'owner',
-            org_id:  orgData.id,
-            auth_id: authUserId,
-          });
-        if (memberError) throw new Error('Failed to create user profile: ' + memberError.message);
-
-        // Default status labels
-        const defaultLabels = [
-          { label: 'Submitted',         color: '#6366f1', sort_order: 1, org_id: orgData.id },
-          { label: 'In Review',         color: '#f59e0b', sort_order: 2, org_id: orgData.id },
-          { label: 'Pending Signature', color: '#8b5cf6', sort_order: 3, org_id: orgData.id },
-          { label: 'Done',              color: '#10b981', sort_order: 4, org_id: orgData.id },
-          { label: 'Rejected',          color: '#ef4444', sort_order: 5, org_id: orgData.id },
-          { label: 'Closed',            color: '#64748b', sort_order: 6, org_id: orgData.id },
-        ];
-        await supabase.from('status_labels').insert(defaultLabels);
+        const { error: createErr } = await supabase.rpc('register_new_org', {
+          p_org_name: companyName.trim(),
+          p_org_slug: `${slug}-${Date.now()}`,
+          p_name:     fullName.trim(),
+          p_email:    authEmail,
+          p_phone:    realPhone,
+        });
+        if (createErr) throw new Error('Failed to create organization: ' + createErr.message);
       }
     } catch (err: any) {
       // Strip internal email format from error messages before showing to user
