@@ -5,8 +5,15 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Request permission and return the Expo push token (or null if denied/unavailable)
+// Returns null silently inside Expo Go (SDK 53+: remote push removed from Expo Go)
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
+    // Expo Go no longer supports remote push notifications (SDK 53+).
+    // getExpoPushTokenAsync() throws in Expo Go — detect and bail out silently.
+    const isExpoGo = typeof expo !== 'undefined' &&
+      (expo as any)?.modules?.ExpoConstants?.executionEnvironment === 'storeClient';
+    if (isExpoGo) return null;
+
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
 
@@ -20,6 +27,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const token = await Notifications.getExpoPushTokenAsync();
     return token.data;
   } catch {
+    // Catches the Expo Go warning — returns null without crashing
     return null;
   }
 }

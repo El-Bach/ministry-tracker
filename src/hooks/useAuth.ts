@@ -4,6 +4,7 @@
 // Session 26 Phase 2: role helpers (isOwner, isAdmin, canManage, canEdit, canView)
 
 import { useState, useEffect } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import { TeamMember, Organization } from '../types';
@@ -67,7 +68,22 @@ export function useAuth(): AuthState {
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    // AppState: re-check membership every time the app comes back to foreground.
+    // If this user's team_members row was deleted while they were away,
+    // fetchTeamMember will find no row and sign them out automatically.
+    const handleAppState = (state: AppStateStatus) => {
+      if (state === 'active') {
+        supabase.auth.getUser().then(({ data }) => {
+          if (data.user) fetchTeamMember(data.user);
+        });
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppState);
+
+    return () => {
+      listener.subscription.unsubscribe();
+      appStateSub.remove();
+    };
   }, []);
 
   const fetchTeamMember = async (authUser: User) => {
@@ -121,11 +137,25 @@ export function useAuth(): AuthState {
         }
       });
     } else {
-      // Logged in but no team_member row — check if there's a pending invitation
-      // If invited user registers, RegisterScreen handles joining; here just flag onboarding
-      setTeamMember(null);
-      setOrg(null);
-      setNeedsOnboarding(true);
+      // No team_member row found for this auth user.
+      // Two cases:
+      //   A) Brand-new registration — go to Onboarding (needsOnboarding = true)
+      //   B) Member was removed from the org — sign them out immediately
+      // Distinguish by checking if the auth account is less than 60 seconds old.
+      const createdAt = authUser.created_at ? new Date(authUser.created_at).getTime() : 0;
+      const isNewAccount = Date.now() - createdAt < 60_000;
+      if (isNewAccount) {
+        // Fresh registration — show onboarding wizard
+        setTeamMember(null);
+        setOrg(null);
+        setNeedsOnboarding(true);
+      } else {
+        // Existing account with no team_member row → removed from org → sign out
+        setTeamMember(null);
+        setOrg(null);
+        setNeedsOnboarding(false);
+        await supabase.auth.signOut();
+      }
     }
 
     setLoading(false);

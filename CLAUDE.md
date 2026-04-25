@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 28 (Global search expanded to 8 categories; activity notifications broadcast to all users; NotificationSettingsScreen; Settings cleanup — Ministries/Services/Status Labels removed)
+> Last updated: session 29 (Team overhaul: soft-delete members/codes, invite code name+phone fields, code-first RegisterScreen, Admin tab in VisibilitySettings, auto-signout, phone login fix, owner protection, AppState-based membership recheck)
 
 ---
 
@@ -112,7 +112,10 @@ ministry-tracker/
 │   ├── migration_service_documents.sql ← session 24 — service_documents table
 │   ├── migration_organizations.sql     ← session 26 — organizations table + org_id columns
 │   ├── migration_invitations.sql       ← session 26 — invitations table
-│   └── migration_notification_prefs.sql ← session 28 — per-user notification preferences
+│   ├── migration_notification_prefs.sql ← session 28 — per-user notification preferences
+│   ├── migration_join_org_rpc.sql      ← session 29 — join_org_by_code SECURITY DEFINER RPC (bypass RLS for org change)
+│   ├── migration_team_overhaul.sql     ← session 29 — soft-delete cols on team_members+org_join_codes, invitee_name/phone, RLS on org_join_codes, admin in visibility settings
+│   └── migration_register_join_by_code.sql ← session 29 — register_join_org_by_code RPC for code-first registration
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
@@ -151,7 +154,9 @@ ministry-tracker/
         ├── GlobalSearchScreen.tsx           # 8-category search: clients, files, docs, comments, reqs, txns, contacts, team
         ├── AccountScreen.tsx
         ├── ActivityScreen.tsx
-        └── NotificationSettingsScreen.tsx   # session 28 — master toggle + type filters + per-member mute
+        ├── NotificationSettingsScreen.tsx   # session 28 — master toggle + type filters + per-member mute
+        ├── TeamMembersScreen.tsx            # session 29 — soft-delete, grey UI, swipe perm-delete, owner protection, code name+phone
+        └── VisibilitySettingsScreen.tsx     # session 29 — Admin tab added (3 tabs: Admin/Member/Viewer)
 ```
 
 ---
@@ -206,6 +211,9 @@ ministry-tracker/
 20. `supabase/migration_organizations.sql`
 21. `supabase/migration_invitations.sql`
 22. `supabase/migration_notification_prefs.sql`
+23. `supabase/migration_join_org_rpc.sql`
+24. `supabase/migration_team_overhaul.sql`
+25. `supabase/migration_register_join_by_code.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
@@ -584,6 +592,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 29 | **Team Permissions & Invite Code Overhaul**: Soft-delete for `team_members` and `org_join_codes` (new `deleted_at`, `deleted_by`, `joined_via_code` columns). Deleted members render grey with timestamp; swipe-left → "Permanently Remove" (hard DELETE). Deleted codes render grey. Owner rows never show ✕ button. Invite code modal now has `invitee_name` + `invitee_phone` (PhoneInput) fields. Code cards show `created_at` and invitee info. Deactivating a code soft-deletes it AND any member who joined via that code (cascade). **RegisterScreen** rewritten: code-first flow — Step 1 enter invite code, validate, show org/role/name; Step 2 enter details with phone locked to `invitee_phone` if set; "Create Organization" path for new owners. `register_join_org_by_code` SECURITY DEFINER RPC handles post-signup org join. **VisibilitySettingsScreen** adds Admin tab (3 tabs: Admin · Member · Viewer); ADMIN_DEFAULTS seeded with same values as Member. RLS on `org_join_codes` with `public_code_lookup` policy for pre-auth validation. "Powered by KTS" branding on all auth screens. Phone login fixed (PhoneInput in LoginScreen). Auto-signout when team_members row deleted (AppState listener in useAuth replaces broken realtime). SQL migrations: `migration_join_org_rpc.sql`, `migration_team_overhaul.sql`, `migration_register_join_by_code.sql`. |
 | 28 | **Global search** expanded to 8 categories: existing (clients, files, comments, requirements) + new (documents by display_name/file_name, financial transactions by description, external contacts/assignees by name/phone/reference, team members by name/email, services by name → returns matching tasks). Result count summary pill. Contacts + team members show inline 📞 call button. **Activity notifications broadcast**: `sendActivityNotificationToAll()` added to `notifications.ts` — called on every comment save and stage status change in TaskDetailScreen; fetches all team members with push tokens (excluding actor); reads each recipient's `notification_prefs` row (enabled + type filters + muted_actor_ids) before sending. **NotificationSettingsScreen** (new): master toggle, type toggles (Comments/Status/New Files), per-member receive checkboxes; saves to Supabase `notification_prefs` table (upsert). RLS policies added for notification_prefs. **SettingsScreen cleanup**: removed Ministries, Sub-Ministries, Services, Status Labels sections + all orphaned state/handlers/modals; added 🔔 Notifications nav card. SQL migration: `migration_notification_prefs.sql`. |
 | 27 | App renamed to **GovPilot**: app.json (name/slug), LoginScreen title + signup link text, CLAUDE.md. `org_id` wired into all INSERT statements: **CreateScreen** — added `useAuth` import + `orgId` constant; all inserts of clients, services, ministries, assignees, service_documents, and all bulk-import inserts now pass `org_id`. **NewTaskScreen** — tasks, clients, services, ministries (inline + FINAL_STAGE), client_field_definitions inserts all pass `org_id`. **TaskDetailScreen** — cities (inline create), assignees (inline create), new stage (edit modal), task duplication — all pass `org_id`. **SettingsScreen** — ministries (parent + child + svc stage), services, status_labels inserts all pass `org_id`. |
 | 26 | **Commercialization Phase 1+2**: Phase 1 — Organizations table + RLS multi-tenancy; `team_members.auth_id` + `org_id`; RegisterScreen (company sign-up, invite-aware: auto-joins org if invited); OnboardingScreen (3-step wizard); updated useAuth to fetch by auth.uid() + role helpers (isOwner/isAdmin/canManage/canView); navigation Auth stack updated. Phase 2 — `invitations` table (migration_invitations.sql); SettingsScreen invite flow (owner/admin only): send invite by email + role picker, pending invites list, revoke; role badges on team member list items; RegisterScreen detects pending invitation and auto-joins org instead of creating new one |

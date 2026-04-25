@@ -292,6 +292,9 @@ export default function OnboardingScreen() {
           </View>
           <Text style={s.title}>Let's get you set up</Text>
           <Text style={s.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
+          <Text style={s.poweredBy}>
+            Powered by <Text style={s.poweredByKts}>KTS</Text>
+          </Text>
           <StepIndicator />
         </View>
 
@@ -505,6 +508,8 @@ const s = StyleSheet.create({
   logoIcon:      { fontSize: 32 },
   title:         { ...theme.typography.heading, fontSize: 24, fontWeight: '800' },
   subtitle:      { ...theme.typography.body, color: theme.color.textSecondary },
+  poweredBy:     { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  poweredByKts:  { fontSize: 13, fontWeight: '800', color: theme.color.textSecondary, letterSpacing: 0.5 },
   stepRow:       { flexDirection: 'row', gap: 8, marginTop: 8 },
   stepDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.color.border },
   stepDotActive: { backgroundColor: theme.color.primary },

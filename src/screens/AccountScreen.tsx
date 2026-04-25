@@ -200,33 +200,26 @@ export default function AccountScreen() {
     const cleaned = joinCode.trim().toUpperCase();
     if (cleaned.length < 8) { Alert.alert('Invalid Code', 'Please enter a valid join code.'); return; }
     setJoiningCompany(true);
-    const { data, error } = await supabase
-      .from('org_join_codes')
-      .select('id, org_id, role, is_active, use_count, organizations(name, plan)')
-      .eq('code', cleaned)
-      .single();
-    if (error || !data) {
-      setJoiningCompany(false);
-      Alert.alert('Code Not Found', 'No company found with this code. Please check and try again.');
-      return;
-    }
-    if (!data.is_active) {
-      setJoiningCompany(false);
-      Alert.alert('Code Deactivated', 'This code has been deactivated. Ask your admin for a new one.');
-      return;
-    }
-    const orgName = (data.organizations as any)?.name ?? 'the company';
-    const { error: updateErr } = await supabase
-      .from('team_members')
-      .update({ org_id: data.org_id, role: data.role ?? 'member' })
-      .eq('id', teamMember!.id);
-    if (updateErr) { setJoiningCompany(false); Alert.alert('Error', updateErr.message); return; }
-    await supabase.from('org_join_codes')
-      .update({ use_count: (data.use_count ?? 0) + 1 })
-      .eq('id', data.id);
+
+    // Use SECURITY DEFINER RPC so the org_id change on team_members bypasses
+    // RLS (the FOR ALL policy blocks changing org_id to a different org via
+    // a plain UPDATE because the new org_id ≠ current auth_org_id()).
+    const { data, error } = await supabase.rpc('join_org_by_code', { p_code: cleaned });
+
     setJoiningCompany(false);
+    if (error) {
+      const msg = error.message?.includes('not found')
+        ? 'No company found with this code. Please check and try again.'
+        : error.message?.includes('deactivated')
+        ? 'This code has been deactivated. Ask your admin for a new one.'
+        : error.message ?? 'Something went wrong.';
+      Alert.alert('Error', msg);
+      return;
+    }
+
     setJoinCode('');
     await refreshTeamMember();
+    const orgName = (data as any)?.org_name ?? 'the company';
     Alert.alert('✅ Joined!', `You've joined ${orgName}. Welcome to the team!`);
   };
 

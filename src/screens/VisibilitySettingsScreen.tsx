@@ -1,5 +1,6 @@
 // src/screens/VisibilitySettingsScreen.tsx
-// Owner/Admin only — configure what each role (member / viewer) can see and do
+// Owner/Admin only — configure what each role (admin / member / viewer) can see and do
+// Session 29: added 'admin' tab (migration_team_overhaul.sql adds admin to CHECK constraint)
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
@@ -20,7 +21,7 @@ import { useAuth } from '../hooks/useAuth';
 
 // ─── Types ────────────────────────────────────────────────────
 
-type Role = 'member' | 'viewer';
+type Role = 'admin' | 'member' | 'viewer';
 
 interface RoleSettings {
   // Files
@@ -47,6 +48,26 @@ interface RoleSettings {
   can_add_comments:         boolean;
   can_delete_comments:      boolean;
 }
+
+const ADMIN_DEFAULTS: RoleSettings = {
+  can_see_all_files:        true,
+  can_create_files:         true,
+  can_edit_file_details:    true,
+  can_delete_files:         false,
+  can_update_stage_status:  true,
+  can_add_edit_stages:      true,
+  can_see_contract_price:   true,
+  can_see_financial_report: false,
+  can_add_revenue:          true,
+  can_add_expenses:         true,
+  can_edit_contract_price:  false,
+  can_delete_transactions:  false,
+  can_upload_documents:     true,
+  can_delete_documents:     false,
+  can_manage_clients:       true,
+  can_add_comments:         true,
+  can_delete_comments:      false,
+};
 
 const MEMBER_DEFAULTS: RoleSettings = {
   can_see_all_files:        true,
@@ -162,8 +183,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
 export default function VisibilitySettingsScreen() {
   const { teamMember } = useAuth();
 
-  const [activeRole, setActiveRole] = useState<Role>('member');
+  const [activeRole, setActiveRole] = useState<Role>('admin');
   const [settings, setSettings] = useState<Record<Role, RoleSettings>>({
+    admin:  { ...ADMIN_DEFAULTS },
     member: { ...MEMBER_DEFAULTS },
     viewer: { ...VIEWER_DEFAULTS },
   });
@@ -179,9 +201,14 @@ export default function VisibilitySettingsScreen() {
       .eq('org_id', teamMember.org_id);
 
     if (data && data.length > 0) {
-      const next = { ...settings };
+      const next: Record<Role, RoleSettings> = {
+        admin:  { ...ADMIN_DEFAULTS },
+        member: { ...MEMBER_DEFAULTS },
+        viewer: { ...VIEWER_DEFAULTS },
+      };
       for (const row of data) {
         const role = row.role as Role;
+        if (role !== 'admin' && role !== 'member' && role !== 'viewer') continue;
         next[role] = {
           can_see_all_files:        row.can_see_all_files,
           can_create_files:         row.can_create_files,
@@ -253,7 +280,7 @@ export default function VisibilitySettingsScreen() {
           text: 'Reset', style: 'destructive',
           onPress: async () => {
             if (!teamMember?.org_id) return;
-            const defaults = activeRole === 'member' ? MEMBER_DEFAULTS : VIEWER_DEFAULTS;
+            const defaults = activeRole === 'admin' ? ADMIN_DEFAULTS : activeRole === 'member' ? MEMBER_DEFAULTS : VIEWER_DEFAULTS;
             setSaving(true);
             const { error } = await supabase
               .from('org_visibility_settings')
@@ -284,7 +311,7 @@ export default function VisibilitySettingsScreen() {
     <SafeAreaView style={s.safe} edges={['bottom']}>
       {/* Role tab selector */}
       <View style={s.roleTabsRow}>
-        {(['member', 'viewer'] as Role[]).map((r) => (
+        {(['admin', 'member', 'viewer'] as Role[]).map((r) => (
           <TouchableOpacity
             key={r}
             style={[s.roleTab, activeRole === r && s.roleTabActive]}
@@ -292,7 +319,7 @@ export default function VisibilitySettingsScreen() {
             activeOpacity={0.75}
           >
             <Text style={[s.roleTabText, activeRole === r && s.roleTabTextActive]}>
-              {r === 'member' ? '👤 Member' : '👁 Viewer'}
+              {r === 'admin' ? '🛡 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -302,7 +329,9 @@ export default function VisibilitySettingsScreen() {
       {/* Role description */}
       <View style={s.roleDescBanner}>
         <Text style={s.roleDescText}>
-          {activeRole === 'member'
+          {activeRole === 'admin'
+            ? 'Admins can manage team settings and invite new members. Configure their file & financial access here.'
+            : activeRole === 'member'
             ? 'Members are regular employees — they can create and work on files.'
             : 'Viewers have limited access — they can only see and update what you allow below.'}
         </Text>

@@ -21,6 +21,7 @@ import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
 import { normalizeToEmail } from '../../lib/authHelpers';
+import PhoneInput, { DEFAULT_COUNTRY } from '../../components/PhoneInput';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type LoginMode = 'email' | 'phone';
@@ -43,12 +44,13 @@ export default function LoginScreen() {
   const { signIn } = useAuth();
   const navigation  = useNavigation<Nav>();
 
-  const [mode,     setMode]     = useState<LoginMode>('email');
-  const [email,    setEmail]    = useState('');
-  const [phone,    setPhone]    = useState('');
-  const [password, setPassword] = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [showPass, setShowPass] = useState(false);
+  const [mode,        setMode]        = useState<LoginMode>('email');
+  const [email,       setEmail]       = useState('');
+  const [phone,       setPhone]       = useState('');
+  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
+  const [password,    setPassword]    = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [showPass,    setShowPass]    = useState(false);
 
   // Forgot-password inline form
   const [showForgot,   setShowForgot]   = useState(false);
@@ -56,7 +58,9 @@ export default function LoginScreen() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent,   setForgotSent]   = useState(false);
 
-  const identifier = mode === 'email' ? email : phone;
+  const identifier = mode === 'email'
+    ? email
+    : phone.trim() ? `${countryCode}${phone.trim()}` : '';
 
   // ─── Sign in ────────────────────────────────────────────────
 
@@ -80,6 +84,7 @@ export default function LoginScreen() {
     setMode(next);
     setEmail('');
     setPhone('');
+    setCountryCode(DEFAULT_COUNTRY.code);
     setPassword('');
     setShowForgot(false);
     setForgotSent(false);
@@ -129,6 +134,9 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.title}>GovPilot</Text>
           <Text style={styles.subtitle}>Government File Tracking</Text>
+          <Text style={styles.poweredBy}>
+            Powered by <Text style={styles.poweredByKts}>KTS</Text>
+          </Text>
         </View>
 
         {/* Mode toggle tabs */}
@@ -172,15 +180,11 @@ export default function LoginScreen() {
           ) : (
             <View style={styles.field}>
               <Text style={styles.label}>PHONE NUMBER</Text>
-              <TextInput
-                style={styles.input}
+              <PhoneInput
                 value={phone}
                 onChangeText={setPhone}
-                placeholder="+961 70 123 456"
-                placeholderTextColor={theme.color.textMuted}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                autoCorrect={false}
+                countryCode={countryCode}
+                onCountryChange={c => setCountryCode(c.code)}
               />
             </View>
           )}
@@ -315,9 +319,11 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     marginBottom:    4,
   },
-  logoIcon:  { fontSize: 32, color: theme.color.white },
-  title:     { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
-  subtitle:  { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500' },
+  logoIcon:     { fontSize: 32, color: theme.color.white },
+  title:        { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
+  subtitle:     { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500' },
+  poweredBy:    { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  poweredByKts: { fontSize: 13, fontWeight: '800', color: theme.color.textSecondary, letterSpacing: 0.5 },
 
   // Tabs
   tabs: {

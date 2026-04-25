@@ -1,9 +1,10 @@
 // src/screens/auth/RegisterScreen.tsx
-// Public registration: create account + organization
-// OR join an existing org if invited by email or phone
-// Session 26 Phase 1+2+phone — phone-as-username support
+// Registration — invite code FIRST, then account details.
+// Flow A (invited):  Step 1: enter code → validate → Step 2: name/phone/password → register_join_org
+// Flow B (new org):  "Create Organization" path → company name + email + password → register_new_org
+// Session 29: code-first flow, phone lock enforcement, no company name for invited users
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +13,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -25,62 +28,133 @@ import {
   normalizePhone,
   isPhoneInput,
 } from '../../lib/authHelpers';
-import { DEFAULT_COUNTRY } from '../../components/PhoneInput';
+import PhoneInput, { DEFAULT_COUNTRY } from '../../components/PhoneInput';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+// ─── Mode ─────────────────────────────────────────────────────
+type ScreenMode = 'code' | 'details' | 'neworg';
+
+interface CodePreview {
+  orgName:      string;
+  role:         string;
+  inviteeName:  string | null;
+  inviteePhone: string | null;
+  codeId:       string;   // org_join_codes.id
+  orgId:        string;
+}
 
 export default function RegisterScreen() {
   const navigation = useNavigation<Nav>();
 
-  const [fullName,    setFullName]    = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [email,       setEmail]       = useState('');
-  const [phone,       setPhone]       = useState('');
-  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
-  const [inputMode,   setInputMode]   = useState<'email' | 'phone'>('email');
-  const [password,    setPassword]    = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
-  const [loading,     setLoading]     = useState(false);
-  const [showPass,    setShowPass]    = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  // ── Step 1: invite code
+  const [mode,         setMode]         = useState<ScreenMode>('code');
+  const [inviteCode,   setInviteCode]   = useState('');
+  const [validating,   setValidating]   = useState(false);
+  const [codePreview,  setCodePreview]  = useState<CodePreview | null>(null);
 
-  const [invitePreview, setInvitePreview] = useState<{ orgName: string; role: string } | null>(null);
-  const [checkingInvite, setCheckingInvite] = useState(false);
+  // ── Step 2: account details (invited)
+  const [fullName,     setFullName]     = useState('');
+  const [phone,        setPhone]        = useState('');
+  const [countryCode,  setCountryCode]  = useState(DEFAULT_COUNTRY.code);
+  const [password,     setPassword]     = useState('');
+  const [confirmPass,  setConfirmPass]  = useState('');
+  const [showPass,     setShowPass]     = useState(false);
+  const [showConfirm,  setShowConfirm]  = useState(false);
+  const [loading,      setLoading]      = useState(false);
 
-  // The active identifier (email or phone with country code)
-  const identifier = inputMode === 'email'
-    ? email.trim()
-    : phone.trim() ? `${countryCode}${phone.trim()}` : '';
+  // ── New Org path
+  const [orgName,      setOrgName]      = useState('');
+  const [orgEmail,     setOrgEmail]     = useState('');
+  const [orgFullName,  setOrgFullName]  = useState('');
+  const [orgPassword,  setOrgPassword]  = useState('');
+  const [orgConfirm,   setOrgConfirm]   = useState('');
+  const [showOrgPass,  setShowOrgPass]  = useState(false);
+  const [showOrgConf,  setShowOrgConf]  = useState(false);
+  const [orgLoading,   setOrgLoading]   = useState(false);
 
-  const checkInvitation = async (raw: string) => {
-    const trimmed = raw.trim();
-    if (trimmed.length < 4) { setInvitePreview(null); return; }
-    setCheckingInvite(true);
-    const normalized = normalizeToEmail(trimmed);
-    const { data } = await supabase
-      .from('invitations')
-      .select('role, org_id, organizations(name)')
-      .eq('email', normalized)
-      .is('accepted_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
-    setCheckingInvite(false);
-    if (data) {
+  // ── Animation
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  const fadeTransition = (cb: () => void) => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, easing: Easing.out(Easing.ease), useNativeDriver: true }).start(() => {
+      cb();
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, easing: Easing.in(Easing.ease), useNativeDriver: true }).start();
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Step 1 — Validate invite code
+  // ─────────────────────────────────────────────────────────────
+  const handleValidateCode = async () => {
+    const cleaned = inviteCode.trim().toUpperCase();
+    if (!cleaned) {
+      Alert.alert('Enter Code', 'Please enter your invite code.');
+      return;
+    }
+    setValidating(true);
+    try {
+      // Query the code directly (public_code_lookup RLS policy allows this)
+      const { data, error } = await supabase
+        .from('org_join_codes')
+        .select('id, org_id, role, is_active, deleted_at, invitee_name, invitee_phone, organizations(name)')
+        .eq('code', cleaned)
+        .maybeSingle();
+
+      if (error || !data) {
+        Alert.alert('Invalid Code', 'This invite code was not found. Please check and try again.');
+        return;
+      }
+      if (data.deleted_at) {
+        Alert.alert('Code Revoked', 'This invite code has been deactivated. Please ask the owner for a new one.');
+        return;
+      }
+      if (!data.is_active) {
+        Alert.alert('Code Inactive', 'This invite code is no longer active.');
+        return;
+      }
+
       const org = data.organizations as any;
-      setInvitePreview({ orgName: org?.name ?? 'an organization', role: data.role });
-    } else {
-      setInvitePreview(null);
+      const preview: CodePreview = {
+        orgName:      org?.name ?? 'the organization',
+        role:         data.role ?? 'member',
+        inviteeName:  data.invitee_name ?? null,
+        inviteePhone: data.invitee_phone ?? null,
+        codeId:       data.id,
+        orgId:        data.org_id,
+      };
+      setCodePreview(preview);
+
+      // Pre-fill name and phone from code if set
+      if (preview.inviteeName) setFullName(preview.inviteeName);
+      if (preview.inviteePhone) {
+        // inviteePhone is stored as full E.164 (e.g. +96170123456)
+        // Strip the country code for display in PhoneInput
+        const raw = preview.inviteePhone.replace(/^\+961/, '');
+        setPhone(raw);
+        setCountryCode('+961');
+      }
+
+      fadeTransition(() => setMode('details'));
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Could not validate code.');
+    } finally {
+      setValidating(false);
     }
   };
 
-  const handleRegister = async () => {
-    const trimmedId = identifier.trim();
-    if (!fullName.trim() || !trimmedId || !password) {
-      Alert.alert('Required', 'Please fill in name, email/phone and password.');
+  // ─────────────────────────────────────────────────────────────
+  // Step 2 — Register + join org
+  // ─────────────────────────────────────────────────────────────
+  const handleRegisterInvited = async () => {
+    if (!codePreview) return;
+
+    if (!fullName.trim()) {
+      Alert.alert('Required', 'Please enter your full name.');
       return;
     }
-    if (!invitePreview && !companyName.trim()) {
-      Alert.alert('Required', 'Please enter your company name.');
+    if (!phone.trim()) {
+      Alert.alert('Required', 'Please enter your phone number.');
       return;
     }
     if (password.length < 6) {
@@ -92,69 +166,106 @@ export default function RegisterScreen() {
       return;
     }
 
-    // Derive Supabase auth email and real phone (if phone login)
-    const authEmail = normalizeToEmail(trimmedId);
-    const realPhone = isPhoneInput(trimmedId) ? normalizePhone(trimmedId) : null;
+    const fullPhone    = `${countryCode}${phone.trim()}`;
+    const authEmail    = normalizeToEmail(fullPhone);
+    const realPhone    = normalizePhone(fullPhone);
+
+    // Phone lock: if inviteePhone is set, the entered phone must match
+    if (codePreview.inviteePhone && codePreview.inviteePhone !== fullPhone) {
+      Alert.alert(
+        'Phone Mismatch',
+        'This code is reserved for a different phone number. Please use the phone number you were invited with.'
+      );
+      return;
+    }
 
     setLoading(true);
     try {
-      // 1. Create Supabase auth user
+      // 1. Create auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: authEmail,
         password,
       });
       if (authError) throw new Error(authError.message);
       if (!authData.user) throw new Error('Account creation failed. Please try again.');
-      const authUserId = authData.user.id;
 
-      // 2. Check for a pending invitation (now authenticated, so DB read works).
-      const { data: invite } = await supabase
-        .from('invitations')
-        .select('id, org_id, role')
-        .eq('email', authEmail)
-        .is('accepted_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
+      // 2. Join org via SECURITY DEFINER RPC (bypasses RLS — new user has no row yet)
+      const { error: joinErr } = await supabase.rpc('register_join_org_by_code', {
+        p_code:  inviteCode.trim().toUpperCase(),
+        p_name:  fullName.trim(),
+        p_email: authEmail,
+        p_phone: realPhone,
+      });
+      if (joinErr) throw new Error('Failed to join organization: ' + joinErr.message);
 
-      if (invite) {
-        // 2a. Invited user → join existing org via SECURITY DEFINER RPC
-        //     (bypasses RLS — new user has no team_members row yet)
-        const { error: joinErr } = await supabase.rpc('register_join_org', {
-          p_org_id:    invite.org_id,
-          p_role:      invite.role,
-          p_invite_id: invite.id,
-          p_name:      fullName.trim(),
-          p_email:     authEmail,
-          p_phone:     realPhone,
-        });
-        if (joinErr) throw new Error('Failed to join organization: ' + joinErr.message);
-
-      } else {
-        // 2b. New user → create org via SECURITY DEFINER RPC
-        //     (bypasses RLS — new user has no team_members row yet)
-        if (!companyName.trim()) throw new Error('Please enter your company name.');
-
-        const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        const { error: createErr } = await supabase.rpc('register_new_org', {
-          p_org_name: companyName.trim(),
-          p_org_slug: `${slug}-${Date.now()}`,
-          p_name:     fullName.trim(),
-          p_email:    authEmail,
-          p_phone:    realPhone,
-        });
-        if (createErr) throw new Error('Failed to create organization: ' + createErr.message);
-      }
     } catch (err: any) {
-      // Strip internal email format from error messages before showing to user
       const msg: string = (err.message ?? 'Something went wrong.')
-        .replace(/p\d+@cleartrack\.internal/g, identifier)
-        .replace(/\+?\d{7,}@cleartrack\.internal/g, identifier);
+        .replace(/p\d+@cleartrack\.internal/g, fullPhone)
+        .replace(/\+?\d{7,}@cleartrack\.internal/g, fullPhone);
       Alert.alert('Registration Failed', msg);
     } finally {
       setLoading(false);
     }
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // New Org path — create organization + owner account
+  // ─────────────────────────────────────────────────────────────
+  const handleCreateOrg = async () => {
+    if (!orgFullName.trim()) {
+      Alert.alert('Required', 'Please enter your full name.');
+      return;
+    }
+    if (!orgEmail.trim()) {
+      Alert.alert('Required', 'Please enter your email address.');
+      return;
+    }
+    if (!orgName.trim()) {
+      Alert.alert('Required', 'Please enter your company name.');
+      return;
+    }
+    if (orgPassword.length < 6) {
+      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (orgPassword !== orgConfirm) {
+      Alert.alert('Password Mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    const authEmail = orgEmail.trim().toLowerCase();
+
+    setOrgLoading(true);
+    try {
+      // 1. Create auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: authEmail,
+        password: orgPassword,
+      });
+      if (authError) throw new Error(authError.message);
+      if (!authData.user) throw new Error('Account creation failed. Please try again.');
+
+      // 2. Create org via SECURITY DEFINER RPC
+      const slug = orgName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const { error: createErr } = await supabase.rpc('register_new_org', {
+        p_org_name: orgName.trim(),
+        p_org_slug: `${slug}-${Date.now()}`,
+        p_name:     orgFullName.trim(),
+        p_email:    authEmail,
+        p_phone:    null,
+      });
+      if (createErr) throw new Error('Failed to create organization: ' + createErr.message);
+
+    } catch (err: any) {
+      Alert.alert('Registration Failed', err.message ?? 'Something went wrong.');
+    } finally {
+      setOrgLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe}>
       <KeyboardAwareScrollView
@@ -164,183 +275,327 @@ export default function RegisterScreen() {
         enableAutomaticScroll={true}
         extraScrollHeight={80}
       >
-        {/* Header */}
+        {/* ── Logo header ── */}
         <View style={s.header}>
           <View style={s.logoBox}>
             <Text style={s.logoIcon}>⊞</Text>
           </View>
-          <Text style={s.title}>Create Account</Text>
+          <Text style={s.title}>
+            {mode === 'neworg' ? 'Create Organization' : 'Join GovPilot'}
+          </Text>
           <Text style={s.subtitle}>
-            {invitePreview
-              ? `You've been invited to join ${invitePreview.orgName}`
-              : 'Set up your organization and start tracking files'}
+            {mode === 'code'    && 'Enter your invite code to get started'}
+            {mode === 'details' && `Joining ${codePreview?.orgName ?? ''} as ${capitalize(codePreview?.role ?? '')}`}
+            {mode === 'neworg'  && 'Set up your organization and start tracking files'}
+          </Text>
+          <Text style={s.poweredBy}>
+            Powered by <Text style={s.poweredByKts}>KTS</Text>
           </Text>
         </View>
 
-        {/* Invite banner */}
-        {invitePreview && (
-          <View style={s.inviteBanner}>
-            <Text style={s.inviteBannerIcon}>🎉</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={s.inviteBannerTitle}>Invitation found</Text>
-              <Text style={s.inviteBannerSub}>
-                You'll join <Text style={{ fontWeight: '700' }}>{invitePreview.orgName}</Text> as{' '}
-                <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{invitePreview.role}</Text>
-              </Text>
-            </View>
-          </View>
-        )}
+        <Animated.View style={{ opacity: fadeAnim }}>
 
-        {/* Form */}
-        <View style={s.form}>
-          <View style={s.field}>
-            <Text style={s.label}>YOUR NAME</Text>
-            <TextInput
-              style={s.input}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Full name"
-              placeholderTextColor={theme.color.textMuted}
-              autoCapitalize="words"
-            />
-          </View>
-
-          {/* Email / Phone toggle */}
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
-            <TouchableOpacity
-              style={[s.modeBtn, inputMode === 'email' && s.modeBtnActive]}
-              onPress={() => setInputMode('email')}
-            >
-              <Text style={[s.modeBtnText, inputMode === 'email' && s.modeBtnTextActive]}>✉️ Email</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.modeBtn, inputMode === 'phone' && s.modeBtnActive]}
-              onPress={() => setInputMode('phone')}
-            >
-              <Text style={[s.modeBtnText, inputMode === 'phone' && s.modeBtnTextActive]}>📱 Phone</Text>
-            </TouchableOpacity>
-          </View>
-
-          {inputMode === 'email' ? (
-            <View style={s.field}>
-              <Text style={s.label}>EMAIL ADDRESS</Text>
-              <TextInput
-                style={s.input}
-                value={email}
-                onChangeText={(v) => { setEmail(v); checkInvitation(v); }}
-                placeholder="your@email.com"
-                placeholderTextColor={theme.color.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
-            </View>
-          ) : (
-            <View style={s.field}>
-              <Text style={s.label}>PHONE NUMBER</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={[s.input, { flexDirection: 'row', alignItems: 'center', flex: 0, minWidth: 100, gap: 4 }]}>
-                  <Text style={{ fontSize: 16 }}>🇱🇧</Text>
-                  <Text style={{ color: theme.color.textPrimary, fontWeight: '600' }}>{countryCode}</Text>
-                </View>
+          {/* ══════════════════════════════════════════════════
+              STEP 1 — Invite code entry
+          ══════════════════════════════════════════════════ */}
+          {mode === 'code' && (
+            <View style={s.form}>
+              <View style={s.field}>
+                <Text style={s.label}>INVITE CODE</Text>
                 <TextInput
-                  style={[s.input, { flex: 1 }]}
-                  value={phone}
-                  onChangeText={(v) => { setPhone(v); checkInvitation(`${countryCode}${v}`); }}
-                  placeholder="70 123 456"
+                  style={[s.input, s.codeInput]}
+                  value={inviteCode}
+                  onChangeText={(v) => setInviteCode(v.toUpperCase())}
+                  placeholder="Enter your invite code"
                   placeholderTextColor={theme.color.textMuted}
-                  keyboardType="phone-pad"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="go"
+                  onSubmitEditing={handleValidateCode}
                 />
               </View>
-              {checkingInvite && <Text style={s.checkingText}>Checking for invitation…</Text>}
+
+              <TouchableOpacity
+                style={[s.button, validating && s.buttonDisabled]}
+                onPress={handleValidateCode}
+                disabled={validating}
+                activeOpacity={0.8}
+              >
+                {validating ? (
+                  <ActivityIndicator color={theme.color.white} />
+                ) : (
+                  <Text style={s.buttonText}>Validate Code →</Text>
+                )}
+              </TouchableOpacity>
             </View>
           )}
 
-          {/* Company name — hidden when joining via invite */}
-          {!invitePreview && (
-            <View style={s.field}>
-              <Text style={s.label}>COMPANY / OFFICE NAME</Text>
-              <TextInput
-                style={s.input}
-                value={companyName}
-                onChangeText={setCompanyName}
-                placeholder="Your company or office name"
-                placeholderTextColor={theme.color.textMuted}
-                autoCapitalize="words"
-              />
+          {/* ══════════════════════════════════════════════════
+              STEP 2 — Account details (invited user)
+          ══════════════════════════════════════════════════ */}
+          {mode === 'details' && codePreview && (
+            <View style={s.form}>
+              {/* Welcome banner */}
+              <View style={s.welcomeBanner}>
+                <Text style={s.welcomeIcon}>🎉</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.welcomeTitle}>
+                    {codePreview.inviteeName
+                      ? `Welcome, ${codePreview.inviteeName}!`
+                      : 'Code accepted!'}
+                  </Text>
+                  <Text style={s.welcomeSub}>
+                    You'll join <Text style={{ fontWeight: '700' }}>{codePreview.orgName}</Text> as{' '}
+                    <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{codePreview.role}</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* Full name */}
+              <View style={s.field}>
+                <Text style={s.label}>YOUR NAME</Text>
+                <TextInput
+                  style={s.input}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Full name"
+                  placeholderTextColor={theme.color.textMuted}
+                  autoCapitalize="words"
+                  editable={!codePreview.inviteeName} // locked if pre-filled
+                />
+                {!!codePreview.inviteeName && (
+                  <Text style={s.lockedHint}>Pre-filled from your invitation</Text>
+                )}
+              </View>
+
+              {/* Phone — locked if code has inviteePhone */}
+              <View style={s.field}>
+                <Text style={s.label}>PHONE NUMBER</Text>
+                {codePreview.inviteePhone ? (
+                  // Locked display
+                  <View style={[s.input, s.lockedInput]}>
+                    <Text style={s.lockedText}>{codePreview.inviteePhone}</Text>
+                    <Text style={s.lockIcon}>🔒</Text>
+                  </View>
+                ) : (
+                  <PhoneInput
+                    value={phone}
+                    onChangeText={setPhone}
+                    countryCode={countryCode}
+                    onCountryChange={setCountryCode}
+                    placeholder="70 123 456"
+                  />
+                )}
+                {!!codePreview.inviteePhone && (
+                  <Text style={s.lockedHint}>This code is tied to this phone number</Text>
+                )}
+              </View>
+
+              {/* Password */}
+              <View style={s.field}>
+                <Text style={s.label}>PASSWORD</Text>
+                <View style={s.passWrap}>
+                  <TextInput
+                    style={s.passInput}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Min. 6 characters"
+                    placeholderTextColor={theme.color.textMuted}
+                    secureTextEntry={!showPass}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={() => setShowPass(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                    <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={s.field}>
+                <Text style={s.label}>CONFIRM PASSWORD</Text>
+                <View style={s.passWrap}>
+                  <TextInput
+                    style={s.passInput}
+                    value={confirmPass}
+                    onChangeText={setConfirmPass}
+                    placeholder="Repeat password"
+                    placeholderTextColor={theme.color.textMuted}
+                    secureTextEntry={!showConfirm}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                    <Text style={s.eyeIcon}>{showConfirm ? '🙈' : '👁'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[s.button, loading && s.buttonDisabled]}
+                onPress={handleRegisterInvited}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color={theme.color.white} />
+                ) : (
+                  <Text style={s.buttonText}>Create Account & Join</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Back to code step */}
+              <TouchableOpacity
+                style={s.backBtn}
+                onPress={() => fadeTransition(() => { setMode('code'); setCodePreview(null); })}
+                activeOpacity={0.7}
+              >
+                <Text style={s.backBtnText}>← Different code</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          <View style={s.field}>
-            <Text style={s.label}>PASSWORD</Text>
-            <View style={s.passWrap}>
-              <TextInput
-                style={s.passInput}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Min. 6 characters"
-                placeholderTextColor={theme.color.textMuted}
-                secureTextEntry={!showPass}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity onPress={() => setShowPass(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
-                <Text style={s.eyeIcon}>{showPass ? '🙈' : '👁'}</Text>
+          {/* ══════════════════════════════════════════════════
+              NEW ORG path — create organization
+          ══════════════════════════════════════════════════ */}
+          {mode === 'neworg' && (
+            <View style={s.form}>
+              <View style={s.field}>
+                <Text style={s.label}>YOUR NAME</Text>
+                <TextInput
+                  style={s.input}
+                  value={orgFullName}
+                  onChangeText={setOrgFullName}
+                  placeholder="Full name"
+                  placeholderTextColor={theme.color.textMuted}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={s.field}>
+                <Text style={s.label}>EMAIL ADDRESS</Text>
+                <TextInput
+                  style={s.input}
+                  value={orgEmail}
+                  onChangeText={setOrgEmail}
+                  placeholder="your@email.com"
+                  placeholderTextColor={theme.color.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={s.field}>
+                <Text style={s.label}>COMPANY / OFFICE NAME</Text>
+                <TextInput
+                  style={s.input}
+                  value={orgName}
+                  onChangeText={setOrgName}
+                  placeholder="Your company or office name"
+                  placeholderTextColor={theme.color.textMuted}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={s.field}>
+                <Text style={s.label}>PASSWORD</Text>
+                <View style={s.passWrap}>
+                  <TextInput
+                    style={s.passInput}
+                    value={orgPassword}
+                    onChangeText={setOrgPassword}
+                    placeholder="Min. 6 characters"
+                    placeholderTextColor={theme.color.textMuted}
+                    secureTextEntry={!showOrgPass}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={() => setShowOrgPass(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                    <Text style={s.eyeIcon}>{showOrgPass ? '🙈' : '👁'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={s.field}>
+                <Text style={s.label}>CONFIRM PASSWORD</Text>
+                <View style={s.passWrap}>
+                  <TextInput
+                    style={s.passInput}
+                    value={orgConfirm}
+                    onChangeText={setOrgConfirm}
+                    placeholder="Repeat password"
+                    placeholderTextColor={theme.color.textMuted}
+                    secureTextEntry={!showOrgConf}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={() => setShowOrgConf(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
+                    <Text style={s.eyeIcon}>{showOrgConf ? '🙈' : '👁'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[s.button, orgLoading && s.buttonDisabled]}
+                onPress={handleCreateOrg}
+                disabled={orgLoading}
+                activeOpacity={0.8}
+              >
+                {orgLoading ? (
+                  <ActivityIndicator color={theme.color.white} />
+                ) : (
+                  <Text style={s.buttonText}>Create Organization</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={s.backBtn}
+                onPress={() => fadeTransition(() => setMode('code'))}
+                activeOpacity={0.7}
+              >
+                <Text style={s.backBtnText}>← I have an invite code</Text>
               </TouchableOpacity>
             </View>
+          )}
+
+        </Animated.View>
+
+        {/* ── Bottom links ── */}
+        <View style={s.bottomLinks}>
+          {mode !== 'neworg' && (
+            <TouchableOpacity
+              style={s.createOrgBtn}
+              onPress={() => fadeTransition(() => setMode('neworg'))}
+              activeOpacity={0.75}
+            >
+              <Text style={s.createOrgBtnText}>🏢 Create a new organization instead</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={s.loginRow}>
+            <Text style={s.loginText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={s.loginLink}>Sign In</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={s.field}>
-            <Text style={s.label}>CONFIRM PASSWORD</Text>
-            <View style={s.passWrap}>
-              <TextInput
-                style={s.passInput}
-                value={confirmPass}
-                onChangeText={setConfirmPass}
-                placeholder="Repeat password"
-                placeholderTextColor={theme.color.textMuted}
-                secureTextEntry={!showConfirm}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={s.eyeBtn} activeOpacity={0.7}>
-                <Text style={s.eyeIcon}>{showConfirm ? '🙈' : '👁'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[s.button, loading && s.buttonDisabled]}
-            onPress={handleRegister}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color={theme.color.white} />
-            ) : (
-              <Text style={s.buttonText}>
-                {invitePreview ? 'Join Organization' : 'Create Account'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.loginRow}>
-          <Text style={s.loginText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={s.loginLink}>Sign In</Text>
-          </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
+function capitalize(s: string) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+// ─── Styles ───────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: theme.color.bgBase },
-  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 28 },
-  header:    { alignItems: 'center', gap: 10 },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 24 },
+
+  // Header
+  header: { alignItems: 'center', gap: 10 },
   logoBox: {
     width:           64,
     height:          64,
@@ -353,7 +608,43 @@ const s = StyleSheet.create({
   logoIcon:     { fontSize: 32, color: theme.color.white },
   title:        { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
   subtitle:     { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', textAlign: 'center' },
-  inviteBanner: {
+  poweredBy:    { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  poweredByKts: { fontSize: 13, fontWeight: '800', color: theme.color.textSecondary, letterSpacing: 0.5 },
+
+  // Form
+  form:  { gap: 18 },
+  field: { gap: 6 },
+  label: { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
+  input: {
+    backgroundColor:   theme.color.bgSurface,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.lg,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   14,
+    color:             theme.color.textPrimary,
+    fontSize:          15,
+  },
+  codeInput: {
+    fontSize:    20,
+    fontWeight:  '700',
+    letterSpacing: 3,
+    textAlign:   'center',
+  },
+  lockedInput: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.color.bgBase,
+    borderColor:    theme.color.border,
+    opacity:        0.75,
+  },
+  lockedText: { color: theme.color.textSecondary, fontSize: 15 },
+  lockIcon:   { fontSize: 14 },
+  lockedHint: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+
+  // Welcome banner
+  welcomeBanner: {
     flexDirection:   'row',
     alignItems:      'center',
     gap:             12,
@@ -363,24 +654,11 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     theme.color.success + '44',
   },
-  inviteBannerIcon:  { fontSize: 24 },
-  inviteBannerTitle: { ...theme.typography.body, color: theme.color.success, fontWeight: '700' },
-  inviteBannerSub:   { ...theme.typography.label, color: theme.color.textSecondary, marginTop: 2 },
-  checkingText:      { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 4 },
-  form:              { gap: 18 },
-  field:             { gap: 6 },
-  label:             { ...theme.typography.sectionDivider, letterSpacing: 1.2 },
-  inputRow:          { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: {
-    backgroundColor: theme.color.bgSurface,
-    borderWidth:     1,
-    borderColor:     theme.color.border,
-    borderRadius:    theme.radius.lg,
-    paddingHorizontal: theme.spacing.space4,
-    paddingVertical: 14,
-    color:           theme.color.textPrimary,
-    fontSize:        15,
-  },
+  welcomeIcon:  { fontSize: 24 },
+  welcomeTitle: { ...theme.typography.body, color: theme.color.success, fontWeight: '700' },
+  welcomeSub:   { ...theme.typography.label, color: theme.color.textSecondary, marginTop: 2 },
+
+  // Password
   passWrap: {
     flexDirection:   'row',
     alignItems:      'center',
@@ -391,33 +669,16 @@ const s = StyleSheet.create({
     paddingEnd:      4,
   },
   passInput: {
-    flex:            1,
+    flex:              1,
     paddingHorizontal: theme.spacing.space4,
-    paddingVertical: 14,
-    color:           theme.color.textPrimary,
-    fontSize:        15,
+    paddingVertical:   14,
+    color:             theme.color.textPrimary,
+    fontSize:          15,
   },
   eyeBtn:  { padding: 10 },
   eyeIcon: { fontSize: 18 },
 
-  modeBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-    backgroundColor: theme.color.bgSurface, borderWidth: 1, borderColor: theme.color.border,
-  },
-  modeBtnActive: { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary },
-  modeBtnText: { fontSize: 14, fontWeight: '600', color: theme.color.textMuted },
-  modeBtnTextActive: { color: theme.color.primary },
-  typeTag: {
-    width:          36,
-    height:         36,
-    borderRadius:   theme.radius.md,
-    justifyContent: 'center',
-    alignItems:     'center',
-    borderWidth:    1,
-  },
-  typeTagPhone:   { backgroundColor: theme.color.success + '18', borderColor: theme.color.success + '44' },
-  typeTagEmail:   { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary + '44' },
-  typeTagText:    { fontSize: 18 },
+  // Buttons
   button: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.lg,
@@ -427,7 +688,22 @@ const s = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText:     { color: theme.color.white, fontSize: 16, fontWeight: '700' },
-  loginRow:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  loginText:      { ...theme.typography.body, color: theme.color.textSecondary },
-  loginLink:      { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
+
+  backBtn: { alignItems: 'center', paddingVertical: 8 },
+  backBtnText: { color: theme.color.textMuted, fontSize: 14, fontWeight: '500' },
+
+  // Bottom section
+  bottomLinks: { gap: 16, marginTop: 8 },
+  createOrgBtn: {
+    alignItems:       'center',
+    paddingVertical:  12,
+    borderRadius:     theme.radius.md,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    backgroundColor:  theme.color.bgSurface,
+  },
+  createOrgBtnText: { color: theme.color.textSecondary, fontSize: 14, fontWeight: '600' },
+  loginRow:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  loginText:   { ...theme.typography.body, color: theme.color.textSecondary },
+  loginLink:   { ...theme.typography.body, color: theme.color.primary, fontWeight: '700' },
 });
