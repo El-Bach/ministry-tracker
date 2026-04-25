@@ -46,36 +46,52 @@ export default function OnboardingScreen() {
   // onAuthStateChange fires before RegisterScreen's INSERT INTO team_members completes.
   const [localOrgId,    setLocalOrgId]    = useState<string | null>(organization?.id ?? null);
   const [localMemberId, setLocalMemberId] = useState<string | null>(teamMember?.id ?? null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isInitializing,  setIsInitializing]  = useState(true);
+  const [setupIncomplete, setSetupIncomplete] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
-      // Get current auth user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setIsInitializing(false); return; }
+  // ─── helpers ─────────────────────────────────────────────────
 
-      // Query team_members directly — bypass stale useAuth hook state
-      const { data: tm } = await supabase
+  // Fetch the current user's team_members row directly from DB.
+  // Retries up to `maxAttempts` times with a 600 ms delay between tries to
+  // handle the race condition where onAuthStateChange fires before
+  // RegisterScreen's INSERT INTO team_members has finished.
+  const fetchOwnRow = async (maxAttempts = 6) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    for (let i = 0; i < maxAttempts; i++) {
+      const { data } = await supabase
         .from('team_members')
         .select('id, org_id, role')
         .eq('auth_id', user.id)
         .maybeSingle();
+      if (data) return data as { id: string; org_id: string; role: string };
+      if (i < maxAttempts - 1) await new Promise(r => setTimeout(r, 600));
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      // Retry-aware fetch — handles the timing race between
+      // RegisterScreen's INSERTs and this screen mounting.
+      const tm = await fetchOwnRow();
 
       if (!tm) {
-        // Row not found yet (extreme race condition) — let user see wizard
+        // After ~3 seconds of retries, still no row — registration was
+        // incomplete (most likely the SQL migration hasn't been run yet).
+        setSetupIncomplete(true);
         setIsInitializing(false);
         return;
       }
 
-      // Invited employee (non-owner) — they don't need onboarding at all.
-      // Their org already exists. Call refreshTeamMember() to update useAuth
-      // state and let navigation/index.tsx switch to Main automatically.
+      // Invited employee (non-owner) — they don't need the wizard at all.
+      // Their org already exists and is fully configured.
       if (tm.role !== 'owner') {
         await refreshTeamMember();
-        return;  // navigation will unmount this screen
+        return;  // navigation/index.tsx will switch to Main
       }
 
-      // New org owner — load org name so step 1 form is pre-filled correctly
+      // New org owner — load org name so step 1 is pre-filled correctly
       setLocalOrgId(tm.org_id);
       setLocalMemberId(tm.id);
       if (tm.org_id) {
@@ -156,6 +172,31 @@ export default function OnboardingScreen() {
     setStep(3);
   };
 
+  // Shared exit: refresh useAuth state so navigation switches to Main.
+  // If no team_members row is found after refresh (registration was incomplete),
+  // show an actionable error instead of silently doing nothing.
+  const finishOnboarding = async () => {
+    setLoading(true);
+    await refreshTeamMember();
+
+    // Verify the row actually exists now (stale closure — query DB directly)
+    const tm = await fetchOwnRow(1);  // single attempt — INSERT already happened or not
+    setLoading(false);
+
+    if (!tm) {
+      // Registration was incomplete — team_members row was never created.
+      // This usually means the required SQL migration hasn't been run.
+      Alert.alert(
+        'Account Setup Incomplete',
+        'Your account profile could not be found. Please sign out and register again after the administrator has applied the required database update.',
+        [
+          { text: 'Sign Out', style: 'destructive', onPress: signOut },
+          { text: 'Try Again', onPress: finishOnboarding },
+        ]
+      );
+    }
+  };
+
   const handleStep3 = async () => {
     const orgId    = localOrgId    ?? teamMember?.org_id;
     const memberId = localMemberId ?? teamMember?.id;
@@ -183,16 +224,11 @@ export default function OnboardingScreen() {
         return;
       }
     }
-    // Done — refresh so navigator picks up the complete teamMember and exits onboarding
-    setLoading(true);
-    await refreshTeamMember();
-    setLoading(false);
+    await finishOnboarding();
   };
 
   const handleSkipStep3 = async () => {
-    setLoading(true);
-    await refreshTeamMember();
-    setLoading(false);
+    await finishOnboarding();
   };
 
   // ─── UI helpers ──────────────────────────────────────────────
@@ -213,6 +249,26 @@ export default function OnboardingScreen() {
         <View style={s.initLoader}>
           <ActivityIndicator size="large" color={theme.color.primary} />
           <Text style={s.initText}>Setting up your account…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Setup incomplete (registration failed mid-way) ──────────
+
+  if (setupIncomplete) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.initLoader}>
+          <Text style={s.incompleteIcon}>⚠️</Text>
+          <Text style={s.incompleteTitle}>Setup Incomplete</Text>
+          <Text style={s.incompleteDesc}>
+            Your account was created but the profile setup did not finish.
+            Please sign out and register again.
+          </Text>
+          <TouchableOpacity style={s.incompleteBtn} onPress={signOut} activeOpacity={0.8}>
+            <Text style={s.incompleteBtnText}>Sign Out & Try Again</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -421,8 +477,20 @@ export default function OnboardingScreen() {
 
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: theme.color.bgBase },
-  initLoader:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  initText:    { ...theme.typography.body, color: theme.color.textSecondary },
+  initLoader:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, paddingHorizontal: 32 },
+  initText:    { ...theme.typography.body, color: theme.color.textSecondary, textAlign: 'center' },
+  // Setup-incomplete error state
+  incompleteIcon:    { fontSize: 48 },
+  incompleteTitle:   { ...theme.typography.heading, fontSize: 20, fontWeight: '700' },
+  incompleteDesc:    { ...theme.typography.body, color: theme.color.textSecondary, textAlign: 'center', lineHeight: 22 },
+  incompleteBtn: {
+    marginTop:       8,
+    backgroundColor: theme.color.danger,
+    borderRadius:    theme.radius.lg,
+    paddingVertical: 13,
+    paddingHorizontal: 28,
+  },
+  incompleteBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
   container:   { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 28 },
   header:      { alignItems: 'center', gap: 10 },
   logoBox: {
