@@ -107,18 +107,21 @@ export default function RegisterScreen() {
       if (!authData.user) throw new Error('Account creation failed. Please try again.');
       const authUserId = authData.user.id;
 
-      // 2a. Invited user → join existing org
-      if (invitePreview) {
-        const { data: invite } = await supabase
-          .from('invitations')
-          .select('id, org_id, role')
-          .eq('email', authEmail)
-          .is('accepted_at', null)
-          .gt('expires_at', new Date().toISOString())
-          .maybeSingle();
+      // 2. Always re-check the invitation from DB after auth.
+      //    The pre-signup checkInvitation() may have been blocked by RLS (user was
+      //    unauthenticated), so invitePreview could be null even for valid invitees.
+      //    Now that the user is authenticated, the invitations_public_read policy
+      //    allows the SELECT to succeed.
+      const { data: invite } = await supabase
+        .from('invitations')
+        .select('id, org_id, role')
+        .eq('email', authEmail)
+        .is('accepted_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
 
-        if (!invite) throw new Error('Invitation not found or expired. Please ask for a new one.');
-
+      if (invite) {
+        // 2a. Invited user → join existing org
         const { error: memberErr } = await supabase
           .from('team_members')
           .upsert({
@@ -136,8 +139,10 @@ export default function RegisterScreen() {
           .update({ accepted_at: new Date().toISOString() })
           .eq('id', invite.id);
 
-      // 2b. New user → create org
       } else {
+        // 2b. New user → create org
+        if (!companyName.trim()) throw new Error('Please enter your company name.');
+
         const slug = companyName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
