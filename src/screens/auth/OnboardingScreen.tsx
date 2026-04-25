@@ -2,7 +2,7 @@
 // Post-registration wizard: set up first service, first stage, invite teammates
 // Session 26 — Phase 1 commercialization
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -38,14 +38,67 @@ export default function OnboardingScreen() {
   const [inviteName,  setInviteName]  = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
 
+  // Local org data — fetched fresh on mount to avoid the race condition where
+  // onAuthStateChange fires before RegisterScreen's INSERT INTO team_members completes.
+  const [localOrgId,  setLocalOrgId]  = useState<string | null>(organization?.id ?? null);
+  const [localMemberId, setLocalMemberId] = useState<string | null>(teamMember?.id ?? null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const init = async () => {
+      // Get current auth user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setIsInitializing(false); return; }
+
+      // Query team_members directly — bypass stale useAuth hook state
+      const { data: tm } = await supabase
+        .from('team_members')
+        .select('id, org_id, role')
+        .eq('auth_id', user.id)
+        .maybeSingle();
+
+      if (!tm) {
+        // Row not found yet (extreme race condition) — let user see spinner briefly
+        setIsInitializing(false);
+        return;
+      }
+
+      // Invited employee (non-owner) — they don't need onboarding at all.
+      // Their org already exists. Call refreshTeamMember() to update useAuth
+      // state and let navigation/index.tsx switch to Main automatically.
+      if (tm.role !== 'owner') {
+        await refreshTeamMember();
+        return;  // navigation will unmount this screen
+      }
+
+      // New org owner — load org name so step 1 form is pre-filled correctly
+      setLocalOrgId(tm.org_id);
+      setLocalMemberId(tm.id);
+      if (tm.org_id) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', tm.org_id)
+          .maybeSingle();
+        if (org?.name) setCompanyName(org.name);
+      }
+      setIsInitializing(false);
+    };
+    init();
+  }, []);
+
   const handleStep1 = async () => {
     if (!companyName.trim()) { Alert.alert('Required', 'Please enter your company name.'); return; }
-    if (!organization?.id) return;
+    if (!localOrgId) {
+      // Fallback: org not loaded yet — just advance
+      setStep(2);
+      return;
+    }
     setLoading(true);
     const { error } = await supabase
       .from('organizations')
       .update({ name: companyName.trim() })
-      .eq('id', organization.id);
+      .eq('id', localOrgId);
     setLoading(false);
     if (error) { Alert.alert('Error', error.message); return; }
     setStep(2);
@@ -53,7 +106,7 @@ export default function OnboardingScreen() {
 
   const handleStep2 = async () => {
     // Both optional — can skip
-    const orgId = teamMember?.org_id;
+    const orgId = localOrgId ?? teamMember?.org_id;
     if (!orgId) { setStep(3); return; }
 
     if (serviceName.trim() || stageName.trim()) {
@@ -103,7 +156,8 @@ export default function OnboardingScreen() {
   };
 
   const handleStep3 = async () => {
-    const orgId = teamMember?.org_id;
+    const orgId    = localOrgId    ?? teamMember?.org_id;
+    const memberId = localMemberId ?? teamMember?.id;
     if (inviteName.trim() && inviteEmail.trim() && orgId) {
       setLoading(true);
       const normalizedEmail = normalizeToEmail(inviteEmail.trim());
@@ -115,7 +169,7 @@ export default function OnboardingScreen() {
           org_id:     orgId,
           email:      normalizedEmail,
           role:       'member',
-          invited_by: teamMember?.id,
+          invited_by: memberId,
           expires_at: expires,
         });
       setLoading(false);
@@ -139,6 +193,19 @@ export default function OnboardingScreen() {
       ))}
     </View>
   );
+
+  // Show a full-screen spinner while we resolve whether this is an invited
+  // user (who skips onboarding) or a new owner (who goes through the wizard).
+  if (isInitializing) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.initLoader}>
+          <ActivityIndicator size="large" color={theme.color.primary} />
+          <Text style={s.initText}>Setting up your account…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -276,7 +343,9 @@ export default function OnboardingScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:       { flex: 1, backgroundColor: theme.color.bgBase },
+  safe:        { flex: 1, backgroundColor: theme.color.bgBase },
+  initLoader:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
+  initText:    { ...theme.typography.body, color: theme.color.textSecondary },
   container:  { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 28 },
   header:     { alignItems: 'center', gap: 10 },
   logoBox: {

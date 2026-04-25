@@ -33,3 +33,11 @@ CREATE POLICY "organizations_insert_new" ON organizations
 DROP POLICY IF EXISTS "team_members_insert_own" ON team_members;
 CREATE POLICY "team_members_insert_own" ON team_members
   FOR INSERT WITH CHECK (auth_id = auth.uid());
+
+-- 4. Allow a user to always SELECT their own team_members row.
+--    The org_isolation policy requires auth_org_id() to be non-null, which
+--    creates a chicken-and-egg problem on first login (no row → can't read row).
+--    This policy breaks the cycle: auth_id = auth.uid() is always resolvable.
+DROP POLICY IF EXISTS "team_members_read_own" ON team_members;
+CREATE POLICY "team_members_read_own" ON team_members
+  FOR SELECT USING (auth_id = auth.uid());
