@@ -2,7 +2,7 @@
 // Post-registration wizard: set up first service, first stage, invite teammates
 // Session 26 — Phase 1 commercialization
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,14 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { useAuth } from '../../hooks/useAuth';
-import { normalizeToEmail, isPhoneInput, IDENTIFIER_LABEL, IDENTIFIER_PLACEHOLDER } from '../../lib/authHelpers';
+import { normalizeToEmail } from '../../lib/authHelpers';
+import { DEFAULT_COUNTRY } from '../../components/PhoneInput';
 
 const TOTAL_STEPS = 3;
 
@@ -35,12 +36,15 @@ export default function OnboardingScreen() {
   const [stageName,   setStageName]   = useState('');
 
   // Step 3 — Invite team member (optional)
-  const [inviteName,  setInviteName]  = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName,       setInviteName]       = useState('');
+  const [inviteMode,       setInviteMode]       = useState<'email' | 'phone'>('email');
+  const [inviteEmail,      setInviteEmail]      = useState('');
+  const [invitePhone,      setInvitePhone]      = useState('');
+  const [inviteCountry,    setInviteCountry]    = useState(DEFAULT_COUNTRY.code);
 
   // Local org data — fetched fresh on mount to avoid the race condition where
   // onAuthStateChange fires before RegisterScreen's INSERT INTO team_members completes.
-  const [localOrgId,  setLocalOrgId]  = useState<string | null>(organization?.id ?? null);
+  const [localOrgId,    setLocalOrgId]    = useState<string | null>(organization?.id ?? null);
   const [localMemberId, setLocalMemberId] = useState<string | null>(teamMember?.id ?? null);
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -58,7 +62,7 @@ export default function OnboardingScreen() {
         .maybeSingle();
 
       if (!tm) {
-        // Row not found yet (extreme race condition) — let user see spinner briefly
+        // Row not found yet (extreme race condition) — let user see wizard
         setIsInitializing(false);
         return;
       }
@@ -87,13 +91,11 @@ export default function OnboardingScreen() {
     init();
   }, []);
 
+  // ─── Step handlers ───────────────────────────────────────────
+
   const handleStep1 = async () => {
     if (!companyName.trim()) { Alert.alert('Required', 'Please enter your company name.'); return; }
-    if (!localOrgId) {
-      // Fallback: org not loaded yet — just advance
-      setStep(2);
-      return;
-    }
+    if (!localOrgId) { setStep(2); return; }
     setLoading(true);
     const { error } = await supabase
       .from('organizations')
@@ -105,7 +107,6 @@ export default function OnboardingScreen() {
   };
 
   const handleStep2 = async () => {
-    // Both optional — can skip
     const orgId = localOrgId ?? teamMember?.org_id;
     if (!orgId) { setStep(3); return; }
 
@@ -158,10 +159,14 @@ export default function OnboardingScreen() {
   const handleStep3 = async () => {
     const orgId    = localOrgId    ?? teamMember?.org_id;
     const memberId = localMemberId ?? teamMember?.id;
-    if (inviteName.trim() && inviteEmail.trim() && orgId) {
+
+    const rawIdentifier = inviteMode === 'email'
+      ? inviteEmail.trim()
+      : invitePhone.trim() ? `${inviteCountry}${invitePhone.trim()}` : '';
+
+    if (inviteName.trim() && rawIdentifier && orgId) {
       setLoading(true);
-      const normalizedEmail = normalizeToEmail(inviteEmail.trim());
-      // Create invitation row so they auto-join on sign-up
+      const normalizedEmail = normalizeToEmail(rawIdentifier);
       const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase
         .from('invitations')
@@ -178,15 +183,21 @@ export default function OnboardingScreen() {
         return;
       }
     }
-    // Done! Refresh so navigator picks up complete teamMember
+    // Done — refresh so navigator picks up the complete teamMember and exits onboarding
+    setLoading(true);
     await refreshTeamMember();
+    setLoading(false);
   };
 
   const handleSkipStep3 = async () => {
+    setLoading(true);
     await refreshTeamMember();
+    setLoading(false);
   };
 
-  const stepIndicator = () => (
+  // ─── UI helpers ──────────────────────────────────────────────
+
+  const StepIndicator = () => (
     <View style={s.stepRow}>
       {[1, 2, 3].map(n => (
         <View key={n} style={[s.stepDot, step >= n && s.stepDotActive]} />
@@ -194,8 +205,8 @@ export default function OnboardingScreen() {
     </View>
   );
 
-  // Show a full-screen spinner while we resolve whether this is an invited
-  // user (who skips onboarding) or a new owner (who goes through the wizard).
+  // ─── Initializing spinner ────────────────────────────────────
+
   if (isInitializing) {
     return (
       <SafeAreaView style={s.safe}>
@@ -207,10 +218,17 @@ export default function OnboardingScreen() {
     );
   }
 
+  // ─── Wizard ──────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-
+      <KeyboardAwareScrollView
+        contentContainerStyle={s.container}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        extraScrollHeight={80}
+      >
         {/* Header */}
         <View style={s.header}>
           <View style={s.logoBox}>
@@ -218,7 +236,7 @@ export default function OnboardingScreen() {
           </View>
           <Text style={s.title}>Let's get you set up</Text>
           <Text style={s.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
-          {stepIndicator()}
+          <StepIndicator />
         </View>
 
         {/* ─── Step 1: Company name ─── */}
@@ -243,7 +261,9 @@ export default function OnboardingScreen() {
               disabled={loading}
               activeOpacity={0.8}
             >
-              {loading ? <ActivityIndicator color={theme.color.white} /> : <Text style={s.btnText}>Continue →</Text>}
+              {loading
+                ? <ActivityIndicator color={theme.color.white} />
+                : <Text style={s.btnText}>Continue →</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -281,9 +301,11 @@ export default function OnboardingScreen() {
               disabled={loading}
               activeOpacity={0.8}
             >
-              {loading ? <ActivityIndicator color={theme.color.white} /> : <Text style={s.btnText}>Continue →</Text>}
+              {loading
+                ? <ActivityIndicator color={theme.color.white} />
+                : <Text style={s.btnText}>Continue →</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={s.skipBtn} onPress={() => setStep(3)}>
+            <TouchableOpacity style={s.skipBtn} onPress={() => setStep(3)} disabled={loading}>
               <Text style={s.skipText}>Skip for now</Text>
             </TouchableOpacity>
           </View>
@@ -293,7 +315,11 @@ export default function OnboardingScreen() {
         {step === 3 && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Invite a Teammate</Text>
-            <Text style={s.cardDesc}>Add a colleague to your organization. They'll sign in using this email and be linked to your account automatically.</Text>
+            <Text style={s.cardDesc}>
+              Add a colleague to your organization. They'll receive an invitation and join automatically when they sign up.
+            </Text>
+
+            {/* Teammate name */}
             <View style={s.field}>
               <Text style={s.label}>TEAMMATE NAME</Text>
               <TextInput
@@ -305,39 +331,90 @@ export default function OnboardingScreen() {
                 autoCapitalize="words"
               />
             </View>
+
+            {/* Email / Phone toggle — separate inputs, no auto-detection */}
             <View style={s.field}>
-              <Text style={s.label}>{IDENTIFIER_LABEL}</Text>
-              <TextInput
-                style={s.input}
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                placeholder={IDENTIFIER_PLACEHOLDER}
-                placeholderTextColor={theme.color.textMuted}
-                keyboardType={isPhoneInput(inviteEmail) && inviteEmail.length > 2 ? 'phone-pad' : 'email-address'}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <Text style={s.label}>CONTACT</Text>
+              <View style={s.modeRow}>
+                <TouchableOpacity
+                  style={[s.modeBtn, inviteMode === 'email' && s.modeBtnActive]}
+                  onPress={() => setInviteMode('email')}
+                >
+                  <Text style={[s.modeBtnText, inviteMode === 'email' && s.modeBtnTextActive]}>
+                    ✉️ Email
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.modeBtn, inviteMode === 'phone' && s.modeBtnActive]}
+                  onPress={() => setInviteMode('phone')}
+                >
+                  <Text style={[s.modeBtnText, inviteMode === 'phone' && s.modeBtnTextActive]}>
+                    📱 Phone
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {inviteMode === 'email' ? (
+                <TextInput
+                  style={s.input}
+                  value={inviteEmail}
+                  onChangeText={setInviteEmail}
+                  placeholder="colleague@email.com"
+                  placeholderTextColor={theme.color.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              ) : (
+                <View style={s.phoneRow}>
+                  <View style={s.countryBox}>
+                    <Text style={s.countryFlag}>🇱🇧</Text>
+                    <Text style={s.countryCode}>{inviteCountry}</Text>
+                  </View>
+                  <TextInput
+                    style={[s.input, s.phoneInput]}
+                    value={invitePhone}
+                    onChangeText={setInvitePhone}
+                    placeholder="70 123 456"
+                    placeholderTextColor={theme.color.textMuted}
+                    keyboardType="phone-pad"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
             </View>
+
+            {/* Invite & Continue */}
             <TouchableOpacity
               style={[s.btn, loading && s.btnDisabled]}
               onPress={handleStep3}
               disabled={loading}
               activeOpacity={0.8}
             >
-              {loading ? <ActivityIndicator color={theme.color.white} /> : <Text style={s.btnText}>Invite & Continue →</Text>}
+              {loading
+                ? <ActivityIndicator color={theme.color.white} />
+                : <Text style={s.btnText}>Invite & Continue →</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={s.skipBtn} onPress={handleSkipStep3} disabled={loading}>
-              <Text style={s.skipText}>Skip — I'll invite later</Text>
+
+            {/* Skip */}
+            <TouchableOpacity
+              style={[s.skipBtn, loading && s.btnDisabled]}
+              onPress={handleSkipStep3}
+              disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator size="small" color={theme.color.textMuted} />
+                : <Text style={s.skipText}>Skip — I'll invite later</Text>}
             </TouchableOpacity>
           </View>
         )}
 
         {/* Sign out link */}
-        <TouchableOpacity style={s.signoutBtn} onPress={signOut}>
+        <TouchableOpacity style={s.signoutBtn} onPress={signOut} disabled={loading}>
           <Text style={s.signoutText}>Sign out</Text>
         </TouchableOpacity>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
@@ -346,8 +423,8 @@ const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: theme.color.bgBase },
   initLoader:  { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   initText:    { ...theme.typography.body, color: theme.color.textSecondary },
-  container:  { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 28 },
-  header:     { alignItems: 'center', gap: 10 },
+  container:   { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 28 },
+  header:      { alignItems: 'center', gap: 10 },
   logoBox: {
     width:           64,
     height:          64,
@@ -357,11 +434,11 @@ const s = StyleSheet.create({
     alignItems:      'center',
     marginBottom:    4,
   },
-  logoIcon:   { fontSize: 32 },
-  title:      { ...theme.typography.heading, fontSize: 24, fontWeight: '800' },
-  subtitle:   { ...theme.typography.body, color: theme.color.textSecondary },
-  stepRow:    { flexDirection: 'row', gap: 8, marginTop: 8 },
-  stepDot:    { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.color.border },
+  logoIcon:      { fontSize: 32 },
+  title:         { ...theme.typography.heading, fontSize: 24, fontWeight: '800' },
+  subtitle:      { ...theme.typography.body, color: theme.color.textSecondary },
+  stepRow:       { flexDirection: 'row', gap: 8, marginTop: 8 },
+  stepDot:       { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.color.border },
   stepDotActive: { backgroundColor: theme.color.primary },
   card: {
     backgroundColor: theme.color.bgSurface,
@@ -371,10 +448,10 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     theme.color.border,
   },
-  cardTitle: { ...theme.typography.heading, fontSize: 20, fontWeight: '700' },
-  cardDesc:  { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 22 },
-  field:     { gap: 6 },
-  label:     { ...theme.typography.sectionDivider, letterSpacing: 1.1 },
+  cardTitle:  { ...theme.typography.heading, fontSize: 20, fontWeight: '700' },
+  cardDesc:   { ...theme.typography.body, color: theme.color.textSecondary, lineHeight: 22 },
+  field:      { gap: 8 },
+  label:      { ...theme.typography.sectionDivider, letterSpacing: 1.1 },
   input: {
     backgroundColor: theme.color.bgBase,
     borderWidth:     1,
@@ -385,6 +462,44 @@ const s = StyleSheet.create({
     color:           theme.color.textPrimary,
     fontSize:        15,
   },
+  // Email / phone toggle
+  modeRow: {
+    flexDirection: 'row',
+    gap:           8,
+  },
+  modeBtn: {
+    flex:            1,
+    paddingVertical: 8,
+    borderRadius:    theme.radius.md,
+    alignItems:      'center',
+    backgroundColor: theme.color.bgBase,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+  },
+  modeBtnActive:     { backgroundColor: theme.color.primary + '18', borderColor: theme.color.primary },
+  modeBtnText:       { fontSize: 14, fontWeight: '600', color: theme.color.textMuted },
+  modeBtnTextActive: { color: theme.color.primary },
+  // Phone row
+  phoneRow: {
+    flexDirection: 'row',
+    gap:           8,
+    alignItems:    'center',
+  },
+  countryBox: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             4,
+    backgroundColor: theme.color.bgBase,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.lg,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 13,
+  },
+  countryFlag: { fontSize: 16 },
+  countryCode: { color: theme.color.textPrimary, fontWeight: '600', fontSize: 15 },
+  phoneInput:  { flex: 1 },
+  // Buttons
   btn: {
     backgroundColor: theme.color.primary,
     borderRadius:    theme.radius.lg,
@@ -393,7 +508,7 @@ const s = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnText:     { color: theme.color.white, fontSize: 16, fontWeight: '700' },
-  skipBtn:     { alignItems: 'center', paddingVertical: 4 },
+  skipBtn:     { alignItems: 'center', paddingVertical: 6 },
   skipText:    { ...theme.typography.body, color: theme.color.textMuted },
   signoutBtn:  { alignItems: 'center', marginTop: 8 },
   signoutText: { ...theme.typography.label, color: theme.color.border },
