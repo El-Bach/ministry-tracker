@@ -399,7 +399,7 @@ export default function DashboardScreen() {
       supabase
         .from('tasks')
         .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name)), transactions:file_transactions(type,amount_usd,amount_lbp), creator:team_members!created_by(id)`
+          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name)), transactions:file_transactions(type,amount_usd,amount_lbp)`
         )
         .order('created_at', { ascending: false }),
       supabase.from('status_labels').select('*').order('sort_order'),
@@ -416,7 +416,6 @@ export default function DashboardScreen() {
       // keep tasks where the member is assigned at task level OR at any stage level
       if (!permissions.can_see_all_files && teamMember?.id) {
         allTasks = allTasks.filter(t =>
-          (t as any).created_by === teamMember.id ||
           t.assigned_to === teamMember.id ||
           (t.route_stops ?? []).some((s: any) => s.assigned_to === teamMember.id)
         );

@@ -1205,7 +1205,7 @@ export default function NewTaskScreen() {
  created_at: createdAt.toISOString(),
  updated_at: createdAt.toISOString(),
  org_id: teamMember?.org_id ?? null,
- created_by: teamMember?.id ?? null,
+ assigned_to: teamMember?.id ?? null,
  })
  .select()
  .single();
