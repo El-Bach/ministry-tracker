@@ -61,6 +61,8 @@ function SwipeableTaskRow({
   onFinance,
   onPin,
   isArchived,
+  canDelete,
+  canFinance,
 }: {
   task: Task;
   statusColor: string;
@@ -76,6 +78,8 @@ function SwipeableTaskRow({
   onFinance: () => void;
   onPin: () => void;
   isArchived: boolean;
+  canDelete: boolean;
+  canFinance: boolean;
 }) {
   const { t } = useTranslation();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -133,16 +137,18 @@ function SwipeableTaskRow({
 
   return (
     <View style={swipeStyles.container}>
-      {/* Right-swipe: Finance action (left side) — hidden at rest */}
-      <Animated.View style={[swipeStyles.financeAction, { opacity: financeOpacity }]}>
-        <TouchableOpacity
-          style={swipeStyles.financeBtn}
-          onPress={() => { close(); onFinance(); }}
-        >
-          <Text style={swipeStyles.financeIcon}>💰</Text>
-          <Text style={swipeStyles.financeBtnText}>Add</Text>
-        </TouchableOpacity>
-      </Animated.View>
+      {/* Right-swipe: Finance action (left side) — hidden at rest, gated by canFinance */}
+      {canFinance && (
+        <Animated.View style={[swipeStyles.financeAction, { opacity: financeOpacity }]}>
+          <TouchableOpacity
+            style={swipeStyles.financeBtn}
+            onPress={() => { close(); onFinance(); }}
+          >
+            <Text style={swipeStyles.financeIcon}>💰</Text>
+            <Text style={swipeStyles.financeBtnText}>Add</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Left-swipe: Archive/Restore + Delete (right side) — hidden at rest */}
       <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
@@ -161,12 +167,14 @@ function SwipeableTaskRow({
             <Text style={swipeStyles.archiveBtnText}>📦{'\n'}{t('archiveFile')}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={swipeStyles.deleteBtn}
-          onPress={() => { close(); onDelete(); }}
-        >
-          <Text style={swipeStyles.deleteBtnText}>✕{'\n'}{t('deleteFile')}</Text>
-        </TouchableOpacity>
+        {canDelete && (
+          <TouchableOpacity
+            style={swipeStyles.deleteBtn}
+            onPress={() => { close(); onDelete(); }}
+          >
+            <Text style={swipeStyles.deleteBtnText}>✕{'\n'}{t('deleteFile')}</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
 
       {/* Swipeable card */}
@@ -276,7 +284,7 @@ function openPhone(phone: string, name?: string) {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
-  const { teamMember } = useAuth();
+  const { teamMember, permissions } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
 
@@ -396,7 +404,14 @@ export default function DashboardScreen() {
       supabase.from('cities').select('*').order('name'),
     ]);
 
-    if (tasksRes.data) setTasks(tasksRes.data as Task[]);
+    if (tasksRes.data) {
+      let allTasks = tasksRes.data as Task[];
+      // Permission: if member can only see their own files, filter by assigned_to
+      if (!permissions.can_see_all_files && teamMember?.id) {
+        allTasks = allTasks.filter(t => t.assigned_to === teamMember.id);
+      }
+      setTasks(allTasks);
+    }
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
     if (membersRes.data) setTeamMembers(membersRes.data as TeamMember[]);
     if (ministriesRes.data) setMinistries(ministriesRes.data as Ministry[]);
@@ -405,7 +420,7 @@ export default function DashboardScreen() {
     if (citiesRes.data) setCities(citiesRes.data as City[]);
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [permissions, teamMember?.id]);
 
   useEffect(() => {
     fetchData();
@@ -678,10 +693,12 @@ export default function DashboardScreen() {
           onFinance={() => openQuickFinance(item)}
           onPin={() => (item.is_pinned ? handleUnpinTask(item) : handlePinTask(item))}
           isArchived={isTaskArchived(item)}
+          canDelete={permissions.can_delete_files}
+          canFinance={permissions.can_add_expenses || permissions.can_add_revenue}
         />
       );
     },
-    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, handlePinTask, handleUnpinTask]
+    [allStatusColorsMap, statusLabels, navigation, handleArchiveTask, handleDeleteTask, handleUnarchiveTask, openQuickFinance, handlePinTask, handleUnpinTask, permissions]
   );
 
   if (loading) {

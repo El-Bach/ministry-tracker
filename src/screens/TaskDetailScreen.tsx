@@ -118,7 +118,7 @@ export default function TaskDetailScreen() {
   const route = useRoute<DetailRoute>();
   const navigation = useNavigation<Nav>();
   const { taskId } = route.params;
-  const { teamMember, organization } = useAuth();
+  const { teamMember, organization, permissions } = useAuth();
   const { isOnline, enqueue } = useOfflineQueue();
   const { t } = useTranslation();
 
@@ -1502,9 +1502,11 @@ export default function TaskDetailScreen() {
           ) : null}
 
           <View style={s.headerActionsRow}>
-            <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
-              <Text style={s.editTaskBtnText}>✎ Edit</Text>
-            </TouchableOpacity>
+            {permissions.can_edit_file_details && (
+              <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
+                <Text style={s.editTaskBtnText}>✎ Edit</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={s.shareWhatsAppBtn} onPress={handleShareWhatsApp}>
               <Text style={s.shareWhatsAppBtnText}>📤 WhatsApp</Text>
             </TouchableOpacity>
@@ -1565,12 +1567,16 @@ export default function TaskDetailScreen() {
                   <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
                   {editingCommentId !== c.id && (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
-                        <Text style={s.commentEditBtn}>✎</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
-                        <Text style={s.commentDeleteBtn}>🗑</Text>
-                      </TouchableOpacity>
+                      {permissions.can_add_comments && (
+                        <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
+                          <Text style={s.commentEditBtn}>✎</Text>
+                        </TouchableOpacity>
+                      )}
+                      {permissions.can_delete_comments && (
+                        <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
+                          <Text style={s.commentDeleteBtn}>🗑</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1677,8 +1683,8 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
-          {/* Normal comment input (hidden while recording/preview/listening) */}
-          {!isRecording && !recordedUri && !isListening && (
+          {/* Normal comment input (hidden while recording/preview/listening, gated by permission) */}
+          {!isRecording && !recordedUri && !isListening && permissions.can_add_comments && (
             <View style={s.commentInput}>
               <TextInput
                 style={s.commentTextInput}
@@ -1711,21 +1717,8 @@ export default function TaskDetailScreen() {
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>{t('documentsSection').toUpperCase()} ({documents.length})</Text>
-            <View style={s.docBtnRow}>
-              <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
-                <Text style={s.scanDocBtnText}>📷 Scan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                <Text style={s.addDocBtnText}>🖼 Image</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {documents.length === 0 ? (
-            <View style={s.docEmpty}>
-              <Text style={s.docEmptyIcon}>📄</Text>
-              <Text style={s.docEmptyText}>No documents yet</Text>
-              <View style={s.docEmptyBtnRow}>
+            {permissions.can_upload_documents && (
+              <View style={s.docBtnRow}>
                 <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
                   <Text style={s.scanDocBtnText}>📷 Scan</Text>
                 </TouchableOpacity>
@@ -1733,6 +1726,23 @@ export default function TaskDetailScreen() {
                   <Text style={s.addDocBtnText}>🖼 Image</Text>
                 </TouchableOpacity>
               </View>
+            )}
+          </View>
+
+          {documents.length === 0 ? (
+            <View style={s.docEmpty}>
+              <Text style={s.docEmptyIcon}>📄</Text>
+              <Text style={s.docEmptyText}>No documents yet</Text>
+              {permissions.can_upload_documents && (
+                <View style={s.docEmptyBtnRow}>
+                  <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
+                    <Text style={s.scanDocBtnText}>📷 Scan</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
+                    <Text style={s.addDocBtnText}>🖼 Image</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ) : (
             documents.map((doc) => {
@@ -1763,14 +1773,16 @@ export default function TaskDetailScreen() {
 
                   {/* Rename + Delete buttons */}
                   <View style={s.docActionBtns}>
-                    <TouchableOpacity
-                      onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={s.docRenameBtn}
-                    >
-                      <Text style={s.docRenameBtnText}>✎</Text>
-                    </TouchableOpacity>
-                    {deletingDocId === doc.id ? (
+                    {permissions.can_upload_documents && (
+                      <TouchableOpacity
+                        onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={s.docRenameBtn}
+                      >
+                        <Text style={s.docRenameBtnText}>✎</Text>
+                      </TouchableOpacity>
+                    )}
+                    {permissions.can_delete_documents && (deletingDocId === doc.id ? (
                       <ActivityIndicator size="small" color={theme.color.danger} />
                     ) : (
                       <TouchableOpacity
@@ -1780,7 +1792,7 @@ export default function TaskDetailScreen() {
                       >
                         <Text style={s.docDeleteBtnText}>🗑</Text>
                       </TouchableOpacity>
-                    )}
+                    ))}
                   </View>
                 </View>
               );
@@ -1792,12 +1804,16 @@ export default function TaskDetailScreen() {
         <View style={s.section}>
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
-            <TouchableOpacity style={s.addStageBtn} onPress={openEditStages}>
-              <Text style={s.addStageBtnText}>+ {t('addStage')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.editStagesBtn} onPress={openEditStages}>
-              <Text style={s.editStagesBtnText}>✎ {t('edit')}</Text>
-            </TouchableOpacity>
+            {permissions.can_add_edit_stages && (
+              <>
+                <TouchableOpacity style={s.addStageBtn} onPress={openEditStages}>
+                  <Text style={s.addStageBtnText}>+ {t('addStage')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.editStagesBtn} onPress={openEditStages}>
+                  <Text style={s.editStagesBtnText}>✎ {t('edit')}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
           <View style={s.routeContainer}>
             {task.route_stops?.map((stop, idx) => {
@@ -1902,9 +1918,9 @@ export default function TaskDetailScreen() {
                           borderColor: getStatusColor(stop.status) + '70',
                           backgroundColor: getStatusColor(stop.status) + '18',
                         }]}
-                        onPress={() => { setSelectedStop(stop); setShowStatusPicker(true); }}
-                        disabled={updatingStop === stop.id}
-                        activeOpacity={0.7}
+                        onPress={() => { if (permissions.can_update_stage_status) { setSelectedStop(stop); setShowStatusPicker(true); } }}
+                        disabled={updatingStop === stop.id || !permissions.can_update_stage_status}
+                        activeOpacity={permissions.can_update_stage_status ? 0.7 : 1}
                       >
                         {updatingStop === stop.id ? (
                           <ActivityIndicator size="small" color={getStatusColor(stop.status)} />
@@ -2220,15 +2236,18 @@ export default function TaskDetailScreen() {
           {/* Title + balance always visible + add button */}
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>{t('financialsSection').toUpperCase()}</Text>
-            <TouchableOpacity
-              style={s.addTxBtn}
-              onPress={() => setShowAddTransaction((v) => !v)}
-            >
-              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
-            </TouchableOpacity>
+            {(permissions.can_add_expenses || permissions.can_add_revenue) && (
+              <TouchableOpacity
+                style={s.addTxBtn}
+                onPress={() => setShowAddTransaction((v) => !v)}
+              >
+                <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Contract price row */}
+          {/* Contract price row — only if permitted */}
+          {permissions.can_see_contract_price && (
           <View style={s.contractPriceRow}>
             <View style={{ flex: 1 }}>
               <TouchableOpacity onPress={() => setShowPriceHistory(v => !v)} activeOpacity={0.7}>
@@ -2239,20 +2258,23 @@ export default function TaskDetailScreen() {
                 <Text style={s.contractPriceValLBP}>{fmtLBP(contractPriceLBP)}</Text>
               </View>
             </View>
-            <View style={s.contractPriceActions}>
-              <TouchableOpacity
-                style={s.editPriceBtn}
-                onPress={() => {
-                  setEditPriceUSD(contractPriceUSD > 0 ? String(contractPriceUSD) : '');
-                  setEditPriceLBP(contractPriceLBP > 0 ? contractPriceLBP.toLocaleString('en-US') : '');
-                  setEditPriceNote('');
-                  setShowEditPrice(true);
-                }}
-              >
-                <Text style={s.editPriceBtnText}>✎ Edit</Text>
-              </TouchableOpacity>
-            </View>
+            {permissions.can_edit_contract_price && (
+              <View style={s.contractPriceActions}>
+                <TouchableOpacity
+                  style={s.editPriceBtn}
+                  onPress={() => {
+                    setEditPriceUSD(contractPriceUSD > 0 ? String(contractPriceUSD) : '');
+                    setEditPriceLBP(contractPriceLBP > 0 ? contractPriceLBP.toLocaleString('en-US') : '');
+                    setEditPriceNote('');
+                    setShowEditPrice(true);
+                  }}
+                >
+                  <Text style={s.editPriceBtnText}>✎ Edit</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+          )}
 
           {/* Contract price change history — collapsible */}
           {showPriceHistory && <View style={s.priceHistoryBlock}>
@@ -2427,24 +2449,28 @@ export default function TaskDetailScreen() {
           {/* Add transaction form */}
           {showAddTransaction && (
             <View style={s.txForm}>
-              {/* Type toggle */}
+              {/* Type toggle — only show types the user is permitted to add */}
               <View style={s.txTypeRow}>
-                <TouchableOpacity
-                  style={[s.txTypeBtn, txType === 'expense' && s.txTypeBtnExpense]}
-                  onPress={() => setTxType('expense')}
-                >
-                  <Text style={[s.txTypeBtnText, txType === 'expense' && s.txTypeBtnTextExpense]}>
-                    ↑ {t('expense')}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.txTypeBtn, txType === 'revenue' && s.txTypeBtnRevenue]}
-                  onPress={() => setTxType('revenue')}
-                >
-                  <Text style={[s.txTypeBtnText, txType === 'revenue' && s.txTypeBtnTextRevenue]}>
-                    ↓ {t('revenue')}
-                  </Text>
-                </TouchableOpacity>
+                {permissions.can_add_expenses && (
+                  <TouchableOpacity
+                    style={[s.txTypeBtn, txType === 'expense' && s.txTypeBtnExpense]}
+                    onPress={() => setTxType('expense')}
+                  >
+                    <Text style={[s.txTypeBtnText, txType === 'expense' && s.txTypeBtnTextExpense]}>
+                      ↑ {t('expense')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {permissions.can_add_revenue && (
+                  <TouchableOpacity
+                    style={[s.txTypeBtn, txType === 'revenue' && s.txTypeBtnRevenue]}
+                    onPress={() => setTxType('revenue')}
+                  >
+                    <Text style={[s.txTypeBtnText, txType === 'revenue' && s.txTypeBtnTextRevenue]}>
+                      ↓ {t('revenue')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Description */}
@@ -2703,17 +2729,19 @@ export default function TaskDetailScreen() {
                     >
                       <Text style={s.txEdit}>✎</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteTransaction(tx)}
-                      disabled={deletingTxId === tx.id}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      {deletingTxId === tx.id ? (
-                        <ActivityIndicator size="small" color={theme.color.danger} />
-                      ) : (
-                        <Text style={s.txDelete}>✕</Text>
-                      )}
-                    </TouchableOpacity>
+                    {permissions.can_delete_transactions && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteTransaction(tx)}
+                        disabled={deletingTxId === tx.id}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {deletingTxId === tx.id ? (
+                          <ActivityIndicator size="small" color={theme.color.danger} />
+                        ) : (
+                          <Text style={s.txDelete}>✕</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               );

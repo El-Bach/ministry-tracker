@@ -7,14 +7,45 @@ import { useState, useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
-import { TeamMember, Organization } from '../types';
+import { TeamMember, Organization, OrgPermissions } from '../types';
 import { registerForPushNotifications } from '../lib/notifications';
+
+// Full permissions for owner/admin — no restrictions
+const ALL_PERMISSIONS: OrgPermissions = {
+  can_see_all_files: true, can_create_files: true, can_edit_file_details: true,
+  can_delete_files: true, can_update_stage_status: true, can_add_edit_stages: true,
+  can_see_contract_price: true, can_see_financial_report: true, can_add_revenue: true,
+  can_add_expenses: true, can_edit_contract_price: true, can_delete_transactions: true,
+  can_upload_documents: true, can_delete_documents: true, can_manage_clients: true,
+  can_add_comments: true, can_delete_comments: true,
+};
+
+// Default permissions for member when no DB row exists
+const MEMBER_DEFAULTS: OrgPermissions = {
+  can_see_all_files: true, can_create_files: true, can_edit_file_details: true,
+  can_delete_files: false, can_update_stage_status: true, can_add_edit_stages: true,
+  can_see_contract_price: true, can_see_financial_report: false, can_add_revenue: true,
+  can_add_expenses: true, can_edit_contract_price: false, can_delete_transactions: false,
+  can_upload_documents: true, can_delete_documents: false, can_manage_clients: true,
+  can_add_comments: true, can_delete_comments: false,
+};
+
+// Default permissions for viewer when no DB row exists
+const VIEWER_DEFAULTS: OrgPermissions = {
+  can_see_all_files: true, can_create_files: false, can_edit_file_details: false,
+  can_delete_files: false, can_update_stage_status: true, can_add_edit_stages: false,
+  can_see_contract_price: false, can_see_financial_report: false, can_add_revenue: false,
+  can_add_expenses: false, can_edit_contract_price: false, can_delete_transactions: false,
+  can_upload_documents: false, can_delete_documents: false, can_manage_clients: false,
+  can_add_comments: false, can_delete_comments: false,
+};
 
 interface AuthState {
   session: Session | null;
   user: User | null;
   teamMember: TeamMember | null;
   organization: Organization | null;
+  permissions: OrgPermissions;
   loading: boolean;
   needsOnboarding: boolean;   // true when logged in but no team_member row yet
 
@@ -34,6 +65,7 @@ export function useAuth(): AuthState {
   const [user, setUser]             = useState<User | null>(null);
   const [teamMember, setTeamMember] = useState<TeamMember | null>(null);
   const [organization, setOrg]      = useState<Organization | null>(null);
+  const [permissions, setPermissions] = useState<OrgPermissions>(ALL_PERMISSIONS);
   const [loading, setLoading]       = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
@@ -63,6 +95,7 @@ export function useAuth(): AuthState {
       } else {
         setTeamMember(null);
         setOrg(null);
+        setPermissions(ALL_PERMISSIONS);
         setNeedsOnboarding(false);
         setLoading(false);
       }
@@ -126,6 +159,26 @@ export function useAuth(): AuthState {
         if (orgData) setOrg(orgData as Organization);
       }
 
+      // Load permissions — owner/admin always get full access
+      const memberRole = data.role ?? 'member';
+      if (memberRole === 'owner' || memberRole === 'admin') {
+        setPermissions(ALL_PERMISSIONS);
+      } else if (data.org_id) {
+        const { data: visData } = await supabase
+          .from('org_visibility_settings')
+          .select('*')
+          .eq('org_id', data.org_id)
+          .eq('role', memberRole)
+          .maybeSingle();
+        if (visData) {
+          setPermissions(visData as OrgPermissions);
+        } else {
+          setPermissions(memberRole === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS);
+        }
+      } else {
+        setPermissions(memberRole === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS);
+      }
+
       // Register for push notifications
       registerForPushNotifications().then((token) => {
         if (token && token !== data.push_token) {
@@ -176,7 +229,7 @@ export function useAuth(): AuthState {
   };
 
   return {
-    session, user, teamMember, organization, loading, needsOnboarding,
+    session, user, teamMember, organization, permissions, loading, needsOnboarding,
     isOwner, isAdmin, canManage, canView,
     signIn, signOut, refreshTeamMember,
   };

@@ -197,6 +197,26 @@ export interface TaskPriceHistory {
   created_at: string;
 }
 
+export interface OrgPermissions {
+  can_see_all_files: boolean;
+  can_create_files: boolean;
+  can_edit_file_details: boolean;
+  can_delete_files: boolean;
+  can_update_stage_status: boolean;
+  can_add_edit_stages: boolean;
+  can_see_contract_price: boolean;
+  can_see_financial_report: boolean;
+  can_add_revenue: boolean;
+  can_add_expenses: boolean;
+  can_edit_contract_price: boolean;
+  can_delete_transactions: boolean;
+  can_upload_documents: boolean;
+  can_delete_documents: boolean;
+  can_manage_clients: boolean;
+  can_add_comments: boolean;
+  can_delete_comments: boolean;
+}
+
 // Offline queue entry
 export interface OfflineAction {
   id: string;

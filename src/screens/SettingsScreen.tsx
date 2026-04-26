@@ -280,7 +280,7 @@ const mf = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────
 export default function SettingsScreen() {
- const { teamMember, organization, signOut, isAdmin, refreshTeamMember } = useAuth();
+ const { teamMember, organization, signOut, isAdmin, refreshTeamMember, permissions } = useAuth();
  const { t, setLang, lang } = useTranslation();
 
  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -650,7 +650,8 @@ export default function SettingsScreen() {
  <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
 
- {/* Financial Report */}
+ {/* Financial Report — only shown if permission granted */}
+ {permissions.can_see_financial_report && (
  <TouchableOpacity
  style={ss.navCard}
  onPress={() => navigation.navigate('FinancialReport')}
@@ -665,6 +666,7 @@ export default function SettingsScreen() {
  </View>
  <Text style={ss.navCardChevron}>›</Text>
  </TouchableOpacity>
+ )}
 
  {/* Notifications */}
  <TouchableOpacity

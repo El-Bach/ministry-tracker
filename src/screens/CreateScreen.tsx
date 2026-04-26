@@ -42,7 +42,7 @@ function openPhone(phone: string, name?: string) {
 
 export default function CreateScreen() {
   const navigation = useNavigation<any>();
-  const { teamMember } = useAuth();
+  const { teamMember, permissions } = useAuth();
   const { t } = useTranslation();
   const orgId = teamMember?.org_id ?? null;
 
@@ -715,18 +715,18 @@ export default function CreateScreen() {
 
   // ── UI ────────────────────────────────────────────────────
   const quickActions = [
-    {
+    ...(permissions.can_create_files ? [{
       icon: '📄',
       label: '+ New File',
       color: theme.color.primary,
       onPress: () => (navigation as any).navigate('Dashboard', { screen: 'NewTask' }),
-    },
-    {
+    }] : []),
+    ...(permissions.can_manage_clients ? [{
       icon: '👤',
       label: '+ New Client',
       color: '#10b981',
       onPress: () => openNewClientForm(),
-    },
+    }] : []),
     {
       icon: '⚙',
       label: '+ New Service',
@@ -754,7 +754,7 @@ export default function CreateScreen() {
   ];
 
   const manageRows = [
-    { key: 'clients' as ManageSection, icon: '👤', label: 'Clients', count: clients.length },
+    ...(permissions.can_manage_clients ? [{ key: 'clients' as ManageSection, icon: '👤', label: 'Clients', count: clients.length }] : []),
     { key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length },
     { key: 'stages' as ManageSection, icon: '◎', label: 'Stages', count: ministries.length },
   ];
