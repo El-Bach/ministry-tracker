@@ -92,9 +92,8 @@ export function useAuth(): AuthState {
   const [loading, setLoading]       = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-  // Keep a ref to current teamMember so the realtime callback can read it
-  const teamMemberRef = useRef<TeamMember | null>(null);
-  useEffect(() => { teamMemberRef.current = teamMember; }, [teamMember]);
+  // Ref to the active role-watch channel so we can clean it up safely
+  const roleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Derived role booleans
   const role      = teamMember?.role ?? 'viewer';
@@ -233,23 +232,35 @@ export function useAuth(): AuthState {
     const memberId = teamMember.id;
     const orgId    = teamMember.org_id ?? null;
 
+    // Always remove any existing channel before creating a new one.
+    // This prevents the "cannot add postgres_changes callbacks after subscribe()" error
+    // that occurs when React re-runs the effect before cleanup finishes.
+    if (roleChannelRef.current) {
+      supabase.removeChannel(roleChannelRef.current);
+      roleChannelRef.current = null;
+    }
+
+    // Unique name with timestamp avoids stale-channel collisions across effect cycles
     const channel = supabase
-      .channel(`role-watch-${memberId}`)
+      .channel(`role-watch-${memberId}-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'team_members', filter: `id=eq.${memberId}` },
         async (payload) => {
           const newRole = (payload.new as any)?.role as string | undefined;
           if (!newRole) return;
-          // Update teamMember state with the new role
           setTeamMember((prev) => prev ? { ...prev, role: newRole } : prev);
-          // Reload permissions for the new role
           await loadPermissionsForRole(newRole, orgId, setPermissions);
         },
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    roleChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      roleChannelRef.current = null;
+    };
   }, [teamMember?.id]);
 
   const refreshTeamMember = async () => {
