@@ -22,6 +22,7 @@ import {
   Animated,
   PanResponder,
   Platform,
+  Linking,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -124,6 +125,7 @@ export default function TeamMembersScreen() {
   const [inviteeName,   setInviteeName]   = useState('');
   const [inviteePhone,  setInviteePhone]  = useState('');
   const [inviteeCountry,setInviteeCountry]= useState(DEFAULT_COUNTRY.code);
+  const [inviteeEmail,  setInviteeEmail]  = useState('');
   const [generating,    setGenerating]    = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [copiedCode,    setCopiedCode]    = useState<string | null>(null);
@@ -212,6 +214,7 @@ export default function TeamMembersScreen() {
       created_by:    teamMember.id,
       invitee_name:  inviteeName.trim() || null,
       invitee_phone: fullPhone,
+      invitee_email: inviteeEmail.trim().toLowerCase() || null,
     });
     setGenerating(false);
     if (error) { Alert.alert('Error generating code', error.message); return; }
@@ -224,6 +227,20 @@ export default function TeamMembersScreen() {
     await Clipboard.setStringAsync(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  // ── Send code by email ───────────────────────────────────────
+  const handleSendEmail = (code: string, role: string) => {
+    const meta    = ROLE_META[role as InviteRole];
+    const to      = inviteeEmail.trim();
+    const subject = encodeURIComponent(`Your GovPilot Invite Code: ${code}`);
+    const body    = encodeURIComponent(
+      `You've been invited to join our company on GovPilot as a ${meta.label}.\n\n` +
+      `Download GovPilot, then create a new account using this code:\n\n` +
+      `${code}\n\n` +
+      `This code is for your use only${inviteePhone.trim() ? ' on this mobile number' : ''}.\n`
+    );
+    Linking.openURL(`mailto:${to}?subject=${subject}&body=${body}`);
   };
 
   // ── Share code ───────────────────────────────────────────────
@@ -288,6 +305,7 @@ export default function TeamMembersScreen() {
     setInviteeName('');
     setInviteePhone('');
     setInviteeCountry(DEFAULT_COUNTRY.code);
+    setInviteeEmail('');
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -350,10 +368,11 @@ export default function TeamMembersScreen() {
                   </View>
 
                   {/* Invitee info */}
-                  {(jc.invitee_name || jc.invitee_phone) && (
+                  {(jc.invitee_name || jc.invitee_phone || jc.invitee_email) && (
                     <View style={s.inviteeRow}>
                       {jc.invitee_name  && <Text style={s.inviteeMeta}>👤 {jc.invitee_name}</Text>}
                       {jc.invitee_phone && <Text style={s.inviteeMeta}>📱 {jc.invitee_phone}</Text>}
+                      {jc.invitee_email && <Text style={s.inviteeMeta}>📧 {jc.invitee_email}</Text>}
                     </View>
                   )}
 
@@ -396,10 +415,11 @@ export default function TeamMembersScreen() {
                           </TouchableOpacity>
                         </View>
                       </View>
-                      {(jc.invitee_name || jc.invitee_phone) && (
+                      {(jc.invitee_name || jc.invitee_phone || jc.invitee_email) && (
                         <View style={s.inviteeRow}>
                           {jc.invitee_name  && <Text style={[s.inviteeMeta, s.revokedText]}>👤 {jc.invitee_name}</Text>}
                           {jc.invitee_phone && <Text style={[s.inviteeMeta, s.revokedText]}>📱 {jc.invitee_phone}</Text>}
+                          {jc.invitee_email && <Text style={[s.inviteeMeta, s.revokedText]}>📧 {jc.invitee_email}</Text>}
                         </View>
                       )}
                       <Text style={[s.codeMeta, s.revokedText]}>
@@ -594,6 +614,15 @@ export default function TeamMembersScreen() {
                   >
                     <Text style={s.shareFullBtnText}>📤 Share Code</Text>
                   </TouchableOpacity>
+                  {inviteeEmail.trim() ? (
+                    <TouchableOpacity
+                      style={[s.shareFullBtn, { backgroundColor: theme.color.bgSurface, borderWidth: 1, borderColor: theme.color.primary }]}
+                      onPress={() => handleSendEmail(generatedCode, modalRole)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.shareFullBtnText, { color: theme.color.primary }]}>📧 Send Email to {inviteeEmail.trim()}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity style={s.doneBtn} onPress={closeModal}>
                     <Text style={s.doneBtnText}>Done</Text>
                   </TouchableOpacity>
@@ -628,6 +657,22 @@ export default function TeamMembersScreen() {
                       placeholder="70 123 456"
                     />
                     <Text style={s.formHint}>The invitee can only register with this phone number.</Text>
+                  </View>
+
+                  {/* Invitee email */}
+                  <View style={s.formField}>
+                    <Text style={s.formLabel}>EMPLOYEE EMAIL (OPTIONAL)</Text>
+                    <TextInput
+                      style={s.formInput}
+                      value={inviteeEmail}
+                      onChangeText={setInviteeEmail}
+                      placeholder="employee@example.com"
+                      placeholderTextColor={theme.color.textMuted}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <Text style={s.formHint}>Send the invite code directly to their inbox.</Text>
                   </View>
 
                   {/* Role picker */}
