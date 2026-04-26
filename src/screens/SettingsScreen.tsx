@@ -333,19 +333,7 @@ export default function SettingsScreen() {
    setSendingContact(true);
 
    try {
-     // Call Edge Function to send email via Resend
-     const { error: fnError } = await supabase.functions.invoke('send-contact-email', {
-       body: {
-         sender_name:  contactName.trim()  || teamMember?.name  || '',
-         sender_email: contactEmail.trim() || teamMember?.email || '',
-         subject:      contactSubject.trim(),
-         message:      contactMessage.trim(),
-       },
-     });
-
-     if (fnError) throw fnError;
-
-     // Also save to DB as audit trail
+     // Save to DB first — this is the guaranteed audit trail
      await supabase.from('contact_messages').insert({
        sender_name:  contactName.trim()  || teamMember?.name,
        sender_email: contactEmail.trim() || teamMember?.email,
@@ -353,6 +341,16 @@ export default function SettingsScreen() {
        message:      contactMessage.trim(),
        org_id:       teamMember?.org_id,
      }).throwOnError();
+
+     // Fire email best-effort (don't block success if Edge Function not deployed)
+     supabase.functions.invoke('send-contact-email', {
+       body: {
+         sender_name:  contactName.trim()  || teamMember?.name  || '',
+         sender_email: contactEmail.trim() || teamMember?.email || '',
+         subject:      contactSubject.trim(),
+         message:      contactMessage.trim(),
+       },
+     }).catch(() => { /* silent — DB record is the source of truth */ });
 
      setSendingContact(false);
      setShowContactModal(false);
@@ -379,16 +377,7 @@ export default function SettingsScreen() {
    }
    setSendingBug(true);
    try {
-     const { error: fnError } = await supabase.functions.invoke('send-contact-email', {
-       body: {
-         sender_name:  teamMember?.name  ?? '',
-         sender_email: teamMember?.email ?? '',
-         subject:      `[BUG] ${bugTitle.trim()}`,
-         message:      bugDesc.trim(),
-       },
-     });
-     if (fnError) throw fnError;
-
+     // Save to DB first — guaranteed audit trail
      await supabase.from('contact_messages').insert({
        sender_name:  teamMember?.name,
        sender_email: teamMember?.email,
@@ -396,6 +385,16 @@ export default function SettingsScreen() {
        message:      bugDesc.trim(),
        org_id:       teamMember?.org_id,
      }).throwOnError();
+
+     // Fire email best-effort (don't block success if Edge Function not deployed)
+     supabase.functions.invoke('send-contact-email', {
+       body: {
+         sender_name:  teamMember?.name  ?? '',
+         sender_email: teamMember?.email ?? '',
+         subject:      `[BUG] ${bugTitle.trim()}`,
+         message:      bugDesc.trim(),
+       },
+     }).catch(() => { /* silent — DB record is the source of truth */ });
 
      setSendingBug(false);
      setShowBugModal(false);
