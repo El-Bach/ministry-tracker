@@ -80,6 +80,7 @@ function SwipeableTaskRow({
   isArchived: boolean;
   canDelete: boolean;
   canFinance: boolean;
+  canArchive: boolean;
 }) {
   const { t } = useTranslation();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -153,19 +154,23 @@ function SwipeableTaskRow({
       {/* Left-swipe: Archive/Restore + Delete (right side) — hidden at rest */}
       <Animated.View style={[swipeStyles.actions, { opacity: actionsOpacity }]}>
         {isArchived ? (
-          <TouchableOpacity
-            style={swipeStyles.unarchiveBtn}
-            onPress={() => { close(); onUnarchive(); }}
-          >
-            <Text style={swipeStyles.unarchivedBtnText}>📋{'\n'}{t('restoreFile')}</Text>
-          </TouchableOpacity>
+          canArchive && (
+            <TouchableOpacity
+              style={swipeStyles.unarchiveBtn}
+              onPress={() => { close(); onUnarchive(); }}
+            >
+              <Text style={swipeStyles.unarchivedBtnText}>📋{'\n'}{t('restoreFile')}</Text>
+            </TouchableOpacity>
+          )
         ) : (
-          <TouchableOpacity
-            style={swipeStyles.archiveBtn}
-            onPress={() => { close(); onArchive(); }}
-          >
-            <Text style={swipeStyles.archiveBtnText}>📦{'\n'}{t('archiveFile')}</Text>
-          </TouchableOpacity>
+          canArchive && (
+            <TouchableOpacity
+              style={swipeStyles.archiveBtn}
+              onPress={() => { close(); onArchive(); }}
+            >
+              <Text style={swipeStyles.archiveBtnText}>📦{'\n'}{t('archiveFile')}</Text>
+            </TouchableOpacity>
+          )
         )}
         {canDelete && (
           <TouchableOpacity
@@ -284,7 +289,7 @@ function openPhone(phone: string, name?: string) {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
-  const { teamMember, permissions } = useAuth();
+  const { teamMember, permissions, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
 
@@ -406,9 +411,13 @@ export default function DashboardScreen() {
 
     if (tasksRes.data) {
       let allTasks = tasksRes.data as Task[];
-      // Permission: if member can only see their own files, filter by assigned_to
+      // Permission: if member can only see their own files,
+      // keep tasks where the member is assigned at task level OR at any stage level
       if (!permissions.can_see_all_files && teamMember?.id) {
-        allTasks = allTasks.filter(t => t.assigned_to === teamMember.id);
+        allTasks = allTasks.filter(t =>
+          t.assigned_to === teamMember.id ||
+          (t.route_stops ?? []).some((s: any) => s.assigned_to === teamMember.id)
+        );
       }
       setTasks(allTasks);
     }
@@ -422,14 +431,17 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [permissions, teamMember?.id]);
 
+  // Wait for auth to finish loading before fetching data.
+  // This prevents fetchData from running with ALL_PERMISSIONS (the initial default)
+  // before the viewer's actual permissions are loaded from org_visibility_settings.
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!authLoading) fetchData();
+  }, [fetchData, authLoading]);
 
   // Refresh tasks when navigating back (picks up client profile edits)
   useFocusEffect(useCallback(() => {
-    fetchData();
-  }, [fetchData]));
+    if (!authLoading) fetchData();
+  }, [fetchData, authLoading]));
 
   // Overdue check — once per day, fires a local notification for past-due files
   useEffect(() => {
@@ -694,6 +706,7 @@ export default function DashboardScreen() {
           onPin={() => (item.is_pinned ? handleUnpinTask(item) : handlePinTask(item))}
           isArchived={isTaskArchived(item)}
           canDelete={permissions.can_delete_files}
+          canArchive={permissions.can_edit_file_details}
           canFinance={permissions.can_add_expenses || permissions.can_add_revenue}
         />
       );
