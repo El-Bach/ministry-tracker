@@ -3,7 +3,7 @@
 // Session 26 Phase 1: fetch teamMember by auth.uid(); expose Organization
 // Session 26 Phase 2: role helpers (isOwner, isAdmin, canManage, canEdit, canView)
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
@@ -60,6 +60,29 @@ interface AuthState {
   refreshTeamMember: () => Promise<void>;
 }
 
+// Helper — fetch and apply permissions for a given role + org
+async function loadPermissionsForRole(
+  role: string,
+  orgId: string | null,
+  setPermissions: (p: OrgPermissions) => void,
+) {
+  if (role === 'owner' || role === 'admin') {
+    setPermissions(ALL_PERMISSIONS);
+    return;
+  }
+  if (orgId) {
+    const { data } = await supabase
+      .from('org_visibility_settings')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('role', role)
+      .maybeSingle();
+    setPermissions(data ?? (role === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS));
+  } else {
+    setPermissions(role === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS);
+  }
+}
+
 export function useAuth(): AuthState {
   const [session, setSession]       = useState<Session | null>(null);
   const [user, setUser]             = useState<User | null>(null);
@@ -68,6 +91,10 @@ export function useAuth(): AuthState {
   const [permissions, setPermissions] = useState<OrgPermissions>(ALL_PERMISSIONS);
   const [loading, setLoading]       = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  // Keep a ref to current teamMember so the realtime callback can read it
+  const teamMemberRef = useRef<TeamMember | null>(null);
+  useEffect(() => { teamMemberRef.current = teamMember; }, [teamMember]);
 
   // Derived role booleans
   const role      = teamMember?.role ?? 'viewer';
@@ -160,24 +187,7 @@ export function useAuth(): AuthState {
       }
 
       // Load permissions — owner/admin always get full access
-      const memberRole = data.role ?? 'member';
-      if (memberRole === 'owner' || memberRole === 'admin') {
-        setPermissions(ALL_PERMISSIONS);
-      } else if (data.org_id) {
-        const { data: visData } = await supabase
-          .from('org_visibility_settings')
-          .select('*')
-          .eq('org_id', data.org_id)
-          .eq('role', memberRole)
-          .maybeSingle();
-        if (visData) {
-          setPermissions(visData as OrgPermissions);
-        } else {
-          setPermissions(memberRole === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS);
-        }
-      } else {
-        setPermissions(memberRole === 'viewer' ? VIEWER_DEFAULTS : MEMBER_DEFAULTS);
-      }
+      await loadPermissionsForRole(data.role ?? 'member', data.org_id ?? null, setPermissions);
 
       // Register for push notifications
       registerForPushNotifications().then((token) => {
@@ -213,6 +223,34 @@ export function useAuth(): AuthState {
 
     setLoading(false);
   };
+
+  // ── Realtime: watch for role changes on this user's team_members row ──
+  // When the owner changes this user's role, permissions update immediately
+  // without requiring sign-out or app restart.
+  useEffect(() => {
+    if (!teamMember?.id) return;
+
+    const memberId = teamMember.id;
+    const orgId    = teamMember.org_id ?? null;
+
+    const channel = supabase
+      .channel(`role-watch-${memberId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'team_members', filter: `id=eq.${memberId}` },
+        async (payload) => {
+          const newRole = (payload.new as any)?.role as string | undefined;
+          if (!newRole) return;
+          // Update teamMember state with the new role
+          setTeamMember((prev) => prev ? { ...prev, role: newRole } : prev);
+          // Reload permissions for the new role
+          await loadPermissionsForRole(newRole, orgId, setPermissions);
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [teamMember?.id]);
 
   const refreshTeamMember = async () => {
     if (user) await fetchTeamMember(user);
