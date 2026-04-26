@@ -6,10 +6,20 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/icon-fullbleed.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
     "ios": {
       "bundleIdentifier": "com.bechara.govpilot",
       "buildNumber": "1",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "GovPilot uses the camera to scan and attach documents to files.",
+        "NSPhotoLibraryUsageDescription": "GovPilot accesses your photo library to attach documents to files.",
+        "NSPhotoLibraryAddUsageDescription": "GovPilot saves scanned documents to your photo library."
+      }
     },
     "android": {
       "package": "com.bechara.govpilot",
@@ -21,17 +31,15 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "updates": {
-      "enabled": false
+      "enabled": true,
+      "url": "https://u.expo.dev/3e7ca54c-2ac7-4356-b47a-75f77c55afd4",
+      "fallbackToCacheTimeout": 0
     },
     "plugins": [
       "expo-camera",

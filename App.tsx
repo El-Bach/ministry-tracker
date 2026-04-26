@@ -9,6 +9,7 @@ import { useOfflineQueue } from './src/store/offlineQueue';
 import { loadLanguage, isFirstLaunchKey, LanguageProvider } from './src/lib/i18n';
 import { AuthProvider } from './src/contexts/AuthContext';
 import LanguageSelectScreen from './src/screens/auth/LanguageSelectScreen';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -56,23 +57,27 @@ export default function App() {
 
   if (needsLanguageSelect) {
     return (
-      <LanguageProvider>
-        <SafeAreaProvider>
-          <AuthProvider>
-            <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
-          </AuthProvider>
-        </SafeAreaProvider>
-      </LanguageProvider>
+      <ErrorBoundary>
+        <LanguageProvider>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+            </AuthProvider>
+          </SafeAreaProvider>
+        </LanguageProvider>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <LanguageProvider>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <AppNavigator />
-        </AuthProvider>
-      </SafeAreaProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <SafeAreaProvider>
+          <AuthProvider>
+            <AppNavigator />
+          </AuthProvider>
+        </SafeAreaProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }

@@ -226,36 +226,10 @@ CREATE POLICY "org_isolation" ON ministry_requirements
   );
 
 -- ─────────────────────────────────────────────────
--- 7. Backfill existing data (Bechara's company)
+-- 7. Backfill note
 -- ─────────────────────────────────────────────────
--- Creates a single "default" org for all existing data.
--- After running this: manually set team_members.auth_id for existing users
--- via: UPDATE team_members SET auth_id = '<uuid from auth.users>' WHERE email = 'becharaabdelmassih@gmail.com';
-
-DO $$
-DECLARE
-  _org_id uuid;
-BEGIN
-  INSERT INTO organizations (name, slug, plan)
-  VALUES ('My Company', 'my-company', 'free')
-  RETURNING id INTO _org_id;
-
-  -- Backfill all existing rows with the default org
-  UPDATE team_members          SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE clients               SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE ministries            SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE services              SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE status_labels         SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE tasks                 SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE assignees             SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE cities                SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE client_field_definitions SET org_id = _org_id WHERE org_id IS NULL;
-  UPDATE service_documents     SET org_id = _org_id WHERE org_id IS NULL;
-END $$;
-
--- ─────────────────────────────────────────────────
--- AFTER RUNNING THIS MIGRATION:
--- 1. Find auth.users.id for becharaabdelmassih@gmail.com in Supabase Auth dashboard
--- 2. Run: UPDATE team_members SET auth_id = '<that-uuid>' WHERE email = 'becharaabdelmassih@gmail.com';
--- 3. New registrations through RegisterScreen will automatically create org + team_member rows
+-- This migration does NOT create any seed data.
+-- New organisations are created via RegisterScreen (register_new_org RPC).
+-- Existing single-tenant data can be backfilled manually using a local seed script
+-- — never include INSERT INTO organizations in a production migration file.
 -- ─────────────────────────────────────────────────

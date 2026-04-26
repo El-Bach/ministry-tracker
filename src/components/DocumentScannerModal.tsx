@@ -325,16 +325,17 @@ export default function DocumentScannerModal({
         // Native: use FileSystem.uploadAsync
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData?.session?.access_token;
-        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkYnFqemlmamtmZGJ3aGxxbHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NjY2NzMsImV4cCI6MjA5MTA0MjY3M30.tmxI6cC8mNSYSQPcXIKuoPu8CgAcgdd3jQxEGsyiBKI';
-        const uploadUrl = `https://fdbqjzifjkfdbwhlqlxt.supabase.co/storage/v1/object/task-attachments/${filePath}`;
+        const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+        const uploadUrl = `${supabaseUrl}/storage/v1/object/task-attachments/${filePath}`;
         const uploadResult = await FileSystem.uploadAsync(uploadUrl, capturedUri, {
           httpMethod: 'POST',
           uploadType: FileSystem.FileSystemUploadType.MULTIPART,
           fieldName: 'file',
           mimeType: 'image/jpeg',
           headers: {
-            'apikey': ANON_KEY,
-            'Authorization': `Bearer ${accessToken ?? ANON_KEY}`,
+            'apikey': anonKey,
+            'Authorization': `Bearer ${accessToken ?? anonKey}`,
           },
         });
         if (uploadResult.status < 200 || uploadResult.status >= 300) {

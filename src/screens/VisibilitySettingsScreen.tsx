@@ -204,8 +204,17 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
 type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
 
 export default function VisibilitySettingsScreen() {
-  const { teamMember } = useAuth();
+  const { teamMember, isOwner, isAdmin } = useAuth();
   const navigation = useNavigation<NavProp>();
+
+  // Role guard — only owner and admin may access this screen
+  if (!isOwner && !isAdmin) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: theme.color.textSecondary, fontSize: 15 }}>Access restricted to owners and admins.</Text>
+      </SafeAreaView>
+    );
+  }
 
   const [activeRole, setActiveRole] = useState<Role>('admin');
   const [members, setMembers] = useState<TeamMember[]>([]);

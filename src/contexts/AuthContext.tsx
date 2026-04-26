@@ -4,7 +4,7 @@
 // permissions update (role change via Realtime), every screen re-renders.
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Alert } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import { TeamMember, Organization, OrgPermissions } from '../types';
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]               = useState<User | null>(null);
   const [teamMember, setTeamMember]   = useState<TeamMember | null>(null);
   const [organization, setOrg]        = useState<Organization | null>(null);
-  const [permissions, setPermissions] = useState<OrgPermissions>(ALL_PERMISSIONS);
+  const [permissions, setPermissions] = useState<OrgPermissions>(VIEWER_DEFAULTS);
   const [loading, setLoading]         = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setTeamMember(null);
         setOrg(null);
-        setPermissions(ALL_PERMISSIONS);
+        setPermissions(VIEWER_DEFAULTS);
         setNeedsOnboarding(false);
         setLoading(false);
       }
@@ -240,22 +240,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── Core fetch ────────────────────────────────────────────────────────────
   const fetchTeamMember = async (authUser: User) => {
-    let { data } = await supabase
-      .from('team_members')
-      .select('*')
-      .eq('auth_id', authUser.id)
-      .maybeSingle();
-
-    if (!data && authUser.email) {
-      const res = await supabase
+    let data: any = null;
+    try {
+      const res1 = await supabase
         .from('team_members')
         .select('*')
-        .eq('email', authUser.email)
+        .eq('auth_id', authUser.id)
         .maybeSingle();
-      data = res.data;
-      if (data && !data.auth_id) {
-        supabase.from('team_members').update({ auth_id: authUser.id }).eq('id', data.id).then(() => {});
+      if (res1.error) throw res1.error;
+      data = res1.data;
+
+      if (!data && authUser.email) {
+        const res2 = await supabase
+          .from('team_members')
+          .select('*')
+          .eq('email', authUser.email)
+          .maybeSingle();
+        if (res2.error) throw res2.error;
+        data = res2.data;
+        if (data && !data.auth_id) {
+          supabase.from('team_members').update({ auth_id: authUser.id }).eq('id', data.id).then(() => {});
+        }
       }
+    } catch (e: any) {
+      console.error('[AuthContext] fetchTeamMember error:', e);
+      Alert.alert(
+        'Connection Error',
+        'Could not load your account. Please check your internet connection.',
+        [{ text: 'Retry', onPress: () => fetchTeamMember(authUser) }],
+      );
+      setLoading(false);
+      return;
     }
 
     if (data) {

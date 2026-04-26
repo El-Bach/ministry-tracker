@@ -39,8 +39,7 @@ interface CodePreview {
   orgName:      string;
   role:         string;
   inviteeName:  string | null;
-  inviteePhone: string | null;
-  codeId:       string;   // org_join_codes.id
+  hasPhoneLock: boolean;   // code requires a matching phone (phone not returned for security)
   orgId:        string;
 }
 
@@ -94,46 +93,25 @@ export default function RegisterScreen() {
     }
     setValidating(true);
     try {
-      // Query the code directly (public_code_lookup RLS policy allows this)
-      const { data, error } = await supabase
-        .from('org_join_codes')
-        .select('id, org_id, role, is_active, deleted_at, invitee_name, invitee_phone, organizations(name)')
-        .eq('code', cleaned)
-        .maybeSingle();
+      // Call SECURITY DEFINER RPC — never exposes invitee_phone or all codes to the caller
+      const { data, error } = await supabase.rpc('lookup_invite_code', { p_code: cleaned });
 
       if (error || !data) {
         Alert.alert('Invalid Code', 'This invite code was not found. Please check and try again.');
         return;
       }
-      if (data.deleted_at) {
-        Alert.alert('Code Revoked', 'This invite code has been deactivated. Please ask the owner for a new one.');
-        return;
-      }
-      if (!data.is_active) {
-        Alert.alert('Code Inactive', 'This invite code is no longer active.');
-        return;
-      }
 
-      const org = data.organizations as any;
       const preview: CodePreview = {
-        orgName:      org?.name ?? 'the organization',
+        orgName:      data.org_name ?? 'the organization',
         role:         data.role ?? 'member',
         inviteeName:  data.invitee_name ?? null,
-        inviteePhone: data.invitee_phone ?? null,
-        codeId:       data.id,
+        hasPhoneLock: data.has_phone_lock ?? false,
         orgId:        data.org_id,
       };
       setCodePreview(preview);
 
-      // Pre-fill name and phone from code if set
+      // Pre-fill name from code if set
       if (preview.inviteeName) setFullName(preview.inviteeName);
-      if (preview.inviteePhone) {
-        // inviteePhone is stored as full E.164 (e.g. +96170123456)
-        // Strip the country code for display in PhoneInput
-        const raw = preview.inviteePhone.replace(/^\+961/, '');
-        setPhone(raw);
-        setCountryCode('+961');
-      }
 
       fadeTransition(() => setMode('details'));
     } catch (e: any) {
@@ -248,6 +226,11 @@ export default function RegisterScreen() {
     }
     if (!orgEmail.trim()) {
       Alert.alert('Required', 'Please enter your email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(orgEmail.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
     if (!orgName.trim()) {

@@ -225,6 +225,7 @@ export interface OfflineAction {
   type: 'status_update' | 'comment' | 'task_create';
   payload: Record<string, unknown>;
   created_at: string;
+  retryCount?: number;  // incremented on each failed sync attempt; discarded after 5
 }
 
 // Navigation param types

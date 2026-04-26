@@ -46,6 +46,7 @@ export const useOfflineQueue = create<OfflineQueueState>((set, get) => ({
       ...action,
       id: `${Date.now()}-${Math.random()}`,
       created_at: new Date().toISOString(),
+      retryCount: 0,
     };
     const newQueue = [...get().queue, entry];
     set({ queue: newQueue });
@@ -58,9 +59,15 @@ export const useOfflineQueue = create<OfflineQueueState>((set, get) => ({
 
     set({ isSyncing: true });
     const remaining: OfflineAction[] = [];
+    const MAX_RETRIES = 5;
 
     for (const action of queue) {
       try {
+        if (action.type !== 'status_update' && action.type !== 'comment') {
+          // Unknown action type — discard rather than queue forever
+          console.warn('[offlineQueue] Unknown action type, discarding:', action.type, action.id);
+          continue;
+        }
         if (action.type === 'status_update') {
           const { stopId, newStatus, taskId, updatedBy, gpsLat, gpsLng, oldStatus } =
             action.payload as {
@@ -119,8 +126,13 @@ export const useOfflineQueue = create<OfflineQueueState>((set, get) => ({
         }
         // success — don't re-add
       } catch (e) {
-        console.error('Sync failed for action', action.id, e);
-        remaining.push(action); // keep for retry
+        const retries = (action.retryCount ?? 0) + 1;
+        if (retries >= MAX_RETRIES) {
+          console.error(`[offlineQueue] Action ${action.id} failed ${MAX_RETRIES} times — discarding`, e);
+        } else {
+          console.warn(`[offlineQueue] Sync failed for action ${action.id} (attempt ${retries})`, e);
+          remaining.push({ ...action, retryCount: retries });
+        }
       }
     }
 

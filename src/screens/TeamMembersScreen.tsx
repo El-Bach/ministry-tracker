@@ -8,6 +8,7 @@
 //   - Updated share message
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import * as Crypto from 'expo-crypto';
 import {
   View,
   Text,
@@ -37,12 +38,13 @@ import { normalizePhone } from '../lib/authHelpers';
 
 type InviteRole = 'admin' | 'member' | 'viewer';
 
-function makeCode() {
+async function makeCode(): Promise<string> {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = await Crypto.getRandomBytesAsync(8);
   let code = '';
   for (let i = 0; i < 8; i++) {
     if (i === 4) code += '-';
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[bytes[i] % chars.length];
   }
   return code;
 }
@@ -203,7 +205,7 @@ export default function TeamMembersScreen() {
   const handleGenerateCode = async () => {
     if (!teamMember?.org_id) return;
     setGenerating(true);
-    const code = makeCode();
+    const code = await makeCode();
     const fullPhone = inviteePhone.trim()
       ? normalizePhone(`${inviteeCountry}${inviteePhone.trim()}`)
       : null;
