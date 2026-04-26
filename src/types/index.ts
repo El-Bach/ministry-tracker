@@ -142,6 +142,8 @@ export interface FileTransaction {
   description: string;
   amount_usd: number;
   amount_lbp: number;
+  /** Exchange rate (LBP per $1) locked at the time this transaction was recorded. NULL on legacy rows. */
+  rate_usd_lbp?: number | null;
   stop_id?: string | null;
   stop?: { id: string; ministry?: { name: string } } | null;
   created_by?: string;

@@ -170,7 +170,7 @@ export default function FinancialReportScreen() {
     // Transactions with stop → ministry (for stage filter)
     const { data: txs } = await supabase
       .from('file_transactions')
-      .select('task_id, type, amount_usd, amount_lbp, stop_id, stop:task_route_stops(ministry_id)');
+      .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop_id, stop:task_route_stops(ministry_id)');
 
     // Ministry options for stage filter
     const { data: ministries } = await supabase
@@ -180,7 +180,12 @@ export default function FinancialReportScreen() {
     if (ministries) setStageOptions(ministries as { id: string; name: string }[]);
 
     // Build txMap — keyed by task_id, optionally filtered by ministry
-    type TxGroup = { revenueUSD: number; revenueLBP: number; expenseUSD: number; expenseLBP: number };
+    // CV is computed per-transaction using each row's locked rate (falls back to org rate for legacy rows)
+    type TxGroup = {
+      revenueUSD: number; revenueLBP: number;
+      expenseUSD: number; expenseLBP: number;
+      cvRevenue:  number; cvExpense:  number;
+    };
     const buildTxMap = (ministryFilter: string): Record<string, TxGroup> => {
       const map: Record<string, TxGroup> = {};
       for (const tx of txs ?? []) {
@@ -188,13 +193,17 @@ export default function FinancialReportScreen() {
           const mid = (tx.stop as any)?.ministry_id;
           if (mid !== ministryFilter) continue;
         }
-        if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0 };
+        if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0, cvRevenue: 0, cvExpense: 0 };
+        const txRate = (tx as any).rate_usd_lbp ?? rate;
+        const cvAmount = (tx.amount_usd ?? 0) > 0 ? (tx.amount_usd ?? 0) : (tx.amount_lbp ?? 0) / txRate;
         if (tx.type === 'revenue') {
           map[tx.task_id].revenueUSD += tx.amount_usd ?? 0;
           map[tx.task_id].revenueLBP += tx.amount_lbp ?? 0;
+          map[tx.task_id].cvRevenue  += cvAmount;
         } else {
           map[tx.task_id].expenseUSD += tx.amount_usd ?? 0;
           map[tx.task_id].expenseLBP += tx.amount_lbp ?? 0;
+          map[tx.task_id].cvExpense  += cvAmount;
         }
       }
       return map;
@@ -203,11 +212,12 @@ export default function FinancialReportScreen() {
     const txMap = buildTxMap(''); // full map; stage filter applied in useMemo
 
     const built: ReportRow[] = tasks.map((t: any) => {
-      const tg = txMap[t.id] ?? { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0 };
+      const tg = txMap[t.id] ?? { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0, cvRevenue: 0, cvExpense: 0 };
       const cUSD = t.price_usd ?? 0;
       const cLBP = t.price_lbp ?? 0;
-      const cvRec = tg.revenueUSD + tg.revenueLBP / rate;
-      const cvExp = tg.expenseUSD + tg.expenseLBP / rate;
+      // Use per-transaction locked rates (already computed in buildTxMap)
+      const cvRec = tg.cvRevenue;
+      const cvExp = tg.cvExpense;
       return {
         taskId:          t.id,
         clientName:      t.client?.name ?? '—',
@@ -248,15 +258,17 @@ export default function FinancialReportScreen() {
     (async () => {
       const { data: txs } = await supabase
         .from('file_transactions')
-        .select('task_id, type, amount_usd, amount_lbp, stop:task_route_stops(ministry_id)');
+        .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop:task_route_stops(ministry_id)');
 
-      const map: Record<string, { revenueUSD: number; revenueLBP: number; expenseUSD: number; expenseLBP: number }> = {};
+      const map: Record<string, { revenueUSD: number; revenueLBP: number; expenseUSD: number; expenseLBP: number; cvRevenue: number; cvExpense: number }> = {};
       for (const tx of txs ?? []) {
         const mid = (tx.stop as any)?.ministry_id;
         if (mid !== filterStage) continue;
-        if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0 };
-        if (tx.type === 'revenue') { map[tx.task_id].revenueUSD += tx.amount_usd ?? 0; map[tx.task_id].revenueLBP += tx.amount_lbp ?? 0; }
-        else { map[tx.task_id].expenseUSD += tx.amount_usd ?? 0; map[tx.task_id].expenseLBP += tx.amount_lbp ?? 0; }
+        if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0, cvRevenue: 0, cvExpense: 0 };
+        const txRate = (tx as any).rate_usd_lbp ?? rate;
+        const cvAmount = (tx.amount_usd ?? 0) > 0 ? (tx.amount_usd ?? 0) : (tx.amount_lbp ?? 0) / txRate;
+        if (tx.type === 'revenue') { map[tx.task_id].revenueUSD += tx.amount_usd ?? 0; map[tx.task_id].revenueLBP += tx.amount_lbp ?? 0; map[tx.task_id].cvRevenue += cvAmount; }
+        else { map[tx.task_id].expenseUSD += tx.amount_usd ?? 0; map[tx.task_id].expenseLBP += tx.amount_lbp ?? 0; map[tx.task_id].cvExpense += cvAmount; }
       }
 
       // Only show files that have at least one transaction in this stage
@@ -264,8 +276,8 @@ export default function FinancialReportScreen() {
         .filter((r) => !!map[r.taskId])
         .map((r) => {
           const tg = map[r.taskId];
-          const cvRec = tg.revenueUSD + tg.revenueLBP / rate;
-          const cvExp = tg.expenseUSD + tg.expenseLBP / rate;
+          const cvRec = tg.cvRevenue;
+          const cvExp = tg.cvExpense;
           return {
             ...r,
             receivedUSD:   tg.revenueUSD,  receivedLBP:  tg.revenueLBP,
@@ -939,7 +951,8 @@ export default function FinancialReportScreen() {
                         <Text style={[s.cvMiniNum, s.cvMiniHeaderText]}>C/V USD</Text>
                       </View>
                       {detailTxs.map((tx) => {
-                        const cv = tx.amount_usd > 0 ? tx.amount_usd : tx.amount_lbp / rate;
+                        const txRate = (tx as any).rate_usd_lbp ?? rate;
+                        const cv = tx.amount_usd > 0 ? tx.amount_usd : tx.amount_lbp / txRate;
                         const sign = tx.type === 'revenue' ? '+' : '-';
                         const col = tx.type === 'revenue' ? theme.color.success : theme.color.danger;
                         const stageName = (tx as any).stop?.ministry?.name;
@@ -964,8 +977,8 @@ export default function FinancialReportScreen() {
                       })}
                       {/* Totals row */}
                       {(() => {
-                        const totRec = detailTxs.filter(t => t.type === 'revenue').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / rate), 0);
-                        const totExp = detailTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / rate), 0);
+                        const totRec = detailTxs.filter(t => t.type === 'revenue').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / ((t as any).rate_usd_lbp ?? rate)), 0);
+                        const totExp = detailTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / ((t as any).rate_usd_lbp ?? rate)), 0);
                         const net = totRec - totExp;
                         return (
                           <View style={[s.cvMiniRow, s.cvMiniTotalRow]}>

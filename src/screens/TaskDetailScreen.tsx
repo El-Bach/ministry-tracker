@@ -434,13 +434,14 @@ export default function TaskDetailScreen() {
     }
     setSavingTx(true);
     const { error } = await supabase.from('file_transactions').insert({
-      task_id: taskId,
-      type: txType,
-      description: txDescription.trim(),
-      amount_usd: usd,
-      amount_lbp: lbp,
-      stop_id: txStopId ?? null,
-      created_by: teamMember?.id,
+      task_id:      taskId,
+      type:         txType,
+      description:  txDescription.trim(),
+      amount_usd:   usd,
+      amount_lbp:   lbp,
+      rate_usd_lbp: exchangeRate,   // snapshot rate at time of entry
+      stop_id:      txStopId ?? null,
+      created_by:   teamMember?.id,
     });
     setSavingTx(false);
     if (error) { Alert.alert('Error', error.message); return; }
@@ -2459,8 +2460,11 @@ export default function TaskDetailScreen() {
           {transactions.length > 0 && (() => {
             const cvFmt = (n: number) =>
               `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            // Use the rate frozen at transaction creation time; fall back to current rate for legacy rows
             const cvOf = (tx: FileTransaction) =>
-              tx.amount_usd > 0 ? tx.amount_usd : tx.amount_lbp / exchangeRate;
+              tx.amount_usd > 0
+                ? tx.amount_usd
+                : tx.amount_lbp / (tx.rate_usd_lbp ?? exchangeRate);
             const totalCvReceived = transactions
               .filter((tx) => tx.type === 'revenue')
               .reduce((s, tx) => s + cvOf(tx), 0);
@@ -2521,7 +2525,12 @@ export default function TaskDetailScreen() {
                     {totalCvUSD >= 0 ? '+' : '-'}{cvFmt(Math.abs(totalCvUSD))}
                   </Text>
                 </View>
-                <Text style={s.cvRateNote}>÷ rate: {exchangeRate.toLocaleString('en-US')} LBP/USD</Text>
+                <Text style={s.cvRateNote}>
+                  * C/V calculated using each transaction's locked rate
+                  {transactions.some(tx => !tx.rate_usd_lbp)
+                    ? ` (legacy rows use current rate: ${exchangeRate.toLocaleString('en-US')} LBP/$1)`
+                    : ''}
+                </Text>
               </View>
             );
           })()}

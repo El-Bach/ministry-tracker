@@ -290,7 +290,7 @@ function openPhone(phone: string, name?: string) {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
-  const { teamMember, permissions, loading: authLoading } = useAuth();
+  const { teamMember, permissions, organization, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
 
@@ -549,13 +549,14 @@ export default function DashboardScreen() {
     }
     setSavingQuickTx(true);
     const { error } = await supabase.from('file_transactions').insert({
-      task_id: quickFinanceTask.id,
-      type: quickTxType,
-      description: quickTxDesc.trim(),
-      amount_usd: usd,
-      amount_lbp: lbp,
-      stop_id: quickTxStopId ?? null,
-      created_by: teamMember?.id ?? null,
+      task_id:      quickFinanceTask.id,
+      type:         quickTxType,
+      description:  quickTxDesc.trim(),
+      amount_usd:   usd,
+      amount_lbp:   lbp,
+      rate_usd_lbp: organization?.usd_to_lbp_rate ?? 89500,  // snapshot rate at entry time
+      stop_id:      quickTxStopId ?? null,
+      created_by:   teamMember?.id ?? null,
     });
     setSavingQuickTx(false);
     if (error) {
