@@ -87,6 +87,16 @@ function formatDate(iso: string) {
 }
 function isoToYMD(iso: string) { return iso.slice(0, 10); }
 
+// Display a stored YYYY-MM-DD value as DD-MM-YYYY
+function toDisplayDate(ymd: string) {
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-');
+  return `${d}-${m}-${y}`;
+}
+
+// Today's date in YYYY-MM-DD (for calendar highlight)
+const TODAY_YMD = new Date().toISOString().slice(0, 10);
+
 // ─── Main screen ─────────────────────────────────────────────
 export default function FinancialReportScreen() {
   const { teamMember, organization } = useAuth();
@@ -131,6 +141,7 @@ export default function FinancialReportScreen() {
   // ── Picker visibility ─────────────────────────────────────
   const [showServicePicker, setShowServicePicker] = useState(false);
   const [showStagePicker, setShowStagePicker] = useState(false);
+  const [stageSearch, setStageSearch] = useState('');
   const [showDateFrom, setShowDateFrom] = useState(false);
   const [showDateTo, setShowDateTo] = useState(false);
 
@@ -276,12 +287,11 @@ export default function FinancialReportScreen() {
       // Status group
       if (filterStatusGroup === 'terminal' && !TERMINAL.includes(r.status)) return false;
       if (filterStatusGroup === 'active'   && TERMINAL.includes(r.status))  return false;
-      // Date range — filter by closed_at
+      // Date range — use closed_at when available, fall back to created_at
       if (dateFrom || dateTo) {
-        const closedYMD = r.closedAt ? isoToYMD(r.closedAt) : null;
-        if (!closedYMD) return false; // no closed_at → exclude from date-filtered results
-        if (dateFrom && closedYMD < dateFrom) return false;
-        if (dateTo   && closedYMD > dateTo)   return false;
+        const dateYMD = isoToYMD(r.closedAt ?? r.createdAt);
+        if (dateFrom && dateYMD < dateFrom) return false;
+        if (dateTo   && dateYMD > dateTo)   return false;
       }
       return true;
     });
@@ -483,8 +493,8 @@ export default function FinancialReportScreen() {
   // ── Main render ───────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
-      {/* ── Filters ── */}
-      <ScrollView style={s.filtersScroll} contentContainerStyle={s.filtersContent} horizontal={false} showsVerticalScrollIndicator={false}>
+      {/* ── Filters (fixed, never scrolls) ── */}
+      <View style={s.filtersBlock}>
 
         {/* Search */}
         <TextInput
@@ -493,6 +503,8 @@ export default function FinancialReportScreen() {
           placeholderTextColor={theme.color.textMuted}
           value={search}
           onChangeText={setSearch}
+          autoCorrect={false}
+          autoCapitalize="none"
         />
 
         {/* Row 1: Status group */}
@@ -548,7 +560,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowDateFrom(true)}
           >
             <Text style={[s.filterChipText, !!dateFrom && s.filterChipTextActive]}>
-              📅 {dateFrom || 'From'}
+              📅 {dateFrom ? toDisplayDate(dateFrom) : 'From'}
             </Text>
           </TouchableOpacity>
 
@@ -557,7 +569,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowDateTo(true)}
           >
             <Text style={[s.filterChipText, !!dateTo && s.filterChipTextActive]}>
-              📅 {dateTo || 'To'}
+              📅 {dateTo ? toDisplayDate(dateTo) : 'To'}
             </Text>
           </TouchableOpacity>
 
@@ -582,30 +594,71 @@ export default function FinancialReportScreen() {
             <Text style={s.exportBtnText}>{exporting ? '...' : '📄 PDF'}</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
 
-      {/* ── Totals bar ── */}
+      {/* ── Totals bar — 2 rows, fixed ── */}
       <View style={s.totalsBar}>
-        <View style={s.totalCell}>
-          <Text style={s.totalLabel}>{filtered.length} FILES</Text>
-          <Text style={s.totalValueNeutral}>{fmtUSD(totals.contractUSD)}</Text>
-          {totals.contractLBP > 0 && <Text style={s.totalValueSubNeutral}>{fmtLBP(totals.contractLBP)}</Text>}
+
+        {/* Row 1: RECEIVED · EXPENSES · BALANCE */}
+        <View style={s.totalsRow}>
+          <View style={s.totalCell}>
+            <Text style={s.totalLabel}>RECEIVED</Text>
+            <Text style={[s.totalValue, s.positive]}>{fmtUSD(totals.receivedUSD)}</Text>
+            {totals.receivedLBP > 0 && (
+              <Text style={[s.totalValueSub, s.positive, s.lbpCentered]}>{fmtLBP(totals.receivedLBP)}</Text>
+            )}
+          </View>
+          <View style={s.totalCell}>
+            <Text style={s.totalLabel}>EXPENSES</Text>
+            <Text style={[s.totalValue, totals.expenseUSD > 0 ? s.negative : s.positive]}>{fmtUSD(totals.expenseUSD)}</Text>
+            {totals.expenseLBP > 0 && (
+              <Text style={[s.totalValueSub, s.negative, s.lbpCentered]}>{fmtLBP(totals.expenseLBP)}</Text>
+            )}
+          </View>
+          <View style={[s.totalCell, s.totalCellLast]}>
+            <Text style={s.totalLabel}>BALANCE</Text>
+            {(() => {
+              const balUSD = totals.receivedUSD - totals.expenseUSD;
+              const balLBP = totals.receivedLBP - totals.expenseLBP;
+              return (
+                <>
+                  <Text style={[s.totalValue, balUSD >= 0 ? s.positive : s.negative]}>{fmtUSD(balUSD)}</Text>
+                  {balLBP !== 0 && (
+                    <Text style={[s.totalValueSub, s.lbpCentered, balLBP >= 0 ? s.positive : s.negative]}>{fmtLBP(balLBP)}</Text>
+                  )}
+                </>
+              );
+            })()}
+          </View>
         </View>
-        <View style={s.totalCell}>
-          <Text style={s.totalLabel}>RECEIVED</Text>
-          <Text style={[s.totalValue, s.positive]}>{fmtUSD(totals.receivedUSD)}</Text>
-          {totals.receivedLBP > 0 && <Text style={[s.totalValueSub, s.positive]}>{fmtLBP(totals.receivedLBP)}</Text>}
+
+        {/* Divider */}
+        <View style={s.totalsRowDivider} />
+
+        {/* Row 2: CONTRACT (N files) · C/V USD · RESULT */}
+        <View style={s.totalsRow}>
+          <View style={s.totalCell}>
+            <Text style={s.totalLabel}>{filtered.length} FILES · CONTRACT</Text>
+            <Text style={s.totalValueNeutral}>{fmtUSD(totals.contractUSD)}</Text>
+            {totals.contractLBP > 0 && (
+              <Text style={[s.totalValueSubNeutral, s.lbpCentered]}>{fmtLBP(totals.contractLBP)}</Text>
+            )}
+          </View>
+          <View style={s.totalCell}>
+            <Text style={s.totalLabel}>C/V USD</Text>
+            <Text style={[s.totalValue, { color: theme.color.primary }]}>
+              {rate.toLocaleString('en-US')}
+            </Text>
+            <Text style={[s.totalValueSubNeutral, s.lbpCentered]}>LBP / $1</Text>
+          </View>
+          <View style={[s.totalCell, s.totalCellLast]}>
+            <Text style={s.totalLabel}>RESULT</Text>
+            <Text style={[s.totalValue, totals.cvBalance >= 0 ? s.positive : s.negative]}>
+              {totals.cvBalance >= 0 ? '+' : '-'}{cvFmt(Math.abs(totals.cvBalance))}
+            </Text>
+          </View>
         </View>
-        <View style={s.totalCell}>
-          <Text style={s.totalLabel}>C/V USD</Text>
-          <Text style={[s.totalValue, s.positive]}>{cvFmt(totals.cvReceived)}</Text>
-        </View>
-        <View style={s.totalCell}>
-          <Text style={s.totalLabel}>BALANCE</Text>
-          <Text style={[s.totalValue, totals.cvBalance >= 0 ? s.positive : s.negative]}>
-            {totals.cvBalance >= 0 ? '+' : '-'}{cvFmt(Math.abs(totals.cvBalance))}
-          </Text>
-        </View>
+
       </View>
 
       {loading ? (
@@ -645,23 +698,57 @@ export default function FinancialReportScreen() {
       </Modal>
 
       {/* ── Stage picker ── */}
-      <Modal visible={showStagePicker} transparent animationType="fade" onRequestClose={() => setShowStagePicker(false)}>
-        <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowStagePicker(false)}>
-          <View style={s.pickerSheet}>
+      <Modal
+        visible={showStagePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShowStagePicker(false); setStageSearch(''); }}
+      >
+        <TouchableOpacity
+          style={s.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => { setShowStagePicker(false); setStageSearch(''); }}
+        >
+          <TouchableOpacity activeOpacity={1} style={s.pickerSheet}>
             <Text style={s.pickerTitle}>Filter by Stage</Text>
-            <ScrollView>
-              <TouchableOpacity style={s.pickerRow} onPress={() => { setFilterStage(''); setFilterStageName(''); setShowStagePicker(false); }}>
+
+            {/* Search bar */}
+            <TextInput
+              style={s.pickerSearch}
+              value={stageSearch}
+              onChangeText={setStageSearch}
+              placeholder="Search stages..."
+              placeholderTextColor={theme.color.textMuted}
+              autoCorrect={false}
+              autoCapitalize="none"
+              autoFocus
+            />
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <TouchableOpacity
+                style={s.pickerRow}
+                onPress={() => { setFilterStage(''); setFilterStageName(''); setShowStagePicker(false); setStageSearch(''); }}
+              >
                 <Text style={[s.pickerLabel, !filterStage && s.pickerLabelSelected]}>All Stages</Text>
                 {!filterStage && <Text style={s.pickerCheck}>✓</Text>}
               </TouchableOpacity>
-              {stageOptions.map((st) => (
-                <TouchableOpacity key={st.id} style={s.pickerRow} onPress={() => { setFilterStage(st.id); setFilterStageName(st.name); setShowStagePicker(false); }}>
-                  <Text style={[s.pickerLabel, filterStage === st.id && s.pickerLabelSelected]}>{st.name}</Text>
-                  {filterStage === st.id && <Text style={s.pickerCheck}>✓</Text>}
-                </TouchableOpacity>
-              ))}
+              {stageOptions
+                .filter((st) => st.name.toLowerCase().includes(stageSearch.toLowerCase()))
+                .map((st) => (
+                  <TouchableOpacity
+                    key={st.id}
+                    style={s.pickerRow}
+                    onPress={() => { setFilterStage(st.id); setFilterStageName(st.name); setShowStagePicker(false); setStageSearch(''); }}
+                  >
+                    <Text style={[s.pickerLabel, filterStage === st.id && s.pickerLabelSelected]}>{st.name}</Text>
+                    {filterStage === st.id && <Text style={s.pickerCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              {stageSearch.trim() !== '' && stageOptions.filter((st) => st.name.toLowerCase().includes(stageSearch.toLowerCase())).length === 0 && (
+                <Text style={s.pickerEmpty}>No stages match "{stageSearch}"</Text>
+              )}
             </ScrollView>
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
@@ -669,12 +756,23 @@ export default function FinancialReportScreen() {
       <Modal visible={showDateFrom} transparent animationType="fade" onRequestClose={() => setShowDateFrom(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowDateFrom(false)}>
           <TouchableOpacity activeOpacity={1} style={s.calendarSheet}>
-            <Text style={s.pickerTitle}>From Date (closed)</Text>
+            <Text style={s.pickerTitle}>From Date</Text>
             <Calendar
-              current={dateFrom || undefined}
+              current={dateFrom || TODAY_YMD}
               onDayPress={(d: { dateString: string }) => { setDateFrom(d.dateString); setShowDateFrom(false); }}
-              markedDates={dateFrom ? { [dateFrom]: { selected: true, selectedColor: theme.color.primary } } : {}}
-              theme={{ calendarBackground: theme.color.bgSurface, dayTextColor: theme.color.textPrimary, monthTextColor: theme.color.textPrimary, arrowColor: theme.color.primary, todayTextColor: theme.color.primary, textDisabledColor: theme.color.textMuted }}
+              markedDates={{
+                [TODAY_YMD]: { marked: false, customStyles: {} },
+                ...(dateFrom ? { [dateFrom]: { selected: true, selectedColor: theme.color.primary } } : {}),
+              }}
+              theme={{
+                calendarBackground:  theme.color.bgSurface,
+                dayTextColor:        theme.color.textPrimary,
+                monthTextColor:      theme.color.textPrimary,
+                arrowColor:          theme.color.primary,
+                todayTextColor:      theme.color.textPrimary,
+                todayBackgroundColor: '#334155',
+                textDisabledColor:   theme.color.textMuted,
+              }}
             />
             {dateFrom && (
               <TouchableOpacity style={s.clearDateBtn} onPress={() => { setDateFrom(''); setShowDateFrom(false); }}>
@@ -689,12 +787,23 @@ export default function FinancialReportScreen() {
       <Modal visible={showDateTo} transparent animationType="fade" onRequestClose={() => setShowDateTo(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowDateTo(false)}>
           <TouchableOpacity activeOpacity={1} style={s.calendarSheet}>
-            <Text style={s.pickerTitle}>To Date (closed)</Text>
+            <Text style={s.pickerTitle}>To Date</Text>
             <Calendar
-              current={dateTo || undefined}
+              current={dateTo || TODAY_YMD}
               onDayPress={(d: { dateString: string }) => { setDateTo(d.dateString); setShowDateTo(false); }}
-              markedDates={dateTo ? { [dateTo]: { selected: true, selectedColor: theme.color.primary } } : {}}
-              theme={{ calendarBackground: theme.color.bgSurface, dayTextColor: theme.color.textPrimary, monthTextColor: theme.color.textPrimary, arrowColor: theme.color.primary, todayTextColor: theme.color.primary, textDisabledColor: theme.color.textMuted }}
+              markedDates={{
+                [TODAY_YMD]: { marked: false, customStyles: {} },
+                ...(dateTo ? { [dateTo]: { selected: true, selectedColor: theme.color.primary } } : {}),
+              }}
+              theme={{
+                calendarBackground:  theme.color.bgSurface,
+                dayTextColor:        theme.color.textPrimary,
+                monthTextColor:      theme.color.textPrimary,
+                arrowColor:          theme.color.primary,
+                todayTextColor:      theme.color.textPrimary,
+                todayBackgroundColor: '#334155',
+                textDisabledColor:   theme.color.textMuted,
+              }}
             />
             {dateTo && (
               <TouchableOpacity style={s.clearDateBtn} onPress={() => { setDateTo(''); setShowDateTo(false); }}>
@@ -880,9 +989,14 @@ const s = StyleSheet.create({
   positive: { color: theme.color.success },
   negative: { color: theme.color.danger },
 
-  // Filters
-  filtersScroll:  { flexGrow: 0 },
-  filtersContent: { padding: theme.spacing.space3, gap: 8, borderBottomWidth: 1, borderBottomColor: theme.color.bgSurface },
+  // Filters — fixed block, never scrolls
+  filtersBlock: {
+    padding:           theme.spacing.space3,
+    gap:               8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    backgroundColor:   theme.color.bgBase,
+  },
   searchInput: {
     backgroundColor: theme.color.bgSurface,
     color:           theme.color.textPrimary,
@@ -925,19 +1039,34 @@ const s = StyleSheet.create({
   },
   exportBtnText: { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
 
-  // Totals bar
+  // Totals bar — 2 rows
   totalsBar: {
-    flexDirection:     'row',
     backgroundColor:   theme.color.bgSurface,
     borderBottomWidth: 1,
     borderBottomColor: theme.color.border,
   },
-  totalCell:            { flex: 1, padding: theme.spacing.space3, alignItems: 'center', borderRightWidth: 1, borderRightColor: theme.color.border },
-  totalLabel:           { ...theme.typography.sectionDivider, marginBottom: 2 },
-  totalValue:           { ...theme.typography.label, fontWeight: '700', fontSize: 11 },
-  totalValueNeutral:    { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '700', fontSize: 11 },
-  totalValueSub:        { ...theme.typography.caption, fontWeight: '600' },
-  totalValueSubNeutral: { ...theme.typography.caption, color: theme.color.textSecondary },
+  totalsRow: {
+    flexDirection: 'row',
+  },
+  totalsRowDivider: {
+    height:          1,
+    backgroundColor: theme.color.border,
+  },
+  totalCell: {
+    flex:            1,
+    paddingVertical:   theme.spacing.space2,
+    paddingHorizontal: theme.spacing.space2,
+    alignItems:      'center',
+    borderRightWidth: 1,
+    borderRightColor: theme.color.border,
+  },
+  totalCellLast:        { borderRightWidth: 0 },
+  totalLabel:           { ...theme.typography.sectionDivider, marginBottom: 2, fontSize: 8, textAlign: 'center' },
+  totalValue:           { ...theme.typography.label, fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  totalValueNeutral:    { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  totalValueSub:        { ...theme.typography.caption, fontWeight: '600', textAlign: 'center' },
+  totalValueSubNeutral: { ...theme.typography.caption, color: theme.color.textSecondary, textAlign: 'center' },
+  lbpCentered:          { textAlign: 'center', fontSize: 9 },
 
   list:  { padding: theme.spacing.space3, gap: theme.spacing.space2, paddingBottom: 60 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -988,7 +1117,25 @@ const s = StyleSheet.create({
     padding:         theme.spacing.space3,
     width:           '95%',
   },
-  pickerTitle: { ...theme.typography.heading, marginBottom: theme.spacing.space3, textAlign: 'center' },
+  pickerTitle: { ...theme.typography.heading, marginBottom: theme.spacing.space2, textAlign: 'center' },
+  pickerSearch: {
+    backgroundColor:   theme.color.bgBase,
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   8,
+    color:             theme.color.textPrimary,
+    fontSize:          14,
+    marginBottom:      theme.spacing.space2,
+  },
+  pickerEmpty: {
+    ...theme.typography.caption,
+    color:      theme.color.textMuted,
+    textAlign:  'center',
+    paddingVertical: theme.spacing.space4,
+    fontStyle:  'italic',
+  },
   pickerRow: {
     flexDirection:     'row',
     alignItems:        'center',

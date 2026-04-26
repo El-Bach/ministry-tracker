@@ -35,6 +35,7 @@ import ActivityScreen from '../screens/ActivityScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import TeamMembersScreen from '../screens/TeamMembersScreen';
 import VisibilitySettingsScreen from '../screens/VisibilitySettingsScreen';
+import MemberFileVisibilityScreen from '../screens/MemberFileVisibilityScreen';
 
 import {
   RootStackParamList,
@@ -220,6 +221,11 @@ function SettingsStack() {
         name="VisibilitySettings"
         component={VisibilitySettingsScreen}
         options={{ title: 'Visibility & Permissions', headerBackTitle: t('screenBack') }}
+      />
+      <SettStack.Screen
+        name="MemberFileVisibility"
+        component={MemberFileVisibilityScreen}
+        options={({ route }) => ({ title: route.params.memberName, headerBackTitle: 'Back' })}
       />
       <SettStack.Screen
         name="FinancialReport"

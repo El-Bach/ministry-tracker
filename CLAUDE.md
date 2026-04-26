@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 30 (Financial overhaul: dual-currency C/V USD, exchange rate per org, FinancialReport date range + stage + scope + status-group filters, closed_at on tasks, "Received & Closed" status rename)
+> Last updated: session 31 (Per-member file visibility blocks; FinancialReport pinned filter bar + totals bar redesign; visibility settings file visibility section; real-time block propagation; Resend SMTP setup)
 
 ---
 
@@ -115,7 +115,11 @@ ministry-tracker/
 │   ├── migration_notification_prefs.sql ← session 28 — per-user notification preferences
 │   ├── migration_join_org_rpc.sql      ← session 29 — join_org_by_code SECURITY DEFINER RPC (bypass RLS for org change)
 │   ├── migration_team_overhaul.sql     ← session 29 — soft-delete cols on team_members+org_join_codes, invitee_name/phone, RLS on org_join_codes, admin in visibility settings
-│   └── migration_register_join_by_code.sql ← session 29 — register_join_org_by_code RPC for code-first registration
+│   ├── migration_register_join_by_code.sql ← session 29 — register_join_org_by_code RPC for code-first registration
+│   ├── migration_invite_code_email.sql ← session 31 — invitee_email column on org_join_codes
+│   ├── migration_catalog_permission.sql ← session 31 — can_manage_catalog column on org_visibility_settings
+│   ├── migration_client_edit_permission.sql ← session 31 — can_edit_delete_clients column on org_visibility_settings
+│   └── migration_file_visibility_blocks.sql ← session 31 — file_visibility_blocks table + RLS + realtime
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
@@ -155,8 +159,9 @@ ministry-tracker/
         ├── AccountScreen.tsx
         ├── ActivityScreen.tsx
         ├── NotificationSettingsScreen.tsx   # session 28 — master toggle + type filters + per-member mute
-        ├── TeamMembersScreen.tsx            # session 29 — soft-delete, grey UI, swipe perm-delete, owner protection, code name+phone
-        └── VisibilitySettingsScreen.tsx     # session 29 — Admin tab added (3 tabs: Admin/Member/Viewer)
+        ├── TeamMembersScreen.tsx            # session 29 — soft-delete, grey UI, swipe perm-delete, owner protection, code name+phone+email
+        ├── VisibilitySettingsScreen.tsx     # session 31 — Admin tab + 👁 File Visibility section (member list → MemberFileVisibilityScreen)
+        └── MemberFileVisibilityScreen.tsx   # session 31 — per-member file visibility toggles (file_visibility_blocks)
 ```
 
 ---
@@ -187,6 +192,7 @@ ministry-tracker/
 | `assignees` | id, name, phone, reference, reference_phone, notes, city_id (nullable FK → cities), created_by → team_members, created_at | external assignees (not team members); reference_phone + city_id added session 24 |
 | `service_documents` | id, service_id (FK → services), title, sort_order, is_checked, created_at | required documents per service; is_checked is global (shared checklist, not per-file); added session 24 |
 | `notification_prefs` | id, team_member_id (UNIQUE FK), enabled, notify_comments, notify_status_changes, notify_new_files, muted_actor_ids (UUID[]), updated_at | per-user push prefs; upserted from NotificationSettingsScreen; read by `sendActivityNotificationToAll` before sending each push; added session 28 |
+| `file_visibility_blocks` | id, org_id, team_member_id, task_id, blocked_by, created_at | per-member file blocklist; UNIQUE(team_member_id, task_id); RLS via auth_org_id(); added to realtime publication; added session 31 |
 
 ### Migrations to run (in order)
 1. `supabase/schema.sql`
@@ -215,6 +221,10 @@ ministry-tracker/
 24. `supabase/migration_team_overhaul.sql`
 25. `supabase/migration_register_join_by_code.sql`
 26. `supabase/migration_financials_v2.sql`
+27. `supabase/migration_invite_code_email.sql`
+28. `supabase/migration_catalog_permission.sql`
+29. `supabase/migration_client_edit_permission.sql`
+30. `supabase/migration_file_visibility_blocks.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, **Received & Closed** (was "Closed")
@@ -276,7 +286,9 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | CreateScreen | Quick-action cards (+New File/Client/Service/Stage); Manage sections: Clients, Services, Stages, **Network** (external contacts with name/phone/reference/reference_phone/city; tappable phone numbers), **Documents Required** (per-service numbered checklist — add/tick/delete/reset); CRUD modals with search for all sections |
 | CalendarScreen | Multi-dot calendar; day task list with stage due dates (orange dots) |
 | TeamScreen | Member cards with workload; expandable task list |
-| SettingsScreen | Team Members (invite, list, revoke), Arabic/RTL toggle, nav cards to: Account · Client Fields · Team Member Fields · Financial Report · **Notifications**. Ministries/Services/Status Labels removed — managed via CreateScreen |
+| SettingsScreen | Team Members (invite, list, revoke), Arabic/RTL toggle, nav cards to: Account · Client Fields · Team Member Fields · Financial Report · **Notifications** · **Visibility & Permissions**. Ministries/Services/Status Labels removed — managed via CreateScreen |
+| VisibilitySettingsScreen | Admin/Member/Viewer tabs; 👁 File Visibility section (member list, tap → MemberFileVisibilityScreen); 7 permission groups with Switch toggles; reset to defaults per role |
+| MemberFileVisibilityScreen | Owner/Admin only; shows all active files for the org with Switch per file; toggle OFF → inserts into file_visibility_blocks → disappears from member's dashboard in real-time; toggle ON → deletes block → file reappears instantly; search by client or service name |
 | NotificationSettingsScreen | Master on/off toggle; type filters (Comments, Status Changes, New Files); per-member receive filter (mute specific team members); saves to `notification_prefs` Supabase table |
 | ClientFieldsSettingsScreen | Manage custom field definitions: add/edit/reorder/toggle/delete |
 | ClientProfileScreen | Avatar + name + ID + phone + ✎ Edit + ✕ Delete; custom fields; stats; file history with swipe-left (Edit/Delete) |
@@ -597,6 +609,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 31 | **Per-member file visibility + FinancialReport UX + Permissions**: New `file_visibility_blocks` table (UNIQUE per member+task, RLS, realtime publication). **MemberFileVisibilityScreen** (new): owner/admin can toggle individual files ON/OFF per member; blocked files disappear from that member's dashboard instantly via Realtime subscription in `useRealtime.ts`. **VisibilitySettingsScreen**: added 👁 File Visibility group card (first in ScrollView, after role tabs) listing all non-owner members — tap to navigate to MemberFileVisibilityScreen. Two new permissions: `can_manage_catalog` (services/stages/network, admin ON / member+viewer OFF) and `can_edit_delete_clients` (split from `can_manage_clients`); both gated in CreateScreen, ClientProfileScreen, NewTaskScreen pickers. **Invite code**: added `invitee_email` field; "📧 Send Email" button opens `mailto:` link with pre-composed message; email shown on code card. Invite code input auto-formats to XXXX-XXXX. **DashboardScreen**: Due amount in summary bar hidden when `!can_see_contract_price`; `file_visibility_blocks` fetched in parallel and applied as a second filter on allTasks. **FinancialReportScreen**: filter bar (search + status + scope/service/stage + dates + rate + PDF) now pinned as fixed `View` — never scrolls; totals bar redesigned as 2-row layout — Row 1: RECEIVED · EXPENSES · BALANCE; Row 2: N FILES·CONTRACT · C/V USD (shows exchange rate) · RESULT (cvBalance formula); LBP values centered in all cells; date display changed to DD-MM-YYYY; date filter falls back to `created_at` when `closed_at` is null so no file is silently excluded; stage picker now has inline search bar with autoFocus; calendar pickers show today with grey `todayBackgroundColor`; `toDisplayDate()` helper added. **Email deliverability**: configured Resend custom SMTP in Supabase (host: smtp.resend.com, port 465) so password-reset emails land in inbox not junk. SQL migrations: `migration_invite_code_email.sql`, `migration_catalog_permission.sql`, `migration_client_edit_permission.sql`, `migration_file_visibility_blocks.sql`. |
 | 30 | **Financial Overhaul — Dual Currency & Advanced Filters**: Added `usd_to_lbp_rate` to `organizations` (default 89,500 LBP/USD); editable by owner/admin from **SettingsScreen** (💱 Exchange Rate nav card + modal) and **FinancialReportScreen** (rate chip → modal, also saves to DB). Added `tasks.closed_at TIMESTAMPTZ` set in-app when all stages reach terminal status. Status label "Closed" renamed → **"Received & Closed"** (SQL backfill across status_labels, tasks, status_updates). **TaskDetailScreen**: new 4-column C/V USD table in financials section — Description / USD / LBP / C/V USD — with TOTAL row and rate note; `exchangeRate` initialized from org. **FinancialReportScreen** complete overhaul: status-group filter (Closed=Done+Rejected+Received&Closed / Active / All, default=Closed); My Files / All Files scope toggle (`assigned_to = me`); stage (ministry) filter that re-aggregates transactions filtered by `stop.ministry_id`; date range filter (from/to) comparing `closed_at` YMD string; C/V USD column on row cards and totals bar; PDF export includes C/V column and rate in header; detail modal shows C/V mini-table per transaction. SQL migration: `migration_financials_v2.sql`. |
 | 29 | **Team Permissions & Invite Code Overhaul**: Soft-delete for `team_members` and `org_join_codes` (new `deleted_at`, `deleted_by`, `joined_via_code` columns). Deleted members render grey with timestamp; swipe-left → "Permanently Remove" (hard DELETE). Deleted codes render grey. Owner rows never show ✕ button. Invite code modal now has `invitee_name` + `invitee_phone` (PhoneInput) fields. Code cards show `created_at` and invitee info. Deactivating a code soft-deletes it AND any member who joined via that code (cascade). **RegisterScreen** rewritten: code-first flow — Step 1 enter invite code, validate, show org/role/name; Step 2 enter details with phone locked to `invitee_phone` if set; "Create Organization" path for new owners. `register_join_org_by_code` SECURITY DEFINER RPC handles post-signup org join. **VisibilitySettingsScreen** adds Admin tab (3 tabs: Admin · Member · Viewer); ADMIN_DEFAULTS seeded with same values as Member. RLS on `org_join_codes` with `public_code_lookup` policy for pre-auth validation. "Powered by KTS" branding on all auth screens. Phone login fixed (PhoneInput in LoginScreen). Auto-signout when team_members row deleted (AppState listener in useAuth replaces broken realtime). SQL migrations: `migration_join_org_rpc.sql`, `migration_team_overhaul.sql`, `migration_register_join_by_code.sql`. |
 | 28 | **Global search** expanded to 8 categories: existing (clients, files, comments, requirements) + new (documents by display_name/file_name, financial transactions by description, external contacts/assignees by name/phone/reference, team members by name/email, services by name → returns matching tasks). Result count summary pill. Contacts + team members show inline 📞 call button. **Activity notifications broadcast**: `sendActivityNotificationToAll()` added to `notifications.ts` — called on every comment save and stage status change in TaskDetailScreen; fetches all team members with push tokens (excluding actor); reads each recipient's `notification_prefs` row (enabled + type filters + muted_actor_ids) before sending. **NotificationSettingsScreen** (new): master toggle, type toggles (Comments/Status/New Files), per-member receive checkboxes; saves to Supabase `notification_prefs` table (upsert). RLS policies added for notification_prefs. **SettingsScreen cleanup**: removed Ministries, Sub-Ministries, Services, Status Labels sections + all orphaned state/handlers/modals; added 🔔 Notifications nav card. SQL migration: `migration_notification_prefs.sql`. |

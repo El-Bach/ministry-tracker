@@ -275,6 +275,7 @@ export type SettingsStackParamList = {
   TeamMemberFields: undefined;
   TeamMembers: undefined;
   VisibilitySettings: undefined;
+  MemberFileVisibility: { memberId: string; memberName: string; memberRole: string };
   FinancialReport: undefined;
   NotificationSettings: undefined;
 };

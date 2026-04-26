@@ -395,7 +395,7 @@ export default function DashboardScreen() {
   }, []);
 
   const fetchData = useCallback(async () => {
-    const [tasksRes, labelsRes, membersRes, ministriesRes, clientsRes, svcRes, citiesRes] = await Promise.all([
+    const [tasksRes, labelsRes, membersRes, ministriesRes, clientsRes, svcRes, citiesRes, blocksRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
@@ -408,6 +408,10 @@ export default function DashboardScreen() {
       supabase.from('clients').select('*').order('name'),
       supabase.from('services').select('*').order('name'),
       supabase.from('cities').select('*').order('name'),
+      // Fetch files that have been blocked for this specific member
+      teamMember?.id
+        ? supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
+        : Promise.resolve({ data: [] }),
     ]);
 
     if (tasksRes.data) {
@@ -419,6 +423,11 @@ export default function DashboardScreen() {
           t.assigned_to === teamMember.id ||
           (t.route_stops ?? []).some((s: any) => s.assigned_to === teamMember.id)
         );
+      }
+      // File visibility blocks: remove files that an owner/admin has hidden from this member
+      if (blocksRes.data && blocksRes.data.length > 0) {
+        const blockedIds = new Set((blocksRes.data as any[]).map((b: any) => b.task_id));
+        allTasks = allTasks.filter(t => !blockedIds.has(t.id));
       }
       setTasks(allTasks);
     }

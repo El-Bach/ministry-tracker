@@ -14,10 +14,13 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
+import { SettingsStackParamList, TeamMember } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -198,10 +201,14 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
 
 // ─── Main screen ──────────────────────────────────────────────
 
+type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
+
 export default function VisibilitySettingsScreen() {
   const { teamMember } = useAuth();
+  const navigation = useNavigation<NavProp>();
 
   const [activeRole, setActiveRole] = useState<Role>('admin');
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [settings, setSettings] = useState<Record<Role, RoleSettings>>({
     admin:  { ...ADMIN_DEFAULTS },
     member: { ...MEMBER_DEFAULTS },
@@ -209,6 +216,20 @@ export default function VisibilitySettingsScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // ── Load team members (for file visibility section) ─────────
+  const loadMembers = useCallback(async () => {
+    if (!teamMember?.org_id) return;
+    const { data } = await supabase
+      .from('team_members')
+      .select('id, name, role, email')
+      .eq('org_id', teamMember.org_id)
+      .is('deleted_at', null)
+      .neq('id', teamMember.id)           // exclude self
+      .not('role', 'eq', 'owner')         // owners see everything
+      .order('name');
+    if (data) setMembers(data as TeamMember[]);
+  }, [teamMember?.org_id, teamMember?.id]);
 
   // ── Load existing settings ──────────────────────────────────
   const loadSettings = useCallback(async () => {
@@ -254,7 +275,7 @@ export default function VisibilitySettingsScreen() {
     setLoading(false);
   }, [teamMember?.org_id]);
 
-  useEffect(() => { loadSettings(); }, [loadSettings]);
+  useEffect(() => { loadSettings(); loadMembers(); }, [loadSettings, loadMembers]);
 
   // ── Toggle a single permission ─────────────────────────────
   const handleToggle = async (key: keyof RoleSettings, value: boolean) => {
@@ -358,6 +379,48 @@ export default function VisibilitySettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── File Visibility section (first, before permission groups) ── */}
+        <View style={s.group}>
+          <View style={s.groupHeader}>
+            <Text style={s.groupIcon}>👁</Text>
+            <Text style={s.groupTitle}>File Visibility</Text>
+          </View>
+          <View style={s.visSectionDesc}>
+            <Text style={s.visSectionDescText}>
+              Tap a member to control which specific files they can see
+            </Text>
+          </View>
+          {members.length === 0 ? (
+            <View style={s.permRow}>
+              <Text style={s.permDesc}>No members to manage</Text>
+            </View>
+          ) : (
+            members.map((m, idx) => {
+              const roleLabel = m.role === 'admin' ? '🛡 Admin'
+                : m.role === 'member' ? '👤 Member' : '👁 Viewer';
+              return (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[s.memberRow, idx < members.length - 1 && s.permRowDivider]}
+                  onPress={() => navigation.navigate('MemberFileVisibility', {
+                    memberId: m.id,
+                    memberName: m.name,
+                    memberRole: m.role,
+                  })}
+                  activeOpacity={0.75}
+                >
+                  <View style={s.memberInfo}>
+                    <Text style={s.memberName}>{m.name}</Text>
+                    <Text style={s.memberRole}>{roleLabel}</Text>
+                  </View>
+                  <Text style={s.memberChevron}>›</Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
+
         {PERMISSION_GROUPS.map((group) => (
           <View key={group.title} style={s.group}>
             <View style={s.groupHeader}>
@@ -405,6 +468,30 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: theme.color.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
   scroll: { padding: theme.spacing.space4, gap: 12 },
+
+  // File visibility section
+  visSectionDesc: {
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    backgroundColor:   theme.color.primary + '08',
+  },
+  visSectionDescText: {
+    ...theme.typography.caption,
+    color: theme.color.textSecondary,
+  },
+  memberRow: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   theme.spacing.space3,
+    gap:               8,
+  },
+  memberInfo:    { flex: 1 },
+  memberName:    { ...theme.typography.body, fontWeight: '600', fontSize: 14 },
+  memberRole:    { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 1 },
+  memberChevron: { fontSize: 22, color: theme.color.textMuted, fontWeight: '300' },
 
   // Role tabs
   roleTabsRow: {

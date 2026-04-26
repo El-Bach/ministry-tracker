@@ -1,18 +1,4 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"G:/ministry-tracker-master/.claude/worktrees/jolly-mirzakhani\" && git add -A && git commit -m \"auto: save changes\" && git push || true",
-            "statusMessage": "Auto-committing and pushing to kamal-modif..."
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(head -20 __NEW_LINE_89c51569c5ded86c__ echo \"---\" __NEW_LINE_89c51569c5ded86c__ grep -n \"loadSvcStages\\\\|openSvcStages\\\\|showSvcStages\\\\|svcStages\\\\|stagesBtn\\\\|saveService\" \"C:/Users/Administrator/Desktop/Ai Bechara/work app/src/screens/SettingsScreen.tsx\")",
@@ -68,7 +54,25 @@
       "Bash(rm -f .graphify_incremental.json)",
       "Bash(eas build:list --platform android --limit 1 --status new)",
       "Bash(eas build:list --platform android --limit 2)",
-      "Bash(eas build:cancel ef8f1a97-37c1-4b8b-bae5-e8f140119401)"
+      "Bash(eas build:cancel ef8f1a97-37c1-4b8b-bae5-e8f140119401)",
+      "Bash(node -e \"try { require\\('./node_modules/expo-clipboard'\\); console.log\\('expo-clipboard OK'\\); } catch\\(e\\) { console.log\\('MISSING:', e.message\\); }\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(git add *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"G:/ministry-tracker-master/.claude/worktrees/jolly-mirzakhani\" && git add -A && git commit -m \"auto: save changes\" && git push || true",
+            "statusMessage": "Auto-committing and pushing to kamal-modif..."
+          }
+        ]
+      }
     ]
   }
 }

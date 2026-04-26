@@ -44,6 +44,12 @@ export function useRealtime(onChange: ChangeCallback) {
         (payload) =>
           onChange({ ...payload, table: 'task_comments' } as Parameters<ChangeCallback>[0])
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'file_visibility_blocks' },
+        (payload) =>
+          onChange({ ...payload, table: 'file_visibility_blocks' } as Parameters<ChangeCallback>[0])
+      )
       .subscribe();
 
     channelRef.current = channel;
