@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 31 (Per-member file visibility blocks; FinancialReport pinned filter bar + totals bar redesign; visibility settings file visibility section; real-time block propagation; Resend SMTP setup)
+> Last updated: session 32 (Security hardening: removed hardcoded keys, RLS fixes, phone-lock enforcement, ErrorBoundary, account deletion RPC + Edge Function, expo-crypto invite codes, VIEWER_DEFAULTS auth guard, offline queue retry cap, onboarding flag, FlatList perf, dev data removed from migration; legal pages deployed to Netlify; eas.json env vars for cloud builds)
 
 ---
 
@@ -90,6 +90,9 @@ ministry-tracker/
 ├── assets/
 │   ├── icon.png                         # App icon 1024×1024 (Android + general; no adaptiveIcon in app.json)
 │   └── icon-fullbleed.png              # Full-bleed version (white corners → teal); used as PWA apple-touch-icon
+├── dist/
+│   ├── privacy.html                     # session 32 — full Privacy Policy page; dark GovPilot theme; deployed to Netlify
+│   └── terms.html                       # session 32 — full Terms of Service page; dark GovPilot theme; deployed to Netlify
 ├── supabase/
 │   ├── schema.sql
 │   ├── migration_assignment_history.sql
@@ -119,13 +122,20 @@ ministry-tracker/
 │   ├── migration_invite_code_email.sql ← session 31 — invitee_email column on org_join_codes
 │   ├── migration_catalog_permission.sql ← session 31 — can_manage_catalog column on org_visibility_settings
 │   ├── migration_client_edit_permission.sql ← session 31 — can_edit_delete_clients column on org_visibility_settings
-│   └── migration_file_visibility_blocks.sql ← session 31 — file_visibility_blocks table + RLS + realtime
+│   ├── migration_file_visibility_blocks.sql ← session 31 — file_visibility_blocks table + RLS + realtime
+│   ├── migration_security_fixes.sql    ← session 32 — drop open org_join_codes SELECT policy + lookup_invite_code RPC; org_select/org_update_owner split; phone-lock fix in join_org_by_code
+│   ├── migration_delete_account.sql    ← session 32 — delete_my_account() SECURITY DEFINER RPC (blocks owners, soft-deletes team_members row)
+│   └── migration_onboarding_flag.sql   ← session 32 — has_completed_onboarding boolean on team_members; backfills existing members to true
+├── functions/
+│   └── delete-account/
+│       └── index.ts                    # session 32 — Deno Edge Function; verifies JWT; calls auth.admin.deleteUser() with service-role key
 └── src/
     ├── theme/
     │   ├── tokens.ts                    # All design tokens (colors, spacing, typography, radius, shadow, zIndex, animation)
     │   └── index.ts                     # Re-exports { theme } — import as `import { theme } from '../theme'`
     ├── lib/
-    │   ├── supabase.ts
+    │   ├── supabase.ts                      # reads EXPO_PUBLIC_* env vars only — no hardcoded keys
+    │   ├── config.ts                        # session 32 — SUPPORT_WHATSAPP, SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL constants
     │   └── notifications.ts
     ├── types/index.ts
     ├── store/offlineQueue.ts
@@ -139,7 +149,8 @@ ministry-tracker/
     │   ├── RouteStop.tsx
     │   ├── OfflineBanner.tsx
     │   ├── ClientFieldsForm.tsx
-    │   └── DocumentScannerModal.tsx     # live camera + A4 frame guide + JPEG crop (expo-image-manipulator) + req linking
+    │   ├── DocumentScannerModal.tsx     # live camera + A4 frame guide + JPEG crop (expo-image-manipulator) + req linking
+    │   └── ErrorBoundary.tsx            # session 32 — React class component; catches render errors; dark-themed fallback screen + Try Again
     └── screens/
         ├── auth/LoginScreen.tsx
         ├── DashboardScreen.tsx          # filters; swipe L/R; manage dropdown+search; quick finance
@@ -156,7 +167,7 @@ ministry-tracker/
         ├── MinistryRequirementsScreen.tsx  ← session 8
         ├── FinancialReportScreen.tsx
         ├── GlobalSearchScreen.tsx           # 8-category search: clients, files, docs, comments, reqs, txns, contacts, team
-        ├── AccountScreen.tsx
+        ├── AccountScreen.tsx                # session 32 — Delete Account button (Security card); calls delete_my_account RPC + delete-account Edge Function
         ├── ActivityScreen.tsx
         ├── NotificationSettingsScreen.tsx   # session 28 — master toggle + type filters + per-member mute
         ├── TeamMembersScreen.tsx            # session 29 — soft-delete, grey UI, swipe perm-delete, owner protection, code name+phone+email
@@ -225,6 +236,9 @@ ministry-tracker/
 28. `supabase/migration_catalog_permission.sql`
 29. `supabase/migration_client_edit_permission.sql`
 30. `supabase/migration_file_visibility_blocks.sql`
+31. `supabase/migration_security_fixes.sql`
+32. `supabase/migration_delete_account.sql`
+33. `supabase/migration_onboarding_flag.sql`
 
 ### Status labels (current)
 Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, **Received & Closed** (was "Closed")
@@ -289,6 +303,7 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | SettingsScreen | Team Members (invite, list, revoke), Arabic/RTL toggle, nav cards to: Account · Client Fields · Team Member Fields · Financial Report · **Notifications** · **Visibility & Permissions**. Ministries/Services/Status Labels removed — managed via CreateScreen |
 | VisibilitySettingsScreen | Admin/Member/Viewer tabs; 👁 File Visibility section (member list, tap → MemberFileVisibilityScreen); 7 permission groups with Switch toggles; reset to defaults per role |
 | MemberFileVisibilityScreen | Owner/Admin only; shows all active files for the org with Switch per file; toggle OFF → inserts into file_visibility_blocks → disappears from member's dashboard in real-time; toggle ON → deletes block → file reappears instantly; search by client or service name |
+| AccountScreen | Profile card; legal links (Privacy Policy + Terms of Service from `config.ts`); Security card with **Delete Account** button (owner guard → Alert → `delete_my_account` RPC → `delete-account` Edge Function → signOut) |
 | NotificationSettingsScreen | Master on/off toggle; type filters (Comments, Status Changes, New Files); per-member receive filter (mute specific team members); saves to `notification_prefs` Supabase table |
 | ClientFieldsSettingsScreen | Manage custom field definitions: add/edit/reorder/toggle/delete |
 | ClientProfileScreen | Avatar + name + ID + phone + ✎ Edit + ✕ Delete; custom fields; stats; file history with swipe-left (Edit/Delete) |
@@ -548,8 +563,8 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 ## Setup Checklist
 
-- [ ] Run all 22 SQL migration files in Supabase SQL Editor (in order)
-- [ ] Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `src/lib/supabase.ts`
+- [ ] Run all 33 SQL migration files in Supabase SQL Editor (in order)
+- [ ] Set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` in `eas.json` env blocks (already committed) — no hardcoded keys in source code
 - [ ] Create Supabase Storage bucket `task-attachments` (public)
 - [ ] Create auth users in Supabase dashboard
 - [ ] Insert matching rows in `team_members`
@@ -602,6 +617,23 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 | Due date showing wrong day (UTC shift) | `formatDate()` used `new Date('YYYY-MM-DD')` which parses as UTC midnight; Lebanon UTC+3 shows previous day. Fixed with `formatDateOnly()` that splits the ISO string directly without Date constructor |
 | City filter only checked task-level city_id | Tasks no longer have city at task level — cities are per-stage. Fixed filter to `route_stops.some(s => s.city_id === filters.cityId)`; TaskCard city chips now collected from unique stop cities |
 | Unarchive not possible from dashboard | Swipe-left in archive mode now shows green 📋 Restore button instead of red Delete; sets `is_archived = false` |
+| B-1: Hardcoded Supabase keys in source | Removed fallback string literals from `supabase.ts` + hardcoded `ANON_KEY` from `DocumentScannerModal.tsx`; now reads `process.env.EXPO_PUBLIC_*` only; `eas.json` `env` blocks added for cloud build |
+| B-2: Open RLS on org_join_codes exposed invite data | Dropped public SELECT policy; replaced with `lookup_invite_code(p_code)` SECURITY DEFINER RPC — returns only safe fields, never leaks invitee_phone |
+| B-3: organizations FOR ALL policy too permissive | Split into `org_select` (FOR SELECT) + `org_update_owner` (FOR UPDATE WITH CHECK role='owner') |
+| B-4: Phone lock bypassable by omitting field | Fixed in `join_org_by_code` — if `invitee_phone` is set and provided phone doesn't match, RAISE EXCEPTION; null phone no longer skips check |
+| B-5: No ErrorBoundary — JS crash shows blank screen | Added `ErrorBoundary.tsx` (React class component); wraps entire app in `App.tsx`; shows dark-themed error screen with "Try Again" |
+| B-6: Account deletion not implemented | Added `delete_my_account()` SECURITY DEFINER RPC (soft-deletes team_members row); `delete-account` Deno Edge Function (hard-deletes auth.users via service-role key); Delete Account button in AccountScreen |
+| B-7: No splash screen | Added `splash` config to `app.json` with `backgroundColor: "#0f172a"` and `resizeMode: "contain"` |
+| B-8: Missing iOS permission strings | Added `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription` to `app.json` `infoPlist` |
+| B-9: Unused dangerous Android permissions | Removed `RECORD_AUDIO`, `WRITE_EXTERNAL_STORAGE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` from `app.json` permissions array |
+| B-10: AuthContext defaulted to ALL_PERMISSIONS | Changed initial state and sign-out to `VIEWER_DEFAULTS`; `fetchTeamMember` wrapped in try/catch with Alert + Retry |
+| B-11: Dev bootstrapping data in production migration | Removed DO $$ block that auto-inserted 'My Company' org from `migration_organizations.sql` |
+| W-1: invite code used Math.random() | Replaced with `expo-crypto` `getRandomBytesAsync(8)` in `TeamMembersScreen.makeCode()` |
+| W-2: VisibilitySettingsScreen no role gate | Added owner/admin check at top of component; non-admin sees "Access restricted" screen |
+| W-3: Offline queue retried forever + unknown actions crash | Added `MAX_RETRIES = 5`; tracks `retryCount` per action; discards after 5 failures; unknown action types log warning + discard |
+| W-4: Onboarding re-shown via 60s heuristic | Added `has_completed_onboarding boolean` to `team_members`; set to `true` in `OnboardingScreen.finishOnboarding()`; backfilled existing members |
+| W-5: FlatList renders all rows at once | Added `windowSize={5}`, `maxToRenderPerBatch={10}`, `initialNumToRender={12}` to DashboardScreen FlatList; similar props to FinancialReportScreen |
+| W-6: Privacy policy + Terms of Service URLs were placeholder | Created `dist/privacy.html` and `dist/terms.html` with full legal content; deployed to Netlify at ministry-papers.netlify.app |
 
 ---
 
@@ -609,6 +641,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 32 | **Security hardening & launch prep (B-1 → B-11 + W-1 → W-6)**: Removed all hardcoded Supabase keys from source — `supabase.ts` and `DocumentScannerModal.tsx` now read `process.env.EXPO_PUBLIC_*` only; `eas.json` `env` blocks added so EAS Cloud builds always have credentials. RLS fixes: dropped open SELECT policy on `org_join_codes` → `lookup_invite_code()` SECURITY DEFINER RPC (safe fields only); split `organizations FOR ALL` → separate `org_select` + `org_update_owner WITH CHECK`. Phone-lock enforced in `join_org_by_code` — null phone no longer bypasses check. `ErrorBoundary.tsx` (new React class component) wraps entire app in `App.tsx`. Account deletion: `delete_my_account()` SECURITY DEFINER RPC soft-deletes team_members row; `delete-account` Deno Edge Function hard-deletes auth user via service-role key (deployed via Supabase Dashboard UI); Delete Account button added to AccountScreen Security card with owner guard. Splash screen + iOS infoPlist camera/photo permission strings added to `app.json`; unused dangerous Android permissions removed (RECORD_AUDIO, WRITE_EXTERNAL_STORAGE, GPS). AuthContext initial state changed from ALL_PERMISSIONS to VIEWER_DEFAULTS; sign-out also resets to VIEWER_DEFAULTS; `fetchTeamMember` wrapped in try/catch with Alert + Retry. Invite code generation migrated from `Math.random()` to `expo-crypto getRandomBytesAsync(8)`. VisibilitySettingsScreen role-gated (owner/admin only). Offline queue: `MAX_RETRIES = 5`, discard after 5 failures, warn + discard unknown action types; `retryCount` added to `OfflineAction` type. `has_completed_onboarding boolean` added to `team_members` (replaces 60s Date.now() heuristic); set in OnboardingScreen; backfilled. FlatList perf props added to Dashboard + FinancialReport. Dev bootstrapping DO $$ block removed from `migration_organizations.sql`. `src/lib/config.ts` (new) — centralises support contacts + legal page URLs. Legal pages: `dist/privacy.html` + `dist/terms.html` written and deployed to ministry-papers.netlify.app. `@expo/ngrok` moved to devDependencies. SQL migrations: `migration_security_fixes.sql`, `migration_delete_account.sql`, `migration_onboarding_flag.sql`. |
 | 31 | **Per-member file visibility + FinancialReport UX + Permissions**: New `file_visibility_blocks` table (UNIQUE per member+task, RLS, realtime publication). **MemberFileVisibilityScreen** (new): owner/admin can toggle individual files ON/OFF per member; blocked files disappear from that member's dashboard instantly via Realtime subscription in `useRealtime.ts`. **VisibilitySettingsScreen**: added 👁 File Visibility group card (first in ScrollView, after role tabs) listing all non-owner members — tap to navigate to MemberFileVisibilityScreen. Two new permissions: `can_manage_catalog` (services/stages/network, admin ON / member+viewer OFF) and `can_edit_delete_clients` (split from `can_manage_clients`); both gated in CreateScreen, ClientProfileScreen, NewTaskScreen pickers. **Invite code**: added `invitee_email` field; "📧 Send Email" button opens `mailto:` link with pre-composed message; email shown on code card. Invite code input auto-formats to XXXX-XXXX. **DashboardScreen**: Due amount in summary bar hidden when `!can_see_contract_price`; `file_visibility_blocks` fetched in parallel and applied as a second filter on allTasks. **FinancialReportScreen**: filter bar (search + status + scope/service/stage + dates + rate + PDF) now pinned as fixed `View` — never scrolls; totals bar redesigned as 2-row layout — Row 1: RECEIVED · EXPENSES · BALANCE; Row 2: N FILES·CONTRACT · C/V USD (shows exchange rate) · RESULT (cvBalance formula); LBP values centered in all cells; date display changed to DD-MM-YYYY; date filter falls back to `created_at` when `closed_at` is null so no file is silently excluded; stage picker now has inline search bar with autoFocus; calendar pickers show today with grey `todayBackgroundColor`; `toDisplayDate()` helper added. **Email deliverability**: configured Resend custom SMTP in Supabase (host: smtp.resend.com, port 465) so password-reset emails land in inbox not junk. SQL migrations: `migration_invite_code_email.sql`, `migration_catalog_permission.sql`, `migration_client_edit_permission.sql`, `migration_file_visibility_blocks.sql`. |
 | 30 | **Financial Overhaul — Dual Currency & Advanced Filters**: Added `usd_to_lbp_rate` to `organizations` (default 89,500 LBP/USD); editable by owner/admin from **SettingsScreen** (💱 Exchange Rate nav card + modal) and **FinancialReportScreen** (rate chip → modal, also saves to DB). Added `tasks.closed_at TIMESTAMPTZ` set in-app when all stages reach terminal status. Status label "Closed" renamed → **"Received & Closed"** (SQL backfill across status_labels, tasks, status_updates). **TaskDetailScreen**: new 4-column C/V USD table in financials section — Description / USD / LBP / C/V USD — with TOTAL row and rate note; `exchangeRate` initialized from org. **FinancialReportScreen** complete overhaul: status-group filter (Closed=Done+Rejected+Received&Closed / Active / All, default=Closed); My Files / All Files scope toggle (`assigned_to = me`); stage (ministry) filter that re-aggregates transactions filtered by `stop.ministry_id`; date range filter (from/to) comparing `closed_at` YMD string; C/V USD column on row cards and totals bar; PDF export includes C/V column and rate in header; detail modal shows C/V mini-table per transaction. SQL migration: `migration_financials_v2.sql`. |
 | 29 | **Team Permissions & Invite Code Overhaul**: Soft-delete for `team_members` and `org_join_codes` (new `deleted_at`, `deleted_by`, `joined_via_code` columns). Deleted members render grey with timestamp; swipe-left → "Permanently Remove" (hard DELETE). Deleted codes render grey. Owner rows never show ✕ button. Invite code modal now has `invitee_name` + `invitee_phone` (PhoneInput) fields. Code cards show `created_at` and invitee info. Deactivating a code soft-deletes it AND any member who joined via that code (cascade). **RegisterScreen** rewritten: code-first flow — Step 1 enter invite code, validate, show org/role/name; Step 2 enter details with phone locked to `invitee_phone` if set; "Create Organization" path for new owners. `register_join_org_by_code` SECURITY DEFINER RPC handles post-signup org join. **VisibilitySettingsScreen** adds Admin tab (3 tabs: Admin · Member · Viewer); ADMIN_DEFAULTS seeded with same values as Member. RLS on `org_join_codes` with `public_code_lookup` policy for pre-auth validation. "Powered by KTS" branding on all auth screens. Phone login fixed (PhoneInput in LoginScreen). Auto-signout when team_members row deleted (AppState listener in useAuth replaces broken realtime). SQL migrations: `migration_join_org_rpc.sql`, `migration_team_overhaul.sql`, `migration_register_join_by_code.sql`. |
