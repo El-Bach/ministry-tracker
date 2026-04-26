@@ -322,8 +322,8 @@ const styles = StyleSheet.create({
   logoIcon:     { fontSize: 32, color: theme.color.white },
   title:        { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
   subtitle:     { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500' },
-  poweredBy:    { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
-  poweredByKts: { fontSize: 13, fontWeight: '800', color: theme.color.textSecondary, letterSpacing: 0.5 },
+  poweredBy:    { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', marginTop: 2 },
+  poweredByKts: { ...theme.typography.body, fontWeight: '800', color: theme.color.textSecondary },
 
   // Tabs
   tabs: {
