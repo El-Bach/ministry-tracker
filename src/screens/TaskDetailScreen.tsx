@@ -34,6 +34,7 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Speech-to-text removed (package caused Android Gradle duplicate-class errors).
@@ -221,6 +222,7 @@ export default function TaskDetailScreen() {
   // Document archive states
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [scanMode, setScanMode] = useState<'camera' | 'library' | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [renamingDoc, setRenamingDoc] = useState<TaskDocument | null>(null);
   const [renameText, setRenameText] = useState('');
@@ -817,6 +819,74 @@ export default function TaskDetailScreen() {
         },
       },
     ]);
+  };
+
+  // ─── PDF upload from device ───────────────────────────────
+  const handlePickPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      const localUri = asset.uri;
+      const originalName = asset.name ?? `Document_${Date.now()}.pdf`;
+      const displayName  = originalName.replace(/\.pdf$/i, '');
+
+      setUploadingPdf(true);
+      const timestamp  = Date.now();
+      const safeName   = displayName.replace(/[^a-z0-9]/gi, '_');
+      const filePath   = `documents/${taskId}/${safeName}_${timestamp}.pdf`;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(localUri);
+        const blob     = await response.blob();
+        const { error: upErr } = await supabase.storage
+          .from('task-attachments')
+          .upload(filePath, blob, { contentType: 'application/pdf', upsert: false });
+        if (upErr) throw upErr;
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const anonKey     = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+        const uploadUrl   = `${supabaseUrl}/storage/v1/object/task-attachments/${filePath}`;
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
+          httpMethod:  'POST',
+          uploadType:  FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName:   'file',
+          mimeType:    'application/pdf',
+          headers: {
+            apikey:        anonKey,
+            Authorization: `Bearer ${accessToken ?? anonKey}`,
+          },
+        });
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
+        }
+      }
+
+      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
+      const publicUrl = urlData.publicUrl;
+
+      const { error: dbErr } = await supabase.from('task_documents').insert({
+        task_id:      taskId,
+        file_name:    displayName,
+        display_name: displayName,
+        file_url:     publicUrl,
+        file_type:    'application/pdf',
+        uploaded_by:  teamMember?.id ?? null,
+      });
+      if (dbErr) throw dbErr;
+
+      fetchTask();
+    } catch (e: any) {
+      Alert.alert('Upload Failed', e.message ?? 'Could not upload PDF.');
+    } finally {
+      setUploadingPdf(false);
+    }
   };
 
   // ─── Status update ────────────────────────────────────────
@@ -1725,6 +1795,11 @@ export default function TaskDetailScreen() {
                 <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
                   <Text style={s.addDocBtnText}>🖼 Image</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={s.pdfDocBtn} onPress={handlePickPdf} disabled={uploadingPdf}>
+                  {uploadingPdf
+                    ? <ActivityIndicator size="small" color={theme.color.white} />
+                    : <Text style={s.pdfDocBtnText}>📄 PDF</Text>}
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1740,6 +1815,11 @@ export default function TaskDetailScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
                     <Text style={s.addDocBtnText}>🖼 Image</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.pdfDocBtn} onPress={handlePickPdf} disabled={uploadingPdf}>
+                    {uploadingPdf
+                      ? <ActivityIndicator size="small" color={theme.color.white} />
+                      : <Text style={s.pdfDocBtnText}>📄 PDF</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -4337,6 +4417,15 @@ const s = StyleSheet.create({
     paddingVertical: 6,
   },
   addDocBtnText:  { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
+  pdfDocBtn: {
+    backgroundColor: '#dc2626',
+    borderRadius:    7,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 6,
+    minWidth:        52,
+    alignItems:      'center',
+  },
+  pdfDocBtnText:  { ...theme.typography.label, color: theme.color.white, fontWeight: '700' },
   docEmpty: {
     alignItems:    'center',
     paddingVertical: 24,
