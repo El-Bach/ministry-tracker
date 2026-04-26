@@ -866,10 +866,14 @@ export default function DashboardScreen() {
           <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger]}>
             Overdue: {summaryStats.overdue}
           </Text>
-          <Text style={styles.summaryDot}> · </Text>
-          <Text style={[styles.summaryItem, summaryStats.dueUSD > 0 && styles.summaryPrimary]}>
-            Due ${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-          </Text>
+          {permissions.can_see_contract_price && (
+            <>
+              <Text style={styles.summaryDot}> · </Text>
+              <Text style={[styles.summaryItem, summaryStats.dueUSD > 0 && styles.summaryPrimary]}>
+                Due ${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </Text>
+            </>
+          )}
         </View>
       )}
 
