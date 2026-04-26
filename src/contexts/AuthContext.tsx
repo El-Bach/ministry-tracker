@@ -167,11 +167,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'team_members', filter: `id=eq.${memberId}` },
         async (payload) => {
-          const newRole = (payload.new as any)?.role as string | undefined;
+          const row = payload.new as any;
+
+          // Member was soft-deleted — force immediate sign out
+          if (row?.deleted_at) {
+            await supabase.auth.signOut();
+            return;
+          }
+
+          // Role changed — update permissions instantly
+          const newRole = row?.role as string | undefined;
           if (!newRole) return;
-          // Update role in state
           setTeamMember((prev) => prev ? { ...prev, role: newRole } : prev);
-          // Reload permissions for new role — updates ALL screens simultaneously
           await loadPermissionsForRole(newRole, orgId, setPermissions);
         },
       )
