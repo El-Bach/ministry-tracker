@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/index';
 import { useOfflineQueue } from './src/store/offlineQueue';
 import { loadLanguage, isFirstLaunchKey, LanguageProvider } from './src/lib/i18n';
+import { AuthProvider } from './src/contexts/AuthContext';
 import LanguageSelectScreen from './src/screens/auth/LanguageSelectScreen';
 
 Notifications.setNotificationHandler({
@@ -57,7 +58,9 @@ export default function App() {
     return (
       <LanguageProvider>
         <SafeAreaProvider>
-          <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+          <AuthProvider>
+            <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+          </AuthProvider>
         </SafeAreaProvider>
       </LanguageProvider>
     );
@@ -66,7 +69,9 @@ export default function App() {
   return (
     <LanguageProvider>
       <SafeAreaProvider>
-        <AppNavigator />
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
       </SafeAreaProvider>
     </LanguageProvider>
   );
