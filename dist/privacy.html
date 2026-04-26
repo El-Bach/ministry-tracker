@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — GovPilot</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #cbd5e1;
+      line-height: 1.7;
+      padding: 0 16px 60px;
+    }
+    .container { max-width: 740px; margin: 0 auto; }
+    header {
+      padding: 40px 0 32px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 40px;
+    }
+    .logo { font-size: 22px; font-weight: 800; color: #6366f1; margin-bottom: 6px; }
+    .doc-title { font-size: 28px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    .meta { font-size: 13px; color: #64748b; }
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 36px 0 10px;
+      padding-left: 12px;
+      border-left: 3px solid #6366f1;
+    }
+    p { margin-bottom: 12px; font-size: 15px; }
+    ul { margin: 8px 0 12px 20px; }
+    li { margin-bottom: 6px; font-size: 15px; }
+    a { color: #6366f1; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .contact-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-top: 16px;
+    }
+    .contact-box p { margin: 0; }
+    footer {
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid #1e293b;
+      font-size: 13px;
+      color: #475569;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    footer a { color: #475569; }
+    footer a:hover { color: #6366f1; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">GovPilot</div>
+      <div class="doc-title">Privacy Policy</div>
+      <div class="meta">Effective date: 26 April 2026 &nbsp;·&nbsp; Last updated: 26 April 2026</div>
+    </header>
+
+    <p>GovPilot ("we", "our", or "us") is a file-tracking and ministry-clearing application operated by El-Bach's. This Privacy Policy explains what data we collect, how we use it, and your rights regarding your information.</p>
+    <p>By using GovPilot you agree to the practices described in this policy.</p>
+
+    <h2>1. Information We Collect</h2>
+    <p>We collect only the information necessary to operate the service:</p>
+    <ul>
+      <li><strong>Account information:</strong> your full name, email address or phone number, and password (stored as a secure hash by Supabase Auth).</li>
+      <li><strong>Organisation data:</strong> company name, team member names and roles, and invite codes.</li>
+      <li><strong>File and client data:</strong> client names, phone numbers, reference contacts, file notes, stage statuses, financial transactions, and documents you upload or scan.</li>
+      <li><strong>Device information:</strong> push notification token (used solely to deliver in-app notifications to your device).</li>
+      <li><strong>Usage data:</strong> activity timestamps, stage status changes, and comments entered within the app.</li>
+    </ul>
+    <p>We do <strong>not</strong> collect GPS location, payment card details, or any biometric data.</p>
+
+    <h2>2. How We Use Your Information</h2>
+    <ul>
+      <li>To provide and operate the GovPilot service.</li>
+      <li>To send push notifications about file activity (status changes, comments, new files) — only to members of your organisation.</li>
+      <li>To allow team members within the same organisation to collaborate on files.</li>
+      <li>To generate financial reports and summaries within your organisation.</li>
+      <li>To respond to support requests you send us.</li>
+    </ul>
+    <p>We do <strong>not</strong> sell, rent, or share your data with any third party for marketing purposes.</p>
+
+    <h2>3. Data Storage and Security</h2>
+    <p>All data is stored on <strong>Supabase</strong> (hosted on Amazon Web Services, US-East region). Supabase applies Row Level Security (RLS) policies so that each organisation's data is strictly isolated — no other organisation can access your data.</p>
+    <p>Data is encrypted in transit (HTTPS/TLS) and at rest. Supabase Auth manages passwords using bcrypt hashing — we never see or store your plaintext password.</p>
+    <p>Session tokens are stored locally on your device using AsyncStorage. On rooted or jailbroken devices this storage may be accessible to other apps; we recommend keeping your device secure.</p>
+
+    <h2>4. Data Retention</h2>
+    <p>We retain your data for as long as your account is active. If you delete your account, your team_members record is removed immediately and your authentication account is hard-deleted within 24 hours via our secure deletion process. File and client data associated with your organisation remains until the organisation owner deletes it.</p>
+
+    <h2>5. Your Rights</h2>
+    <p>You have the right to:</p>
+    <ul>
+      <li><strong>Access</strong> the personal data we hold about you.</li>
+      <li><strong>Correct</strong> inaccurate data via the Account screen in the app.</li>
+      <li><strong>Delete</strong> your account at any time via Account → Security → Delete Account in the app.</li>
+      <li><strong>Export</strong> your data by contacting us at the address below.</li>
+      <li><strong>Object</strong> to processing by contacting us — we will respond within 30 days.</li>
+    </ul>
+
+    <h2>6. Push Notifications</h2>
+    <p>GovPilot sends push notifications to team members about file activity. You can control which notifications you receive in the app under Settings → Notifications. You can also disable all notifications from your device's system settings at any time.</p>
+
+    <h2>7. Children's Privacy</h2>
+    <p>GovPilot is a professional business application intended for users aged 18 and over. We do not knowingly collect data from anyone under 18. If you believe a minor has registered, please contact us immediately.</p>
+
+    <h2>8. Changes to This Policy</h2>
+    <p>We may update this policy as the service evolves. We will notify registered users of material changes via a push notification or email. Continued use of GovPilot after changes are posted constitutes acceptance of the updated policy.</p>
+
+    <h2>9. Contact Us</h2>
+    <div class="contact-box">
+      <p>For any privacy questions, data requests, or deletion requests, contact us at:</p>
+      <p style="margin-top:10px;"><strong>Email:</strong> <a href="mailto:hello@govpilot.app">hello@govpilot.app</a></p>
+      <p><strong>WhatsApp:</strong> <a href="https://wa.me/96170123456">+961 70 123 456</a></p>
+    </div>
+
+    <footer>
+      <span>© 2026 GovPilot · El-Bach's</span>
+      <span>
+        <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
+        <a href="terms.html">Terms of Service</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
