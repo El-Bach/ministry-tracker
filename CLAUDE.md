@@ -1,7 +1,7 @@
 # CLAUDE.md — Ministry Tracker Project Memory
 
 > This file is maintained by Claude and updated automatically as the project evolves.
-> Last updated: session 29 (Team overhaul: soft-delete members/codes, invite code name+phone fields, code-first RegisterScreen, Admin tab in VisibilitySettings, auto-signout, phone login fix, owner protection, AppState-based membership recheck)
+> Last updated: session 30 (Financial overhaul: dual-currency C/V USD, exchange rate per org, FinancialReport date range + stage + scope + status-group filters, closed_at on tasks, "Received & Closed" status rename)
 
 ---
 
@@ -214,12 +214,13 @@ ministry-tracker/
 23. `supabase/migration_join_org_rpc.sql`
 24. `supabase/migration_team_overhaul.sql`
 25. `supabase/migration_register_join_by_code.sql`
+26. `supabase/migration_financials_v2.sql`
 
 ### Status labels (current)
-Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, Closed
+Submitted, In Review, Pending Signature, **Done** (was Approved), Rejected, **Received & Closed** (was "Closed")
 
 ### Urgency order for dashboard (most critical first)
-Rejected → Pending Signature → In Review → Submitted → Pending → Done → Closed
+Rejected → Pending Signature → In Review → Submitted → Pending → Done → Received & Closed
 
 ---
 
@@ -283,7 +284,7 @@ Rejected → Pending Signature → In Review → Submitted → Pending → Done 
 | ServiceStagesScreen | Ordered stage list (↑↓ ✎ ✕); + Add Stage button → picker (existing ministries + create new) |
 | StageRequirementsScreen | Per-stop requirements list; add/edit/remove; 7 req types; notes; 32×32 completion checkbox; document attach |
 | MinistryRequirementsScreen | CRUD template requirements per stage (no completion state, no attachment) |
-| FinancialReportScreen | All files P&L; filter by service/status/client; RECEIVED · OUTSTANDING · EXPENSES · BALANCE; totals bar shows both USD + LBP separated by thin divider; LBP values colored green/red; tap row → detail sheet |
+| FinancialReportScreen | All files P&L; status group filter (Closed/Active/All); My Files / All Files scope; service filter; stage (ministry) filter; date range (from/to on closed_at); exchange rate chip (editable); RECEIVED · C/V USD · EXPENSES · BALANCE; totals bar includes C/V USD; tap row → detail sheet with per-transaction C/V mini-table; 📄 PDF export |
 
 ---
 
@@ -454,14 +455,18 @@ text, textarea, number, currency, email, phone, url, date, boolean, select, mult
 - **Payments Received** = sum of `revenue` type transactions
 - **Outstanding** = Contract Price − Payments Received
 - **Balance** = Payments Received − Expenses (shown in header + FinancialReport)
+- **C/V USD** = Cash Value in USD = `amount_usd` if paid in USD, or `amount_lbp ÷ daily_rate` if paid in LBP. Used to normalize mixed-currency totals into a single USD figure.
+- **Exchange rate**: `organizations.usd_to_lbp_rate NUMERIC(14,4) DEFAULT 89500`. Read from `useAuth().organization`. Editable by owner/admin from both SettingsScreen (💱 Exchange Rate card) and FinancialReportScreen (rate chip → modal). Saves to DB.
 - Deleting a transaction auto-logs an audit comment with who deleted it
 - Contract price changes logged in `task_price_history` (who + when + note)
 - `TaskCard` shows contract price inline next to client name (indigo text, hidden if zero)
-- `FinancialReportScreen` shows contract price next to client name; grid: RECEIVED · OUTSTANDING · EXPENSES · BALANCE
+- **`FinancialReportScreen`** (session 30 overhaul): date range filter (from/to based on `tasks.closed_at`); My Files / All Files scope toggle; status group filter (Closed=Done+Rejected+Received&Closed / Active / All, default=Closed); stage (ministry) filter; C/V USD column on rows and totals; exchange rate editable inline; PDF export includes C/V columns
+- **`tasks.closed_at`**: set in-app when all stages reach terminal status (`shouldArchive=true` in TaskDetailScreen status change handler)
+- **TaskDetailScreen financials** (session 30): 4-column C/V USD table above transaction list — Description | USD | LBP | C/V USD — with a TOTAL row; rate note shown; existing detailed rows kept below
 - **Quick Finance** available from Dashboard swipe-right on any task card; includes optional stage picker for expenses
 - **Expense → Stage link**: optional `stop_id` on `file_transactions` (expense type only) — shown as "📌 StageName" tag on transaction row in TaskDetail and in Quick Finance modal
 - All LBP inputs use comma-formatted display (`parseInt.toLocaleString('en-US')`) and `keyboardType="number-pad"`. Parse back with `.replace(/,/g, '')` before saving.
-- `fmtUSD` / `fmtLBP` helper functions used throughout for display formatting
+- `fmtUSD` / `fmtLBP` / `cvFmt` helper functions used throughout for display formatting
 - `formatDateOnly(iso: string)` in TaskDetailScreen — splits `YYYY-MM-DD` string directly without `new Date()` to avoid UTC midnight timezone shift (Lebanon UTC+3 would show previous day). Use instead of `formatDate()` for date-only fields like `due_date`
 
 ---
@@ -592,6 +597,7 @@ URGENCY_ORDER = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted
 
 | Session | Changes |
 |---|---|
+| 30 | **Financial Overhaul — Dual Currency & Advanced Filters**: Added `usd_to_lbp_rate` to `organizations` (default 89,500 LBP/USD); editable by owner/admin from **SettingsScreen** (💱 Exchange Rate nav card + modal) and **FinancialReportScreen** (rate chip → modal, also saves to DB). Added `tasks.closed_at TIMESTAMPTZ` set in-app when all stages reach terminal status. Status label "Closed" renamed → **"Received & Closed"** (SQL backfill across status_labels, tasks, status_updates). **TaskDetailScreen**: new 4-column C/V USD table in financials section — Description / USD / LBP / C/V USD — with TOTAL row and rate note; `exchangeRate` initialized from org. **FinancialReportScreen** complete overhaul: status-group filter (Closed=Done+Rejected+Received&Closed / Active / All, default=Closed); My Files / All Files scope toggle (`assigned_to = me`); stage (ministry) filter that re-aggregates transactions filtered by `stop.ministry_id`; date range filter (from/to) comparing `closed_at` YMD string; C/V USD column on row cards and totals bar; PDF export includes C/V column and rate in header; detail modal shows C/V mini-table per transaction. SQL migration: `migration_financials_v2.sql`. |
 | 29 | **Team Permissions & Invite Code Overhaul**: Soft-delete for `team_members` and `org_join_codes` (new `deleted_at`, `deleted_by`, `joined_via_code` columns). Deleted members render grey with timestamp; swipe-left → "Permanently Remove" (hard DELETE). Deleted codes render grey. Owner rows never show ✕ button. Invite code modal now has `invitee_name` + `invitee_phone` (PhoneInput) fields. Code cards show `created_at` and invitee info. Deactivating a code soft-deletes it AND any member who joined via that code (cascade). **RegisterScreen** rewritten: code-first flow — Step 1 enter invite code, validate, show org/role/name; Step 2 enter details with phone locked to `invitee_phone` if set; "Create Organization" path for new owners. `register_join_org_by_code` SECURITY DEFINER RPC handles post-signup org join. **VisibilitySettingsScreen** adds Admin tab (3 tabs: Admin · Member · Viewer); ADMIN_DEFAULTS seeded with same values as Member. RLS on `org_join_codes` with `public_code_lookup` policy for pre-auth validation. "Powered by KTS" branding on all auth screens. Phone login fixed (PhoneInput in LoginScreen). Auto-signout when team_members row deleted (AppState listener in useAuth replaces broken realtime). SQL migrations: `migration_join_org_rpc.sql`, `migration_team_overhaul.sql`, `migration_register_join_by_code.sql`. |
 | 28 | **Global search** expanded to 8 categories: existing (clients, files, comments, requirements) + new (documents by display_name/file_name, financial transactions by description, external contacts/assignees by name/phone/reference, team members by name/email, services by name → returns matching tasks). Result count summary pill. Contacts + team members show inline 📞 call button. **Activity notifications broadcast**: `sendActivityNotificationToAll()` added to `notifications.ts` — called on every comment save and stage status change in TaskDetailScreen; fetches all team members with push tokens (excluding actor); reads each recipient's `notification_prefs` row (enabled + type filters + muted_actor_ids) before sending. **NotificationSettingsScreen** (new): master toggle, type toggles (Comments/Status/New Files), per-member receive checkboxes; saves to Supabase `notification_prefs` table (upsert). RLS policies added for notification_prefs. **SettingsScreen cleanup**: removed Ministries, Sub-Ministries, Services, Status Labels sections + all orphaned state/handlers/modals; added 🔔 Notifications nav card. SQL migration: `migration_notification_prefs.sql`. |
 | 27 | App renamed to **GovPilot**: app.json (name/slug), LoginScreen title + signup link text, CLAUDE.md. `org_id` wired into all INSERT statements: **CreateScreen** — added `useAuth` import + `orgId` constant; all inserts of clients, services, ministries, assignees, service_documents, and all bulk-import inserts now pass `org_id`. **NewTaskScreen** — tasks, clients, services, ministries (inline + FINAL_STAGE), client_field_definitions inserts all pass `org_id`. **TaskDetailScreen** — cities (inline create), assignees (inline create), new stage (edit modal), task duplication — all pass `org_id`. **SettingsScreen** — ministries (parent + child + svc stage), services, status_labels inserts all pass `org_id`. |

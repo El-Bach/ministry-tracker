@@ -280,7 +280,7 @@ const mf = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────
 export default function SettingsScreen() {
- const { teamMember, signOut, isAdmin } = useAuth();
+ const { teamMember, organization, signOut, isAdmin, refreshTeamMember } = useAuth();
  const { t, setLang, lang } = useTranslation();
 
  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -406,6 +406,27 @@ export default function SettingsScreen() {
      setSendingBug(false);
      Alert.alert('Failed to Send', err?.message ?? 'Something went wrong. Please try again.');
    }
+ };
+
+ // Exchange rate
+ const currentRate = organization?.usd_to_lbp_rate ?? 89500;
+ const [showRateModal, setShowRateModal] = useState(false);
+ const [rateInput, setRateInput] = useState('');
+ const [savingRate, setSavingRate] = useState(false);
+
+ const handleSaveRate = async () => {
+   const parsed = parseInt(rateInput.replace(/,/g, ''), 10);
+   if (!parsed || parsed < 1000) { Alert.alert('Invalid', 'Enter a valid rate (e.g. 89500).'); return; }
+   if (!teamMember?.org_id) return;
+   setSavingRate(true);
+   const { error } = await supabase
+     .from('organizations')
+     .update({ usd_to_lbp_rate: parsed })
+     .eq('id', teamMember.org_id);
+   setSavingRate(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   await refreshTeamMember(); // refreshes organization in useAuth
+   setShowRateModal(false);
  };
 
  // Team member role editing
@@ -576,6 +597,24 @@ export default function SettingsScreen() {
        </View>
      </View>
      <Text style={ss.navCardChevron}>›</Text>
+   </TouchableOpacity>
+ )}
+
+ {/* Exchange Rate — owner/admin only */}
+ {isAdmin && (
+   <TouchableOpacity
+     style={ss.navCard}
+     onPress={() => { setRateInput(currentRate.toLocaleString('en-US')); setShowRateModal(true); }}
+     activeOpacity={0.75}
+   >
+     <View style={ss.navCardLeft}>
+       <Text style={ss.navCardIcon}>💱</Text>
+       <View>
+         <Text style={ss.navCardTitle}>Exchange Rate</Text>
+         <Text style={ss.navCardSubtitle}>1 USD = {currentRate.toLocaleString('en-US')} LBP · tap to update</Text>
+       </View>
+     </View>
+     <Text style={ss.navCardChevron}>✎</Text>
    </TouchableOpacity>
  )}
 
@@ -1247,6 +1286,41 @@ export default function SettingsScreen() {
    </SafeAreaView>
  </Modal>
 
+ {/* ── Exchange Rate Modal ── */}
+ <Modal visible={showRateModal} transparent animationType="fade" onRequestClose={() => setShowRateModal(false)}>
+   <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+     <TouchableOpacity style={ss.pickerOverlay} activeOpacity={1} onPress={() => setShowRateModal(false)}>
+       <TouchableOpacity activeOpacity={1} style={ss.rateModalSheet}>
+         <Text style={ss.rateModalTitle}>💱 Exchange Rate</Text>
+         <Text style={ss.rateModalSub}>Set today's USD → LBP rate. Used for C/V calculations throughout the app.</Text>
+         <View style={ss.rateInputRow}>
+           <Text style={ss.rateLabel}>1 USD =</Text>
+           <TextInput
+             style={ss.rateInput}
+             value={rateInput}
+             onChangeText={setRateInput}
+             keyboardType="number-pad"
+             placeholder="89500"
+             placeholderTextColor={theme.color.textMuted}
+             autoFocus
+           />
+           <Text style={ss.rateLabel}>LBP</Text>
+         </View>
+         <TouchableOpacity
+           style={[ss.inviteBtn, { marginTop: 16 }, savingRate && { opacity: 0.6 }]}
+           onPress={handleSaveRate}
+           disabled={savingRate}
+         >
+           {savingRate
+             ? <ActivityIndicator color={theme.color.white} />
+             : <Text style={ss.inviteBtnText}>Save Rate</Text>
+           }
+         </TouchableOpacity>
+       </TouchableOpacity>
+     </TouchableOpacity>
+   </KeyboardAvoidingView>
+ </Modal>
+
  </SafeAreaView>
  );
 }
@@ -1730,5 +1804,43 @@ const ss = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: theme.color.border,
+  },
+
+  // Exchange rate modal
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rateModalSheet: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.xl,
+    padding:         theme.spacing.space5,
+    width:           '85%',
+    gap:             12,
+  },
+  rateModalTitle: { ...theme.typography.heading, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  rateModalSub:   { ...theme.typography.caption, color: theme.color.textMuted, textAlign: 'center' },
+  rateInputRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    gap:            10,
+    justifyContent: 'center',
+    marginTop:      4,
+  },
+  rateLabel: { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
+  rateInput: {
+    backgroundColor:   theme.color.bgBase,
+    borderWidth:       1,
+    borderColor:       theme.color.primary,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    color:             theme.color.textPrimary,
+    fontSize:          18,
+    fontWeight:        '700',
+    textAlign:         'center',
+    minWidth:          120,
   },
 });

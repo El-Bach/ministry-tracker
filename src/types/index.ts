@@ -6,6 +6,7 @@ export interface Organization {
   name: string;
   slug?: string;
   plan: 'free' | 'starter' | 'business';
+  usd_to_lbp_rate?: number;   // daily exchange rate, editable by owner/admin
   created_at: string;
 }
 
@@ -174,6 +175,7 @@ export interface Task {
   is_pinned?: boolean;
   city_id?: string | null;
   city?: City | null;
+  closed_at?: string | null;  // set when all stages reach terminal status
   created_at: string;
   updated_at: string;
   // joined relations

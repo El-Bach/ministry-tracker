@@ -118,7 +118,7 @@ export default function TaskDetailScreen() {
   const route = useRoute<DetailRoute>();
   const navigation = useNavigation<Nav>();
   const { taskId } = route.params;
-  const { teamMember } = useAuth();
+  const { teamMember, organization } = useAuth();
   const { isOnline, enqueue } = useOfflineQueue();
   const { t } = useTranslation();
 
@@ -229,10 +229,11 @@ export default function TaskDetailScreen() {
   const [statusMsg, setStatusMsg] = useState('');
   const [duplicating, setDuplicating] = useState(false);
 
-  // Exchange rate for LBP → USD conversion in P&L
-  const [exchangeRate, setExchangeRate] = useState(89500);
+  // Exchange rate — initialized from org setting, user can override locally for this session
+  const orgRate = organization?.usd_to_lbp_rate ?? 89500;
+  const [exchangeRate, setExchangeRate] = useState(orgRate);
   const [editingRate, setEditingRate]   = useState(false);
-  const [rateInput, setRateInput]       = useState('89500');
+  const [rateInput, setRateInput]       = useState(orgRate.toLocaleString('en-US'));
 
   // Per-stage city / assignee
   const [allCities, setAllCities] = useState<City[]>([]);
@@ -869,7 +870,11 @@ export default function TaskDetailScreen() {
 
         await supabase
           .from('tasks')
-          .update({ current_status: newTaskStatus, updated_at: now, ...(shouldArchive ? { is_archived: true } : {}) })
+          .update({
+            current_status: newTaskStatus,
+            updated_at: now,
+            ...(shouldArchive ? { is_archived: true, closed_at: now } : {}),
+          })
           .eq('id', taskId);
 
         if (shouldArchive) {
@@ -2348,6 +2353,77 @@ export default function TaskDetailScreen() {
             </View>
           </View>
 
+          {/* ── C/V USD Conversion Table ── */}
+          {transactions.length > 0 && (() => {
+            const cvFmt = (n: number) =>
+              `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const cvOf = (tx: FileTransaction) =>
+              tx.amount_usd > 0 ? tx.amount_usd : tx.amount_lbp / exchangeRate;
+            const totalCvReceived = transactions
+              .filter((tx) => tx.type === 'revenue')
+              .reduce((s, tx) => s + cvOf(tx), 0);
+            const totalCvExpense = transactions
+              .filter((tx) => tx.type === 'expense')
+              .reduce((s, tx) => s + cvOf(tx), 0);
+            const totalCvUSD = transactions.reduce((s, tx) =>
+              s + (tx.type === 'revenue' ? cvOf(tx) : -cvOf(tx)), 0);
+            const totalTxUSD = transactions.reduce((s, tx) =>
+              s + (tx.type === 'revenue' ? tx.amount_usd : -tx.amount_usd), 0);
+            const totalTxLBP = transactions.reduce((s, tx) =>
+              s + (tx.type === 'revenue' ? tx.amount_lbp : -tx.amount_lbp), 0);
+
+            return (
+              <View style={s.cvTable}>
+                {/* Header */}
+                <View style={[s.cvRow, s.cvHeader]}>
+                  <Text style={[s.cvCell, s.cvCellDesc, s.cvHeaderText]}>DESCRIPTION</Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>USD</Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>LBP</Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>C/V USD</Text>
+                </View>
+                {/* Rows */}
+                {transactions.map((tx) => {
+                  const cv = cvOf(tx);
+                  const sign = tx.type === 'revenue' ? '+' : '-';
+                  const col = tx.type === 'revenue' ? theme.color.success : theme.color.danger;
+                  return (
+                    <View key={tx.id} style={s.cvRow}>
+                      <View style={[s.cvCell, s.cvCellDesc]}>
+                        <Text style={[s.cvDescText, { color: col }]}>{sign} {tx.description || '—'}</Text>
+                        {tx.stop?.ministry?.name && (
+                          <Text style={s.cvStagePill}>📌 {tx.stop.ministry.name}</Text>
+                        )}
+                      </View>
+                      <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_usd > 0 ? col : theme.color.textMuted }]}>
+                        {tx.amount_usd > 0 ? `${sign}${fmtUSD(tx.amount_usd)}` : '—'}
+                      </Text>
+                      <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_lbp > 0 ? col : theme.color.textMuted }]}>
+                        {tx.amount_lbp > 0 ? `${sign}${fmtLBP(tx.amount_lbp)}` : '—'}
+                      </Text>
+                      <Text style={[s.cvCell, s.cvCellNum, { color: col, fontWeight: '700' }]}>
+                        {sign}{cvFmt(cv)}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {/* Totals */}
+                <View style={[s.cvRow, s.cvTotalRow]}>
+                  <Text style={[s.cvCell, s.cvCellDesc, s.cvTotalText]}>TOTAL</Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxUSD >= 0 ? s.positive : s.negative]}>
+                    {totalTxUSD >= 0 ? '+' : '-'}{fmtUSD(Math.abs(totalTxUSD))}
+                  </Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxLBP >= 0 ? s.positive : s.negative]}>
+                    {totalTxLBP >= 0 ? '+' : '-'}{fmtLBP(Math.abs(totalTxLBP))}
+                  </Text>
+                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalCvUSD >= 0 ? s.positive : s.negative]}>
+                    {totalCvUSD >= 0 ? '+' : '-'}{cvFmt(Math.abs(totalCvUSD))}
+                  </Text>
+                </View>
+                <Text style={s.cvRateNote}>÷ rate: {exchangeRate.toLocaleString('en-US')} LBP/USD</Text>
+              </View>
+            );
+          })()}
+
           {/* Add transaction form */}
           {showAddTransaction && (
             <View style={s.txForm}>
@@ -3797,6 +3873,33 @@ const s = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
+  // C/V USD conversion table
+  cvTable: {
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.lg,
+    overflow:        'hidden',
+    marginBottom:    theme.spacing.space3,
+  },
+  cvRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    paddingVertical:   6,
+    paddingHorizontal: theme.spacing.space2,
+  },
+  cvHeader:     { backgroundColor: theme.color.bgBase },
+  cvHeaderText: { color: theme.color.textMuted, fontWeight: '700', fontSize: 9 },
+  cvTotalRow:   { backgroundColor: theme.color.bgBase, borderBottomWidth: 0 },
+  cvTotalText:  { fontWeight: '700', fontSize: 12 },
+  cvCell:       { fontSize: 11 },
+  cvCellDesc:   { flex: 1.8, gap: 2 },
+  cvCellNum:    { flex: 1, textAlign: 'right' },
+  cvDescText:   { fontSize: 11, fontWeight: '600' },
+  cvStagePill:  { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 9 },
+  cvRateNote:   { ...theme.typography.caption, color: theme.color.textMuted, textAlign: 'right', padding: theme.spacing.space2, fontSize: 9 },
+
   txForm: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.lg,
