@@ -63,6 +63,7 @@ function SwipeableTaskRow({
   isArchived,
   canDelete,
   canFinance,
+  canArchive,
 }: {
   task: Task;
   statusColor: string;
