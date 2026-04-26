@@ -181,15 +181,45 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      // 1. Create auth account
+      // 1. Create auth account — or sign in if account already exists (returning member)
+      let userId: string | undefined;
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: authEmail,
         password,
       });
-      if (authError) throw new Error(authError.message);
-      if (!authData.user) throw new Error('Account creation failed. Please try again.');
 
-      // 2. Join org via SECURITY DEFINER RPC (bypasses RLS — new user has no row yet)
+      if (authError) {
+        const msg = authError.message ?? '';
+        const isExisting =
+          msg.toLowerCase().includes('already') ||
+          msg.toLowerCase().includes('registered') ||
+          msg.toLowerCase().includes('exists') ||
+          (authError as any).status === 422;
+
+        if (isExisting) {
+          // Account exists — try signing in with the provided password
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password,
+          });
+          if (signInError) {
+            // Exists but wrong password — tell them to use their old password
+            throw new Error(
+              'You already have an account. Please use the same password you registered with before, then tap "Create Account & Join" again.'
+            );
+          }
+          userId = signInData.user?.id;
+        } else {
+          throw new Error(authError.message);
+        }
+      } else {
+        userId = authData.user?.id;
+      }
+
+      if (!userId) throw new Error('Account creation failed. Please try again.');
+
+      // 2. Join org via SECURITY DEFINER RPC (bypasses RLS — handles both new and returning members)
       const { error: joinErr } = await supabase.rpc('register_join_org_by_code', {
         p_code:  inviteCode.trim().toUpperCase(),
         p_name:  fullName.trim(),
