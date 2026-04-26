@@ -213,6 +213,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (data) {
+      // Soft-deleted members are permanently blocked — sign them out immediately
+      if ((data as any).deleted_at) {
+        setTeamMember(null);
+        setOrg(null);
+        setNeedsOnboarding(false);
+        setLoading(false);
+        await supabase.auth.signOut();
+        return;
+      }
+
       setTeamMember(data as TeamMember);
       setNeedsOnboarding(false);
 
