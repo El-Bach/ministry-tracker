@@ -876,15 +876,19 @@ export default function CreateScreen() {
                         </TouchableOpacity>
                       ) : null}
                     </View>
-                    <TouchableOpacity
-                      style={s.mgmtEditBtn}
-                      onPress={() => { setManageSection(null); (navigation as any).navigate('Dashboard', { screen: 'EditClient', params: { clientId: c.id } }); }}
-                    >
-                      <Text style={s.mgmtEditBtnText}>✎</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteClient(c)}>
-                      <Text style={s.mgmtDelBtnText}>✕</Text>
-                    </TouchableOpacity>
+                    {permissions.can_edit_delete_clients && (
+                      <TouchableOpacity
+                        style={s.mgmtEditBtn}
+                        onPress={() => { setManageSection(null); (navigation as any).navigate('Dashboard', { screen: 'EditClient', params: { clientId: c.id } }); }}
+                      >
+                        <Text style={s.mgmtEditBtnText}>✎</Text>
+                      </TouchableOpacity>
+                    )}
+                    {permissions.can_edit_delete_clients && (
+                      <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteClient(c)}>
+                        <Text style={s.mgmtDelBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </ScrollView>

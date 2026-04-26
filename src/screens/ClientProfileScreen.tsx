@@ -24,6 +24,7 @@ import supabase from '../lib/supabase';
 import { formatPhoneDisplay } from '../lib/phone';
 import { theme } from '../theme';
 import { Client, Task, StatusLabel, DashboardStackParamList } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import StatusBadge from '../components/StatusBadge';
 
 type ProfileRoute = RouteProp<DashboardStackParamList, 'ClientProfile'>;
@@ -137,6 +138,7 @@ export default function ClientProfileScreen() {
   const route = useRoute<ProfileRoute>();
   const navigation = useNavigation<Nav>();
   const { clientId } = route.params;
+  const { permissions } = useAuth();
 
   const [client, setClient] = useState<Client | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -348,9 +350,11 @@ export default function ClientProfileScreen() {
               ) : null}
             </View>
             <View style={s.headerActions}>
-              <TouchableOpacity style={s.editBtn} onPress={goEdit} activeOpacity={0.7}>
-                <Text style={s.editBtnText}>✎ Edit</Text>
-              </TouchableOpacity>
+              {permissions.can_edit_delete_clients && (
+                <TouchableOpacity style={s.editBtn} onPress={goEdit} activeOpacity={0.7}>
+                  <Text style={s.editBtnText}>✎ Edit</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={s.statementBtn}
                 onPress={handleGenerateStatement}
@@ -361,9 +365,11 @@ export default function ClientProfileScreen() {
                   ? <ActivityIndicator color={theme.color.success} size="small" style={{ width: 20 }} />
                   : <Text style={s.statementBtnText}>📄</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={s.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
-                <Text style={s.deleteBtnText}>✕</Text>
-              </TouchableOpacity>
+              {permissions.can_edit_delete_clients && (
+                <TouchableOpacity style={s.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
+                  <Text style={s.deleteBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 

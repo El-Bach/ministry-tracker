@@ -19,6 +19,7 @@ export const ALL_PERMISSIONS: OrgPermissions = {
   can_add_expenses: true, can_edit_contract_price: true, can_delete_transactions: true,
   can_upload_documents: true, can_delete_documents: true, can_manage_clients: true,
   can_add_comments: true, can_delete_comments: true, can_manage_catalog: true,
+  can_edit_delete_clients: true,
 };
 
 const MEMBER_DEFAULTS: OrgPermissions = {
@@ -28,6 +29,7 @@ const MEMBER_DEFAULTS: OrgPermissions = {
   can_add_expenses: true, can_edit_contract_price: false, can_delete_transactions: false,
   can_upload_documents: true, can_delete_documents: false, can_manage_clients: true,
   can_add_comments: true, can_delete_comments: false, can_manage_catalog: false,
+  can_edit_delete_clients: false,
 };
 
 const VIEWER_DEFAULTS: OrgPermissions = {
@@ -37,6 +39,7 @@ const VIEWER_DEFAULTS: OrgPermissions = {
   can_add_expenses: false, can_edit_contract_price: false, can_delete_transactions: false,
   can_upload_documents: false, can_delete_documents: false, can_manage_clients: false,
   can_add_comments: false, can_delete_comments: false, can_manage_catalog: false,
+  can_edit_delete_clients: false,
 };
 
 // ─── Helper ──────────────────────────────────────────────────────────────────

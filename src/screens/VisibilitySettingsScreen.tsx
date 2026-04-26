@@ -49,6 +49,8 @@ interface RoleSettings {
   can_delete_comments:      boolean;
   // Catalog
   can_manage_catalog:       boolean;
+  // Clients edit/delete
+  can_edit_delete_clients:  boolean;
 }
 
 const ADMIN_DEFAULTS: RoleSettings = {
@@ -70,6 +72,7 @@ const ADMIN_DEFAULTS: RoleSettings = {
   can_add_comments:         true,
   can_delete_comments:      false,
   can_manage_catalog:       true,
+  can_edit_delete_clients:  true,
 };
 
 const MEMBER_DEFAULTS: RoleSettings = {
@@ -91,6 +94,7 @@ const MEMBER_DEFAULTS: RoleSettings = {
   can_add_comments:         true,
   can_delete_comments:      false,
   can_manage_catalog:       false,
+  can_edit_delete_clients:  false,
 };
 
 const VIEWER_DEFAULTS: RoleSettings = {
@@ -112,6 +116,7 @@ const VIEWER_DEFAULTS: RoleSettings = {
   can_add_comments:         true,
   can_delete_comments:      false,
   can_manage_catalog:       false,
+  can_edit_delete_clients:  false,
 };
 
 // ─── Permission groups definition ────────────────────────────
@@ -170,7 +175,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     icon: '👥',
     title: 'Clients',
     items: [
-      { key: 'can_manage_clients', label: 'Add & edit clients', description: 'Create new clients and edit existing client info' },
+      { key: 'can_manage_clients',       label: 'Add new clients',        description: 'Create new client records' },
+      { key: 'can_edit_delete_clients',  label: 'Edit & delete clients',  description: 'Modify or permanently remove existing client records' },
     ],
   },
   {
@@ -239,7 +245,8 @@ export default function VisibilitySettingsScreen() {
           can_manage_clients:       row.can_manage_clients,
           can_add_comments:         row.can_add_comments,
           can_delete_comments:      row.can_delete_comments,
-          can_manage_catalog:       row.can_manage_catalog ?? false,
+          can_manage_catalog:       row.can_manage_catalog       ?? false,
+          can_edit_delete_clients:  row.can_edit_delete_clients  ?? false,
         };
       }
       setSettings(next);
