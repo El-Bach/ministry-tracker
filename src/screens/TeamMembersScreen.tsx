@@ -145,12 +145,22 @@ export default function TeamMembersScreen() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Role change ──────────────────────────────────────────────
-  const handleChangeRole = async (tm: TeamMember, newRole: string) => {
+  // ── Role change (owner only, with confirmation) ──────────────
+  const handleChangeRole = (tm: TeamMember, newRole: string) => {
     if (tm.role === newRole) return;
-    const { error } = await supabase.from('team_members').update({ role: newRole }).eq('id', tm.id);
-    if (error) { Alert.alert('Error', error.message); return; }
-    fetchData();
+    const meta = ROLE_META[newRole as InviteRole];
+    Alert.alert(
+      'Change Role',
+      `Change ${tm.name}'s role from ${tm.role} to ${meta?.label ?? newRole}?\n\n${meta?.desc ?? ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Confirm', onPress: async () => {
+          const { error } = await supabase.from('team_members').update({ role: newRole }).eq('id', tm.id);
+          if (error) { Alert.alert('Error', error.message); return; }
+          fetchData();
+        }},
+      ]
+    );
   };
 
   // ── Soft-delete member ───────────────────────────────────────
@@ -411,8 +421,8 @@ export default function TeamMembersScreen() {
         {activeMembers.map((tm) => {
           const isYou     = tm.id === teamMember?.id;
           const isOwner   = tm.role === 'owner';
-          // Role chips: owner/admin can change roles of non-owner, non-self members
-          const canEdit   = isOwnerOrAdmin && !isYou && !isOwner;
+          // Role chips: only owner can change roles (not self, not another owner)
+          const canEdit   = teamMember?.role === 'owner' && !isYou && !isOwner;
           // Stop access: owner can stop admins/members/viewers. Admins can stop members/viewers.
           // Nobody can stop another owner or themselves.
           const canStop   = !isYou && !isOwner && (
