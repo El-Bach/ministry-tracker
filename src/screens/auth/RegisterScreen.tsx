@@ -335,8 +335,17 @@ export default function RegisterScreen() {
                 <TextInput
                   style={[s.input, s.codeInput]}
                   value={inviteCode}
-                  onChangeText={(v) => setInviteCode(v.toUpperCase())}
-                  placeholder="Enter your invite code"
+                  onChangeText={(v) => {
+                    // Strip everything except letters/digits, uppercase
+                    const raw = v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    // Auto-insert dash after position 4, cap at 8 chars (XXXX-XXXX)
+                    const capped = raw.slice(0, 8);
+                    const formatted = capped.length > 4
+                      ? `${capped.slice(0, 4)}-${capped.slice(4)}`
+                      : capped;
+                    setInviteCode(formatted);
+                  }}
+                  placeholder="XXXX-XXXX"
                   placeholderTextColor={theme.color.textMuted}
                   autoCapitalize="characters"
                   autoCorrect={false}
