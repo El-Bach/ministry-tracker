@@ -47,6 +47,8 @@ interface RoleSettings {
   // Activity
   can_add_comments:         boolean;
   can_delete_comments:      boolean;
+  // Catalog
+  can_manage_catalog:       boolean;
 }
 
 const ADMIN_DEFAULTS: RoleSettings = {
@@ -67,6 +69,7 @@ const ADMIN_DEFAULTS: RoleSettings = {
   can_manage_clients:       true,
   can_add_comments:         true,
   can_delete_comments:      false,
+  can_manage_catalog:       true,
 };
 
 const MEMBER_DEFAULTS: RoleSettings = {
@@ -87,6 +90,7 @@ const MEMBER_DEFAULTS: RoleSettings = {
   can_manage_clients:       true,
   can_add_comments:         true,
   can_delete_comments:      false,
+  can_manage_catalog:       false,
 };
 
 const VIEWER_DEFAULTS: RoleSettings = {
@@ -107,6 +111,7 @@ const VIEWER_DEFAULTS: RoleSettings = {
   can_manage_clients:       false,
   can_add_comments:         true,
   can_delete_comments:      false,
+  can_manage_catalog:       false,
 };
 
 // ─── Permission groups definition ────────────────────────────
@@ -169,6 +174,13 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    icon: '🗂',
+    title: 'Catalog',
+    items: [
+      { key: 'can_manage_catalog', label: 'Manage services, stages & network', description: 'Add and edit services, stage templates, and network contacts' },
+    ],
+  },
+  {
     icon: '💬',
     title: 'Activity & Comments',
     items: [
@@ -227,6 +239,7 @@ export default function VisibilitySettingsScreen() {
           can_manage_clients:       row.can_manage_clients,
           can_add_comments:         row.can_add_comments,
           can_delete_comments:      row.can_delete_comments,
+          can_manage_catalog:       row.can_manage_catalog ?? false,
         };
       }
       setSettings(next);

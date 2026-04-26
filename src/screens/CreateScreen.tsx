@@ -727,24 +727,24 @@ export default function CreateScreen() {
       color: '#10b981',
       onPress: () => openNewClientForm(),
     }] : []),
-    {
+    ...(permissions.can_manage_catalog ? [{
       icon: '⚙',
       label: '+ New Service',
       color: '#f59e0b',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('services'); },
-    },
-    {
+    }] : []),
+    ...(permissions.can_manage_catalog ? [{
       icon: '◎',
       label: '+ New Stage',
       color: '#8b5cf6',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('stages'); },
-    },
-    {
+    }] : []),
+    ...(permissions.can_manage_catalog ? [{
       icon: '👥',
       label: 'Network',
       color: '#06b6d4',
       onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setShowImportModal(false); setManageSection('network'); },
-    },
+    }] : []),
     {
       icon: '📋',
       label: 'Documents',
@@ -754,9 +754,10 @@ export default function CreateScreen() {
   ];
 
   const manageRows = [
-    ...(permissions.can_manage_clients ? [{ key: 'clients' as ManageSection, icon: '👤', label: 'Clients', count: clients.length }] : []),
-    { key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length },
-    { key: 'stages' as ManageSection, icon: '◎', label: 'Stages', count: ministries.length },
+    ...(permissions.can_manage_clients  ? [{ key: 'clients'  as ManageSection, icon: '👤', label: 'Clients',  count: clients.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'stages'   as ManageSection, icon: '◎', label: 'Stages',   count: ministries.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'network'  as ManageSection, icon: '👥', label: 'Network',  count: network.length }] : []),
   ];
 
   return (

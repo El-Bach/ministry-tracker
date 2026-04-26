@@ -215,6 +215,7 @@ export interface OrgPermissions {
   can_manage_clients: boolean;
   can_add_comments: boolean;
   can_delete_comments: boolean;
+  can_manage_catalog: boolean;
 }
 
 // Offline queue entry
