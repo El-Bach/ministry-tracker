@@ -195,7 +195,8 @@ export default function FinancialReportScreen() {
         }
         if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0, cvRevenue: 0, cvExpense: 0 };
         const txRate = (tx as any).rate_usd_lbp ?? rate;
-        const cvAmount = (tx.amount_usd ?? 0) > 0 ? (tx.amount_usd ?? 0) : (tx.amount_lbp ?? 0) / txRate;
+        // Include both USD and LBP converted — same transaction can carry both currencies
+        const cvAmount = (tx.amount_usd ?? 0) + (tx.amount_lbp ?? 0) / txRate;
         if (tx.type === 'revenue') {
           map[tx.task_id].revenueUSD += tx.amount_usd ?? 0;
           map[tx.task_id].revenueLBP += tx.amount_lbp ?? 0;
@@ -266,7 +267,7 @@ export default function FinancialReportScreen() {
         if (mid !== filterStage) continue;
         if (!map[tx.task_id]) map[tx.task_id] = { revenueUSD: 0, revenueLBP: 0, expenseUSD: 0, expenseLBP: 0, cvRevenue: 0, cvExpense: 0 };
         const txRate = (tx as any).rate_usd_lbp ?? rate;
-        const cvAmount = (tx.amount_usd ?? 0) > 0 ? (tx.amount_usd ?? 0) : (tx.amount_lbp ?? 0) / txRate;
+        const cvAmount = (tx.amount_usd ?? 0) + (tx.amount_lbp ?? 0) / txRate;
         if (tx.type === 'revenue') { map[tx.task_id].revenueUSD += tx.amount_usd ?? 0; map[tx.task_id].revenueLBP += tx.amount_lbp ?? 0; map[tx.task_id].cvRevenue += cvAmount; }
         else { map[tx.task_id].expenseUSD += tx.amount_usd ?? 0; map[tx.task_id].expenseLBP += tx.amount_lbp ?? 0; map[tx.task_id].cvExpense += cvAmount; }
       }
@@ -952,7 +953,7 @@ export default function FinancialReportScreen() {
                       </View>
                       {detailTxs.map((tx) => {
                         const txRate = (tx as any).rate_usd_lbp ?? rate;
-                        const cv = tx.amount_usd > 0 ? tx.amount_usd : tx.amount_lbp / txRate;
+                        const cv = tx.amount_usd + tx.amount_lbp / txRate;
                         const sign = tx.type === 'revenue' ? '+' : '-';
                         const col = tx.type === 'revenue' ? theme.color.success : theme.color.danger;
                         const stageName = (tx as any).stop?.ministry?.name;
@@ -977,8 +978,8 @@ export default function FinancialReportScreen() {
                       })}
                       {/* Totals row */}
                       {(() => {
-                        const totRec = detailTxs.filter(t => t.type === 'revenue').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / ((t as any).rate_usd_lbp ?? rate)), 0);
-                        const totExp = detailTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (t.amount_usd > 0 ? t.amount_usd : t.amount_lbp / ((t as any).rate_usd_lbp ?? rate)), 0);
+                        const totRec = detailTxs.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount_usd + t.amount_lbp / ((t as any).rate_usd_lbp ?? rate), 0);
+                        const totExp = detailTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_usd + t.amount_lbp / ((t as any).rate_usd_lbp ?? rate), 0);
                         const net = totRec - totExp;
                         return (
                           <View style={[s.cvMiniRow, s.cvMiniTotalRow]}>

@@ -2460,11 +2460,11 @@ export default function TaskDetailScreen() {
           {transactions.length > 0 && (() => {
             const cvFmt = (n: number) =>
               `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            // Use the rate frozen at transaction creation time; fall back to current rate for legacy rows
-            const cvOf = (tx: FileTransaction) =>
-              tx.amount_usd > 0
-                ? tx.amount_usd
-                : tx.amount_lbp / (tx.rate_usd_lbp ?? exchangeRate);
+            // C/V = USD + (LBP ÷ locked rate) — both currencies included, per-tx rate used
+            const cvOf = (tx: FileTransaction) => {
+              const r = tx.rate_usd_lbp ?? exchangeRate;
+              return tx.amount_usd + tx.amount_lbp / r;
+            };
             const totalCvReceived = transactions
               .filter((tx) => tx.type === 'revenue')
               .reduce((s, tx) => s + cvOf(tx), 0);
