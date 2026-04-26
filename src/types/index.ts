@@ -20,6 +20,8 @@ export interface TeamMember {
   push_token?: string;
   org_id?: string;
   auth_id?: string;
+  has_completed_onboarding?: boolean;
+  deleted_at?: string | null;
   created_at: string;
 }
 

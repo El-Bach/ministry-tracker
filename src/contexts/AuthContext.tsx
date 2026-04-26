@@ -301,9 +301,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       });
     } else {
-      const createdAt   = authUser.created_at ? new Date(authUser.created_at).getTime() : 0;
-      const isNewAccount = Date.now() - createdAt < 60_000;
-      if (isNewAccount) {
+      // No team_members row found.
+      // If the auth user was JUST created (within 120s) OR onboarding flag not yet set,
+      // show the onboarding wizard so they can complete setup.
+      // Otherwise (stale/orphaned auth user) — sign out to avoid a stuck state.
+      //
+      // The primary signal is now `has_completed_onboarding` on the team_members row.
+      // The 120s fallback guards against the window between auth.signUp() and the
+      // register_new_org RPC completing (race condition on slow networks).
+      const createdAt     = authUser.created_at ? new Date(authUser.created_at).getTime() : 0;
+      const isVeryNew     = Date.now() - createdAt < 120_000;
+      if (isVeryNew) {
         setTeamMember(null);
         setOrg(null);
         setNeedsOnboarding(true);

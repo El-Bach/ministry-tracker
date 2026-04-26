@@ -920,6 +920,9 @@ export default function DashboardScreen() {
           ) : null
         }
         renderItem={renderTaskRow}
+        windowSize={5}
+        maxToRenderPerBatch={10}
+        initialNumToRender={12}
         getItemLayout={(_data, index) => ({
           length: TASK_ROW_HEIGHT,
           offset: TASK_ROW_HEIGHT * index,

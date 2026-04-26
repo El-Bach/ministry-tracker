@@ -23,6 +23,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
+import { SUPPORT_WHATSAPP, SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL } from '../lib/config';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -125,6 +126,8 @@ export default function AccountScreen() {
   const [editOrgName,    setEditOrgName]    = useState(organization?.name ?? '');
   const [savingOrg,      setSavingOrg]      = useState(false);
   const [editingOrgName, setEditingOrgName] = useState(false);
+
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [billingAnnual,  setBillingAnnual]  = useState(false);
@@ -231,8 +234,57 @@ export default function AccountScreen() {
     const msg = encodeURIComponent(
       `Hi, I'd like to upgrade my GovPilot account to the ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan.\n\nOrganization: ${organization?.name ?? '—'}\nEmail: ${teamMember?.email ?? '—'}`
     );
-    Linking.openURL(`https://wa.me/96170123456?text=${msg}`).catch(() =>
-      Linking.openURL(`mailto:hello@govpilot.app?subject=Upgrade to ${planKey} Plan&body=${decodeURIComponent(msg)}`)
+    Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`).catch(() =>
+      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade to ${planKey} Plan&body=${decodeURIComponent(msg)}`)
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    if (teamMember?.role === 'owner') {
+      Alert.alert(
+        'Cannot Delete Owner Account',
+        'You must transfer ownership to another admin before deleting your account. Go to Team Members and promote another member to owner first.',
+      );
+      return;
+    }
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and remove you from your organization. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingAccount(true);
+            try {
+              // Step 1: soft-delete team_members row via RPC
+              const { error: rpcError } = await supabase.rpc('delete_my_account');
+              if (rpcError) throw rpcError;
+
+              // Step 2: call Edge Function to hard-delete the auth.users row
+              const { data: sessionData } = await supabase.auth.getSession();
+              const token = sessionData?.session?.access_token;
+              const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+              if (token && supabaseUrl) {
+                await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                }).catch(() => {}); // best-effort — user is already soft-deleted
+              }
+
+              // Step 3: sign out
+              await signOut();
+            } catch (e: any) {
+              setDeletingAccount(false);
+              const msg = e?.message?.includes('Transfer ownership')
+                ? 'You must transfer ownership to another admin before deleting your account.'
+                : e?.message ?? 'Something went wrong. Please try again.';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ],
     );
   };
 
@@ -395,6 +447,16 @@ export default function AccountScreen() {
             <Text style={s.actionRowText}>Change Password</Text>
             <Text style={s.actionRowChevron}>›</Text>
           </TouchableOpacity>
+          <View style={s.divider} />
+          <TouchableOpacity
+            style={s.actionRow}
+            onPress={handleDeleteAccount}
+            disabled={deletingAccount}
+          >
+            {deletingAccount
+              ? <ActivityIndicator color={theme.color.danger} size="small" />
+              : <Text style={[s.actionRowText, { color: theme.color.danger }]}>Delete Account</Text>}
+          </TouchableOpacity>
         </View>
 
         {/* Sign out */}
@@ -412,11 +474,11 @@ export default function AccountScreen() {
 
         {/* Legal links */}
         <View style={s.legalRow}>
-          <TouchableOpacity onPress={() => Linking.openURL('https://ministry-papers.netlify.app/privacy.html')}>
+          <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
             <Text style={s.legalLink}>Privacy Policy</Text>
           </TouchableOpacity>
           <Text style={s.legalDot}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://ministry-papers.netlify.app/terms.html')}>
+          <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
             <Text style={s.legalLink}>Terms of Service</Text>
           </TouchableOpacity>
         </View>
@@ -840,6 +902,11 @@ const s = StyleSheet.create({
   },
   btnDisabled:   { opacity: 0.6 },
   saveBtnText:   { color: theme.color.white, fontSize: 15, fontWeight: '700' },
+  divider: {
+    height:          1,
+    backgroundColor: theme.color.border,
+    marginVertical:  2,
+  },
   actionRow: {
     flexDirection:   'row',
     justifyContent:  'space-between',

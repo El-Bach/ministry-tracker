@@ -29,6 +29,10 @@ import supabase from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
 // ─── Terminal statuses ───────────────────────────────────────
+// ⚠️  These strings must match the status_labels rows in the DB exactly.
+// If an admin renames a terminal status the filter will silently break.
+// Long-term fix: add an `is_terminal` boolean column to status_labels and
+// derive this list from the DB instead of hardcoding it.
 const TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
 const ACTIVE_LABELS = ['Submitted', 'In Review', 'Pending', 'Pending Signature'];
 
@@ -673,6 +677,9 @@ export default function FinancialReportScreen() {
           keyExtractor={(r) => r.taskId}
           renderItem={renderRow}
           contentContainerStyle={s.list}
+          windowSize={5}
+          maxToRenderPerBatch={10}
+          initialNumToRender={15}
         />
       )}
 

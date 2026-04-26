@@ -172,11 +172,17 @@ export default function OnboardingScreen() {
     setStep(3);
   };
 
-  // Shared exit: refresh useAuth state so navigation switches to Main.
+  // Shared exit: mark onboarding complete + refresh useAuth state so navigation switches to Main.
   // If no team_members row is found after refresh (registration was incomplete),
   // show an actionable error instead of silently doing nothing.
   const finishOnboarding = async () => {
     setLoading(true);
+    // Mark onboarding complete so AuthContext no longer needs the time-window heuristic
+    if (teamMember?.id) {
+      await supabase.from('team_members')
+        .update({ has_completed_onboarding: true })
+        .eq('id', teamMember.id);
+    }
     await refreshTeamMember();
 
     // Verify the row actually exists now (stale closure — query DB directly)
