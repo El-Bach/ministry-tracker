@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   const roleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const permChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Derived role booleans
   const role      = teamMember?.role ?? 'viewer';
@@ -191,6 +192,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       roleChannelRef.current = null;
     };
   }, [teamMember?.id]);
+
+  // ── Realtime: instant visibility-settings update ──────────────────────────
+  // Watches org_visibility_settings for the user's role.
+  // When the owner toggles a permission, all members with that role get it immediately.
+  useEffect(() => {
+    const currentRole = teamMember?.role ?? 'viewer';
+    const orgId       = teamMember?.org_id ?? null;
+
+    // Owner/admin always have ALL_PERMISSIONS — no subscription needed
+    if (!orgId || currentRole === 'owner' || currentRole === 'admin') return;
+
+    if (permChannelRef.current) {
+      supabase.removeChannel(permChannelRef.current);
+      permChannelRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`perm-watch-${orgId}-${currentRole}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event:  '*',
+          schema: 'public',
+          table:  'org_visibility_settings',
+          filter: `org_id=eq.${orgId}`,
+        },
+        async (payload) => {
+          const row = payload.new as any;
+          // Only reload if the changed row is for our role
+          if (row?.role !== currentRole) return;
+          await loadPermissionsForRole(currentRole, orgId, setPermissions);
+        },
+      )
+      .subscribe();
+
+    permChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      permChannelRef.current = null;
+    };
+  }, [teamMember?.org_id, teamMember?.role]);
 
   // ── Core fetch ────────────────────────────────────────────────────────────
   const fetchTeamMember = async (authUser: User) => {
