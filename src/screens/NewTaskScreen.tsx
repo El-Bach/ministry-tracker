@@ -809,7 +809,7 @@ type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 export default function NewTaskScreen() {
  const navigation = useNavigation<Nav>();
  const route = useRoute<NewTaskRoute>();
- const { teamMember } = useAuth();
+ const { teamMember, permissions } = useAuth();
  const { t } = useTranslation();
 
  const [clients, setClients] = useState<Client[]>([]);
@@ -1717,11 +1717,9 @@ export default function NewTaskScreen() {
  title="Select Client"
  items={clients.map((c) => ({ id: c.id, label: c.name, subtitle: c.phone ?? undefined }))}
  onSelect={(item) => setSelectedClient(clients.find((c) => c.id === item.id)!)}
- onItemAction={(item) => {
-   navigation.navigate('EditClient', { clientId: item.id });
- }}
- itemActionLabel="✎ Edit"
- onItemDelete={handleDeleteClient}
+ onItemAction={permissions.can_edit_delete_clients ? (item) => { navigation.navigate('EditClient', { clientId: item.id }); } : undefined}
+ itemActionLabel={permissions.can_edit_delete_clients ? '✎ Edit' : undefined}
+ onItemDelete={permissions.can_edit_delete_clients ? handleDeleteClient : undefined}
  onClose={() => setModal(null)}
  search
  />
@@ -1738,11 +1736,9 @@ export default function NewTaskScreen() {
    setSelectedService(svc);
    loadServiceDefaultStages(svc.id);
  }}
- onItemAction={(item) => {
-   navigation.navigate('ServiceStages', { serviceId: item.id, serviceName: item.label });
- }}
- itemActionLabel="✎ Stages"
- onItemDelete={handleDeleteService}
+ onItemAction={permissions.can_manage_catalog ? (item) => { navigation.navigate('ServiceStages', { serviceId: item.id, serviceName: item.label }); } : undefined}
+ itemActionLabel={permissions.can_manage_catalog ? '✎ Stages' : undefined}
+ onItemDelete={permissions.can_manage_catalog ? handleDeleteService : undefined}
  onClose={() => setModal(null)}
  search
  />
@@ -1754,7 +1750,7 @@ export default function NewTaskScreen() {
  const stage = stages.find((m) => m.id === item.id);
  if (stage) toggleStage(stage);
  }}
- onItemDelete={handleDeleteStage}
+ onItemDelete={permissions.can_manage_catalog ? handleDeleteStage : undefined}
  onClose={() => setModal(null)}
  search
  multiSelect
