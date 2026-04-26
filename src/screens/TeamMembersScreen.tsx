@@ -254,6 +254,22 @@ export default function TeamMembersScreen() {
     );
   };
 
+  // ── Permanently delete a revoked code ───────────────────────
+  const handleDeleteRevokedCode = (codeId: string, code: string) => {
+    Alert.alert(
+      '🗑 Delete Code',
+      `Permanently delete revoked code ${code}?\n\nThis cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          const { error } = await supabase.from('org_join_codes').delete().eq('id', codeId);
+          if (error) Alert.alert('Error', error.message);
+          else fetchData();
+        }},
+      ]
+    );
+  };
+
   // ── Close modal + reset ───────────────────────────────────────
   const closeModal = () => {
     setShowModal(false);
@@ -358,8 +374,16 @@ export default function TeamMembersScreen() {
                     <View key={jc.id} style={[s.codeCard, s.codeCardRevoked]}>
                       <View style={s.codeCardTop}>
                         <Text style={[s.codeText, s.revokedText]}>{jc.code}</Text>
-                        <View style={[s.rolePill, { borderColor: '#66666655', backgroundColor: '#66666618' }]}>
-                          <Text style={[s.rolePillText, { color: '#888' }]}>{meta.icon} {meta.label}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View style={[s.rolePill, { borderColor: '#66666655', backgroundColor: '#66666618' }]}>
+                            <Text style={[s.rolePillText, { color: '#888' }]}>{meta.icon} {meta.label}</Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteRevokedCode(jc.id, jc.code)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={{ color: theme.color.danger, fontSize: 15, fontWeight: '700' }}>🗑</Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
                       {(jc.invitee_name || jc.invitee_phone) && (
