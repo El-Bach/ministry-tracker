@@ -245,15 +245,17 @@ export default function CalendarScreen() {
 
             {/* ── Stage due dates ── */}
             {stopsForDate.map((stop) => {
-              const isOverdue = stop.due_date < todayStr && stop.status !== 'Done';
+              const stageStatus = stop.status || 'Pending';
+              const isOverdue = stop.due_date < todayStr && stageStatus !== 'Done';
+              const stripeColor = isOverdue ? theme.color.danger : getStatusColor(stageStatus);
               return (
               <TouchableOpacity
                 key={stop.id}
-                style={[s.stageCard, isOverdue && s.stageCardOverdue]}
+                style={[s.stageCard, { borderColor: stripeColor + '55' }, isOverdue && s.stageCardOverdue]}
                 onPress={() => stop.task?.id && navigation.navigate('TaskDetail', { taskId: stop.task.id })}
                 activeOpacity={0.75}
               >
-                <View style={[s.stageStripe, isOverdue && { backgroundColor: theme.color.danger }]} />
+                <View style={[s.stageStripe, { backgroundColor: stripeColor }]} />
                 <View style={s.eventBody}>
                   <View style={s.eventTop}>
                     <Text style={s.eventClient} numberOfLines={1}>
@@ -264,19 +266,17 @@ export default function CalendarScreen() {
                     </View>
                   </View>
                   <Text style={s.eventService}>{stop.task?.service?.name ?? '—'}</Text>
-                  <Text style={s.stageLabel}>
+                  <Text style={[s.stageLabel, { color: stripeColor }]}>
                     {stop.ministry?.name ?? 'Stage'}
                   </Text>
                   {isOverdue && (
                     <Text style={s.overdueLabel}>⚠ {t('overdue')}</Text>
                   )}
-                  {stop.status && (
-                    <StatusBadge
-                      label={stop.status}
-                      color={getStatusColor(stop.status)}
-                      small
-                    />
-                  )}
+                  <StatusBadge
+                    label={stageStatus}
+                    color={getStatusColor(stageStatus)}
+                    small
+                  />
                 </View>
               </TouchableOpacity>
               );
