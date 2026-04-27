@@ -402,25 +402,31 @@ export default function ClientProfileScreen() {
         </TouchableOpacity>
 
         {/* ── STATS ── */}
-        <View style={s.statsRow}>
-          <View style={s.statBox}>
-            <Text style={s.statNumber}>{tasks.length}</Text>
-            <Text style={s.statLabel}>Total</Text>
+        <View style={s.statsBlock}>
+          {/* Total — full width on top */}
+          <View style={[s.statBox, s.statBoxTotal]}>
+            <Text style={[s.statNumber, s.statNumberTotal]}>{tasks.length}</Text>
+            <Text style={[s.statLabel, s.statLabelTotal]}>TOTAL FILES</Text>
           </View>
-          <View style={s.statBox}>
-            <Text style={[s.statNumber, { color: theme.color.primary }]}>{activeCount}</Text>
-            <Text style={s.statLabel}>Active</Text>
-          </View>
-          <View style={s.statBox}>
-            <Text style={[s.statNumber, { color: theme.color.success }]}>{completedCount}</Text>
-            <Text style={s.statLabel}>Completed</Text>
-          </View>
-          {rejectedCount > 0 && (
-            <View style={[s.statBox, { borderColor: theme.color.danger + '44' }]}>
-              <Text style={[s.statNumber, { color: theme.color.danger }]}>{rejectedCount}</Text>
-              <Text style={[s.statLabel, { color: theme.color.danger }]}>Rejected</Text>
+          {/* Active / Completed / Rejected — equal thirds below */}
+          <View style={s.statsRow}>
+            <View style={s.statBox}>
+              <Text style={[s.statNumber, { color: theme.color.primary }]}>{activeCount}</Text>
+              <Text style={s.statLabel}>Active</Text>
             </View>
-          )}
+            <View style={s.statBox}>
+              <Text style={[s.statNumber, { color: theme.color.success }]}>{completedCount}</Text>
+              <Text style={s.statLabel}>Completed</Text>
+            </View>
+            <View style={[s.statBox, { borderColor: rejectedCount > 0 ? theme.color.danger + '55' : theme.color.border }]}>
+              <Text style={[s.statNumber, { color: rejectedCount > 0 ? theme.color.danger : theme.color.textMuted }]}>
+                {rejectedCount}
+              </Text>
+              <Text style={[s.statLabel, { color: rejectedCount > 0 ? theme.color.danger : theme.color.textMuted }]}>
+                Rejected
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* ── TASK HISTORY ── */}
@@ -571,7 +577,8 @@ const s = StyleSheet.create({
   newFileBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
 
   // Stats
-  statsRow: { flexDirection: 'row', gap: 10 },
+  statsBlock: { gap: 8 },
+  statsRow:   { flexDirection: 'row', gap: 8 },
   statBox: {
     flex:            1,
     backgroundColor: theme.color.bgSurface,
@@ -582,8 +589,20 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     theme.color.border,
   },
-  statNumber: { color: theme.color.textPrimary, fontSize: 24, fontWeight: '800' },
-  statLabel:  { ...theme.typography.sectionDivider },
+  statBoxTotal: {
+    flex:            0,
+    flexDirection:   'row',
+    justifyContent:  'space-between',
+    alignItems:      'center',
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   12,
+    backgroundColor: theme.color.primary + '14',
+    borderColor:     theme.color.primary + '33',
+  },
+  statNumber:      { color: theme.color.textPrimary, fontSize: 24, fontWeight: '800' },
+  statNumberTotal: { fontSize: 32, color: theme.color.primary },
+  statLabel:       { ...theme.typography.sectionDivider },
+  statLabelTotal:  { ...theme.typography.sectionDivider, color: theme.color.primary, letterSpacing: 1 },
 
   // Task list
   emptyText:   { ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', paddingVertical: theme.spacing.space3 },
