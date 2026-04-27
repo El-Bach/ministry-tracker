@@ -200,6 +200,7 @@ export default function TaskDetailScreen() {
   const [editStageCities, setEditStageCities] = useState<Record<string, { cityId: string | null; cityName: string | null }>>({});
   const [editCityPickerMiniId, setEditCityPickerMiniId] = useState<string | null>(null);
   const [editCitySearch, setEditCitySearch] = useState('');
+  const [editCreateCityOpen, setEditCreateCityOpen] = useState(false);
   const [savingStages, setSavingStages] = useState(false);
   const [newStageName, setNewStageName] = useState('');
   const [savingNewStage, setSavingNewStage] = useState(false);
@@ -1318,6 +1319,20 @@ export default function TaskDetailScreen() {
     setNewCityName('');
     setShowCreateCityForm(false);
     await handleSetStopCity(stopId, created.id);
+  };
+
+  const handleCreateCityInEditModal = async (stageId: string) => {
+    if (!newCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    setSavingCity(true);
+    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
+    setSavingCity(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    const created = data as City;
+    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setEditStageCities(prev => ({ ...prev, [stageId]: { cityId: created.id, cityName: created.name } }));
+    setNewCityName('');
+    setEditCreateCityOpen(false);
+    setEditCityPickerMiniId(null);
   };
 
   const handleDeleteComment = (commentId: string) => {
@@ -3075,13 +3090,13 @@ export default function TaskDetailScreen() {
                       <TextInput
                         style={s.citySearchInner}
                         value={editCitySearch}
-                        onChangeText={setEditCitySearch}
+                        onChangeText={text => { setEditCitySearch(text); setEditCreateCityOpen(false); setNewCityName(text); }}
                         placeholder="Search city..."
                         placeholderTextColor={theme.color.textMuted}
                         autoFocus
                         autoCorrect={false}
                       />
-                      <ScrollView style={{ maxHeight: 180 }} keyboardShouldPersistTaps="handled">
+                      <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
                         {editStageCities[stage.id]?.cityId && (
                           <TouchableOpacity
                             style={s.cityDropdownItem}
@@ -3094,7 +3109,7 @@ export default function TaskDetailScreen() {
                           </TouchableOpacity>
                         )}
                         {allCities
-                          .filter(c => !editCitySearch.trim() || c.name.includes(editCitySearch.trim()))
+                          .filter(c => !editCitySearch.trim() || c.name.toLowerCase().includes(editCitySearch.trim().toLowerCase()))
                           .slice(0, 12)
                           .map(city => (
                             <TouchableOpacity
@@ -3103,14 +3118,42 @@ export default function TaskDetailScreen() {
                               onPress={() => {
                                 setEditStageCities(prev => ({ ...prev, [stage.id]: { cityId: city.id, cityName: city.name } }));
                                 setEditCityPickerMiniId(null);
+                                setEditCreateCityOpen(false);
                               }}
                             >
                               <Text style={[s.cityDropdownItemText, editStageCities[stage.id]?.cityId === city.id && { fontWeight: '600' }]}>{city.name}</Text>
                               {editStageCities[stage.id]?.cityId === city.id && <Text style={s.checkmark}>✓</Text>}
                             </TouchableOpacity>
                           ))}
-                        {editCitySearch.trim().length > 0 && allCities.filter(c => c.name.includes(editCitySearch.trim())).length === 0 && (
-                          <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{editCitySearch}"</Text>
+                        {/* Create new city option */}
+                        <TouchableOpacity
+                          style={s.cityDropdownItem}
+                          onPress={() => { setEditCreateCityOpen(v => !v); if (!newCityName) setNewCityName(editCitySearch); }}
+                        >
+                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                            {editCreateCityOpen ? '− Cancel' : '+ Create New City'}
+                          </Text>
+                        </TouchableOpacity>
+                        {editCreateCityOpen && (
+                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
+                            <TextInput
+                              style={s.newMemberInput}
+                              value={newCityName}
+                              onChangeText={setNewCityName}
+                              placeholder="City name *"
+                              placeholderTextColor={theme.color.textMuted}
+                              autoFocus
+                            />
+                            <TouchableOpacity
+                              style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
+                              onPress={() => handleCreateCityInEditModal(stage.id)}
+                              disabled={savingCity}
+                            >
+                              {savingCity
+                                ? <ActivityIndicator size="small" color={theme.color.white} />
+                                : <Text style={s.newMemberSaveBtnText}>Save City</Text>}
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </ScrollView>
                     </View>
