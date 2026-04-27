@@ -2121,9 +2121,34 @@ export default function TaskDetailScreen() {
                   {/* City dropdown */}
                   {openCityStopId === stop.id && (
                     <View style={s.stopDropdown}>
-                      <TextInput style={s.citySearchInner} value={stopCitySearch} onChangeText={setStopCitySearch}
+                      <TextInput style={s.citySearchInner} value={stopCitySearch}
+                        onChangeText={text => { setStopCitySearch(text); setShowCreateCityForm(false); setNewCityName(text); }}
                         placeholder="Search city..." placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
-                      <ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
+                      {/* Create new city — always visible above the list */}
+                      <TouchableOpacity
+                        style={[s.cityDropdownItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
+                        onPress={() => { setShowCreateCityForm(v => !v); if (!newCityName) setNewCityName(stopCitySearch); }}
+                      >
+                        <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                          {showCreateCityForm ? '− Cancel' : '+ Create New City'}
+                        </Text>
+                      </TouchableOpacity>
+                      {showCreateCityForm && (
+                        <View style={{ padding: theme.spacing.space2, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                          <TextInput style={s.newMemberInput} value={newCityName} onChangeText={setNewCityName}
+                            placeholder="City name *" placeholderTextColor={theme.color.textMuted} />
+                          <TouchableOpacity
+                            style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
+                            onPress={() => handleCreateCity(stop.id)}
+                            disabled={savingCity}
+                          >
+                            {savingCity
+                              ? <ActivityIndicator color={theme.color.white} size="small" />
+                              : <Text style={s.newMemberSaveBtnText}>Save & Select</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
                         {/* Remove current city */}
                         {stop.city_id && (
                           <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopCity(stop.id, null)}>
@@ -2136,7 +2161,7 @@ export default function TaskDetailScreen() {
                             <Text style={{ ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' }}>PINNED</Text>
                           </View>
                         )}
-                        {allCities.filter(c => pinnedCityIds.includes(c.id) && (!stopCitySearch.trim() || c.name.includes(stopCitySearch.trim()))).map(city => (
+                        {allCities.filter(c => pinnedCityIds.includes(c.id) && (!stopCitySearch.trim() || c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase()))).map(city => (
                           <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
                             <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
                               onPress={() => handleSetStopCity(stop.id, city.id)}>
@@ -2148,12 +2173,12 @@ export default function TaskDetailScreen() {
                             </TouchableOpacity>
                           </View>
                         ))}
-                        {/* Search results (non-pinned) — only shown while typing */}
+                        {/* Search results (non-pinned) */}
                         {stopCitySearch.trim() ? (
-                          allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.includes(stopCitySearch.trim())).length === 0
-                          && pinnedCityIds.filter(id => allCities.find(c => c.id === id)?.name.includes(stopCitySearch.trim())).length === 0
+                          allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
+                          && pinnedCityIds.filter(id => allCities.find(c => c.id === id)?.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
                             ? <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{stopCitySearch}"</Text>
-                            : allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.includes(stopCitySearch.trim())).map(city => (
+                            : allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).map(city => (
                               <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
                                 <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
                                   onPress={() => handleSetStopCity(stop.id, city.id)}>
@@ -2171,27 +2196,6 @@ export default function TaskDetailScreen() {
                               Search for a city or pin one to show it here
                             </Text>
                           )
-                        )}
-                        {/* Create new city */}
-                        <TouchableOpacity style={s.cityDropdownItem} onPress={() => setShowCreateCityForm(v => !v)}>
-                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                            {showCreateCityForm ? '− Cancel' : '+ Create New City'}
-                          </Text>
-                        </TouchableOpacity>
-                        {showCreateCityForm && (
-                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
-                            <TextInput style={s.newMemberInput} value={newCityName} onChangeText={setNewCityName}
-                              placeholder="City name *" placeholderTextColor={theme.color.textMuted} />
-                            <TouchableOpacity
-                              style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
-                              onPress={() => handleCreateCity(stop.id)}
-                              disabled={savingCity}
-                            >
-                              {savingCity
-                                ? <ActivityIndicator color={theme.color.white} size="small" />
-                                : <Text style={s.newMemberSaveBtnText}>Save & Select</Text>}
-                            </TouchableOpacity>
-                          </View>
                         )}
                       </ScrollView>
                     </View>
@@ -3096,7 +3100,36 @@ export default function TaskDetailScreen() {
                         autoFocus
                         autoCorrect={false}
                       />
-                      <ScrollView style={{ maxHeight: 220 }} keyboardShouldPersistTaps="handled">
+                      {/* Create new city — always visible above the list */}
+                      <TouchableOpacity
+                        style={[s.cityDropdownItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
+                        onPress={() => { setEditCreateCityOpen(v => !v); if (!newCityName) setNewCityName(editCitySearch); }}
+                      >
+                        <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
+                          {editCreateCityOpen ? '− Cancel' : '+ Create New City'}
+                        </Text>
+                      </TouchableOpacity>
+                      {editCreateCityOpen && (
+                        <View style={{ padding: theme.spacing.space2, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                          <TextInput
+                            style={s.newMemberInput}
+                            value={newCityName}
+                            onChangeText={setNewCityName}
+                            placeholder="City name *"
+                            placeholderTextColor={theme.color.textMuted}
+                          />
+                          <TouchableOpacity
+                            style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
+                            onPress={() => handleCreateCityInEditModal(stage.id)}
+                            disabled={savingCity}
+                          >
+                            {savingCity
+                              ? <ActivityIndicator size="small" color={theme.color.white} />
+                              : <Text style={s.newMemberSaveBtnText}>Save City</Text>}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
                         {editStageCities[stage.id]?.cityId && (
                           <TouchableOpacity
                             style={s.cityDropdownItem}
@@ -3125,35 +3158,8 @@ export default function TaskDetailScreen() {
                               {editStageCities[stage.id]?.cityId === city.id && <Text style={s.checkmark}>✓</Text>}
                             </TouchableOpacity>
                           ))}
-                        {/* Create new city option */}
-                        <TouchableOpacity
-                          style={s.cityDropdownItem}
-                          onPress={() => { setEditCreateCityOpen(v => !v); if (!newCityName) setNewCityName(editCitySearch); }}
-                        >
-                          <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                            {editCreateCityOpen ? '− Cancel' : '+ Create New City'}
-                          </Text>
-                        </TouchableOpacity>
-                        {editCreateCityOpen && (
-                          <View style={{ padding: theme.spacing.space2, gap: 6 }}>
-                            <TextInput
-                              style={s.newMemberInput}
-                              value={newCityName}
-                              onChangeText={setNewCityName}
-                              placeholder="City name *"
-                              placeholderTextColor={theme.color.textMuted}
-                              autoFocus
-                            />
-                            <TouchableOpacity
-                              style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
-                              onPress={() => handleCreateCityInEditModal(stage.id)}
-                              disabled={savingCity}
-                            >
-                              {savingCity
-                                ? <ActivityIndicator size="small" color={theme.color.white} />
-                                : <Text style={s.newMemberSaveBtnText}>Save City</Text>}
-                            </TouchableOpacity>
-                          </View>
+                        {editCitySearch.trim().length > 0 && allCities.filter(c => c.name.toLowerCase().includes(editCitySearch.trim().toLowerCase())).length === 0 && (
+                          <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{editCitySearch}"</Text>
                         )}
                       </ScrollView>
                     </View>
