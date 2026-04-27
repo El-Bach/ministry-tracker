@@ -1915,6 +1915,9 @@ export default function TaskDetailScreen() {
             {task.route_stops?.map((stop, idx) => {
               const stopHistory = stopHistories[stop.id] ?? [];
               const isHistoryExpanded = expandedStopHistory === stop.id;
+              // Resolve city name: prefer joined data, fall back to allCities cache
+              // (newly created cities may not appear in the join on immediate refetch)
+              const stopCityName = stop.city?.name ?? allCities.find(c => c.id === stop.city_id)?.name ?? null;
               const isLast = idx === (task.route_stops?.length ?? 0) - 1;
               return (
                 <View key={stop.id} style={s.stageRow}>
@@ -1943,9 +1946,9 @@ export default function TaskDetailScreen() {
                         <Text style={s.stageMinistryName} numberOfLines={2}>
                           {stop.ministry?.name ?? 'Unknown Ministry'}
                         </Text>
-                        {stop.city?.name ? (
+                        {stopCityName ? (
                           <Text style={{ color: theme.color.primary, fontSize: 12, marginTop: 3, fontWeight: '600' }}>
-                            📍 {stop.city.name}
+                            📍 {stopCityName}
                           </Text>
                         ) : null}
                       </View>
@@ -1976,8 +1979,8 @@ export default function TaskDetailScreen() {
                             setNewCityName('');
                           }}
                         >
-                          <Text style={[s.stopMetaChipText, stop.city?.name ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
-                            {stop.city?.name ? `📍 ${stop.city.name}` : '📍 Set city'}
+                          <Text style={[s.stopMetaChipText, stopCityName ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
+                            {stopCityName ? `📍 ${stopCityName}` : '📍 Set city'}
                           </Text>
                         </TouchableOpacity>
 
@@ -2075,7 +2078,7 @@ export default function TaskDetailScreen() {
                         <>
                           <Text style={s.stageChipIcon}>📍</Text>
                           <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
-                            {stop.city?.name ?? 'Set city'}
+                            {stopCityName ?? 'Set city'}
                           </Text>
                           <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>
                         </>
