@@ -26,19 +26,30 @@ export default function LanguageSelectScreen({ onDone }: Props) {
   const [selected, setSelected] = useState<string>('en');
 
   const handleContinue = async () => {
-    await saveLanguage(selected);
-    await AsyncStorage.setItem(isFirstLaunchKey(), 'true');
-    const lang = LANGUAGES.find(l => l.code === selected);
-    const needsRTL = lang?.rtl ?? false;
-    if (needsRTL !== I18nManager.isRTL) {
-      I18nManager.forceRTL(needsRTL);
-      Alert.alert(
-        'Restart Required',
-        'Please close and reopen the app to apply the language direction.',
-        [{ text: 'OK', onPress: onDone }]
-      );
-    } else {
+    try {
+      await saveLanguage(selected);
+      await AsyncStorage.setItem(isFirstLaunchKey(), 'true');
+
+      try {
+        const lang = LANGUAGES.find(l => l.code === selected);
+        const needsRTL = lang?.rtl ?? false;
+        if (needsRTL !== I18nManager.isRTL) {
+          I18nManager.forceRTL(needsRTL);
+          Alert.alert(
+            'Restart Required',
+            'Please close and reopen the app to apply the language direction.',
+            [{ text: 'OK', onPress: onDone }]
+          );
+          return; // onDone called via Alert callback
+        }
+      } catch (_) {
+        // I18nManager not supported on web — skip RTL, just proceed
+      }
+
       onDone();
+    } catch (e) {
+      console.warn('[LanguageSelect] continue error:', e);
+      onDone(); // Always proceed even if save fails
     }
   };
 
