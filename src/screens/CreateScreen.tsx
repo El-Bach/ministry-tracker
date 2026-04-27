@@ -1569,6 +1569,9 @@ export default function CreateScreen() {
                           <View style={{ flex: 1 }}>
                             <Text style={s.mgmtItemName}>{m.name}</Text>
                             {/* City chip */}
+                            {(() => {
+                              const cityName = m.city?.name ?? allCities.find(c => c.id === m.city_id)?.name ?? null;
+                              return (
                             <TouchableOpacity
                               style={s.stageCityChip}
                               onPress={() => {
@@ -1578,10 +1581,15 @@ export default function CreateScreen() {
                               }}
                               activeOpacity={0.7}
                             >
-                              <Text style={[s.stageCityChipText, m.city_id && { color: theme.color.primary }]}>
-                                📍 {m.city ? m.city.name : 'Set city'}
-                              </Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={{ fontSize: 12 }}>📍</Text>
+                                <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]}>
+                                  {cityName ?? 'Set city'}
+                                </Text>
+                              </View>
                             </TouchableOpacity>
+                              );
+                            })()}
                           </View>
                           <TouchableOpacity
                             style={[s.mgmtReqBtn, expandedStageReqId === m.id && { backgroundColor: theme.color.successDim }]}
