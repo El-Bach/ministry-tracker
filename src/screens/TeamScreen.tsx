@@ -81,7 +81,7 @@ export default function TeamScreen() {
         .from('tasks')
         .select('*, client:clients(*), service:services(*)')
         .not('assigned_to', 'is', null),
-      supabase.from('status_labels').select('*').order('sort_order'),
+      supabase.from('status_labels').select('*').eq('org_id', currentMember?.org_id ?? '').order('sort_order'),
       supabase.from('team_member_field_definitions').select('*').eq('is_active', true).order('sort_order'),
     ]);
 

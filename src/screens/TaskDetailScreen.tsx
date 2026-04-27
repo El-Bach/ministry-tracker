@@ -275,7 +275,7 @@ export default function TaskDetailScreen() {
         .select('*, author:team_members(*)')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
-      supabase.from('status_labels').select('*').order('sort_order'),
+      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
       supabase.from('team_members').select('*').order('name'),
       supabase.from('cities').select('*').order('name'),
       supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').order('name'),

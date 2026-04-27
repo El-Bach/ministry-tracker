@@ -138,7 +138,7 @@ export default function ClientProfileScreen() {
   const route = useRoute<ProfileRoute>();
   const navigation = useNavigation<Nav>();
   const { clientId } = route.params;
-  const { permissions } = useAuth();
+  const { permissions, teamMember } = useAuth();
 
   const [client, setClient] = useState<Client | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -155,7 +155,7 @@ export default function ClientProfileScreen() {
         .select('*, service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*)')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false }),
-      supabase.from('status_labels').select('*').order('sort_order'),
+      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
       supabase
         .from('client_field_values')
         .select('*, definition:client_field_definitions(label, field_type)')

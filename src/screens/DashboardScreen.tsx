@@ -402,7 +402,7 @@ export default function DashboardScreen() {
           `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name)), transactions:file_transactions(type,amount_usd,amount_lbp)`
         )
         .order('created_at', { ascending: false }),
-      supabase.from('status_labels').select('*').order('sort_order'),
+      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
       supabase.from('team_members').select('*').order('name'),
       supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
       supabase.from('clients').select('*').order('name'),

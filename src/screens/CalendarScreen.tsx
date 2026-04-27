@@ -60,7 +60,7 @@ export default function CalendarScreen() {
         .from('tasks')
         .select('*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*)')
         .not('due_date', 'is', null),
-      supabase.from('status_labels').select('*'),
+      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? ''),
       supabase
         .from('task_route_stops')
         .select('id, due_date, task_id, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
@@ -70,7 +70,7 @@ export default function CalendarScreen() {
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
     if (stopsRes.data) setStops(stopsRes.data as unknown as StopWithTask[]);
     setLoading(false);
-  }, []);
+  }, [teamMember?.org_id]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
