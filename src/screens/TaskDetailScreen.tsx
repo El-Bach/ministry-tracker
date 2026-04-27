@@ -3048,7 +3048,7 @@ export default function TaskDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={s.editStagesScroll}>
+            <ScrollView contentContainerStyle={s.editStagesScroll} keyboardShouldPersistTaps="handled">
               {/* Selected stages list */}
               <Text style={s.editStagesSubtitle}>CURRENT STAGES</Text>
               {editingStops.length === 0 && (
