@@ -2717,7 +2717,6 @@ const s = StyleSheet.create({
     borderColor:     theme.color.border,
     marginTop:       4,
     marginBottom:    4,
-    overflow:        'hidden',
   },
   stageCityItem: {
     flexDirection:   'row',
@@ -2729,7 +2728,7 @@ const s = StyleSheet.create({
     borderBottomColor: theme.color.bgSurface,
   },
   stageCityItemActive: { backgroundColor: theme.color.primary + '14' },
-  stageCityItemText:   { ...theme.typography.body, color: theme.color.textPrimary },
+  stageCityItemText:   { ...theme.typography.body, color: theme.color.textPrimary, flex: 1, flexWrap: 'wrap' },
   mgmtItemSub:   { ...theme.typography.caption, marginTop: theme.spacing.space1 - 2 },
   mgmtItemPrice: { ...theme.typography.caption, color: theme.color.primary, fontWeight: '600', marginTop: theme.spacing.space1 - 2 },
   mgmtEditBtn: {
