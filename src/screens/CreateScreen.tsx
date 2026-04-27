@@ -86,6 +86,9 @@ export default function CreateScreen() {
   // Stage city picker
   const [stageCityPickerId, setStageCityPickerId] = useState<string | null>(null);
   const [stageCitySearch, setStageCitySearch] = useState('');
+  const [showCreateStageCityForm, setShowCreateStageCityForm] = useState(false);
+  const [newStageCityName, setNewStageCityName] = useState('');
+  const [savingStageCity, setSavingStageCity] = useState(false);
 
   // Inline service stages
   const [expandedSvcId, setExpandedSvcId] = useState<string | null>(null);
@@ -353,6 +356,22 @@ export default function CreateScreen() {
     setStageCityPickerId(null);
     setStageCitySearch('');
     fetchData();
+  };
+
+  const handleCreateStageCity = async (ministryId: string) => {
+    if (!newStageCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    setSavingStageCity(true);
+    const { data, error } = await supabase
+      .from('cities')
+      .insert({ name: newStageCityName.trim(), org_id: orgId })
+      .select()
+      .single();
+    setSavingStageCity(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setAllCities(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewStageCityName('');
+    setShowCreateStageCityForm(false);
+    await handleSetStageCity(ministryId, data.id);
   };
 
   // ── Inline Service Stages ─────────────────────────────────
@@ -1583,11 +1602,41 @@ export default function CreateScreen() {
                             <TextInput
                               style={s.mgmtSearchInput}
                               value={stageCitySearch}
-                              onChangeText={setStageCitySearch}
+                              onChangeText={text => { setStageCitySearch(text); setShowCreateStageCityForm(false); setNewStageCityName(text); }}
                               placeholder="Search city..."
                               placeholderTextColor={theme.color.textMuted}
                               autoCorrect={false}
                             />
+                            {/* Create new city — always visible above list */}
+                            <TouchableOpacity
+                              style={[s.stageCityItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
+                              onPress={() => { setShowCreateStageCityForm(v => !v); if (!newStageCityName) setNewStageCityName(stageCitySearch); }}
+                            >
+                              <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600' }}>
+                                {showCreateStageCityForm ? '− Cancel' : '+ Create New City'}
+                              </Text>
+                            </TouchableOpacity>
+                            {showCreateStageCityForm && (
+                              <View style={{ padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
+                                <TextInput
+                                  style={s.mgmtSearchInput}
+                                  value={newStageCityName}
+                                  onChangeText={setNewStageCityName}
+                                  placeholder="City name *"
+                                  placeholderTextColor={theme.color.textMuted}
+                                  autoFocus
+                                />
+                                <TouchableOpacity
+                                  style={[s.mgmtSaveBtn, savingStageCity && { opacity: 0.6 }]}
+                                  onPress={() => handleCreateStageCity(m.id)}
+                                  disabled={savingStageCity}
+                                >
+                                  {savingStageCity
+                                    ? <ActivityIndicator size="small" color={theme.color.white} />
+                                    : <Text style={s.mgmtSaveBtnText}>Save City</Text>}
+                                </TouchableOpacity>
+                              </View>
+                            )}
                             <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
                               {m.city_id && (
                                 <TouchableOpacity
