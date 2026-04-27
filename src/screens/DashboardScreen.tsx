@@ -263,9 +263,9 @@ const swipeStyles = StyleSheet.create({
 
 interface Filters {
   search: string;
-  serviceId: string;
+  serviceIds: string[];   // multi-select
   ministryId: string;
-  cityId: string;
+  cityIds: string[];      // multi-select
   teamMemberId: string;
 }
 
@@ -304,9 +304,9 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     search: '',
-    serviceId: '',
+    serviceIds: [],
     ministryId: '',
-    cityId: '',
+    cityIds: [],
     teamMemberId: '',
   });
 
@@ -489,9 +489,9 @@ export default function DashboardScreen() {
     ) {
       return false;
     }
-    if (filters.serviceId && task.service_id !== filters.serviceId) return false;
-    if (filters.cityId) {
-      const hasCity = task.route_stops?.some((s) => s.city_id === filters.cityId);
+    if (filters.serviceIds.length > 0 && !filters.serviceIds.includes(task.service_id)) return false;
+    if (filters.cityIds.length > 0) {
+      const hasCity = task.route_stops?.some((s) => s.city_id && filters.cityIds.includes(s.city_id));
       if (!hasCity) return false;
     }
     if (filters.ministryId) {
@@ -669,11 +669,10 @@ export default function DashboardScreen() {
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [tasksInCurrentSet]);
 
-  const activeFilterCount = [
-    filters.serviceId,
-    filters.ministryId,
-    filters.cityId,
-  ].filter(Boolean).length;
+  const activeFilterCount =
+    (filters.serviceIds.length > 0 ? filters.serviceIds.length : 0) +
+    (filters.cityIds.length > 0 ? filters.cityIds.length : 0) +
+    (filters.ministryId ? 1 : 0);
 
   // Summary bar stats (active tasks only)
   const summaryStats = useMemo(() => {
@@ -708,7 +707,12 @@ export default function DashboardScreen() {
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
           onLongPress={() => {}}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
-          onCityPress={(cityId) => setFilters((f) => ({ ...f, cityId: f.cityId === cityId ? '' : cityId }))}
+          onCityPress={(cityId) => setFilters((f) => ({
+            ...f,
+            cityIds: f.cityIds.includes(cityId)
+              ? f.cityIds.filter((id) => id !== cityId)
+              : [...f.cityIds, cityId],
+          }))}
           onServicePress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
           onArchive={() => handleArchiveTask(item)}
           onDelete={() => handleDeleteTask(item)}
@@ -799,49 +803,69 @@ export default function DashboardScreen() {
       {showFilters && (
         <View style={styles.filterPanel}>
           {/* Service filter — only services present in current task set */}
-          <Text style={styles.filterSectionLabel}>SERVICE</Text>
+          <Text style={styles.filterSectionLabel}>
+            SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             <TouchableOpacity
-              style={[styles.chip, !filters.serviceId && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, serviceId: '' }))}
+              style={[styles.chip, filters.serviceIds.length === 0 && styles.chipActive]}
+              onPress={() => setFilters((f) => ({ ...f, serviceIds: [] }))}
             >
-              <Text style={[styles.chipText, !filters.serviceId && styles.chipTextActive]}>All</Text>
+              <Text style={[styles.chipText, filters.serviceIds.length === 0 && styles.chipTextActive]}>All</Text>
             </TouchableOpacity>
-            {availableServices.map((sv) => (
-              <TouchableOpacity
-                key={sv.id}
-                style={[styles.chip, filters.serviceId === sv.id && styles.chipActive]}
-                onPress={() => setFilters((f) => ({ ...f, serviceId: f.serviceId === sv.id ? '' : sv.id }))}
-              >
-                <Text style={[styles.chipText, filters.serviceId === sv.id && styles.chipTextActive]}>
-                  {sv.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {availableServices.map((sv) => {
+              const selected = filters.serviceIds.includes(sv.id);
+              return (
+                <TouchableOpacity
+                  key={sv.id}
+                  style={[styles.chip, selected && styles.chipActive]}
+                  onPress={() => setFilters((f) => ({
+                    ...f,
+                    serviceIds: selected
+                      ? f.serviceIds.filter((id) => id !== sv.id)
+                      : [...f.serviceIds, sv.id],
+                  }))}
+                >
+                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                    {sv.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           {/* City filter — only cities present in current task set */}
           {availableCities.length > 0 && (
             <>
-              <Text style={styles.filterSectionLabel}>CITY</Text>
+              <Text style={styles.filterSectionLabel}>
+                CITY{filters.cityIds.length > 0 ? ` (${filters.cityIds.length})` : ''}
+              </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
                 <TouchableOpacity
-                  style={[styles.chip, !filters.cityId && styles.chipActive]}
-                  onPress={() => setFilters((f) => ({ ...f, cityId: '' }))}
+                  style={[styles.chip, filters.cityIds.length === 0 && styles.chipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, cityIds: [] }))}
                 >
-                  <Text style={[styles.chipText, !filters.cityId && styles.chipTextActive]}>All</Text>
+                  <Text style={[styles.chipText, filters.cityIds.length === 0 && styles.chipTextActive]}>All</Text>
                 </TouchableOpacity>
-                {availableCities.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.chip, filters.cityId === c.id && styles.chipActive]}
-                    onPress={() => setFilters((f) => ({ ...f, cityId: f.cityId === c.id ? '' : c.id }))}
-                  >
-                    <Text style={[styles.chipText, filters.cityId === c.id && styles.chipTextActive]}>
-                      {c.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {availableCities.map((c) => {
+                  const selected = filters.cityIds.includes(c.id);
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.chip, selected && styles.chipActive]}
+                      onPress={() => setFilters((f) => ({
+                        ...f,
+                        cityIds: selected
+                          ? f.cityIds.filter((id) => id !== c.id)
+                          : [...f.cityIds, c.id],
+                      }))}
+                    >
+                      <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                        {c.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </>
           )}
