@@ -306,14 +306,21 @@ export default function ClientProfileScreen() {
     );
   };
 
-  // Status counts
-  const statusCounts: Record<string, number> = {};
-  for (const task of tasks) {
-    statusCounts[task.current_status] = (statusCounts[task.current_status] ?? 0) + 1;
-  }
-  const activeStatuses = ['Submitted', 'In Review', 'Pending Signature', 'Rejected', 'Pending'];
-  const activeCount = tasks.filter((t) => activeStatuses.includes(t.current_status)).length;
-  const doneCount = tasks.filter((t) => t.current_status === 'Done' || t.current_status === 'Closed').length;
+  // A file is Complete only when its last stage (highest stop_order) is Done.
+  // A file is Rejected when its last stage is Rejected.
+  // Everything else is Active.
+  const getFileOutcome = (task: Task): 'completed' | 'rejected' | 'active' => {
+    const stops = task.route_stops ?? [];
+    if (stops.length === 0) return 'active';
+    const lastStop = [...stops].sort((a, b) => b.stop_order - a.stop_order)[0];
+    if (lastStop.status === 'Done')     return 'completed';
+    if (lastStop.status === 'Rejected') return 'rejected';
+    return 'active';
+  };
+
+  const completedCount = tasks.filter((t) => getFileOutcome(t) === 'completed').length;
+  const rejectedCount  = tasks.filter((t) => getFileOutcome(t) === 'rejected').length;
+  const activeCount    = tasks.filter((t) => getFileOutcome(t) === 'active').length;
 
   const visibleFields = fieldValues.filter(
     (fv) => fv.definition && (fv.value_text || fv.value_number != null || fv.value_boolean != null || fv.value_json)
@@ -398,16 +405,22 @@ export default function ClientProfileScreen() {
         <View style={s.statsRow}>
           <View style={s.statBox}>
             <Text style={s.statNumber}>{tasks.length}</Text>
-            <Text style={s.statLabel}>Total Files</Text>
+            <Text style={s.statLabel}>Total</Text>
           </View>
           <View style={s.statBox}>
             <Text style={[s.statNumber, { color: theme.color.primary }]}>{activeCount}</Text>
             <Text style={s.statLabel}>Active</Text>
           </View>
           <View style={s.statBox}>
-            <Text style={[s.statNumber, { color: theme.color.success }]}>{doneCount}</Text>
+            <Text style={[s.statNumber, { color: theme.color.success }]}>{completedCount}</Text>
             <Text style={s.statLabel}>Completed</Text>
           </View>
+          {rejectedCount > 0 && (
+            <View style={[s.statBox, { borderColor: theme.color.danger + '44' }]}>
+              <Text style={[s.statNumber, { color: theme.color.danger }]}>{rejectedCount}</Text>
+              <Text style={[s.statLabel, { color: theme.color.danger }]}>Rejected</Text>
+            </View>
+          )}
         </View>
 
         {/* ── TASK HISTORY ── */}
@@ -419,12 +432,21 @@ export default function ClientProfileScreen() {
             tasks.map((task, idx) => {
               const totalStops = task.route_stops?.length ?? 0;
               const doneStops = task.route_stops?.filter((r) => r.status === 'Done').length ?? 0;
-              // Derived status: Done+Rejected are both terminal; show most urgent of remaining
+              const outcome = getFileOutcome(task);
+              // Status shown on the card: use last-stage outcome, else most urgent active stage
               const URGENCY: Record<string, number> = { Rejected: 1, 'Pending Signature': 2, 'In Review': 3, Submitted: 4, Pending: 5, Done: 99, Closed: 100 };
-              const nonTerminal = (task.route_stops ?? []).filter((s) => s.status !== 'Done' && s.status !== 'Rejected').map((s) => s.status);
-              const derivedStatus = nonTerminal.length > 0
-                ? nonTerminal.reduce((a, b) => (URGENCY[a] ?? 50) <= (URGENCY[b] ?? 50) ? a : b)
-                : (totalStops > 0 ? 'Done' : task.current_status);
+              const derivedStatus = outcome === 'completed'
+                ? 'Done'
+                : outcome === 'rejected'
+                  ? 'Rejected'
+                  : (() => {
+                      const nonTerminal = (task.route_stops ?? [])
+                        .filter((s) => s.status !== 'Done' && s.status !== 'Rejected')
+                        .map((s) => s.status);
+                      return nonTerminal.length > 0
+                        ? nonTerminal.reduce((a, b) => (URGENCY[a] ?? 50) <= (URGENCY[b] ?? 50) ? a : b)
+                        : task.current_status;
+                    })();
               const statusColor = getStatusColor(derivedStatus);
               return (
                 <SwipeableRow
