@@ -28,6 +28,7 @@ interface StopWithTask {
   id: string;
   due_date: string;
   task_id: string;
+  status: string;   // this specific stage's status
   ministry?: { name: string } | null;
   task?: {
     id: string;
@@ -63,7 +64,7 @@ export default function CalendarScreen() {
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? ''),
       supabase
         .from('task_route_stops')
-        .select('id, due_date, task_id, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
+        .select('id, due_date, task_id, status, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
         .not('due_date', 'is', null),
     ]);
     if (tasksRes.data) setTasks(tasksRes.data as Task[]);
@@ -98,10 +99,10 @@ export default function CalendarScreen() {
 
   filteredStops.forEach((stop) => {
     if (!stop.due_date) return;
-    const isOverdue = stop.due_date < todayStr && stop.task?.current_status !== 'Done';
+    const isOverdue = stop.due_date < todayStr && stop.status !== 'Done';
     if (!markedDates[stop.due_date]) markedDates[stop.due_date] = { dots: [] };
     if (markedDates[stop.due_date].dots.length < 3)
-      markedDates[stop.due_date].dots.push({ color: isOverdue ? theme.color.danger : theme.color.warning });
+      markedDates[stop.due_date].dots.push({ color: isOverdue ? theme.color.danger : getStatusColor(stop.status) });
   });
 
   // Add selected date marker
@@ -244,7 +245,7 @@ export default function CalendarScreen() {
 
             {/* ── Stage due dates ── */}
             {stopsForDate.map((stop) => {
-              const isOverdue = stop.due_date < todayStr && stop.task?.current_status !== 'Done';
+              const isOverdue = stop.due_date < todayStr && stop.status !== 'Done';
               return (
               <TouchableOpacity
                 key={stop.id}
@@ -269,10 +270,10 @@ export default function CalendarScreen() {
                   {isOverdue && (
                     <Text style={s.overdueLabel}>⚠ {t('overdue')}</Text>
                   )}
-                  {stop.task?.current_status && (
+                  {stop.status && (
                     <StatusBadge
-                      label={stop.task.current_status}
-                      color={getStatusColor(stop.task.current_status)}
+                      label={stop.status}
+                      color={getStatusColor(stop.status)}
                       small
                     />
                   )}
