@@ -2314,17 +2314,9 @@ export default function TaskDetailScreen() {
 
         {/* ── FINANCIALS ── */}
         <View style={s.section}>
-          {/* Title + balance always visible + add button */}
+          {/* Title row */}
           <View style={s.sectionTitleRow}>
             <Text style={s.sectionTitle}>{t('financialsSection').toUpperCase()}</Text>
-            {(permissions.can_add_expenses || permissions.can_add_revenue) && (
-              <TouchableOpacity
-                style={s.addTxBtn}
-                onPress={() => setShowAddTransaction((v) => !v)}
-              >
-                <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Contract price row — only if permitted */}
@@ -2534,6 +2526,16 @@ export default function TaskDetailScreen() {
               </View>
             );
           })()}
+
+          {/* + Add button — sits between summary table and transaction list */}
+          {(permissions.can_add_expenses || permissions.can_add_revenue) && (
+            <TouchableOpacity
+              style={s.addTxBtn}
+              onPress={() => setShowAddTransaction((v) => !v)}
+            >
+              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Add transaction form */}
           {showAddTransaction && (
