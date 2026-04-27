@@ -1581,12 +1581,9 @@ export default function CreateScreen() {
                               }}
                               activeOpacity={0.7}
                             >
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Text style={{ fontSize: 12 }}>📍</Text>
-                                <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]}>
-                                  {cityName ?? 'Set city'}
-                                </Text>
-                              </View>
+                              <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]} numberOfLines={2}>
+                                📍 {cityName ?? 'Set city'}
+                              </Text>
                             </TouchableOpacity>
                               );
                             })()}
@@ -2698,8 +2695,6 @@ const s = StyleSheet.create({
   mgmtItemName:  { ...theme.typography.body, fontWeight: '600' },
   mgmtItemRef:   { ...theme.typography.caption, fontStyle: 'italic', marginTop: theme.spacing.space1 - 3 },
   stageCityChip: {
-    flexDirection:   'row',
-    alignItems:      'center',
     marginTop:       4,
     paddingVertical: 3,
     paddingHorizontal: 6,
@@ -2708,8 +2703,9 @@ const s = StyleSheet.create({
     backgroundColor: theme.color.bgBase,
     borderWidth:     1,
     borderColor:     theme.color.border,
+    maxWidth:        220,
   },
-  stageCityChipText: { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 12 },
+  stageCityChipText: { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 12, flexWrap: 'wrap' },
   stageCityPanel: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.md,
