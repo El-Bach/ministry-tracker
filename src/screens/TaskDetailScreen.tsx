@@ -2533,7 +2533,7 @@ export default function TaskDetailScreen() {
               style={s.addTxBtn}
               onPress={() => setShowAddTransaction((v) => !v)}
             >
-              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('add')}`}</Text>
+              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : '+ Add Transaction'}</Text>
             </TouchableOpacity>
           )}
 
@@ -3890,14 +3890,15 @@ const s = StyleSheet.create({
 
   // ── Financials ──
   addTxBtn: {
-    backgroundColor: theme.color.bgBase,
-    borderRadius:    theme.radius.sm,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical: 5,
-    borderWidth:     1,
-    borderColor:     theme.color.border,
+    backgroundColor: theme.color.primary + '14',
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   12,
+    borderWidth:       1,
+    borderColor:       theme.color.primary + '44',
+    alignItems:        'center',
   },
-  addTxBtnText: { ...theme.typography.label, color: theme.color.primary, fontWeight: '700' },
+  addTxBtnText: { color: theme.color.primary, fontWeight: '700', fontSize: 15 },
   balanceSummary: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.lg,
