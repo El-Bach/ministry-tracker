@@ -1581,7 +1581,7 @@ export default function CreateScreen() {
                               }}
                               activeOpacity={0.7}
                             >
-                              <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]} numberOfLines={2}>
+                              <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]}>
                                 📍 {cityName ?? 'Set city'}
                               </Text>
                             </TouchableOpacity>
@@ -2699,13 +2699,11 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     paddingHorizontal: 6,
     borderRadius:    theme.radius.sm,
-    alignSelf:       'flex-start',
     backgroundColor: theme.color.bgBase,
     borderWidth:     1,
     borderColor:     theme.color.border,
-    maxWidth:        220,
   },
-  stageCityChipText: { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 12, flexWrap: 'wrap' },
+  stageCityChipText: { ...theme.typography.caption, color: theme.color.textMuted, fontSize: 12 },
   stageCityPanel: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.md,
