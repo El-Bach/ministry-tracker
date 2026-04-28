@@ -16,6 +16,7 @@ import {
   Platform,
   Switch,
   Image,
+  Linking,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRoute, RouteProp } from '@react-navigation/native';
@@ -53,6 +54,10 @@ export default function StageRequirementsScreen() {
   const [requirements, setRequirements] = useState<StopRequirement[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Client info for WhatsApp
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+
   // Add/Edit modal
   const [showModal, setShowModal] = useState(false);
   const [editingReq, setEditingReq] = useState<StopRequirement | null>(null);
@@ -79,7 +84,22 @@ export default function StageRequirementsScreen() {
     setLoading(false);
   }, [stopId]);
 
-  useEffect(() => { fetchRequirements(); }, [fetchRequirements]);
+  useEffect(() => {
+    fetchRequirements();
+    // Fetch client phone for WhatsApp
+    supabase
+      .from('tasks')
+      .select('client:clients(name, phone)')
+      .eq('id', taskId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const c = (data as any)?.client;
+        if (c) {
+          setClientName(c.name ?? '');
+          setClientPhone(c.phone ?? '');
+        }
+      });
+  }, [fetchRequirements, taskId]);
 
   function openAdd() {
     setEditingReq(null);
@@ -306,6 +326,35 @@ export default function StageRequirementsScreen() {
     setAttachmentName('');
   }
 
+  // ─── WhatsApp send ───────────────────────────────────────────
+  function sendWhatsApp() {
+    if (!clientPhone) {
+      Alert.alert('No Phone Number', 'This client has no phone number on file.');
+      return;
+    }
+    const clean = clientPhone.replace(/\s+/g, '').replace(/^\+/, '');
+    const lines: string[] = [];
+    lines.push(`📋 *${stageName}*`);
+    if (clientName) lines.push(`👤 ${clientName}`);
+    lines.push('');
+    requirements.forEach((req, i) => {
+      const status = req.is_completed ? '✅' : '⬜';
+      lines.push(`${status} *${i + 1}. ${req.title}*`);
+      if (req.notes && /[a-zA-Z0-9؀-ۿ]/.test(req.notes)) {
+        lines.push(`   📝 ${req.notes}`);
+      }
+      if (req.attachment_url) {
+        lines.push(`   📎 ${req.attachment_name || 'Attachment'}`);
+      }
+    });
+    lines.push('');
+    lines.push(`${done}/${total} completed`);
+    const msg = lines.join('\n');
+    Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
+      Alert.alert('Error', 'Could not open WhatsApp.')
+    );
+  }
+
   // ─── Counts ──────────────────────────────────────────────────
   const total = requirements.length;
   const done = requirements.filter((r) => r.is_completed).length;
@@ -326,9 +375,16 @@ export default function StageRequirementsScreen() {
           <Text style={s.summaryText}>
             {done}/{total} completed
           </Text>
-          <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-            <Text style={s.addBtnText}>+ Add Requirement</Text>
-          </TouchableOpacity>
+          <View style={s.summaryActions}>
+            {!!clientPhone && (
+              <TouchableOpacity style={s.waBtn} onPress={sendWhatsApp}>
+                <Text style={s.waBtnText}>💬 WhatsApp</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={s.addBtn} onPress={openAdd}>
+              <Text style={s.addBtnText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -351,9 +407,16 @@ export default function StageRequirementsScreen() {
                   {req.is_completed && <Text style={s.checkmark}>✓</Text>}
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.reqTitle, req.is_completed && s.reqTitleDone]}>
-                    {req.title}
-                  </Text>
+                  <View style={s.reqTitleRow}>
+                    <Text style={[s.reqTitle, req.is_completed && s.reqTitleDone]}>
+                      {req.title}
+                    </Text>
+                    {!!(req.notes && /[a-zA-Z0-9؀-ۿ]/.test(req.notes)) && (
+                      <View style={s.infoBadge}>
+                        <Text style={s.infoIcon}>ℹ</Text>
+                      </View>
+                    )}
+                  </View>
                   <View style={s.reqMeta}>
                     <View style={s.typePill}>
                       <Text style={s.typeIcon}>{typeIcon(req.req_type)}</Text>
@@ -585,6 +648,14 @@ const s = StyleSheet.create({
     marginBottom: theme.spacing.space4,
   },
   summaryText: { color: theme.color.textSecondary, fontSize: theme.typography.label.fontSize },
+  summaryActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  waBtn: {
+    backgroundColor: '#25D366',
+    paddingHorizontal: 12,
+    paddingVertical: theme.spacing.space2,
+    borderRadius: theme.radius.md,
+  },
+  waBtnText: { color: '#fff', fontWeight: '700', fontSize: theme.typography.label.fontSize },
   addBtn: {
     backgroundColor: theme.color.primary,
     paddingHorizontal: 14,
@@ -621,8 +692,18 @@ const s = StyleSheet.create({
   },
   checkboxDone: { backgroundColor: theme.color.success, borderColor: theme.color.success },
   checkmark: { color: theme.color.white, fontSize: 18, fontWeight: '800' },
-  reqTitle: { color: theme.color.textPrimary, fontSize: 15, fontWeight: '600', flex: 1 },
+  reqTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  reqTitle: { color: theme.color.textPrimary, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   reqTitleDone: { color: theme.color.textSecondary, textDecorationLine: 'line-through' },
+  infoBadge: {
+    backgroundColor: theme.color.primary + '22',
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: theme.color.primary + '55',
+  },
+  infoIcon: { color: theme.color.primaryText, fontSize: 11, fontWeight: '800' },
   reqMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
   typePill: {
     flexDirection: 'row',
