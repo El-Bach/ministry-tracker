@@ -2008,30 +2008,25 @@ export default function TaskDetailScreen() {
                       </View>
                     )}
 
-                    {/* ── 2×2 chip grid (Status · Due Date / City · Assignee) ── */}
+                    {/* ── 2×2 chip grid (City · Due Date / Status · Assignee) ── */}
                     <View style={s.stageChipGrid}>
                     <View style={s.stageChipRow}>
-                      {/* Status chip */}
+                      {/* City chip */}
                       <TouchableOpacity
                         style={[s.stageChip, {
-                          borderColor: getStatusColor(stop.status) + '70',
-                          backgroundColor: getStatusColor(stop.status) + '18',
+                          borderColor: stop.city_id ? theme.color.primary + '70' : theme.color.border,
+                          backgroundColor: stop.city_id ? theme.color.primary + '18' : theme.color.bgBase,
                         }]}
-                        onPress={() => { if (permissions.can_update_stage_status) { setSelectedStop(stop); setShowStatusPicker(true); } }}
-                        disabled={updatingStop === stop.id || !permissions.can_update_stage_status}
-                        activeOpacity={permissions.can_update_stage_status ? 0.7 : 1}
+                        onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
+                        activeOpacity={0.7}
                       >
-                        {updatingStop === stop.id ? (
-                          <ActivityIndicator size="small" color={getStatusColor(stop.status)} />
-                        ) : (
-                          <>
-                            <View style={[s.stageChipDot, { backgroundColor: getStatusColor(stop.status) }]} />
-                            <Text style={[s.stageChipLabel, { color: getStatusColor(stop.status) }]} numberOfLines={1}>
-                              {stop.status}
-                            </Text>
-                            <Text style={[s.stageChipArrow, { color: getStatusColor(stop.status) + 'BB' }]}>▾</Text>
-                          </>
-                        )}
+                        <>
+                          <Text style={s.stageChipIcon}>📍</Text>
+                          <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
+                            {stopCityName ?? 'Set city'}
+                          </Text>
+                          <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>
+                        </>
                       </TouchableOpacity>
 
                       {/* Due date chip */}
@@ -2064,24 +2059,29 @@ export default function TaskDetailScreen() {
                       </View>
                     ) : null}
 
-                    {/* ── Row 2: City + Assignee ── */}
+                    {/* ── Row 2: Status + Assignee ── */}
                     <View style={s.stageChipRow}>
-                      {/* City chip */}
+                      {/* Status chip */}
                       <TouchableOpacity
                         style={[s.stageChip, {
-                          borderColor: stop.city_id ? theme.color.primary + '70' : theme.color.border,
-                          backgroundColor: stop.city_id ? theme.color.primary + '18' : theme.color.bgBase,
+                          borderColor: getStatusColor(stop.status) + '70',
+                          backgroundColor: getStatusColor(stop.status) + '18',
                         }]}
-                        onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
-                        activeOpacity={0.7}
+                        onPress={() => { if (permissions.can_update_stage_status) { setSelectedStop(stop); setShowStatusPicker(true); } }}
+                        disabled={updatingStop === stop.id || !permissions.can_update_stage_status}
+                        activeOpacity={permissions.can_update_stage_status ? 0.7 : 1}
                       >
-                        <>
-                          <Text style={s.stageChipIcon}>📍</Text>
-                          <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
-                            {stopCityName ?? 'Set city'}
-                          </Text>
-                          <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>
-                        </>
+                        {updatingStop === stop.id ? (
+                          <ActivityIndicator size="small" color={getStatusColor(stop.status)} />
+                        ) : (
+                          <>
+                            <View style={[s.stageChipDot, { backgroundColor: getStatusColor(stop.status) }]} />
+                            <Text style={[s.stageChipLabel, { color: getStatusColor(stop.status) }]} numberOfLines={1}>
+                              {stop.status}
+                            </Text>
+                            <Text style={[s.stageChipArrow, { color: getStatusColor(stop.status) + 'BB' }]}>▾</Text>
+                          </>
+                        )}
                       </TouchableOpacity>
 
                       {/* Assignee chip */}
