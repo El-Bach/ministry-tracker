@@ -454,7 +454,7 @@ interface PickerItem { id: string; label: string; subtitle?: string }
 
 function PickerModal({
  visible, title, items, onSelect, onClose, search, multiSelect, selectedIds,
- onItemAction, itemActionLabel, onItemDelete,
+ onItemAction, itemActionLabel, onItemDelete, onAddNew,
 }: {
  visible: boolean;
  title: string;
@@ -467,6 +467,7 @@ function PickerModal({
  onItemAction?: (item: PickerItem) => void;
  itemActionLabel?: string;
  onItemDelete?: (item: PickerItem) => void;
+ onAddNew?: (initialName?: string) => void;
 }) {
  const [query, setQuery] = useState('');
  const filtered = query
@@ -504,6 +505,16 @@ function PickerModal({
             data={filtered}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              onAddNew && query.trim() ? (
+                <TouchableOpacity
+                  style={ms.addNewBtn}
+                  onPress={() => { setQuery(''); onClose(); onAddNew(query.trim()); }}
+                >
+                  <Text style={ms.addNewBtnText}>＋ Create "{query.trim()}" as new client</Text>
+                </TouchableOpacity>
+              ) : null
+            }
             renderItem={({ item }) => {
               const isSelected = selectedIds?.includes(item.id);
               return (
@@ -551,6 +562,14 @@ function PickerModal({
               );
             }}
           />
+          {onAddNew && (
+            <TouchableOpacity
+              style={ms.addNewFooterBtn}
+              onPress={() => { setQuery(''); onClose(); onAddNew(undefined); }}
+            >
+              <Text style={ms.addNewFooterBtnText}>＋ New Client</Text>
+            </TouchableOpacity>
+          )}
           {multiSelect && (
             <TouchableOpacity style={ms.doneBtn} onPress={() => { setQuery(''); onClose(); }}>
               <Text style={ms.doneBtnText}>Done</Text>
@@ -636,6 +655,29 @@ const ms = StyleSheet.create({
     alignItems:      'center',
   },
   doneBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
+  addNewBtn: {
+    margin:            theme.spacing.space4,
+    backgroundColor:   theme.color.primary + '14',
+    borderRadius:      theme.radius.lg,
+    paddingVertical:   14,
+    alignItems:        'center',
+    borderWidth:       1,
+    borderColor:       theme.color.primary + '55',
+    borderStyle:       'dashed',
+  },
+  addNewBtnText: { color: theme.color.primaryText, fontSize: 15, fontWeight: '700' },
+  addNewFooterBtn: {
+    marginHorizontal:  theme.spacing.space4,
+    marginTop:         theme.spacing.space2,
+    marginBottom:      theme.spacing.space3,
+    backgroundColor:   theme.color.bgBase,
+    borderRadius:      theme.radius.lg,
+    paddingVertical:   12,
+    alignItems:        'center',
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+  },
+  addNewFooterBtnText: { color: theme.color.primary, fontSize: 15, fontWeight: '700' },
 });
 
 // ─── Field Row ────────────────────────────────────────────────
@@ -829,6 +871,8 @@ export default function NewTaskScreen() {
  const [showNewClientForm, setShowNewClientForm] = useState(false);
  const [newClientName, setNewClientName] = useState('');
  const [newClientPhone, setNewClientPhone] = useState('');
+ const [newClientRefName, setNewClientRefName] = useState('');
+ const [newClientRefPhone, setNewClientRefPhone] = useState('');
  const [customFieldValues, setCustomFieldValues] = useState<Record<string, FieldValue>>({});
  const [activeFieldIds, setActiveFieldIds] = useState<string[]>([]); // fields user chose to add
  const [showFieldPicker, setShowFieldPicker] = useState(false);
@@ -1052,6 +1096,36 @@ export default function NewTaskScreen() {
  Alert.alert('Required', 'Client name is required.');
  return;
  }
+
+ // Duplicate check
+ const orFilters: string[] = [`name.ilike.${newClientName.trim()}`];
+ if (newClientPhone.trim()) orFilters.push(`phone.eq.${newClientPhone.trim()}`);
+ const { data: existing } = await supabase
+   .from('clients')
+   .select('id, name, phone, client_id')
+   .eq('org_id', teamMember?.org_id ?? '')
+   .or(orFilters.join(','))
+   .limit(1)
+   .maybeSingle();
+
+ if (existing) {
+   const reason = (existing as any).name?.toLowerCase() === newClientName.trim().toLowerCase()
+     ? `name "${(existing as any).name}"`
+     : `phone "${(existing as any).phone}"`;
+   Alert.alert(
+     'Duplicate Client',
+     `A client already exists with this ${reason} (${(existing as any).client_id}).\n\nCreate anyway?`,
+     [
+       { text: t('cancel'), style: 'cancel' },
+       { text: t('createAnyway'), onPress: () => doCreateClient() },
+     ]
+   );
+   return;
+ }
+ doCreateClient();
+ };
+
+ const doCreateClient = async () => {
  const autoId = `CLT-${Date.now()}`;
  const { data, error } = await supabase
  .from('clients')
@@ -1059,6 +1133,8 @@ export default function NewTaskScreen() {
  name: newClientName.trim(),
  client_id: autoId,
  phone: newClientPhone.trim() || null,
+ reference_name: newClientRefName.trim() || null,
+ reference_phone: newClientRefPhone.trim() || null,
  org_id: teamMember?.org_id ?? null,
  })
  .select()
@@ -1082,7 +1158,10 @@ export default function NewTaskScreen() {
  setShowNewClientForm(false);
  setNewClientName('');
  setNewClientPhone('');
+ setNewClientRefName('');
+ setNewClientRefPhone('');
  setCustomFieldValues({});
+ setActiveFieldIds([]);
  };
 
  const handleCreateService = async () => {
@@ -1306,6 +1385,21 @@ export default function NewTaskScreen() {
  value={newClientPhone}
  onChangeText={setNewClientPhone}
  placeholder="Phone number"
+ placeholderTextColor={theme.color.textMuted}
+ keyboardType="phone-pad"
+ />
+ <TextInput
+ style={s.inlineInput}
+ value={newClientRefName}
+ onChangeText={setNewClientRefName}
+ placeholder="Reference name (optional)"
+ placeholderTextColor={theme.color.textMuted}
+ />
+ <TextInput
+ style={s.inlineInput}
+ value={newClientRefPhone}
+ onChangeText={setNewClientRefPhone}
+ placeholder="Reference phone (optional)"
  placeholderTextColor={theme.color.textMuted}
  keyboardType="phone-pad"
  />
@@ -1723,6 +1817,15 @@ export default function NewTaskScreen() {
  onItemDelete={permissions.can_edit_delete_clients ? handleDeleteClient : undefined}
  onClose={() => setModal(null)}
  search
+ onAddNew={(initialName) => {
+   setNewClientName(initialName ?? '');
+   setNewClientPhone('');
+   setNewClientRefName('');
+   setNewClientRefPhone('');
+   setCustomFieldValues({});
+   setActiveFieldIds([]);
+   setShowNewClientForm(true);
+ }}
  />
  <PickerModal
  visible={modal === 'service'}
