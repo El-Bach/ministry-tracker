@@ -25,6 +25,7 @@ interface Props {
   loading?: boolean;
   error?: boolean;
   selected?: boolean;
+  exchangeRate?: number;
 }
 
 // ─── Urgency Logic (unchanged) ───────────────────────────────────────────────
@@ -98,6 +99,7 @@ function TaskCard({
   loading = false,
   error = false,
   selected = false,
+  exchangeRate = 89500,
 }: Props) {
   if (loading) return <SkeletonCard cardStyle={cardStyle} />;
 
@@ -119,12 +121,15 @@ function TaskCard({
   const totalExpUSD  = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_usd, 0);
   const totalRevLBP  = txs.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount_lbp, 0);
   const totalExpLBP  = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_lbp, 0);
-  const balanceUSD   = totalRevUSD - totalExpUSD;
-  const balanceLBP   = totalRevLBP - totalExpLBP;
   const dueUSD       = (task.price_usd ?? 0) - totalRevUSD;
   const dueLBP       = (task.price_lbp ?? 0) - totalRevLBP;
+  // C/V USD result: convert every revenue & expense to USD equivalent, then net them
+  const cvRate = exchangeRate > 0 ? exchangeRate : 89500;
+  const cvRev  = txs.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount_usd + t.amount_lbp / cvRate, 0);
+  const cvExp  = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_usd + t.amount_lbp / cvRate, 0);
+  const cvResult = cvRev - cvExp;
   const hasFinancials = allDone && (task.price_usd > 0 || task.price_lbp > 0 || txs.length > 0);
-  // Show LBP line in both chips whenever any LBP amount exists anywhere
+  // Show LBP line in DUE chip whenever any LBP amount exists
   const hasLBP = (task.price_lbp ?? 0) > 0 || totalRevLBP > 0 || totalExpLBP > 0;
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
@@ -369,15 +374,10 @@ function TaskCard({
       {hasFinancials && (
         <View style={styles.finRow}>
           <View style={styles.finChip}>
-            <Text style={styles.finLabel}>BAL</Text>
-            <Text style={[styles.finValue, balanceUSD >= 0 ? styles.finPos : styles.finNeg]}>
-              {balanceUSD >= 0 ? '+' : '-'}{fmtUSD(balanceUSD)}
+            <Text style={styles.finLabel}>RESULT</Text>
+            <Text style={[styles.finValue, cvResult >= 0 ? styles.finPos : styles.finNeg]}>
+              {cvResult >= 0 ? '+' : '-'}{fmtUSD(cvResult)}
             </Text>
-            {hasLBP && (
-              <Text style={[styles.finValueSmall, balanceLBP >= 0 ? styles.finPos : styles.finNeg]}>
-                {balanceLBP >= 0 ? '+' : '-'}{fmtLBP(balanceLBP)}
-              </Text>
-            )}
           </View>
           <View style={styles.finDivider} />
           <View style={styles.finChip}>

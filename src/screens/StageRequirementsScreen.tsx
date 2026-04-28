@@ -326,7 +326,7 @@ export default function StageRequirementsScreen() {
     setAttachmentName('');
   }
 
-  // ─── WhatsApp send ───────────────────────────────────────────
+  // ─── WhatsApp send (all requirements) ──────────────────────
   function sendWhatsApp() {
     if (!clientPhone) {
       Alert.alert('No Phone Number', 'This client has no phone number on file.');
@@ -349,6 +349,32 @@ export default function StageRequirementsScreen() {
     });
     lines.push('');
     lines.push(`${done}/${total} completed`);
+    const msg = lines.join('\n');
+    Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
+      Alert.alert('Error', 'Could not open WhatsApp.')
+    );
+  }
+
+  // ─── WhatsApp send (single requirement) ─────────────────────
+  function sendWhatsAppSingle(req: StopRequirement) {
+    if (!clientPhone) {
+      Alert.alert('No Phone Number', 'This client has no phone number on file.');
+      return;
+    }
+    const clean = clientPhone.replace(/\s+/g, '').replace(/^\+/, '');
+    const lines: string[] = [];
+    lines.push(`📋 *${stageName}*`);
+    if (clientName) lines.push(`👤 ${clientName}`);
+    lines.push('');
+    const status = req.is_completed ? '✅' : '⬜';
+    lines.push(`${status} *${req.title}*`);
+    lines.push(`  🏷 ${typeLabel(req.req_type)}`);
+    if (req.notes && /[a-zA-Z0-9؀-ۿ]/.test(req.notes)) {
+      lines.push(`  📝 ${req.notes}`);
+    }
+    if (req.attachment_url) {
+      lines.push(`  📎 ${req.attachment_name || 'Attachment'}`);
+    }
     const msg = lines.join('\n');
     Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
       Alert.alert('Error', 'Could not open WhatsApp.')
@@ -409,9 +435,16 @@ export default function StageRequirementsScreen() {
                     <Text style={[s.reqTitle, req.is_completed && s.reqTitleDone]}>
                       {req.title}
                     </Text>
+                    {/* Notes indicator */}
                     {!!(req.notes && /[a-zA-Z0-9؀-ۿ]/.test(req.notes)) && (
                       <View style={s.infoBadge}>
-                        <Text style={s.infoIcon}>ℹ</Text>
+                        <Text style={s.infoIcon}>📝</Text>
+                      </View>
+                    )}
+                    {/* Attachment indicator */}
+                    {!!req.attachment_url && (
+                      <View style={s.attachBadge}>
+                        <Text style={s.attachBadgeIcon}>📎</Text>
                       </View>
                     )}
                   </View>
@@ -426,6 +459,9 @@ export default function StageRequirementsScreen() {
                   </View>
                 </View>
                 <View style={s.reqActions}>
+                  <TouchableOpacity style={s.waReqBtn} onPress={() => sendWhatsAppSingle(req)}>
+                    <Text style={s.waReqBtnText}>💬</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={s.editReqBtn} onPress={() => openEdit(req)}>
                     <Text style={s.editReqBtnText}>✎</Text>
                   </TouchableOpacity>
@@ -697,11 +733,20 @@ const s = StyleSheet.create({
     backgroundColor: theme.color.primary + '22',
     borderRadius: 10,
     paddingHorizontal: 5,
-    paddingVertical: 1,
+    paddingVertical: 2,
     borderWidth: 1,
     borderColor: theme.color.primary + '55',
   },
-  infoIcon: { color: theme.color.primaryText, fontSize: 11, fontWeight: '800' },
+  infoIcon: { fontSize: 11 },
+  attachBadge: {
+    backgroundColor: theme.color.warning + '22',
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: theme.color.warning + '55',
+  },
+  attachBadgeIcon: { fontSize: 11 },
   reqMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
   typePill: {
     flexDirection: 'row',
@@ -715,7 +760,16 @@ const s = StyleSheet.create({
   typeIcon: { fontSize: 12 },
   typeText: { color: theme.color.textSecondary, fontSize: theme.typography.caption.fontSize, fontWeight: '600' },
   creatorText: { color: theme.color.textSecondary, fontSize: theme.typography.caption.fontSize },
-  reqActions: { flexDirection: 'row', gap: 6, marginStart: 4 },
+  reqActions: { flexDirection: 'row', gap: 5, marginStart: 4 },
+  waReqBtn: {
+    backgroundColor: '#25D366' + '22',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: '#25D366' + '55',
+  },
+  waReqBtnText: { fontSize: 13 },
   editReqBtn: {
     backgroundColor: theme.color.border,
     paddingHorizontal: 10,

@@ -64,6 +64,7 @@ function SwipeableTaskRow({
   canDelete,
   canFinance,
   canArchive,
+  exchangeRate,
 }: {
   task: Task;
   statusColor: string;
@@ -82,6 +83,7 @@ function SwipeableTaskRow({
   canDelete: boolean;
   canFinance: boolean;
   canArchive: boolean;
+  exchangeRate: number;
 }) {
   const { t } = useTranslation();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -196,6 +198,7 @@ function SwipeableTaskRow({
           onServicePress={onServicePress}
           onPin={onPin}
           cardStyle={{ marginBottom: 0 }}
+          exchangeRate={exchangeRate}
         />
       </Animated.View>
     </View>
@@ -448,9 +451,10 @@ export default function DashboardScreen() {
     if (!authLoading) fetchData();
   }, [fetchData, authLoading]);
 
-  // Refresh tasks when navigating back (picks up client profile edits)
+  // Refresh tasks when navigating back — clear search so full list is shown
   useFocusEffect(useCallback(() => {
     if (!authLoading) fetchData();
+    setFilters((f) => ({ ...f, search: '' }));
   }, [fetchData, authLoading]));
 
   // Overdue check — once per day, fires a local notification for past-due files
@@ -637,16 +641,56 @@ export default function DashboardScreen() {
   };
 
 
-  // Compute which cities and services appear in the current set (for filter chips)
-  const tasksInCurrentSet = useMemo(
-    () => showArchived ? archivedTasks : activeTasks,
-    [showArchived, activeTasks, archivedTasks]
+  // Helper: apply all filters except the one named, then split by active/archive.
+  // This keeps chip options contextual (search + other chips applied) while
+  // still allowing multi-select (a chip's own filter is excluded from its pool).
+  const applyFiltersExcept = useCallback(
+    (exclude: 'service' | 'city') => {
+      return tasks.filter((task) => {
+        // archive/active split
+        if (showArchived ? !isTaskArchived(task) : isTaskArchived(task)) return false;
+        // search
+        if (
+          filters.search &&
+          !task.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
+          !task.service?.name.toLowerCase().includes(filters.search.toLowerCase())
+        ) return false;
+        // service filter — skip when building service chip list
+        if (exclude !== 'service' && filters.serviceIds.length > 0 && !filters.serviceIds.includes(task.service_id)) return false;
+        // city filter — skip when building city chip list
+        if (exclude !== 'city' && filters.cityIds.length > 0) {
+          const hasCity = task.route_stops?.some((s) => s.city_id && filters.cityIds.includes(s.city_id));
+          if (!hasCity) return false;
+        }
+        if (filters.ministryId) {
+          const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
+          if (!hasMinistry) return false;
+        }
+        if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+        return true;
+      });
+    },
+    [tasks, filters, showArchived]
   );
 
+  const availableServices = useMemo(() => {
+    const pool = applyFiltersExcept('service');
+    const seen = new Set<string>();
+    const result: Service[] = [];
+    for (const task of pool) {
+      if (task.service_id && task.service && !seen.has(task.service_id)) {
+        seen.add(task.service_id);
+        result.push(task.service as Service);
+      }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [applyFiltersExcept]);
+
   const availableCities = useMemo(() => {
+    const pool = applyFiltersExcept('city');
     const seen = new Set<string>();
     const result: City[] = [];
-    for (const task of tasksInCurrentSet) {
+    for (const task of pool) {
       for (const stop of task.route_stops ?? []) {
         if (stop.city_id && stop.city && !seen.has(stop.city_id)) {
           seen.add(stop.city_id);
@@ -655,19 +699,7 @@ export default function DashboardScreen() {
       }
     }
     return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasksInCurrentSet]);
-
-  const availableServices = useMemo(() => {
-    const seen = new Set<string>();
-    const result: Service[] = [];
-    for (const task of tasksInCurrentSet) {
-      if (task.service_id && task.service && !seen.has(task.service_id)) {
-        seen.add(task.service_id);
-        result.push(task.service as Service);
-      }
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasksInCurrentSet]);
+  }, [applyFiltersExcept]);
 
   const activeFilterCount =
     (filters.serviceIds.length > 0 ? filters.serviceIds.length : 0) +
@@ -723,6 +755,7 @@ export default function DashboardScreen() {
           canDelete={permissions.can_delete_files}
           canArchive={permissions.can_edit_file_details}
           canFinance={permissions.can_add_expenses || permissions.can_add_revenue}
+          exchangeRate={organization?.usd_to_lbp_rate ?? 89500}
         />
       );
     },

@@ -15,6 +15,7 @@ import {
  FlatList,
  Switch,
  KeyboardAvoidingView,
+ Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -912,6 +913,13 @@ export default function NewTaskScreen() {
 
  const [saving, setSaving] = useState(false);
 
+ // ── Required docs bottom-sheet ────────────────────────────
+ const [showDocSheet, setShowDocSheet]           = useState(false);
+ const [sheetDocs, setSheetDocs]                 = useState<any[]>([]);
+ const [sheetDocReqs, setSheetDocReqs]           = useState<Record<string, any[]>>({});
+ const [sheetExpandedId, setSheetExpandedId]     = useState<string | null>(null);
+ const [loadingSheetDocs, setLoadingSheetDocs]   = useState(false);
+
  // Stage inline rename
  const [editingStageIdx, setEditingStageIdx] = useState<number | null>(null);
  const [editingStageName, setEditingStageName] = useState('');
@@ -947,10 +955,64 @@ export default function NewTaskScreen() {
  const loadServiceDefaultStages = async (serviceId: string) => {
    const { data } = await supabase
      .from('service_default_stages')
-     .select('*, ministry:ministries(*)')
+     .select('*, ministry:ministries(*, city:cities(id,name))')
      .eq('service_id', serviceId)
      .order('stop_order');
-   setRouteStops(data && data.length > 0 ? data.map((d: any) => d.ministry as Ministry) : []);
+   if (data && data.length > 0) {
+     const ministries = data.map((d: any) => d.ministry as Ministry);
+     setRouteStops(ministries);
+     // Pre-populate stageCityMap from each ministry's default city
+     const cityMap: Record<string, { cityId: string; cityName: string } | null> = {};
+     for (const m of ministries) {
+       if (m.city_id && (m as any).city?.name) {
+         cityMap[m.id] = { cityId: m.city_id, cityName: (m as any).city.name };
+       }
+     }
+     setStageCityMap(cityMap);
+   } else {
+     setRouteStops([]);
+     setStageCityMap({});
+   }
+ };
+
+ // ── Required docs sheet handlers ──────────────────────────
+ const loadServiceDocsForSheet = async (serviceId: string) => {
+   setLoadingSheetDocs(true);
+   setSheetDocs([]);
+   setSheetDocReqs({});
+   setSheetExpandedId(null);
+   const { data: docs } = await supabase
+     .from('service_documents')
+     .select('*')
+     .eq('service_id', serviceId)
+     .order('sort_order');
+   const docList = docs ?? [];
+   setSheetDocs(docList);
+   if (docList.length > 0) {
+     const results = await Promise.all(
+       docList.map((d: any) =>
+         supabase.from('service_document_requirements')
+           .select('*').eq('doc_id', d.id).order('sort_order')
+       )
+     );
+     const reqs: Record<string, any[]> = {};
+     docList.forEach((d: any, i: number) => { reqs[d.id] = results[i].data ?? []; });
+     setSheetDocReqs(reqs);
+   }
+   setLoadingSheetDocs(false);
+ };
+
+ const handleShareDocsWhatsApp = () => {
+   if (!selectedService || sheetDocs.length === 0) return;
+   const lines: string[] = [`📋 *${selectedService.name}* — Required Documents:\n`];
+   sheetDocs.forEach((doc: any, idx: number) => {
+     lines.push(`${idx + 1}. *${doc.title}*`);
+     (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+   });
+   const msg = encodeURIComponent(lines.join('\n'));
+   Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
+     Alert.alert('Error', 'Could not open WhatsApp.')
+   );
  };
 
  const handleDeleteService = (item: PickerItem) => {
@@ -1007,7 +1069,7 @@ export default function NewTaskScreen() {
  const [c, sv, m, tm, ci, asgn] = await Promise.all([
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
- supabase.from('ministries').select('*').order('name'),
+ supabase.from('ministries').select('*, city:cities(id,name)').order('name'),
  supabase.from('team_members').select('*').order('name'),
  supabase.from('cities').select('*').order('name'),
  supabase.from('assignees').select('*').order('name'),
@@ -1029,11 +1091,18 @@ export default function NewTaskScreen() {
  };
 
  const toggleStage = (stage: Ministry) => {
- if (routeStops.find((r) => r.id === stage.id)) {
- setRouteStops((prev) => prev.filter((r) => r.id !== stage.id));
- } else {
- setRouteStops((prev) => [...prev, stage]);
- }
+   if (routeStops.find((r) => r.id === stage.id)) {
+     setRouteStops((prev) => prev.filter((r) => r.id !== stage.id));
+   } else {
+     setRouteStops((prev) => [...prev, stage]);
+     // Auto-populate city from ministry's default if it has one and isn't already set
+     if (stage.city_id && (stage as any).city?.name) {
+       setStageCityMap(prev => ({
+         ...prev,
+         [stage.id]: prev[stage.id] ?? { cityId: stage.city_id!, cityName: (stage as any).city!.name },
+       }));
+     }
+   }
  };
 
  const removeRouteStop = (stageId: string) => {
@@ -1465,6 +1534,15 @@ export default function NewTaskScreen() {
  />
  {selectedService && (
  <Text style={s.hint}>Est. {selectedService.estimated_duration_days} days</Text>
+ )}
+ {selectedService && (
+   <TouchableOpacity
+     style={s.docsSheetBtn}
+     onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(selectedService.id); }}
+     activeOpacity={0.75}
+   >
+     <Text style={s.docsSheetBtnText}>📋 Required Documents</Text>
+   </TouchableOpacity>
  )}
  <TouchableOpacity
  style={s.addInlineBtn}
@@ -2043,6 +2121,85 @@ export default function NewTaskScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── REQUIRED DOCS SHEET ── */}
+      <Modal
+        visible={showDocSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDocSheet(false)}
+      >
+        <View style={ds.overlay}>
+          <View style={ds.sheet}>
+            {/* Header */}
+            <View style={ds.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={ds.title}>📋 Required Documents</Text>
+                {selectedService && (
+                  <Text style={ds.subtitle}>{selectedService.name}</Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setShowDocSheet(false)}>
+                <Text style={ds.close}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Body */}
+            {loadingSheetDocs ? (
+              <ActivityIndicator color={theme.color.primary} style={{ margin: 32 }} />
+            ) : sheetDocs.length === 0 ? (
+              <Text style={ds.empty}>No documents listed for this service.</Text>
+            ) : (
+              <ScrollView
+                contentContainerStyle={{ padding: theme.spacing.space3 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {sheetDocs.map((doc: any, idx: number) => {
+                  const reqs = sheetDocReqs[doc.id] ?? [];
+                  const isOpen = sheetExpandedId === doc.id;
+                  return (
+                    <View key={doc.id} style={ds.docCard}>
+                      <TouchableOpacity
+                        style={ds.docRow}
+                        onPress={() => setSheetExpandedId(isOpen ? null : doc.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={ds.docNum}>{idx + 1}.</Text>
+                        <Text style={ds.docTitle} numberOfLines={2}>{doc.title}</Text>
+                        {reqs.length > 0 && (
+                          <View style={ds.badge}>
+                            <Text style={ds.badgeText}>{reqs.length}</Text>
+                          </View>
+                        )}
+                        {reqs.length > 0 && (
+                          <Text style={ds.arrow}>{isOpen ? '▼' : '▶'}</Text>
+                        )}
+                      </TouchableOpacity>
+                      {isOpen && reqs.length > 0 && (
+                        <View style={ds.reqList}>
+                          {reqs.map((r: any) => (
+                            <View key={r.id} style={ds.reqRow}>
+                              <Text style={ds.reqBullet}>•</Text>
+                              <Text style={ds.reqTitle}>{r.title}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* WhatsApp share */}
+            {sheetDocs.length > 0 && (
+              <TouchableOpacity style={ds.waBtn} onPress={handleShareDocsWhatsApp}>
+                <Text style={ds.waBtnText}>💬 Share via WhatsApp</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
  );
 }
@@ -2268,4 +2425,46 @@ const s = StyleSheet.create({
     paddingVertical: 10,
   },
   editClientSaveText: { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
+
+  // Required docs sheet button
+  docsSheetBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.color.primary + '18',
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: theme.color.primary + '44',
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  docsSheetBtnText: {
+    color: theme.color.primaryText,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});
+
+// ─── Required Docs Sheet styles ───────────────────────────────
+const ds = StyleSheet.create({
+  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet:     { backgroundColor: theme.color.bgSurface, borderTopLeftRadius: theme.radius.xl, borderTopRightRadius: theme.radius.xl, maxHeight: '75%', paddingBottom: theme.spacing.space4 },
+  header:    { flexDirection: 'row', alignItems: 'flex-start', padding: theme.spacing.space4, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  title:     { color: theme.color.textPrimary, fontSize: 17, fontWeight: '700' },
+  subtitle:  { color: theme.color.textSecondary, fontSize: 13, marginTop: 2 },
+  close:     { color: theme.color.textSecondary, fontSize: 20, padding: 4 },
+  empty:     { color: theme.color.textMuted, padding: theme.spacing.space4, textAlign: 'center' },
+  docCard:   { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
+  docRow:    { flexDirection: 'row', alignItems: 'center', padding: theme.spacing.space3, gap: 8 },
+  docNum:    { color: theme.color.textMuted, fontSize: 13, minWidth: 20, fontWeight: '600' },
+  docTitle:  { flex: 1, color: theme.color.textPrimary, fontSize: 14, fontWeight: '600' },
+  badge:     { backgroundColor: theme.color.primary + '33', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
+  badgeText: { color: theme.color.primaryText, fontSize: 10, fontWeight: '700' },
+  arrow:     { color: theme.color.textMuted, fontSize: 11 },
+  reqList:   { paddingHorizontal: theme.spacing.space3, paddingBottom: theme.spacing.space2, gap: 4 },
+  reqRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  reqBullet: { color: theme.color.primary, fontSize: 16, lineHeight: 20 },
+  reqTitle:  { flex: 1, color: theme.color.textSecondary, fontSize: 13, lineHeight: 20 },
+  waBtn:     { margin: theme.spacing.space3, marginTop: theme.spacing.space2, backgroundColor: '#25D366', borderRadius: theme.radius.lg, paddingVertical: 13, alignItems: 'center' },
+  waBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

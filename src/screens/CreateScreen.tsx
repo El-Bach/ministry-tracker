@@ -26,7 +26,7 @@ import supabase from '../lib/supabase';
 import { useTranslation } from '../lib/i18n';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
-import { Client, Service, Ministry, ServiceDocument } from '../types';
+import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement } from '../types';
 import { formatPhoneDisplay } from '../lib/phone';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
@@ -186,6 +186,12 @@ export default function CreateScreen() {
   const [docImportRaw, setDocImportRaw]         = useState('');
   const [docImportTitles, setDocImportTitles]   = useState<string[]>([]);
   const [importingDocs, setImportingDocs]       = useState(false);
+  // ── Service document sub-requirements ────────────────────
+  const [expandedDocReqId, setExpandedDocReqId] = useState<string | null>(null);
+  const [docReqs, setDocReqs] = useState<Record<string, ServiceDocumentRequirement[]>>({});
+  const [loadingDocReqs, setLoadingDocReqs] = useState<string | null>(null);
+  const [docReqNewTitle, setDocReqNewTitle] = useState('');
+  const [savingDocReq, setSavingDocReq] = useState(false);
 
   // ── Barcode parse helper ──────────────────────────────────
   const parseBarcodeData = (data: string): { name: string; phone: string } => {
@@ -654,6 +660,13 @@ export default function CreateScreen() {
   const fetchServiceDocs = async (serviceId: string) => {
     const { data } = await supabase.from('service_documents').select('*').eq('service_id', serviceId).order('sort_order');
     setServiceDocs(prev => ({ ...prev, [serviceId]: (data ?? []) as ServiceDocument[] }));
+    // Pre-fetch sub-req counts for badge display (fire-and-forget)
+    for (const doc of data ?? []) {
+      supabase.from('service_document_requirements').select('id').eq('doc_id', doc.id)
+        .then(({ data: rd }) => {
+          if (rd) setDocReqs(prev => ({ ...prev, [doc.id]: rd as ServiceDocumentRequirement[] }));
+        });
+    }
   };
 
   const handleToggleDocExpand = async (serviceId: string) => {
@@ -695,6 +708,58 @@ export default function CreateScreen() {
   const handleResetChecks = async (serviceId: string) => {
     await supabase.from('service_documents').update({ is_checked: false }).eq('service_id', serviceId);
     setServiceDocs(prev => ({ ...prev, [serviceId]: (prev[serviceId] ?? []).map(d => ({ ...d, is_checked: false })) }));
+  };
+
+  const handleShareServiceDocsWhatsApp = (svcName: string, docs: any[]) => {
+    if (docs.length === 0) return;
+    const lines = [`📋 *${svcName}* — Required Documents:\n`];
+    docs.forEach((doc, idx) => {
+      lines.push(`${idx + 1}. *${doc.title}*`);
+      (docReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+    });
+    const msg = encodeURIComponent(lines.join('\n'));
+    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
+      Alert.alert('Error', 'Could not open WhatsApp.')
+    );
+  };
+
+  // ── Service document sub-requirement handlers ─────────────
+  const fetchDocReqs = async (docId: string) => {
+    setLoadingDocReqs(docId);
+    const { data } = await supabase
+      .from('service_document_requirements')
+      .select('*')
+      .eq('doc_id', docId)
+      .order('sort_order');
+    setDocReqs(prev => ({ ...prev, [docId]: (data ?? []) as ServiceDocumentRequirement[] }));
+    setLoadingDocReqs(null);
+  };
+
+  const handleToggleDocReqExpand = async (docId: string) => {
+    if (expandedDocReqId === docId) { setExpandedDocReqId(null); return; }
+    setExpandedDocReqId(docId);
+    if (!docReqs[docId]) await fetchDocReqs(docId);
+  };
+
+  const handleAddDocReq = async (docId: string) => {
+    const trimmed = docReqNewTitle.trim();
+    if (!trimmed) return;
+    setSavingDocReq(true);
+    const reqs = docReqs[docId] ?? [];
+    const { data } = await supabase
+      .from('service_document_requirements')
+      .insert({ doc_id: docId, title: trimmed, sort_order: reqs.length + 1, org_id: orgId })
+      .select().single();
+    setSavingDocReq(false);
+    if (data) {
+      setDocReqs(prev => ({ ...prev, [docId]: [...(prev[docId] ?? []), data as ServiceDocumentRequirement] }));
+      setDocReqNewTitle('');
+    }
+  };
+
+  const handleDeleteDocReq = async (docId: string, reqId: string) => {
+    await supabase.from('service_document_requirements').delete().eq('id', reqId);
+    setDocReqs(prev => ({ ...prev, [docId]: (prev[docId] ?? []).filter(r => r.id !== reqId) }));
   };
 
   const parseDocImport = (raw: string): string[] =>
@@ -1632,7 +1697,6 @@ export default function CreateScreen() {
                               onPress={() => {
                                 setStageCityPickerId(v => v === m.id ? null : m.id);
                                 setStageCitySearch('');
-                                setExpandedStageReqId(null);
                               }}
                               activeOpacity={0.7}
                             >
@@ -1643,13 +1707,7 @@ export default function CreateScreen() {
                               );
                             })()}
                           </View>
-                          <TouchableOpacity
-                            style={[s.mgmtReqBtn, expandedStageReqId === m.id && { backgroundColor: theme.color.successDim }]}
-                            onPress={() => { setStageCityPickerId(null); handleToggleStageReqExpand(m.id); }}
-                          >
-                            <Text style={s.mgmtReqBtnText}>{expandedStageReqId === m.id ? '▲ Req' : '📋 Req'}</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setExpandedStageReqId(null); setStageCityPickerId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
+                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setStageCityPickerId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
                             <Text style={s.mgmtEditBtnText}>✎</Text>
                           </TouchableOpacity>
                           <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
@@ -1724,41 +1782,6 @@ export default function CreateScreen() {
                                 <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: 12 }}>No cities match "{stageCitySearch}"</Text>
                               )}
                             </ScrollView>
-                          </View>
-                        )}
-                        {expandedStageReqId === m.id && (
-                          <View style={s.inlinePanel}>
-                            {loadingStageReqs === m.id ? (
-                              <ActivityIndicator color={theme.color.primary} style={{ margin: 12 }} />
-                            ) : (
-                              <>
-                                <Text style={s.inlinePanelLabel}>REQUIREMENTS</Text>
-                                {(stageReqs[m.id] ?? []).length === 0 ? (
-                                  <Text style={s.inlinePanelEmpty}>No requirements yet. Add one below.</Text>
-                                ) : (
-                                  (stageReqs[m.id] ?? []).map((req) => (
-                                    <View key={req.id} style={s.inlineReqRow}>
-                                      <Text style={s.inlineReqTitle}>{req.title}</Text>
-                                      <TouchableOpacity onPress={() => handleDeleteStageReq(m.id, req.id)} style={[s.inlineStageBtn, { backgroundColor: theme.color.dangerDim }]}>
-                                        <Text style={[s.inlineStageBtnText, { color: theme.color.danger }]}>✕</Text>
-                                      </TouchableOpacity>
-                                    </View>
-                                  ))
-                                )}
-                                <View style={s.inlineAddRow}>
-                                  <TextInput
-                                    style={[s.mgmtSearchInput, { flex: 1 }]}
-                                    value={stageReqNewTitle}
-                                    onChangeText={setStageReqNewTitle}
-                                    placeholder="Requirement title..."
-                                    placeholderTextColor={theme.color.textMuted}
-                                  />
-                                  <TouchableOpacity style={s.inlineAddBtn} onPress={() => handleAddStageReq(m.id)} disabled={savingNewStageReq}>
-                                    {savingNewStageReq ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.inlineAddBtnText}>＋</Text>}
-                                  </TouchableOpacity>
-                                </View>
-                              </>
-                            )}
                           </View>
                         )}
                       </View>
@@ -2272,16 +2295,95 @@ export default function CreateScreen() {
                     {isExpanded && (
                       <View style={s.docListPanel}>
                         {docs.length === 0 && <Text style={s.docEmpty}>No documents added yet</Text>}
-                        {docs.map((doc, idx) => (
-                          <TouchableOpacity key={doc.id} style={s.docRow} onPress={() => handleToggleDocCheck(doc)} activeOpacity={0.7}>
-                            <Text style={s.docNumber}>{idx + 1}.</Text>
-                            <Text style={[s.docCheck, doc.is_checked && s.docCheckDone]}>{doc.is_checked ? '☑' : '☐'}</Text>
-                            <Text style={[s.docTitle, doc.is_checked && s.docTitleDone]} numberOfLines={2}>{doc.title}</Text>
-                            <TouchableOpacity onPress={() => handleDeleteDoc(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Text style={s.docDelete}>✕</Text>
-                            </TouchableOpacity>
-                          </TouchableOpacity>
-                        ))}
+                        {docs.map((doc, idx) => {
+                          const subreqs = docReqs[doc.id] ?? [];
+                          const isReqOpen = expandedDocReqId === doc.id;
+                          return (
+                            <View key={doc.id}>
+                              {/* ── Main document row ── */}
+                              <View style={s.docRow}>
+                                <Text style={s.docNumber}>{idx + 1}.</Text>
+                                <TouchableOpacity onPress={() => handleToggleDocCheck(doc)} activeOpacity={0.7}>
+                                  <Text style={[s.docCheck, doc.is_checked && s.docCheckDone]}>
+                                    {doc.is_checked ? '☑' : '☐'}
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={{ flex: 1 }} onPress={() => handleToggleDocCheck(doc)} activeOpacity={0.7}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Text style={[s.docTitle, doc.is_checked && s.docTitleDone]} numberOfLines={2}>
+                                      {doc.title}
+                                    </Text>
+                                    {subreqs.length > 0 && (
+                                      <View style={s.docReqBadge}>
+                                        <Text style={s.docReqBadgeText}>{subreqs.length}</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                </TouchableOpacity>
+                                {/* Expand toggle for sub-requirements */}
+                                <TouchableOpacity
+                                  onPress={() => handleToggleDocReqExpand(doc.id)}
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  style={{ paddingHorizontal: 4 }}
+                                >
+                                  <Text style={{ color: theme.color.textMuted, fontSize: 11 }}>
+                                    {isReqOpen ? '▼' : '▶'}
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteDoc(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                  <Text style={s.docDelete}>✕</Text>
+                                </TouchableOpacity>
+                              </View>
+                              {/* ── Sub-requirements panel ── */}
+                              {isReqOpen && (
+                                <View style={s.docReqPanel}>
+                                  {loadingDocReqs === doc.id ? (
+                                    <ActivityIndicator color={theme.color.primary} style={{ margin: 8 }} />
+                                  ) : (
+                                    <>
+                                      {subreqs.length === 0 && (
+                                        <Text style={s.docReqEmpty}>No sub-requirements yet. Add below.</Text>
+                                      )}
+                                      {subreqs.map(req => (
+                                        <View key={req.id} style={s.docSubReqRow}>
+                                          <Text style={s.docSubReqBullet}>•</Text>
+                                          <Text style={s.docSubReqTitle}>{req.title}</Text>
+                                          <TouchableOpacity
+                                            onPress={() => handleDeleteDocReq(doc.id, req.id)}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                          >
+                                            <Text style={s.docDelete}>✕</Text>
+                                          </TouchableOpacity>
+                                        </View>
+                                      ))}
+                                      {/* Add sub-req input */}
+                                      <View style={s.docAddRow}>
+                                        <TextInput
+                                          style={s.docAddInput}
+                                          value={isReqOpen ? docReqNewTitle : ''}
+                                          onChangeText={setDocReqNewTitle}
+                                          placeholder="Add required paper..."
+                                          placeholderTextColor={theme.color.textMuted}
+                                          returnKeyType="done"
+                                          onSubmitEditing={() => handleAddDocReq(doc.id)}
+                                        />
+                                        <TouchableOpacity
+                                          style={[s.docAddBtn, (!docReqNewTitle.trim() || savingDocReq) && { opacity: 0.5 }]}
+                                          onPress={() => handleAddDocReq(doc.id)}
+                                          disabled={savingDocReq || !docReqNewTitle.trim()}
+                                        >
+                                          {savingDocReq
+                                            ? <ActivityIndicator size="small" color={theme.color.white} />
+                                            : <Text style={s.docAddBtnText}>＋</Text>}
+                                        </TouchableOpacity>
+                                      </View>
+                                    </>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
                         {/* Add document inline */}
                         <View style={s.docAddRow}>
                           <TextInput
@@ -2305,6 +2407,13 @@ export default function CreateScreen() {
                             }}
                           >
                             <Text style={s.docImportToggleBtnText}>📥</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[s.docImportToggleBtn, { backgroundColor: '#25D366' }]}
+                            onPress={() => handleShareServiceDocsWhatsApp(svc.name, docs)}
+                            disabled={docs.length === 0}
+                          >
+                            <Text style={s.docImportToggleBtnText}>💬</Text>
                           </TouchableOpacity>
                         </View>
                         {/* Excel import panel */}
@@ -3103,6 +3212,56 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   docAddBtnText:  { color: theme.color.white, fontWeight: '700', fontSize: 16 },
+
+  // Sub-requirement styles
+  docReqBadge: {
+    backgroundColor: theme.color.primary + '33',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  docReqBadgeText: {
+    color: theme.color.primaryText,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  docReqPanel: {
+    backgroundColor: theme.color.bgBase,
+    marginHorizontal: theme.spacing.space2,
+    marginBottom: theme.spacing.space2,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.space2,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  docSubReqRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  docSubReqBullet: {
+    color: theme.color.primary,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  docSubReqTitle: {
+    flex: 1,
+    color: theme.color.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  docReqEmpty: {
+    color: theme.color.textMuted,
+    fontSize: 12,
+    padding: theme.spacing.space2,
+    textAlign: 'center',
+  },
+
   docResetBtn: {
     marginHorizontal: theme.spacing.space3,
     marginTop:        theme.spacing.space2,

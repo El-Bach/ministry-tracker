@@ -151,6 +151,15 @@ export interface FileTransaction {
   created_at: string;
 }
 
+export interface ServiceDocumentRequirement {
+  id: string;
+  doc_id: string;
+  title: string;
+  sort_order: number;
+  org_id?: string;
+  created_at: string;
+}
+
 export interface ServiceDocument {
   id: string;
   service_id: string;
@@ -158,6 +167,7 @@ export interface ServiceDocument {
   sort_order: number;
   is_checked: boolean;
   created_at: string;
+  requirements?: ServiceDocumentRequirement[];
 }
 
 export interface Task {

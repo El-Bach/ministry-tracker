@@ -261,6 +261,13 @@ export default function TaskDetailScreen() {
   const [stageNameEdit, setStageNameEdit] = useState('');
   const [savingStageNameId, setSavingStageNameId] = useState<string | null>(null);
 
+  // Service documents sheet
+  const [showDocSheet, setShowDocSheet]         = useState(false);
+  const [sheetDocs, setSheetDocs]               = useState<any[]>([]);
+  const [sheetDocReqs, setSheetDocReqs]         = useState<Record<string, any[]>>({});
+  const [sheetExpandedId, setSheetExpandedId]   = useState<string | null>(null);
+  const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
+
   const fetchTask = useCallback(async () => {
     const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
       supabase
@@ -928,24 +935,31 @@ export default function TaskDetailScreen() {
           .select('id, status')
           .eq('task_id', taskId);
 
+        const TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
         let newTaskStatus = newStatus;
         let shouldArchive = false;
         if (allStops) {
           const allDone = allStops.every((s: { id: string; status: string }, i: number) =>
             (i === allStops.findIndex((x: { id: string }) => x.id === stop.id))
-              ? newStatus === 'Done'
-              : s.status === 'Done'
+              ? TERMINAL.includes(newStatus)
+              : TERMINAL.includes(s.status)
           );
           newTaskStatus = allDone ? 'Done' : newStatus;
           shouldArchive = allDone;
         }
 
+        // Auto-set due_date to today when file closes (if not already set)
+        const todayStr = now.slice(0, 10); // YYYY-MM-DD
         await supabase
           .from('tasks')
           .update({
             current_status: newTaskStatus,
             updated_at: now,
-            ...(shouldArchive ? { is_archived: true, closed_at: now } : {}),
+            ...(shouldArchive ? {
+              is_archived: true,
+              closed_at: now,
+              ...(!task?.due_date ? { due_date: todayStr } : {}),
+            } : {}),
           })
           .eq('id', taskId);
 
@@ -1416,6 +1430,52 @@ export default function TaskDetailScreen() {
     Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`);
   };
 
+  // ─── Service documents sheet ──────────────────────────────
+  const loadServiceDocsForSheet = async (serviceId: string) => {
+    setLoadingSheetDocs(true);
+    setSheetDocs([]);
+    setSheetDocReqs({});
+    setSheetExpandedId(null);
+    const { data: docs } = await supabase
+      .from('service_documents')
+      .select('*')
+      .eq('service_id', serviceId)
+      .order('sort_order');
+    const docList = docs ?? [];
+    setSheetDocs(docList);
+    if (docList.length > 0) {
+      const results = await Promise.all(
+        docList.map((d: any) =>
+          supabase.from('service_document_requirements')
+            .select('*').eq('doc_id', d.id).order('sort_order')
+        )
+      );
+      const reqs: Record<string, any[]> = {};
+      docList.forEach((d: any, i: number) => { reqs[d.id] = results[i].data ?? []; });
+      setSheetDocReqs(reqs);
+    }
+    setLoadingSheetDocs(false);
+  };
+
+  const handleToggleSheetDocCheck = async (doc: any) => {
+    const newVal = !doc.is_checked;
+    setSheetDocs(prev => prev.map(d => d.id === doc.id ? { ...d, is_checked: newVal } : d));
+    await supabase.from('service_documents').update({ is_checked: newVal }).eq('id', doc.id);
+  };
+
+  const handleShareDocsWhatsApp = () => {
+    if (!task?.service || sheetDocs.length === 0) return;
+    const lines = [`📋 *${task.service.name}* — Required Documents:\n`];
+    sheetDocs.forEach((doc: any, idx: number) => {
+      lines.push(`${idx + 1}. *${doc.title}*`);
+      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+    });
+    const msg = encodeURIComponent(lines.join('\n'));
+    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
+      Alert.alert('Error', 'Could not open WhatsApp.')
+    );
+  };
+
   // ─── Duplicate task ───────────────────────────────────────
   const handleDuplicateTask = () => {
     if (!task) return;
@@ -1433,16 +1493,19 @@ export default function TaskDetailScreen() {
               const { data: newTask, error: taskErr } = await supabase
                 .from('tasks')
                 .insert({
-                  client_id: task.client_id,
-                  service_id: task.service_id,
+                  client_id:      task.client_id,
+                  service_id:     task.service_id,
+                  assigned_to:    task.assigned_to    ?? null,
+                  ext_assignee_id: task.ext_assignee_id ?? null,
                   current_status: 'Submitted',
-                  due_date: null,
-                  notes: task.notes ?? null,
-                  price_usd: task.price_usd ?? 0,
-                  price_lbp: task.price_lbp ?? 0,
-                  created_at: now,
-                  updated_at: now,
-                  org_id: teamMember?.org_id ?? null,
+                  due_date:       null,
+                  notes:          task.notes          ?? null,
+                  price_usd:      task.price_usd      ?? 0,
+                  price_lbp:      task.price_lbp      ?? 0,
+                  is_archived:    false,
+                  created_at:     now,
+                  updated_at:     now,
+                  org_id:         teamMember?.org_id  ?? null,
                 })
                 .select()
                 .single();
@@ -1451,10 +1514,11 @@ export default function TaskDetailScreen() {
               const sortedStops = [...(task.route_stops ?? [])].sort((a, b) => a.stop_order - b.stop_order);
               if (sortedStops.length > 0) {
                 const newStops = sortedStops.map((s, idx) => ({
-                  task_id: newTask.id,
+                  task_id:    newTask.id,
                   ministry_id: s.ministry_id,
                   stop_order: idx + 1,
-                  status: 'Pending',
+                  status:     'Pending',
+                  city_id:    s.city_id ?? null,
                 }));
                 const { error: stopsErr } = await supabase.from('task_route_stops').insert(newStops);
                 if (stopsErr) throw stopsErr;
@@ -1468,7 +1532,15 @@ export default function TaskDetailScreen() {
 
               setDuplicating(false);
               Alert.alert('File Duplicated', 'New file created successfully.', [
-                { text: 'Open New File', onPress: () => navigation.replace('TaskDetail', { taskId: newTask.id }) },
+                {
+                  text: 'Open New File',
+                  onPress: () => {
+                    // Go back to dashboard first (triggers useFocusEffect refresh),
+                    // then push the new file's detail on top.
+                    navigation.navigate('DashboardHome');
+                    setTimeout(() => navigation.navigate('TaskDetail', { taskId: newTask.id }), 50);
+                  },
+                },
                 { text: 'Stay Here', style: 'cancel' },
               ]);
             } catch (e: any) {
@@ -1563,10 +1635,33 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
+          {/* ROW 1: SERVICE (left) + DOCUMENTS (right) — equal width, same level */}
           <View style={s.metaGrid}>
             <View style={s.metaCell}>
               <Text style={s.metaLabel}>SERVICE</Text>
-              <Text style={s.metaValue}>{task.service?.name}</Text>
+              <Text style={s.metaValue} numberOfLines={2}>{task.service?.name}</Text>
+            </View>
+            <View style={s.metaCell}>
+              <Text style={s.metaLabel}>DOCUMENTS</Text>
+              {task.service?.id ? (
+                <TouchableOpacity
+                  onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(task.service!.id); }}
+                  activeOpacity={0.75}
+                  style={ds.docSheetChip}
+                >
+                  <Text style={ds.docSheetChipText}>📋 Required Docs</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={[s.metaValue, { color: theme.color.textMuted }]}>—</Text>
+              )}
+            </View>
+          </View>
+
+          {/* ROW 2: OPENED (left) + DUE DATE (right) — equal width, same level */}
+          <View style={s.metaGrid}>
+            <View style={s.metaCell}>
+              <Text style={s.metaLabel}>OPENED</Text>
+              <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
             </View>
             <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
               <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
@@ -1574,10 +1669,6 @@ export default function TaskDetailScreen() {
                 {task.due_date ? formatDateOnly(task.due_date) : 'Tap to set'}
               </Text>
             </TouchableOpacity>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>OPENED</Text>
-              <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
-            </View>
           </View>
 
           {task.notes ? (
@@ -1994,16 +2085,6 @@ export default function TaskDetailScreen() {
                               ? <ActivityIndicator size="small" color={theme.color.white} />
                               : <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>💾 Save</Text>}
                           </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.bgBase, borderColor: theme.color.primary, borderWidth: 1 }]}
-                            onPress={() => navigation.navigate('StageRequirements', {
-                              stopId: stop.id,
-                              stageName: stop.ministry?.name ?? 'Requirements',
-                              taskId,
-                            })}
-                          >
-                            <Text style={[s.stageNameBtnText, { color: theme.color.primary }]}>📋 {t('requirementsSection')}</Text>
-                          </TouchableOpacity>
                         </View>
                       </View>
                     )}
@@ -2415,7 +2496,7 @@ export default function TaskDetailScreen() {
             </View>
             {contractPriceUSD > 0 && (
               <View style={s.balanceRow}>
-                <Text style={s.balanceLabel}>{t('outstanding').toUpperCase()}</Text>
+                <Text style={s.balanceLabel}>{t('balance').toUpperCase()}</Text>
                 <Text style={[s.balanceCol, outstandingUSD > 0 ? s.negative : s.positive]}>{fmtUSD(outstandingUSD)}</Text>
                 <Text style={[s.balanceColLBP, contractPriceLBP > 0 ? (outstandingLBP > 0 ? s.negative : s.positive) : s.balanceRevenueLBP]}>{fmtLBP(outstandingLBP)}</Text>
               </View>
@@ -2427,7 +2508,7 @@ export default function TaskDetailScreen() {
             </View>
             <View style={s.balanceDivider} />
             <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>{t('balance').toUpperCase()} (P&L)</Text>
+              <Text style={s.balanceTotalLabel}>RESULT (P&L)</Text>
               <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
                 {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
               </Text>
@@ -3559,6 +3640,73 @@ export default function TaskDetailScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+      {/* ── SERVICE DOCUMENTS SHEET ── */}
+      <Modal visible={showDocSheet} transparent animationType="slide" onRequestClose={() => setShowDocSheet(false)}>
+        <View style={ds.overlay}>
+          <View style={ds.sheet}>
+            <View style={ds.header}>
+              <View style={{ flex: 1 }}>
+                <Text style={ds.title}>📋 Required Documents</Text>
+                {task?.service && <Text style={ds.subtitle}>{task.service.name}</Text>}
+              </View>
+              <TouchableOpacity onPress={() => setShowDocSheet(false)}>
+                <Text style={ds.close}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {loadingSheetDocs ? (
+              <ActivityIndicator color={theme.color.primary} style={{ margin: 32 }} />
+            ) : sheetDocs.length === 0 ? (
+              <Text style={ds.empty}>No documents listed for this service.</Text>
+            ) : (
+              <ScrollView contentContainerStyle={{ padding: theme.spacing.space3 }} keyboardShouldPersistTaps="handled">
+                {sheetDocs.map((doc: any, idx: number) => {
+                  const reqs = sheetDocReqs[doc.id] ?? [];
+                  const isOpen = sheetExpandedId === doc.id;
+                  return (
+                    <View key={doc.id} style={ds.docCard}>
+                      <View style={ds.docRow}>
+                        <TouchableOpacity onPress={() => handleToggleSheetDocCheck(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Text style={[ds.docCheck, doc.is_checked && ds.docCheckDone]}>
+                            {doc.is_checked ? '☑' : '☐'}
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={ds.docNum}>{idx + 1}.</Text>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => handleToggleSheetDocCheck(doc)} activeOpacity={0.7}>
+                          <Text style={[ds.docTitle, doc.is_checked && ds.docTitleDone]} numberOfLines={2}>{doc.title}</Text>
+                        </TouchableOpacity>
+                        {reqs.length > 0 && (
+                          <View style={ds.badge}><Text style={ds.badgeText}>{reqs.length}</Text></View>
+                        )}
+                        {reqs.length > 0 && (
+                          <TouchableOpacity onPress={() => setSheetExpandedId(isOpen ? null : doc.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={ds.arrow}>{isOpen ? '▼' : '▶'}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {isOpen && reqs.length > 0 && (
+                        <View style={ds.reqList}>
+                          {reqs.map((r: any) => (
+                            <View key={r.id} style={ds.reqRow}>
+                              <Text style={ds.reqBullet}>•</Text>
+                              <Text style={ds.reqTitle}>{r.title}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {sheetDocs.length > 0 && (
+              <TouchableOpacity style={ds.waBtn} onPress={handleShareDocsWhatsApp}>
+                <Text style={ds.waBtnText}>💬 Share via WhatsApp</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -3581,8 +3729,8 @@ const s = StyleSheet.create({
   clientName:        { ...theme.typography.heading, fontSize: 20, fontWeight: '800' },
   clientProfileHint: { ...theme.typography.caption, color: theme.color.primary, fontWeight: '600', marginTop: 2 },
   clientSub:         { ...theme.typography.body, color: theme.color.textSecondary, marginTop: 2 },
-  metaGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  metaCell:          { width: '45%', gap: 3 },
+  metaGrid:          { flexDirection: 'row', gap: 14 },
+  metaCell:          { flex: 1, gap: 3 },
   metaLabel:         { ...theme.typography.sectionDivider, fontSize: theme.typography.caption.fontSize },
   metaValue:         { ...theme.typography.label, color: theme.color.textSecondary, fontWeight: '600' },
 
@@ -4615,4 +4763,33 @@ const s = StyleSheet.create({
   dueDateCalendarCard: { backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
   dueDateClearBtn:     { padding: theme.spacing.space3, alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.color.border },
   dueDateClearBtnText: { color: theme.color.danger, fontSize: 13, fontWeight: '600' },
+});
+
+// ─── Service Documents Sheet styles ───────────────────────────────────────────
+const ds = StyleSheet.create({
+  overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet:         { backgroundColor: theme.color.bgSurface, borderTopLeftRadius: theme.radius.xl, borderTopRightRadius: theme.radius.xl, maxHeight: '75%', paddingBottom: theme.spacing.space4 },
+  header:        { flexDirection: 'row', alignItems: 'flex-start', padding: theme.spacing.space4, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  title:         { color: theme.color.textPrimary, fontSize: 17, fontWeight: '700' },
+  subtitle:      { color: theme.color.textSecondary, fontSize: 13, marginTop: 2 },
+  close:         { color: theme.color.textSecondary, fontSize: 20, padding: 4 },
+  empty:         { color: theme.color.textMuted, padding: theme.spacing.space4, textAlign: 'center' },
+  docCard:       { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, borderWidth: 1, borderColor: theme.color.border, overflow: 'hidden' },
+  docRow:        { flexDirection: 'row', alignItems: 'center', padding: theme.spacing.space3, gap: 6 },
+  docCheck:      { fontSize: 20, color: theme.color.textMuted, width: 24 },
+  docCheckDone:  { color: theme.color.success },
+  docNum:        { color: theme.color.textMuted, fontSize: 13, minWidth: 18, fontWeight: '600' },
+  docTitle:      { flex: 1, color: theme.color.textPrimary, fontSize: 14, fontWeight: '600' },
+  docTitleDone:  { color: theme.color.textMuted, textDecorationLine: 'line-through' },
+  badge:         { backgroundColor: theme.color.primary + '33', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
+  badgeText:     { color: theme.color.primaryText, fontSize: 10, fontWeight: '700' },
+  arrow:         { color: theme.color.textMuted, fontSize: 11, paddingHorizontal: 4 },
+  reqList:       { paddingHorizontal: theme.spacing.space3, paddingBottom: theme.spacing.space2, gap: 4 },
+  reqRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 2 },
+  reqBullet:     { color: theme.color.primary, fontSize: 16, lineHeight: 20 },
+  reqTitle:      { flex: 1, color: theme.color.textSecondary, fontSize: 13, lineHeight: 20 },
+  waBtn:         { margin: theme.spacing.space3, marginTop: theme.spacing.space2, backgroundColor: '#25D366', borderRadius: theme.radius.lg, paddingVertical: 13, alignItems: 'center' },
+  waBtnText:     { color: '#fff', fontSize: 15, fontWeight: '700' },
+  docSheetChip:  { backgroundColor: theme.color.primary + '18', borderRadius: theme.radius.md, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: theme.color.primary + '44', alignSelf: 'flex-start' },
+  docSheetChipText: { fontSize: 13, color: theme.color.primaryText, fontWeight: '600' },
 });

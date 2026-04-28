@@ -58,7 +58,10 @@
       "Bash(node -e \"try { require\\('./node_modules/expo-clipboard'\\); console.log\\('expo-clipboard OK'\\); } catch\\(e\\) { console.log\\('MISSING:', e.message\\); }\")",
       "Bash(taskkill /F /IM node.exe)",
       "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(Select-String -Path \"D:\\\\ministry-tracker-master\\\\src\\\\screens\\\\NewTaskScreen.tsx\" -Pattern \"SafeAreaView\")",
+      "Bash(Select-Object LineNumber, Line)",
+      "Bash(Format-Table -AutoSize)"
     ]
   },
   "hooks": {
