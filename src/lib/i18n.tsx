@@ -75,7 +75,9 @@ export type TranslationKey =
   | 'yes' | 'no' | 'required' | 'ok' | 'confirm'
   | 'importBtn' | 'preview'
   | 'noEventsToday' | 'stageDue'
-  | 'city' | 'reference' | 'notes' | 'loading' | 'noResults' | 'add' | 'remove';
+  | 'city' | 'reference' | 'notes' | 'loading' | 'noResults' | 'add' | 'remove'
+  // ── duplicate client ───────────────────────────────────────────────────────
+  | 'duplicateClient' | 'createAnyway' | 'allDuplicates' | 'skippedDuplicates';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -219,6 +221,10 @@ const ar: Translations = {
   noResults: 'لا توجد نتائج',
   add: 'إضافة',
   remove: 'إزالة',
+  duplicateClient: 'عميل مكرر',
+  createAnyway: 'إنشاء على أي حال',
+  allDuplicates: 'كلها مكررة',
+  skippedDuplicates: 'تم تخطي المكررات',
 };
 
 const en: Translations = {
@@ -361,6 +367,10 @@ const en: Translations = {
   noResults: 'No results',
   add: 'Add',
   remove: 'Remove',
+  duplicateClient: 'Duplicate Client',
+  createAnyway: 'Create Anyway',
+  allDuplicates: 'All Duplicates',
+  skippedDuplicates: 'Duplicates Skipped',
 };
 
 const fr: Translations = {
@@ -503,6 +513,10 @@ const fr: Translations = {
   noResults: 'Aucun résultat',
   add: 'Ajouter',
   remove: 'Supprimer',
+  duplicateClient: 'Client en double',
+  createAnyway: 'Créer quand même',
+  allDuplicates: 'Tous en double',
+  skippedDuplicates: 'Doublons ignorés',
 };
 
 // Fallback: use English for all other languages

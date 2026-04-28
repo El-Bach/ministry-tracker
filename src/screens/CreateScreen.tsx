@@ -247,6 +247,39 @@ export default function CreateScreen() {
   const handleCreateClientWithFields = async () => {
     if (!newClientName.trim()) { Alert.alert(t('required'), 'Client name is required.'); return; }
     setSavingClient(true);
+
+    // ── Duplicate check ──────────────────────────────────────────────────────
+    const orFilters: string[] = [`name.ilike.${newClientName.trim()}`];
+    if (newClientPhone.trim()) orFilters.push(`phone.eq.${newClientPhone.trim()}`);
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, name, phone, client_id')
+      .eq('org_id', orgId)
+      .or(orFilters.join(','))
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const reason = (existing as any).name?.toLowerCase() === newClientName.trim().toLowerCase()
+        ? `name "${(existing as any).name}"`
+        : `phone "${(existing as any).phone}"`;
+      setSavingClient(false);
+      Alert.alert(
+        t('duplicateClient'),
+        `A client already exists with this ${reason} (${(existing as any).client_id}).\n\nCreate anyway?`,
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('createAnyway'), onPress: () => doInsertClient() },
+        ]
+      );
+      return;
+    }
+
+    doInsertClient();
+  };
+
+  const doInsertClient = async () => {
+    setSavingClient(true);
     const autoId = `CLT-${Date.now()}`;
     const { data, error } = await supabase
       .from('clients')
@@ -677,7 +710,28 @@ export default function CreateScreen() {
   const handleImportClients = async () => {
     if (!clientImportRows.length) return;
     setImportingClients(true);
-    const inserts = clientImportRows.map((r, i) => ({
+
+    // ── Duplicate check ──────────────────────────────────────────────────────
+    const { data: existingClients } = await supabase
+      .from('clients').select('name, phone').eq('org_id', orgId);
+    const existingNames  = new Set((existingClients ?? []).map((c: any) => c.name?.toLowerCase()));
+    const existingPhones = new Set((existingClients ?? []).map((c: any) => c.phone).filter(Boolean));
+
+    const duplicates: string[] = [];
+    const uniqueRows = clientImportRows.filter(r => {
+      const isDup = existingNames.has(r.name.toLowerCase()) ||
+                    (r.phone && existingPhones.has(r.phone));
+      if (isDup) { duplicates.push(r.name); return false; }
+      return true;
+    });
+
+    if (uniqueRows.length === 0) {
+      setImportingClients(false);
+      Alert.alert(t('allDuplicates'), `All clients already exist:\n${duplicates.join(', ')}`);
+      return;
+    }
+
+    const inserts = uniqueRows.map((r, i) => ({
       name: r.name,
       client_id: `CLT-${Date.now()}-${i}`,
       phone: r.phone || null,
@@ -691,7 +745,8 @@ export default function CreateScreen() {
     const { data } = await supabase.from('clients').select('*').order('name');
     if (data) setClients(data as Client[]);
     setShowClientImport(false); setClientImportRaw(''); setClientImportRows([]);
-    Alert.alert('Imported', `${inserts.length} client${inserts.length !== 1 ? 's' : ''} added.`);
+    const skippedMsg = duplicates.length > 0 ? `\n${t('skippedDuplicates')}: ${duplicates.join(', ')}` : '';
+    Alert.alert('Imported', `${inserts.length} client${inserts.length !== 1 ? 's' : ''} added.${skippedMsg}`);
   };
 
   // ── Stages import helpers ─────────────────────────────────
