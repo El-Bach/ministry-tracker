@@ -376,11 +376,9 @@ export default function StageRequirementsScreen() {
             {done}/{total} completed
           </Text>
           <View style={s.summaryActions}>
-            {!!clientPhone && (
-              <TouchableOpacity style={s.waBtn} onPress={sendWhatsApp}>
-                <Text style={s.waBtnText}>💬 WhatsApp</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity style={s.waBtn} onPress={sendWhatsApp}>
+              <Text style={s.waBtnText}>💬 WhatsApp</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={s.addBtn} onPress={openAdd}>
               <Text style={s.addBtnText}>+ Add</Text>
             </TouchableOpacity>
