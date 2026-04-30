@@ -270,6 +270,7 @@ interface Filters {
   ministryId: string;
   cityIds: string[];      // multi-select
   teamMemberId: string;
+  overdueOnly: boolean;
 }
 
 
@@ -313,6 +314,7 @@ export default function DashboardScreen() {
     ministryId: '',
     cityIds: [],
     teamMemberId: '',
+    overdueOnly: false,
   });
 
   const [showArchived, setShowArchived] = useState(false);
@@ -529,6 +531,11 @@ export default function DashboardScreen() {
       if (!hasMinistry) return false;
     }
     if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+    if (filters.overdueOnly) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!task.due_date || new Date(task.due_date + 'T00:00:00') >= today) return false;
+    }
     return true;
   });
 
@@ -693,6 +700,11 @@ export default function DashboardScreen() {
           if (!hasMinistry) return false;
         }
         if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+        if (filters.overdueOnly) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (!task.due_date || new Date(task.due_date + 'T00:00:00') >= today) return false;
+        }
         return true;
       });
     },
@@ -730,7 +742,8 @@ export default function DashboardScreen() {
   const activeFilterCount =
     (filters.serviceIds.length > 0 ? filters.serviceIds.length : 0) +
     (filters.cityIds.length > 0 ? filters.cityIds.length : 0) +
-    (filters.ministryId ? 1 : 0);
+    (filters.ministryId ? 1 : 0) +
+    (filters.overdueOnly ? 1 : 0);
 
   // Summary bar stats (active tasks only)
   const summaryStats = useMemo(() => {
@@ -746,7 +759,13 @@ export default function DashboardScreen() {
         .reduce((s, x) => s + x.amount_usd, 0);
       return sum + Math.max(0, (t.price_usd ?? 0) - paid);
     }, 0);
-    return { active: active.length, overdue, dueUSD };
+    const dueLBP = active.reduce((sum, t) => {
+      const paid = (t.transactions ?? [])
+        .filter((x) => x.type === 'revenue')
+        .reduce((s, x) => s + x.amount_lbp, 0);
+      return sum + Math.max(0, (t.price_lbp ?? 0) - paid);
+    }, 0);
+    return { active: active.length, overdue, dueUSD, dueLBP };
   }, [tasks]);
 
   // Stable named renderItem — avoids FlatList re-renders on every state change
@@ -868,6 +887,23 @@ export default function DashboardScreen() {
       {/* Expanded filter panel */}
       {showFilters && (
         <View style={styles.filterPanel}>
+          {/* Overdue filter */}
+          <Text style={styles.filterSectionLabel}>STATUS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            <TouchableOpacity
+              style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
+              onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
+            >
+              <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, filters.overdueOnly && styles.chipOverdue]}
+              onPress={() => setFilters((f) => ({ ...f, overdueOnly: !f.overdueOnly }))}
+            >
+              <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
+            </TouchableOpacity>
+          </ScrollView>
+
           {/* Service filter — only services present in current task set */}
           <Text style={styles.filterSectionLabel}>
             SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
@@ -966,11 +1002,11 @@ export default function DashboardScreen() {
           <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger]}>
             Overdue: {summaryStats.overdue}
           </Text>
-          {permissions.can_see_contract_price && (
+          {permissions.can_see_contract_price && (summaryStats.dueUSD > 0 || summaryStats.dueLBP > 0) && (
             <>
               <Text style={styles.summaryDot}> · </Text>
-              <Text style={[styles.summaryItem, summaryStats.dueUSD > 0 && styles.summaryPrimary]}>
-                Due ${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              <Text style={[styles.summaryItem, styles.summaryPrimary]}>
+                Due{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
               </Text>
             </>
           )}
@@ -1697,6 +1733,14 @@ const styles = StyleSheet.create({
   summaryDot:     { ...theme.typography.caption, color: theme.color.textMuted },
   summaryDanger:  { color: theme.color.danger },
   summaryPrimary: { color: theme.color.primary },
+  chipOverdue: {
+    backgroundColor: '#7f1d1d',
+    borderColor: theme.color.danger,
+  },
+  chipTextOverdue: {
+    color: theme.color.danger,
+    fontWeight: '700',
+  },
   // Global search button
   globalSearchBtn: {
     backgroundColor:   theme.color.bgSurface,
