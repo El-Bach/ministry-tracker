@@ -297,10 +297,14 @@ export default function VisibilitySettingsScreen() {
     }));
 
     setSaving(true);
+    // Always upsert the FULL settings object — a partial upsert would create a
+    // new row where unset fields fall back to DB column defaults (mostly true),
+    // incorrectly granting permissions that were never explicitly enabled.
+    const fullSettings = { ...settings[activeRole], [key]: value };
     const payload = {
       org_id:    teamMember.org_id,
       role:      activeRole,
-      [key]:     value,
+      ...fullSettings,
       updated_at: new Date().toISOString(),
     };
 

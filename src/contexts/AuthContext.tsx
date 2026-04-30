@@ -33,12 +33,15 @@ const MEMBER_DEFAULTS: OrgPermissions = {
 };
 
 const VIEWER_DEFAULTS: OrgPermissions = {
-  can_see_all_files: true, can_create_files: false, can_edit_file_details: false,
+  // Restrictive by default — viewer sees only files assigned to them,
+  // cannot create/edit/delete files, cannot access financial data.
+  // Matches VisibilitySettingsScreen.VIEWER_DEFAULTS exactly.
+  can_see_all_files: false, can_create_files: false, can_edit_file_details: false,
   can_delete_files: false, can_update_stage_status: true, can_add_edit_stages: false,
   can_see_contract_price: false, can_see_financial_report: false, can_add_revenue: false,
-  can_add_expenses: false, can_edit_contract_price: false, can_delete_transactions: false,
-  can_upload_documents: false, can_delete_documents: false, can_manage_clients: false,
-  can_add_comments: false, can_delete_comments: false, can_manage_catalog: false,
+  can_add_expenses: true, can_edit_contract_price: false, can_delete_transactions: false,
+  can_upload_documents: true, can_delete_documents: false, can_manage_clients: false,
+  can_add_comments: true, can_delete_comments: false, can_manage_catalog: false,
   can_edit_delete_clients: false,
 };
 
