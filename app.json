@@ -37,9 +37,7 @@
       ]
     },
     "updates": {
-      "enabled": true,
-      "url": "https://u.expo.dev/3e7ca54c-2ac7-4356-b47a-75f77c55afd4",
-      "fallbackToCacheTimeout": 0
+      "enabled": false
     },
     "plugins": [
       "expo-camera",
