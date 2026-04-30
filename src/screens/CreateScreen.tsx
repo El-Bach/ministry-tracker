@@ -2287,7 +2287,7 @@ export default function CreateScreen() {
                     {/* Service header row */}
                     <TouchableOpacity style={s.docSvcRow} onPress={() => handleToggleDocExpand(svc.id)} activeOpacity={0.7}>
                       <Text style={s.docSvcName}>{svc.name}</Text>
-                      {isExpanded && docs.length > 0 && (
+                      {docs.length > 0 && (
                         <Text style={s.docSvcBadge}>{checkedCount}/{docs.length} ✓</Text>
                       )}
                       <Text style={s.docSvcArrow}>{isExpanded ? '▲' : '▼'}</Text>
