@@ -903,22 +903,26 @@ export default function DashboardScreen() {
       {/* Expanded filter panel */}
       {showFilters && (
         <View style={styles.filterPanel}>
-          {/* Overdue filter */}
-          <Text style={styles.filterSectionLabel}>STATUS</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
-            >
-              <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>All</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.chip, filters.overdueOnly && styles.chipOverdue]}
-              onPress={() => setFilters((f) => ({ ...f, overdueOnly: !f.overdueOnly }))}
-            >
-              <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
-            </TouchableOpacity>
-          </ScrollView>
+          {/* Overdue filter — only shown when there are overdue files */}
+          {summaryStats.overdue > 0 && (
+            <>
+              <Text style={styles.filterSectionLabel}>STATUS</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                <TouchableOpacity
+                  style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
+                >
+                  <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, filters.overdueOnly && styles.chipOverdue]}
+                  onPress={() => setFilters((f) => ({ ...f, overdueOnly: !f.overdueOnly }))}
+                >
+                  <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </>
+          )}
 
           {/* Service filter — only services present in current task set */}
           <Text style={styles.filterSectionLabel}>
@@ -1375,6 +1379,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
   searchRow: {
     flexDirection:     'row',
+    alignItems:        'center',
     gap:               theme.spacing.space2 + 2,
     paddingHorizontal: theme.spacing.space4,
     paddingVertical:   theme.spacing.space2 + 2,
