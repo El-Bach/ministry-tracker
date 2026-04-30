@@ -253,7 +253,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Calendar: undefined;
-  Create: undefined;
+  Create: { openSection?: 'clients' | 'services' | 'stages' } | undefined;
   Settings: undefined;
 };
 

@@ -18,7 +18,7 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Calendar } from 'react-native-calendars';
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -26,7 +26,7 @@ import supabase from '../lib/supabase';
 import { useTranslation } from '../lib/i18n';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
-import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement } from '../types';
+import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement, MainTabParamList } from '../types';
 import { formatPhoneDisplay } from '../lib/phone';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
@@ -42,6 +42,7 @@ function openPhone(phone: string, name?: string) {
 
 export default function CreateScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<MainTabParamList, 'Create'>>();
   const { teamMember, permissions } = useAuth();
   const { t } = useTranslation();
   const orgId = teamMember?.org_id ?? null;
@@ -231,6 +232,16 @@ export default function CreateScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+
+  // Open specific section when navigated here from the welcome overlay
+  useFocusEffect(useCallback(() => {
+    const section = (route.params as any)?.openSection as ManageSection | undefined;
+    if (section) {
+      setManageSection(section);
+      // Clear the param so it doesn't re-trigger on next focus
+      navigation.setParams({ openSection: undefined });
+    }
+  }, [route.params]));
 
   // ── Handlers ──────────────────────────────────────────────
   const openNewClientForm = async () => {

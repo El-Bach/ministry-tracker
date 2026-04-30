@@ -338,6 +338,12 @@ export default function DashboardScreen() {
     setShowWelcome(false);
   };
 
+  const goToCreateSection = async (section?: 'clients' | 'services' | 'stages') => {
+    await closeWelcome();
+    // Navigate to the Create tab (sibling tab), optionally opening a section
+    navigation.getParent()?.navigate('Create', section ? { openSection: section } : undefined);
+  };
+
   // Bulk select mode — removed per user request
 
   // Activity unread badge
@@ -1254,19 +1260,27 @@ export default function DashboardScreen() {
               </Text>
 
               {/* Steps */}
-              {[
-                { n: '1', icon: '➕', title: 'Open the Create window', body: 'Click the Create button at the bottom of the page to open the setup panel.' },
-                { n: '2', icon: '👤', title: 'Add your clients', body: 'Insert the clients that will be associated with your files and cases.' },
-                { n: '3', icon: '⚙️', title: 'Define services', body: 'Add the services offered. These will be available when filling out files on the dashboard.' },
-                { n: '4', icon: '🗂️', title: 'Configure stages & other entries', body: 'Set up workflow stages and any additional required entries for your organization.' },
-                { n: '5', icon: '🏠', title: 'Return to the dashboard', body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.' },
-              ].map((step) => (
+              {([
+                { n: '1', icon: '➕', title: 'Open the Create window',        body: 'Click the Create button at the bottom of the page to open the setup panel.',             action: () => goToCreateSection() },
+                { n: '2', icon: '👤', title: 'Add your clients',               body: 'Insert the clients that will be associated with your files and cases.',                  action: () => goToCreateSection('clients') },
+                { n: '3', icon: '⚙️', title: 'Define services',                body: 'Add the services offered. These will be available when filling out files on the dashboard.', action: () => goToCreateSection('services') },
+                { n: '4', icon: '🗂️', title: 'Configure stages & other entries', body: 'Set up workflow stages and any additional required entries for your organization.',    action: () => goToCreateSection('stages') },
+                { n: '5', icon: '🏠', title: 'Return to the dashboard',        body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.', action: null },
+              ] as const).map((step) => (
                 <View key={step.n} style={styles.welcomeStep}>
                   <View style={styles.welcomeStepNum}>
                     <Text style={styles.welcomeStepNumText}>{step.n}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.welcomeStepTitle}>{step.icon}  {step.title}</Text>
+                    {step.action ? (
+                      <TouchableOpacity onPress={step.action} activeOpacity={0.7}>
+                        <Text style={[styles.welcomeStepTitle, styles.welcomeStepLink]}>
+                          {step.icon}  {step.title}  ›
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.welcomeStepTitle}>{step.icon}  {step.title}</Text>
+                    )}
                     <Text style={styles.welcomeStepBody}>{step.body}</Text>
                   </View>
                 </View>
@@ -1956,6 +1970,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
     marginBottom: 3,
+  },
+  welcomeStepLink: {
+    color: theme.color.primary,
+    textDecorationLine: 'underline',
   },
   welcomeStepBody: {
     fontSize: 12,
