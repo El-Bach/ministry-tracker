@@ -218,6 +218,7 @@ export interface OrgPermissions {
   can_delete_files: boolean;
   can_update_stage_status: boolean;
   can_add_edit_stages: boolean;
+  can_see_file_financials: boolean;   // gate for the entire Financials section inside a file
   can_see_contract_price: boolean;
   can_see_financial_report: boolean;
   can_add_revenue: boolean;

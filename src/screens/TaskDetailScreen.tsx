@@ -2423,6 +2423,7 @@ export default function TaskDetailScreen() {
         </View>
 
         {/* ── FINANCIALS ── */}
+        {permissions.can_see_file_financials && (
         <View style={s.section}>
           {/* Title row */}
           <View style={s.sectionTitleRow}>
@@ -2949,6 +2950,7 @@ export default function TaskDetailScreen() {
             })
           )}
         </View>
+        )}
 
       </KeyboardAwareScrollView>
 
