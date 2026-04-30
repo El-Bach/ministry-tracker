@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TeamMember } from '../types';
 import { normalizeToEmail, isPhoneInput } from '../lib/authHelpers';
 import { LANGUAGES, Language, saveLanguage, getCurrentLang, useTranslation } from '../lib/i18n';
@@ -455,7 +455,7 @@ export default function SettingsScreen() {
 
  const fetchData = useCallback(async () => {
  const [tmRes, invRes] = await Promise.all([
- supabase.from('team_members').select('*').order('name'),
+ supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
  supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
  ]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);
@@ -463,7 +463,7 @@ export default function SettingsScreen() {
  setLoading(false);
  }, []);
 
- useEffect(() => { fetchData(); }, [fetchData]);
+ useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
  // ─── Delete helpers ───────────────────────────────────────
  const confirmDelete = (label: string, onConfirm: () => void) => {
