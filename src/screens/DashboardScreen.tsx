@@ -530,7 +530,11 @@ export default function DashboardScreen() {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
     }
-    if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+    if (filters.teamMemberId) {
+      const assignedAtTask  = task.assigned_to === filters.teamMemberId;
+      const assignedAtStage = (task.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+      if (!assignedAtTask && !assignedAtStage) return false;
+    }
     if (filters.overdueOnly) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -699,7 +703,11 @@ export default function DashboardScreen() {
           const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
           if (!hasMinistry) return false;
         }
-        if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+        if (filters.teamMemberId) {
+          const assignedAtTask  = task.assigned_to === filters.teamMemberId;
+          const assignedAtStage = (task.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+          if (!assignedAtTask && !assignedAtStage) return false;
+        }
         if (filters.overdueOnly) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -753,7 +761,11 @@ export default function DashboardScreen() {
     const active = tasks.filter((t) => {
       if (isTaskArchived(t)) return false;
       // Mirror the teamMember filter so "My Files" mode is consistent
-      if (filters.teamMemberId && t.assigned_to !== filters.teamMemberId) return false;
+      if (filters.teamMemberId) {
+        const atTask  = t.assigned_to === filters.teamMemberId;
+        const atStage = (t.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+        if (!atTask && !atStage) return false;
+      }
       // Mirror service / city / search filters
       if (filters.search &&
         !t.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
