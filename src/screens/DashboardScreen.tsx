@@ -745,11 +745,27 @@ export default function DashboardScreen() {
     (filters.ministryId ? 1 : 0) +
     (filters.overdueOnly ? 1 : 0);
 
-  // Summary bar stats (active tasks only)
+  // Summary bar stats — mirrors the same filters as filteredTasks so counts
+  // always match what the list actually shows (active, non-archived tasks only)
   const summaryStats = useMemo(() => {
-    const active = tasks.filter((t) => !isTaskArchived(t));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const active = tasks.filter((t) => {
+      if (isTaskArchived(t)) return false;
+      // Mirror the teamMember filter so "My Files" mode is consistent
+      if (filters.teamMemberId && t.assigned_to !== filters.teamMemberId) return false;
+      // Mirror service / city / search filters
+      if (filters.search &&
+        !t.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !t.service?.name.toLowerCase().includes(filters.search.toLowerCase())
+      ) return false;
+      if (filters.serviceIds.length > 0 && !filters.serviceIds.includes(t.service_id)) return false;
+      if (filters.cityIds.length > 0) {
+        const hasCity = t.route_stops?.some((s) => s.city_id && filters.cityIds.includes(s.city_id));
+        if (!hasCity) return false;
+      }
+      return true;
+    });
     const overdue = active.filter(
       (t) => t.due_date && new Date(t.due_date + 'T00:00:00') < today
     ).length;
@@ -766,7 +782,7 @@ export default function DashboardScreen() {
       return sum + Math.max(0, (t.price_lbp ?? 0) - paid);
     }, 0);
     return { active: active.length, overdue, dueUSD, dueLBP };
-  }, [tasks]);
+  }, [tasks, filters]);
 
   // Stable named renderItem — avoids FlatList re-renders on every state change
   const allStatusColorsMap = useMemo(
