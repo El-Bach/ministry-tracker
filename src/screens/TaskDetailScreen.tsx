@@ -1425,6 +1425,7 @@ export default function TaskDetailScreen() {
     if (task.due_date) parts.push(`تاريخ الاستحقاق: ${formatDateOnly(task.due_date)}`);
     if (stops.length > 0) parts.push(`\n*المراحل:*\n${stageLines}`);
     if (task.notes) parts.push(`\nملاحظات: ${task.notes}`);
+    parts.push('\n_GovPilot, Powered by KTS_');
 
     const msg = parts.join('\n');
     Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`);
@@ -1467,9 +1468,15 @@ export default function TaskDetailScreen() {
     if (!task?.service || sheetDocs.length === 0) return;
     const lines = [`📋 *${task.service.name}* — Required Documents:\n`];
     sheetDocs.forEach((doc: any, idx: number) => {
-      lines.push(`${idx + 1}. *${doc.title}*`);
-      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+      if (doc.is_checked) {
+        lines.push(`~${idx + 1}. ${doc.title}~`);
+        (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   ~• ${r.title}~`));
+      } else {
+        lines.push(`${idx + 1}. *${doc.title}*`);
+        (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+      }
     });
+    lines.push('\n_GovPilot, Powered by KTS_');
     const msg = encodeURIComponent(lines.join('\n'));
     Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
       Alert.alert('Error', 'Could not open WhatsApp.')

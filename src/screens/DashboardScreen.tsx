@@ -273,12 +273,14 @@ interface Filters {
 }
 
 
-// A task is archived when all its stops are Done or Rejected (or DB flag)
+const TERMINAL_STATUSES = new Set(['Done', 'Rejected', 'Received & Closed']);
+
+// A task is archived when all its stops are terminal (Done/Rejected/Received & Closed) or DB flag
 function isTaskArchived(task: Task): boolean {
   const stopsTotal = task.route_stops?.length ?? 0;
   return (
     task.is_archived === true ||
-    (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done' || s.status === 'Rejected'))
+    (stopsTotal > 0 && task.route_stops!.every((s) => TERMINAL_STATUSES.has(s.status)))
   );
 }
 

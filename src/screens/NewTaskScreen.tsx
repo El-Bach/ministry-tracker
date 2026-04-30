@@ -1009,6 +1009,7 @@ export default function NewTaskScreen() {
      lines.push(`${idx + 1}. *${doc.title}*`);
      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
    });
+   lines.push('\n_GovPilot, Powered by KTS_');
    const msg = encodeURIComponent(lines.join('\n'));
    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
      Alert.alert('Error', 'Could not open WhatsApp.')

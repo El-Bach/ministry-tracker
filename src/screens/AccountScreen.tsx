@@ -232,7 +232,7 @@ export default function AccountScreen() {
 
   const handleUpgradePress = (planKey: string) => {
     const msg = encodeURIComponent(
-      `Hi, I'd like to upgrade my GovPilot account to the ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan.\n\nOrganization: ${organization?.name ?? '—'}\nEmail: ${teamMember?.email ?? '—'}`
+      `Hi, I'd like to upgrade my GovPilot account to the ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan.\n\nOrganization: ${organization?.name ?? '—'}\nEmail: ${teamMember?.email ?? '—'}\n\n_GovPilot, Powered by KTS_`
     );
     Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`).catch(() =>
       Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade to ${planKey} Plan&body=${decodeURIComponent(msg)}`)
