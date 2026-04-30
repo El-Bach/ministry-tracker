@@ -320,6 +320,24 @@ export default function DashboardScreen() {
 
   const [services, setServices] = useState<Service[]>([]);
 
+  // ── Welcome overlay ──────────────────────────────────────────
+  const WELCOME_DISMISSED_KEY = '@welcome_dismissed';
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeNeverShow, setWelcomeNeverShow] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(WELCOME_DISMISSED_KEY).then((val) => {
+      if (val !== 'true') setShowWelcome(true);
+    });
+  }, []);
+
+  const closeWelcome = async () => {
+    if (welcomeNeverShow) {
+      await AsyncStorage.setItem(WELCOME_DISMISSED_KEY, 'true');
+    }
+    setShowWelcome(false);
+  };
+
   // Bulk select mode — removed per user request
 
   // Activity unread badge
@@ -812,6 +830,13 @@ export default function DashboardScreen() {
             )}
           </View>
         </TouchableOpacity>
+        {/* Help button */}
+        <TouchableOpacity
+          style={styles.helpBtn}
+          onPress={() => { setWelcomeNeverShow(false); setShowWelcome(true); }}
+        >
+          <Text style={styles.helpBtnText}>?</Text>
+        </TouchableOpacity>
       </View>
 
       {/* My Files / All Files toggle */}
@@ -1215,6 +1240,64 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ── Welcome / Help overlay ── */}
+      <Modal visible={showWelcome} transparent animationType="fade" onRequestClose={closeWelcome}>
+        <View style={styles.welcomeOverlay}>
+          <View style={styles.welcomeCard}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.space4 }}>
+              {/* Title */}
+              <Text style={styles.welcomeTitle}>👋 Welcome to GovPilot</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Before you can work on cases in the dashboard, you'll need to set up your workspace. Follow the steps below to get started.
+              </Text>
+
+              {/* Steps */}
+              {[
+                { n: '1', icon: '➕', title: 'Open the Create window', body: 'Click the Create button at the bottom of the page to open the setup panel.' },
+                { n: '2', icon: '👤', title: 'Add your clients', body: 'Insert the clients that will be associated with your files and cases.' },
+                { n: '3', icon: '⚙️', title: 'Define services', body: 'Add the services offered. These will be available when filling out files on the dashboard.' },
+                { n: '4', icon: '🗂️', title: 'Configure stages & other entries', body: 'Set up workflow stages and any additional required entries for your organization.' },
+                { n: '5', icon: '🏠', title: 'Return to the dashboard', body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.' },
+              ].map((step) => (
+                <View key={step.n} style={styles.welcomeStep}>
+                  <View style={styles.welcomeStepNum}>
+                    <Text style={styles.welcomeStepNumText}>{step.n}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.welcomeStepTitle}>{step.icon}  {step.title}</Text>
+                    <Text style={styles.welcomeStepBody}>{step.body}</Text>
+                  </View>
+                </View>
+              ))}
+
+              {/* Ready banner */}
+              <View style={styles.welcomeReady}>
+                <Text style={styles.welcomeReadyText}>✅  You're ready to go!</Text>
+              </View>
+
+              {/* Never show again */}
+              <TouchableOpacity
+                style={styles.welcomeCheckRow}
+                onPress={() => setWelcomeNeverShow((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.welcomeCheckBox, welcomeNeverShow && styles.welcomeCheckBoxTicked]}>
+                  {welcomeNeverShow && <Text style={styles.welcomeCheckMark}>✓</Text>}
+                </View>
+                <Text style={styles.welcomeCheckLabel}>
+                  Don't show this welcome screen again
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Close button */}
+            <TouchableOpacity style={styles.welcomeCloseBtn} onPress={closeWelcome}>
+              <Text style={styles.welcomeCloseBtnText}>Got it  →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>
@@ -1787,4 +1870,158 @@ const styles = StyleSheet.create({
     borderColor: theme.color.border,
   },
   bulkCancelBtnText: { color: theme.color.textMuted, fontWeight: '700', fontSize: 13 },
+
+  // ── Help button ──────────────────────────────────────────────
+  helpBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.color.bgSurface,
+    borderWidth: 1,
+    borderColor: theme.color.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helpBtnText: {
+    color: theme.color.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
+  // ── Welcome overlay ──────────────────────────────────────────
+  welcomeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.space4,
+  },
+  welcomeCard: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.space5,
+    width: '100%',
+    maxHeight: '88%',
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.color.textPrimary,
+    marginBottom: theme.spacing.space2,
+    textAlign: 'center',
+  },
+  welcomeSubtitle: {
+    fontSize: 13,
+    color: theme.color.textSecondary,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: theme.spacing.space4,
+  },
+  welcomeStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.space3,
+    marginBottom: theme.spacing.space3,
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.space3,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  welcomeStepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.color.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  welcomeStepNumText: {
+    color: theme.color.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  welcomeStepTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+    marginBottom: 3,
+  },
+  welcomeStepBody: {
+    fontSize: 12,
+    color: theme.color.textSecondary,
+    lineHeight: 17,
+  },
+  welcomeReady: {
+    backgroundColor: '#064e3b',
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.space2 + 2,
+    paddingHorizontal: theme.spacing.space3,
+    marginTop: theme.spacing.space2,
+    marginBottom: theme.spacing.space4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.color.success,
+  },
+  welcomeReadyText: {
+    color: theme.color.success,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  welcomeCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.space2 + 2,
+    marginBottom: theme.spacing.space4,
+    paddingHorizontal: 2,
+  },
+  welcomeCheckBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.bgBase,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  welcomeCheckBoxTicked: {
+    borderColor: theme.color.primary,
+    backgroundColor: theme.color.primary,
+  },
+  welcomeCheckMark: {
+    color: theme.color.white,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  welcomeCheckLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.color.textSecondary,
+    lineHeight: 17,
+  },
+  welcomeCloseBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.space3,
+    alignItems: 'center',
+    marginTop: theme.spacing.space2,
+  },
+  welcomeCloseBtnText: {
+    color: theme.color.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
