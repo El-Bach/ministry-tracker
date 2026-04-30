@@ -148,7 +148,7 @@ export default function ClientProfileScreen() {
   const [generatingStatement, setGeneratingStatement] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [clientRes, tasksRes, labelsRes, fieldsRes] = await Promise.all([
+    const [clientRes, tasksRes, labelsRes, fieldsRes, blocksRes] = await Promise.all([
       supabase.from('clients').select('*').eq('id', clientId).single(),
       supabase
         .from('tasks')
@@ -160,14 +160,33 @@ export default function ClientProfileScreen() {
         .from('client_field_values')
         .select('*, definition:client_field_definitions(label, field_type)')
         .eq('client_id', clientId),
+      // Fetch files hidden from this member by an admin
+      teamMember?.id
+        ? supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
+        : Promise.resolve({ data: [] }),
     ]);
 
     if (clientRes.data) setClient(clientRes.data as Client);
-    if (tasksRes.data) setTasks(tasksRes.data as Task[]);
+    if (tasksRes.data) {
+      let allTasks = tasksRes.data as Task[];
+      // Permission: if viewer can only see assigned files, filter accordingly
+      if (!permissions.can_see_all_files && teamMember?.id) {
+        allTasks = allTasks.filter((t) =>
+          t.assigned_to === teamMember.id ||
+          (t.route_stops ?? []).some((s: any) => s.assigned_to === teamMember.id)
+        );
+      }
+      // File visibility blocks: remove files an owner/admin has hidden from this member
+      if (blocksRes.data && (blocksRes.data as any[]).length > 0) {
+        const blockedIds = new Set((blocksRes.data as any[]).map((b: any) => b.task_id));
+        allTasks = allTasks.filter((t) => !blockedIds.has(t.id));
+      }
+      setTasks(allTasks);
+    }
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
     if (fieldsRes.data) setFieldValues(fieldsRes.data as FieldValue[]);
     setLoading(false);
-  }, [clientId]);
+  }, [clientId, permissions.can_see_all_files, teamMember?.id, teamMember?.org_id]);
 
   useEffect(() => {
     fetchData();
@@ -397,9 +416,11 @@ export default function ClientProfileScreen() {
         </View>
 
         {/* ── NEW FILE ── */}
-        <TouchableOpacity style={s.newFileBtn} onPress={goNewFile} activeOpacity={0.8}>
-          <Text style={s.newFileBtnText}>+ New File for {client.name}</Text>
-        </TouchableOpacity>
+        {permissions.can_create_files && (
+          <TouchableOpacity style={s.newFileBtn} onPress={goNewFile} activeOpacity={0.8}>
+            <Text style={s.newFileBtnText}>+ New File for {client.name}</Text>
+          </TouchableOpacity>
+        )}
 
         {/* ── STATS ── */}
         <View style={s.statsBlock}>
