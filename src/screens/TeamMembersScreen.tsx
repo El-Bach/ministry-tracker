@@ -335,6 +335,13 @@ export default function TeamMembersScreen() {
         name:  editName.trim()  || undefined,
         phone: editPhone.trim() || null,
       }).eq('id', editModal.id);
+      // Also sync the linked invite code's invitee_name so the code card stays in sync
+      const member = teamMembers.find(tm => tm.id === editModal.id);
+      if (member?.joined_via_code && editName.trim()) {
+        await supabase.from('org_join_codes').update({
+          invitee_name: editName.trim(),
+        }).eq('id', member.joined_via_code);
+      }
     }
     setEditSaving(false);
     setEditModal(null);
