@@ -43,7 +43,7 @@ type FileFilter = 'all' | 'mine';
 
 export default function CalendarScreen() {
   const navigation = useNavigation<Nav>();
-  const { teamMember } = useAuth();
+  const { teamMember, permissions } = useAuth();
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stops, setStops] = useState<StopWithTask[]>([]);
@@ -56,22 +56,46 @@ export default function CalendarScreen() {
   const [fileFilter, setFileFilter] = useState<FileFilter>('all');
 
   const fetchData = useCallback(async () => {
-    const [tasksRes, labelsRes, stopsRes] = await Promise.all([
+    const [tasksRes, labelsRes, stopsRes, blocksRes] = await Promise.all([
       supabase
         .from('tasks')
-        .select('*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*)')
+        .select('*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(assigned_to)')
         .not('due_date', 'is', null),
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? ''),
       supabase
         .from('task_route_stops')
         .select('id, due_date, task_id, status, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
         .not('due_date', 'is', null),
+      teamMember?.id
+        ? supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
+        : Promise.resolve({ data: [] }),
     ]);
-    if (tasksRes.data) setTasks(tasksRes.data as Task[]);
+
+    // Build blocked-task set
+    const blockedIds = new Set<string>((blocksRes.data ?? []).map((b: any) => b.task_id as string));
+
+    // Build allowed-task set when viewer cannot see all files
+    let allowedTaskIds: Set<string> | null = null;
+    if (!permissions.can_see_all_files && teamMember?.id) {
+      allowedTaskIds = new Set<string>();
+      (tasksRes.data ?? []).forEach((t: any) => {
+        const atTask  = t.assigned_to === teamMember.id;
+        const atStage = (t.route_stops ?? []).some((s: any) => s.assigned_to === teamMember.id);
+        if (atTask || atStage) allowedTaskIds!.add(t.id);
+      });
+    }
+
+    const isVisible = (taskId: string) => {
+      if (blockedIds.has(taskId)) return false;
+      if (allowedTaskIds !== null && !allowedTaskIds.has(taskId)) return false;
+      return true;
+    };
+
+    if (tasksRes.data) setTasks((tasksRes.data as Task[]).filter(t => isVisible(t.id)));
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
-    if (stopsRes.data) setStops(stopsRes.data as unknown as StopWithTask[]);
+    if (stopsRes.data) setStops((stopsRes.data as unknown as StopWithTask[]).filter(s => isVisible(s.task_id)));
     setLoading(false);
-  }, [teamMember?.org_id]);
+  }, [teamMember?.org_id, teamMember?.id, permissions.can_see_all_files]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
@@ -141,25 +165,27 @@ export default function CalendarScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* My Files / All Files filter */}
-      <View style={s.filterRow}>
-        <TouchableOpacity
-          style={[s.filterChip, fileFilter === 'all' && s.filterChipActive]}
-          onPress={() => setFileFilter('all')}
-        >
-          <Text style={[s.filterChipText, fileFilter === 'all' && s.filterChipTextActive]}>
-            {t('allFiles')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.filterChip, fileFilter === 'mine' && s.filterChipActive]}
-          onPress={() => setFileFilter('mine')}
-        >
-          <Text style={[s.filterChipText, fileFilter === 'mine' && s.filterChipTextActive]}>
-            {t('myFiles')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* My Files / All Files filter — hidden when viewer can't see all files anyway */}
+      {permissions.can_see_all_files && (
+        <View style={s.filterRow}>
+          <TouchableOpacity
+            style={[s.filterChip, fileFilter === 'all' && s.filterChipActive]}
+            onPress={() => setFileFilter('all')}
+          >
+            <Text style={[s.filterChipText, fileFilter === 'all' && s.filterChipTextActive]}>
+              {t('allFiles')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.filterChip, fileFilter === 'mine' && s.filterChipActive]}
+            onPress={() => setFileFilter('mine')}
+          >
+            <Text style={[s.filterChipText, fileFilter === 'mine' && s.filterChipTextActive]}>
+              {t('myFiles')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Calendar
         key={calendarKey}
