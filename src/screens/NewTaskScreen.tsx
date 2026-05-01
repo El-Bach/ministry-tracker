@@ -1071,7 +1071,7 @@ export default function NewTaskScreen() {
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
  supabase.from('ministries').select('*, city:cities(id,name)').order('name'),
- supabase.from('team_members').select('*').order('name'),
+ supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
  supabase.from('cities').select('*').order('name'),
  supabase.from('assignees').select('*').order('name'),
  ]);
@@ -1760,7 +1760,7 @@ export default function NewTaskScreen() {
                placeholder="Search assignee..."
                placeholderTextColor={theme.color.textMuted}
              />
-             <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+             <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
                {stageAssigneeMap[stage.id] && (
                  <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
                    <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove assignee</Text>
