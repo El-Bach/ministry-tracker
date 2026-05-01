@@ -145,18 +145,36 @@ export default function TeamMembersScreen() {
   const [fieldValues,     setFieldValues]     = useState<Record<string, any>>({});
   const [loadingFields,   setLoadingFields]   = useState(false);
 
+  // Search bar
+  const [search, setSearch] = useState('');
+
+  // All field defs + all member field values (for search)
+  const [allFieldDefs,   setAllFieldDefs]   = useState<any[]>([]);
+  const [allFieldValues, setAllFieldValues] = useState<Record<string, Record<string, string>>>({});
+
   // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
-    const [tmRes, codeRes] = await Promise.all([
+    const [tmRes, codeRes, defsRes, valsRes] = await Promise.all([
       supabase.from('team_members').select('*').order('name'),
       supabase
         .from('org_join_codes')
         .select('*')
         .eq('org_id', teamMember?.org_id ?? '')
         .order('created_at', { ascending: false }),
+      supabase.from('team_member_field_definitions').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('team_member_field_values').select('*'),
     ]);
     if (tmRes.data)   setTeamMembers(tmRes.data as any[]);
     if (codeRes.data) setJoinCodes(codeRes.data);
+    if (defsRes.data) setAllFieldDefs(defsRes.data);
+    if (valsRes.data) {
+      const valMap: Record<string, Record<string, string>> = {};
+      valsRes.data.forEach((v: any) => {
+        if (!valMap[v.team_member_id]) valMap[v.team_member_id] = {};
+        valMap[v.team_member_id][v.field_id] = String(v.value_boolean ?? v.value_number ?? v.value_text ?? '');
+      });
+      setAllFieldValues(valMap);
+    }
     setLoading(false);
   }, [teamMember?.org_id]);
 
@@ -214,14 +232,11 @@ export default function TeamMembersScreen() {
     );
   };
 
-  // ── Generate invite code ─────────────────────────────────────
-  const handleGenerateCode = async () => {
+  // ── Generate invite code (inner — skips checks) ─────────────
+  const doGenerateCode = async (fullPhone: string | null) => {
     if (!teamMember?.org_id) return;
     setGenerating(true);
     const code = await makeCode();
-    const fullPhone = inviteePhone.trim()
-      ? normalizePhone(`${inviteeCountry}${inviteePhone.trim()}`)
-      : null;
     const { error } = await supabase.from('org_join_codes').insert({
       org_id:        teamMember.org_id,
       code,
@@ -235,6 +250,74 @@ export default function TeamMembersScreen() {
     if (error) { Alert.alert('Error generating code', error.message); return; }
     setGeneratedCode(code);
     fetchData();
+  };
+
+  // ── Generate invite code (with duplicate guard) ──────────────
+  const handleGenerateCode = async () => {
+    if (!teamMember?.org_id) return;
+
+    const fullPhone  = inviteePhone.trim()
+      ? normalizePhone(`${inviteeCountry}${inviteePhone.trim()}`)
+      : null;
+    const trimmedName = inviteeName.trim();
+
+    // ── Phone duplicate: hard block ─────────────────────────────
+    if (fullPhone) {
+      const [tmPhoneRes, codePhoneRes] = await Promise.all([
+        supabase
+          .from('team_members')
+          .select('name')
+          .eq('org_id', teamMember.org_id)
+          .eq('phone', fullPhone)
+          .is('deleted_at', null)
+          .maybeSingle(),
+        supabase
+          .from('org_join_codes')
+          .select('invitee_name')
+          .eq('org_id', teamMember.org_id)
+          .eq('invitee_phone', fullPhone)
+          .is('deleted_at', null)
+          .maybeSingle(),
+      ]);
+      if (tmPhoneRes.data) {
+        Alert.alert(
+          '📵 Phone Already Registered',
+          `"${tmPhoneRes.data.name ?? 'A team member'}" already has this phone number.\n\nEach member must register with a unique phone number. Please enter a different number.`,
+        );
+        return;
+      }
+      if (codePhoneRes.data) {
+        Alert.alert(
+          '📵 Phone Already Used',
+          `An active invite code for "${codePhoneRes.data.invitee_name ?? 'someone'}" already uses this phone number.\n\nRevoke that code first, or use a different number.`,
+        );
+        return;
+      }
+    }
+
+    // ── Name duplicate: soft warning ────────────────────────────
+    if (trimmedName) {
+      const { data: sameName } = await supabase
+        .from('team_members')
+        .select('name')
+        .eq('org_id', teamMember.org_id)
+        .ilike('name', trimmedName)
+        .is('deleted_at', null)
+        .maybeSingle();
+      if (sameName) {
+        Alert.alert(
+          '👤 Name Already Exists',
+          `A team member named "${sameName.name}" already exists.\n\nIs this a different person?`,
+          [
+            { text: 'Cancel',       style: 'cancel' },
+            { text: 'Yes, Continue', onPress: () => doGenerateCode(fullPhone) },
+          ],
+        );
+        return;
+      }
+    }
+
+    await doGenerateCode(fullPhone);
   };
 
   // ── Copy code ────────────────────────────────────────────────
@@ -407,14 +490,57 @@ export default function TeamMembersScreen() {
     );
   }
 
+  // ── Search filter ────────────────────────────────────────────
+  const searchQ = search.toLowerCase().trim();
+  const matchesMember = (tm: any): boolean => {
+    if (!searchQ) return true;
+    // Basic fields
+    const text = [tm.name, tm.email, tm.phone, tm.role].filter(Boolean).join(' ').toLowerCase();
+    if (text.includes(searchQ)) return true;
+    // Custom field values
+    const vals = allFieldValues[tm.id] ?? {};
+    // Also check field labels for the value
+    for (const def of allFieldDefs) {
+      const raw = vals[def.id];
+      if (raw && String(raw).toLowerCase().includes(searchQ)) return true;
+      // Allow searching by field name if value matches a boolean-like term
+      if (def.label && def.label.toLowerCase().includes(searchQ)) return true;
+    }
+    return false;
+  };
+
   const activeMembers  = teamMembers.filter(tm => !tm.deleted_at);
   const deletedMembers = teamMembers.filter(tm => !!tm.deleted_at);
   const activeCodes    = joinCodes.filter(jc => !jc.deleted_at);
   const revokedCodes   = joinCodes.filter(jc => !!jc.deleted_at);
 
+  const filteredActive  = activeMembers.filter(matchesMember);
+  const filteredDeleted = deletedMembers.filter(matchesMember);
+
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+      {/* ── SEARCH BAR ──────────────────────────────────────── */}
+      <View style={s.searchBar}>
+        <Text style={s.searchIcon}>🔍</Text>
+        <TextInput
+          style={s.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search members, email, phone, role…"
+          placeholderTextColor={theme.color.textMuted}
+          returnKeyType="search"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={s.searchClear}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ── INVITE CODES (owner/admin only) ─────────────────── */}
         {isOwnerOrAdmin && (
@@ -509,10 +635,16 @@ export default function TeamMembersScreen() {
 
         {/* ── ACTIVE TEAM MEMBERS ──────────────────────────────── */}
         <View style={s.sectionDivider}>
-          <Text style={s.sectionDividerText}>TEAM MEMBERS ({activeMembers.length})</Text>
+          <Text style={s.sectionDividerText}>
+            TEAM MEMBERS ({filteredActive.length}{searchQ && filteredActive.length !== activeMembers.length ? ` of ${activeMembers.length}` : ''})
+          </Text>
         </View>
 
-        {activeMembers.map((tm) => {
+        {filteredActive.length === 0 && searchQ ? (
+          <Text style={s.emptyHint}>No members match "{search}"</Text>
+        ) : null}
+
+        {filteredActive.map((tm) => {
           const isYou     = tm.id === teamMember?.id;
           const isOwner   = tm.role === 'owner';
           // Role chips: only owner can change roles (not self, not another owner)
@@ -601,12 +733,12 @@ export default function TeamMembersScreen() {
         })}
 
         {/* ── STOPPED MEMBERS (soft-deleted, grey) ────────────── */}
-        {deletedMembers.length > 0 && (
+        {filteredDeleted.length > 0 && (
           <>
             <View style={s.sectionDivider}>
-              <Text style={s.sectionDividerText}>STOPPED ({deletedMembers.length}) — swipe left to remove permanently</Text>
+              <Text style={s.sectionDividerText}>STOPPED ({filteredDeleted.length}) — swipe left to remove permanently</Text>
             </View>
-            {deletedMembers.map((tm) => (
+            {filteredDeleted.map((tm) => (
               <SwipeableMemberRow
                 key={tm.id}
                 onPermanentDelete={() => handlePermanentDelete(tm)}
@@ -944,7 +1076,27 @@ export default function TeamMembersScreen() {
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: theme.color.bgBase },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
-  scroll: { padding: theme.spacing.space4, gap: 12 },
+  scroll: { padding: theme.spacing.space4, paddingTop: theme.spacing.space3, gap: 12 },
+
+  // ── Search bar ───────────────────────────────────────────────
+  searchBar: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    backgroundColor:  theme.color.bgSurface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   10,
+    gap:               8,
+  },
+  searchIcon:  { fontSize: 16, color: theme.color.textMuted },
+  searchInput: {
+    flex:     1,
+    fontSize: 15,
+    color:    theme.color.textPrimary,
+    paddingVertical: 0,
+  },
+  searchClear: { fontSize: 14, color: theme.color.textMuted, paddingStart: 4 },
 
   // ── Invite codes section ─────────────────────────────────────
   section: {
