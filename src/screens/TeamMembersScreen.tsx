@@ -505,21 +505,38 @@ export default function TeamMembersScreen() {
 
   // ── Search filter ────────────────────────────────────────────
   const searchQ = search.toLowerCase().trim();
+
+  // Match a team member row against the query
   const matchesMember = (tm: any): boolean => {
     if (!searchQ) return true;
-    // Basic fields
-    const text = [tm.name, tm.email, tm.phone, tm.role].filter(Boolean).join(' ').toLowerCase();
-    if (text.includes(searchQ)) return true;
-    // Custom field values
+    // Core fields: name, email, phone, role
+    const coreText = [tm.name, tm.email, tm.phone, tm.role]
+      .filter(Boolean).join(' ').toLowerCase();
+    if (coreText.includes(searchQ)) return true;
+    // Custom field VALUES only (not labels — matching labels would return all members)
     const vals = allFieldValues[tm.id] ?? {};
-    // Also check field labels for the value
     for (const def of allFieldDefs) {
       const raw = vals[def.id];
-      if (raw && String(raw).toLowerCase().includes(searchQ)) return true;
-      // Allow searching by field name if value matches a boolean-like term
-      if (def.label && def.label.toLowerCase().includes(searchQ)) return true;
+      if (raw !== undefined && raw !== null && raw !== '' &&
+          String(raw).toLowerCase().includes(searchQ)) return true;
     }
     return false;
+  };
+
+  // Match an invite code row against the query
+  // Includes the code number itself so you can type "ABCD" and find the card
+  const matchesCode = (jc: any): boolean => {
+    if (!searchQ) return true;
+    const meta = ROLE_META[jc.role as InviteRole];
+    const text = [
+      jc.code,
+      jc.invitee_name,
+      jc.invitee_phone,
+      jc.invitee_email,
+      jc.role,
+      meta?.label,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return text.includes(searchQ);
   };
 
   const activeMembers  = teamMembers.filter(tm => !tm.deleted_at);
@@ -527,8 +544,10 @@ export default function TeamMembersScreen() {
   const activeCodes    = joinCodes.filter(jc => !jc.deleted_at);
   const revokedCodes   = joinCodes.filter(jc => !!jc.deleted_at);
 
-  const filteredActive  = activeMembers.filter(matchesMember);
-  const filteredDeleted = deletedMembers.filter(matchesMember);
+  const filteredActive       = activeMembers.filter(matchesMember);
+  const filteredDeleted      = deletedMembers.filter(matchesMember);
+  const filteredActiveCodes  = activeCodes.filter(matchesCode);
+  const filteredRevokedCodes = revokedCodes.filter(matchesCode);
 
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>
@@ -560,7 +579,11 @@ export default function TeamMembersScreen() {
           <View style={s.section}>
             <View style={s.sectionHead}>
               <View style={{ flex: 1 }}>
-                <Text style={s.sectionTitle}>🔑 Invite Codes</Text>
+                <Text style={s.sectionTitle}>
+                  🔑 Invite Codes{searchQ && (activeCodes.length + revokedCodes.length) > 0
+                    ? ` (${filteredActiveCodes.length + filteredRevokedCodes.length} of ${activeCodes.length + revokedCodes.length})`
+                    : ''}
+                </Text>
                 <Text style={s.sectionSub}>Each code gives one person access with a specific role</Text>
               </View>
               <TouchableOpacity style={s.newBtn} onPress={() => setShowModal(true)} activeOpacity={0.8}>
@@ -571,9 +594,13 @@ export default function TeamMembersScreen() {
             {activeCodes.length === 0 && revokedCodes.length === 0 && (
               <Text style={s.emptyHint}>No invite codes yet. Tap ＋ New to create one.</Text>
             )}
+            {searchQ && filteredActiveCodes.length === 0 && filteredRevokedCodes.length === 0 &&
+              (activeCodes.length > 0 || revokedCodes.length > 0) && (
+              <Text style={s.emptyHint}>No codes match "{search}"</Text>
+            )}
 
             {/* Active codes */}
-            {activeCodes.map((jc) => {
+            {filteredActiveCodes.map((jc) => {
               const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
               return (
                 <View key={jc.id} style={s.codeCard}>
@@ -607,10 +634,10 @@ export default function TeamMembersScreen() {
             })}
 
             {/* Revoked codes (grey) */}
-            {revokedCodes.length > 0 && (
+            {filteredRevokedCodes.length > 0 && (
               <>
                 <Text style={s.revokedLabel}>REVOKED CODES</Text>
-                {revokedCodes.map((jc) => {
+                {filteredRevokedCodes.map((jc) => {
                   const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
                   return (
                     <View key={jc.id} style={[s.codeCard, s.codeCardRevoked]}>
