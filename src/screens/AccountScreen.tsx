@@ -23,7 +23,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
-import { SUPPORT_WHATSAPP, SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
+import { SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -713,7 +713,14 @@ export default function AccountScreen() {
 
               <Text style={s.planFootnote}>
                 All plans include a 7-day free trial. No credit card required to upgrade.{'\n'}
-                Contact us on WhatsApp to activate your plan immediately.
+                Contact us by email at{' '}
+                <Text
+                  style={{ color: theme.color.primary, fontWeight: '700' }}
+                  onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Activate GovPilot Plan`)}
+                >
+                  {SUPPORT_EMAIL}
+                </Text>
+                {' '}to activate your plan very soon.
               </Text>
             </ScrollView>
           </View>
