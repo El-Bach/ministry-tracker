@@ -23,7 +23,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
-import { SUPPORT_WHATSAPP, SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL } from '../lib/config';
+import { SUPPORT_WHATSAPP, SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -108,15 +108,7 @@ const PLANS = [
 ] as const;
 
 type PlanKey = 'free' | 'basic' | 'premium' | 'starter' | 'business';
-
-// null = unlimited
-const PLAN_LIMITS: Record<string, { members: number | null; files: number | null }> = {
-  free:     { members: 3,    files: 25   },
-  basic:    { members: 10,   files: null },
-  premium:  { members: null, files: null },
-  starter:  { members: null, files: null },
-  business: { members: null, files: null },
-};
+// PLAN_LIMITS imported from src/lib/config.ts
 
 export default function AccountScreen() {
   const navigation = useNavigation();

@@ -5,8 +5,9 @@ export interface Organization {
   id: string;
   name: string;
   slug?: string;
-  plan: 'free' | 'starter' | 'business';
-  usd_to_lbp_rate?: number;   // daily exchange rate, editable by owner/admin
+  plan: 'free' | 'basic' | 'premium' | 'starter' | 'business';
+  usd_to_lbp_rate?: number;          // daily exchange rate, editable by owner/admin
+  plan_limit_exceeded_at?: string | null; // ISO timestamp — set when limit first hit
   created_at: string;
 }
 
