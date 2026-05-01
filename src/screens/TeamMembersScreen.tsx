@@ -353,19 +353,8 @@ export default function TeamMembersScreen() {
                 <View key={jc.id} style={s.codeCard}>
                   <View style={s.codeCardTop}>
                     <Text style={s.codeText}>{jc.code}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <TouchableOpacity
-                        style={[s.copyBtn, copiedCode === jc.code && s.copyBtnDone]}
-                        onPress={() => handleCopy(jc.code)}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={[s.copyBtnText, copiedCode === jc.code && { color: theme.color.success }]}>
-                          {copiedCode === jc.code ? '✓ Copied' : '📋 Copy'}
-                        </Text>
-                      </TouchableOpacity>
-                      <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
-                        <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
-                      </View>
+                    <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
+                      <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
                     </View>
                   </View>
 
@@ -382,14 +371,9 @@ export default function TeamMembersScreen() {
                     <Text style={s.codeMeta}>
                       {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · Created {fmtDateTime(jc.created_at)}
                     </Text>
-                    <View style={s.codeActions}>
-                      <TouchableOpacity style={s.shareBtn} onPress={() => handleShare(jc.code, jc.role, jc.invitee_name)} activeOpacity={0.75}>
-                        <Text style={s.shareBtnText}>Share</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleDeactivateCode(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={() => handleDeactivateCode(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               );
