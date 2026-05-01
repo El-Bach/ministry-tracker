@@ -300,7 +300,7 @@ export default function DashboardScreen() {
   const { teamMember, permissions, organization, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
-  const { fontScale, setFontScale } = useFontSize();
+  const { fontScale } = useFontSize();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -885,21 +885,6 @@ export default function DashboardScreen() {
             )}
           </View>
         </TouchableOpacity>
-        {/* Font size toggle */}
-        <View style={styles.fontSizePair}>
-          <TouchableOpacity
-            style={[styles.fontSizeBtn, fontScale === 1.0 && styles.fontSizeBtnActive]}
-            onPress={() => setFontScale(1.0)}
-          >
-            <Text style={[styles.fontSizeBtnTextSm, fontScale === 1.0 && styles.fontSizeBtnTextActive]}>A</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.fontSizeBtn, fontScale === 1.15 && styles.fontSizeBtnActive]}
-            onPress={() => setFontScale(1.15)}
-          >
-            <Text style={[styles.fontSizeBtnTextLg, fontScale === 1.15 && styles.fontSizeBtnTextActive]}>A</Text>
-          </TouchableOpacity>
-        </View>
         {/* Help button */}
         <TouchableOpacity
           style={styles.helpBtn}
@@ -1995,39 +1980,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     lineHeight: 20,
-  },
-
-  // ── Font size toggle ─────────────────────────────────────────
-  fontSizePair: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.color.bgSurface,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-    overflow: 'hidden',
-  },
-  fontSizeBtn: {
-    width: 28,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fontSizeBtnActive: {
-    backgroundColor: theme.color.primaryDim,
-  },
-  fontSizeBtnTextSm: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: theme.color.textMuted,
-  },
-  fontSizeBtnTextLg: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: theme.color.textMuted,
-  },
-  fontSizeBtnTextActive: {
-    color: theme.color.primary,
   },
 
   // ── Welcome overlay ──────────────────────────────────────────

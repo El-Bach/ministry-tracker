@@ -1,5 +1,5 @@
 // src/contexts/FontSizeContext.tsx
-// Provides a global font scale (1.0 = normal, 1.15 = large).
+// Provides a global font scale (1.0 = normal, 1.25 = large).
 // Persisted to AsyncStorage so the preference survives app restarts.
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FONT_SCALE_KEY = '@font_scale';
 
-type FontScale = 1.0 | 1.15;
+type FontScale = 1.0 | 1.25; // 1.0 = normal, 1.25 = 25% larger
 
 interface FontSizeContextValue {
   fontScale: FontScale;
@@ -24,7 +24,7 @@ export function FontSizeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(FONT_SCALE_KEY).then((val) => {
-      if (val === '1.15') setFontScaleState(1.15);
+      if (val === '1.25') setFontScaleState(1.25);
     });
   }, []);
 
