@@ -361,7 +361,7 @@ export default function TeamMembersScreen() {
                   {/* Invitee info */}
                   {(jc.invitee_name || jc.invitee_phone || jc.invitee_email) && (
                     <View style={s.inviteeRow}>
-                      {jc.invitee_name  && <Text style={s.inviteeMeta}>👤 {jc.invitee_name}</Text>}
+                      {jc.invitee_name  && <Text style={s.inviteeName}>👤 {jc.invitee_name}</Text>}
                       {jc.invitee_phone && <Text style={s.inviteeMeta}>📱 {jc.invitee_phone}</Text>}
                       {jc.invitee_email && <Text style={s.inviteeMeta}>📧 {jc.invitee_email}</Text>}
                     </View>
@@ -403,7 +403,7 @@ export default function TeamMembersScreen() {
                       </View>
                       {(jc.invitee_name || jc.invitee_phone || jc.invitee_email) && (
                         <View style={s.inviteeRow}>
-                          {jc.invitee_name  && <Text style={[s.inviteeMeta, s.revokedText]}>👤 {jc.invitee_name}</Text>}
+                          {jc.invitee_name  && <Text style={[s.inviteeName, s.revokedText]}>👤 {jc.invitee_name}</Text>}
                           {jc.invitee_phone && <Text style={[s.inviteeMeta, s.revokedText]}>📱 {jc.invitee_phone}</Text>}
                           {jc.invitee_email && <Text style={[s.inviteeMeta, s.revokedText]}>📧 {jc.invitee_email}</Text>}
                         </View>
@@ -781,7 +781,8 @@ const s = StyleSheet.create({
   },
   shareBtnText: { color: theme.color.primary, fontWeight: '700', fontSize: 12 },
 
-  inviteeRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+  inviteeRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', alignItems: 'center' },
+  inviteeName: { fontSize: 16, fontWeight: '700', color: theme.color.textPrimary },
   inviteeMeta: { ...theme.typography.caption, color: theme.color.textSecondary, fontWeight: '600' },
 
   rolePill: {
