@@ -132,6 +132,13 @@ export default function TeamMembersScreen() {
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [copiedCode,    setCopiedCode]    = useState<string | null>(null);
 
+  // Edit modal (shared for code invitee info + team member info)
+  const [editModal,   setEditModal]   = useState<{ type: 'code' | 'member'; id: string } | null>(null);
+  const [editName,    setEditName]    = useState('');
+  const [editPhone,   setEditPhone]   = useState('');
+  const [editEmail,   setEditEmail]   = useState('');
+  const [editSaving,  setEditSaving]  = useState(false);
+
   // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     const [tmRes, codeRes] = await Promise.all([
@@ -299,6 +306,41 @@ export default function TeamMembersScreen() {
     );
   };
 
+  // ── Edit invitee / member info ───────────────────────────────
+  const openEditCode = (jc: any) => {
+    setEditName(jc.invitee_name ?? '');
+    setEditPhone(jc.invitee_phone ?? '');
+    setEditEmail(jc.invitee_email ?? '');
+    setEditModal({ type: 'code', id: jc.id });
+  };
+
+  const openEditMember = (tm: any) => {
+    setEditName(tm.name ?? '');
+    setEditPhone(tm.phone ?? '');
+    setEditEmail(tm.email ?? '');
+    setEditModal({ type: 'member', id: tm.id });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editModal) return;
+    setEditSaving(true);
+    if (editModal.type === 'code') {
+      await supabase.from('org_join_codes').update({
+        invitee_name:  editName.trim()  || null,
+        invitee_phone: editPhone.trim() || null,
+        invitee_email: editEmail.trim().toLowerCase() || null,
+      }).eq('id', editModal.id);
+    } else {
+      await supabase.from('team_members').update({
+        name:  editName.trim()  || undefined,
+        phone: editPhone.trim() || null,
+      }).eq('id', editModal.id);
+    }
+    setEditSaving(false);
+    setEditModal(null);
+    fetchData();
+  };
+
   // ── Close modal + reset ───────────────────────────────────────
   const closeModal = () => {
     setShowModal(false);
@@ -359,13 +401,14 @@ export default function TeamMembersScreen() {
                   </View>
 
                   {/* Invitee info */}
-                  {(jc.invitee_name || jc.invitee_phone || jc.invitee_email) && (
-                    <View style={s.inviteeRow}>
-                      {jc.invitee_name  && <Text style={s.inviteeName}>👤 {jc.invitee_name}</Text>}
-                      {jc.invitee_phone && <Text style={s.inviteeMeta}>📱 {jc.invitee_phone}</Text>}
-                      {jc.invitee_email && <Text style={s.inviteeMeta}>📧 {jc.invitee_email}</Text>}
-                    </View>
-                  )}
+                  <TouchableOpacity style={s.inviteeRow} onPress={() => openEditCode(jc)} activeOpacity={0.7}>
+                    {jc.invitee_name
+                      ? <Text style={s.inviteeName}>👤 {jc.invitee_name}</Text>
+                      : <Text style={s.inviteeAdd}>👤 Add name…</Text>}
+                    {jc.invitee_phone && <Text style={s.inviteeMeta}>📱 {jc.invitee_phone}</Text>}
+                    {jc.invitee_email && <Text style={s.inviteeMeta}>📧 {jc.invitee_email}</Text>}
+                    <Text style={s.editHint}>✎</Text>
+                  </TouchableOpacity>
 
                   <View style={s.codeCardBottom}>
                     <Text style={s.codeMeta}>
@@ -450,14 +493,17 @@ export default function TeamMembersScreen() {
                     {(tm.name ?? '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View style={s.memberInfo}>
-                  <Text style={s.memberName} numberOfLines={1}>
-                    {tm.name}{isYou ? ' (you)' : ''}
-                  </Text>
+                <TouchableOpacity style={s.memberInfo} onPress={() => openEditMember(tm)} activeOpacity={0.7}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.memberName} numberOfLines={1}>
+                      {tm.name}{isYou ? ' (you)' : ''}
+                    </Text>
+                    <Text style={s.editHint}>✎</Text>
+                  </View>
                   <Text style={s.memberEmail} numberOfLines={1}>
                     {tm.email}{tm.phone ? ` · ${tm.phone}` : ''}
                   </Text>
-                </View>
+                </TouchableOpacity>
                 {canStop && (
                   <TouchableOpacity
                     onPress={() => handleSoftDelete(tm)}
@@ -706,6 +752,69 @@ export default function TeamMembersScreen() {
             </View>
           </View>
         </KeyboardAwareScrollView>
+      </Modal>
+
+      {/* ── EDIT INFO MODAL ──────────────────────────────────── */}
+      <Modal visible={!!editModal} transparent animationType="slide" onRequestClose={() => setEditModal(null)}>
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditModal(null)} />
+        <View style={s.editSheet}>
+          <Text style={s.editSheetTitle}>
+            {editModal?.type === 'code' ? '✎ Edit Invitee Info' : '✎ Edit Member Info'}
+          </Text>
+
+          <Text style={s.editLabel}>Name</Text>
+          <TextInput
+            style={s.editInput}
+            value={editName}
+            onChangeText={setEditName}
+            placeholder="Full name"
+            placeholderTextColor={theme.color.textMuted}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+
+          <Text style={s.editLabel}>Phone</Text>
+          <TextInput
+            style={s.editInput}
+            value={editPhone}
+            onChangeText={setEditPhone}
+            placeholder="+961 71 000 000"
+            placeholderTextColor={theme.color.textMuted}
+            keyboardType="phone-pad"
+            autoCorrect={false}
+          />
+
+          {editModal?.type === 'code' && (
+            <>
+              <Text style={s.editLabel}>Email</Text>
+              <TextInput
+                style={s.editInput}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="email@example.com"
+                placeholderTextColor={theme.color.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </>
+          )}
+
+          <TouchableOpacity
+            style={[s.editSaveBtn, editSaving && { opacity: 0.6 }]}
+            onPress={handleSaveEdit}
+            disabled={editSaving}
+            activeOpacity={0.8}
+          >
+            <Text style={s.editSaveBtnText}>{editSaving ? 'Saving…' : 'Save'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.editCancelBtn} onPress={() => setEditModal(null)}>
+            <Text style={s.editCancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -970,4 +1079,51 @@ const s = StyleSheet.create({
   shareFullBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 16 },
   doneBtn:     { alignItems: 'center', paddingVertical: 10 },
   doneBtnText: { color: theme.color.textMuted, fontSize: 15, fontWeight: '600' },
+
+  // ── Edit info modal ──────────────────────────────────────────
+  editSheet: {
+    backgroundColor:  theme.color.bgSurface,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding:          theme.spacing.space5,
+    paddingBottom:    36,
+    gap:              theme.spacing.space2,
+  },
+  editSheetTitle: {
+    ...theme.typography.heading,
+    color:        theme.color.textPrimary,
+    marginBottom: theme.spacing.space3,
+    textAlign:    'center',
+  },
+  editLabel: {
+    ...theme.typography.caption,
+    color:      theme.color.textMuted,
+    fontWeight: '700',
+    marginTop:  theme.spacing.space2,
+  },
+  editInput: {
+    ...theme.typography.body,
+    color:           theme.color.textPrimary,
+    backgroundColor: theme.color.bgBase,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    borderRadius:    theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space3,
+    marginTop:       4,
+  },
+  editSaveBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius:    theme.radius.md,
+    paddingVertical: 14,
+    alignItems:      'center',
+    marginTop:       theme.spacing.space4,
+  },
+  editSaveBtnText: { color: theme.color.white, fontWeight: '700', fontSize: 16 },
+  editCancelBtn:   { alignItems: 'center', paddingVertical: 10 },
+  editCancelBtnText: { color: theme.color.textMuted, fontSize: 15, fontWeight: '600' },
+
+  // ── Inline edit hint ─────────────────────────────────────────
+  editHint:   { fontSize: 13, color: theme.color.textMuted, marginStart: 2 },
+  inviteeAdd: { fontSize: 14, color: theme.color.textMuted, fontStyle: 'italic' },
 });
