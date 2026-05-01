@@ -8,6 +8,7 @@ import { Task } from '../types';
 import StatusBadge from './StatusBadge';
 import { theme } from '../theme';
 import { formatPhoneDisplay } from '../lib/phone';
+import { useFontSize } from '../contexts/FontSizeContext';
 
 // ─── Props (unchanged) ────────────────────────────────────────────────────────
 
@@ -101,6 +102,15 @@ function TaskCard({
   selected = false,
   exchangeRate = 89500,
 }: Props) {
+  // Dynamic font sizes — must be before any early return (Rules of Hooks)
+  const { fontScale } = useFontSize();
+  const fs = {
+    clientName:  Math.round(15 * fontScale),
+    serviceName: Math.round(14 * fontScale),
+    label:       Math.round(12 * fontScale),
+    caption:     Math.round(11 * fontScale),
+  };
+
   if (loading) return <SkeletonCard cardStyle={cardStyle} />;
 
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
@@ -217,7 +227,7 @@ function TaskCard({
           {/* Client name + client phone on same line */}
           <View style={styles.clientNameRow}>
             <Text
-              style={[styles.clientName, onClientPress && styles.clientNameLink]}
+              style={[styles.clientName, onClientPress && styles.clientNameLink, { fontSize: fs.clientName }]}
               numberOfLines={1}
               suppressHighlighting
             >
@@ -229,7 +239,7 @@ function TaskCard({
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.clientPhoneInline} numberOfLines={1}>
+                <Text style={[styles.clientPhoneInline, { fontSize: fs.caption }]} numberOfLines={1}>
                   📞 {formatPhoneDisplay(task.client.phone)}
                 </Text>
               </TouchableOpacity>
@@ -237,7 +247,7 @@ function TaskCard({
           </View>
           {/* Reference info below — clearly secondary */}
           {!!task.client?.reference_name && (
-            <Text style={styles.referenceLabel} numberOfLines={1}>
+            <Text style={[styles.referenceLabel, { fontSize: fs.caption }]} numberOfLines={1}>
               عبر {task.client.reference_name}
             </Text>
           )}
@@ -247,7 +257,7 @@ function TaskCard({
               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
               activeOpacity={0.7}
             >
-              <Text style={styles.phoneLabel} numberOfLines={1}>
+              <Text style={[styles.phoneLabel, { fontSize: fs.caption }]} numberOfLines={1}>
                 📞 {formatPhoneDisplay(task.client.reference_phone)}
               </Text>
             </TouchableOpacity>
@@ -289,7 +299,7 @@ function TaskCard({
                 disabled={!onCityPress}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Text style={styles.cityChipText} numberOfLines={1}>📍 {s.city!.name}</Text>
+                <Text style={[styles.cityChipText, { fontSize: fs.caption }]} numberOfLines={1}>📍 {s.city!.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -304,13 +314,13 @@ function TaskCard({
           activeOpacity={onServicePress ? 0.7 : 1}
           style={{ flex: 1 }}
         >
-          <Text style={styles.serviceName} numberOfLines={1}>
+          <Text style={[styles.serviceName, { fontSize: fs.serviceName }]} numberOfLines={1}>
             {task.service?.name ?? '—'}
           </Text>
         </TouchableOpacity>
         {(task.price_usd ?? 0) > 0 && (
           <Text
-            style={styles.contractPrice}
+            style={[styles.contractPrice, { fontSize: fs.label }]}
             accessibilityLabel={`Contract price $${task.price_usd}`}
           >
             ${(task.price_usd!).toLocaleString('en-US', {
@@ -329,7 +339,7 @@ function TaskCard({
           small
         />
         <Text
-          style={styles.assignedText}
+          style={[styles.assignedText, { fontSize: fs.caption }]}
           numberOfLines={1}
           accessibilityLabel={`Assigned to ${task.assignee?.name ?? 'Unassigned'}`}
         >
@@ -340,7 +350,7 @@ function TaskCard({
       {/* ROW 4: Stages X/Y + due date */}
       <View style={styles.row4}>
         <Text
-          style={styles.stagesText}
+          style={[styles.stagesText, { fontSize: fs.caption }]}
           accessibilityLabel={`Stages ${stopsDone} of ${stopsTotal}`}
         >
           {stopsTotal > 0 ? `${stopsDone}/${stopsTotal} stages` : 'No stages'}
@@ -350,6 +360,7 @@ function TaskCard({
             style={[
               styles.dueText,
               (isOverdue || isDueSoon) && styles.dueTextUrgent,
+              { fontSize: fs.caption },
             ]}
             accessibilityLabel={`Due: ${dueDays}`}
           >
@@ -364,7 +375,7 @@ function TaskCard({
         const fmt = (iso: string) => { const d = new Date(iso); return `${d.getDate()} ${months[d.getMonth()]}`; };
         const days = Math.max(1, Math.round((Date.parse(task.updated_at) - Date.parse(task.created_at)) / 86400000));
         return (
-          <Text style={styles.completionRow}>
+          <Text style={[styles.completionRow, { fontSize: fs.caption }]}>
             📅 {fmt(task.created_at)} → {fmt(task.updated_at)}  •  {days}d
           </Text>
         );
@@ -374,19 +385,19 @@ function TaskCard({
       {hasFinancials && (
         <View style={styles.finRow}>
           <View style={styles.finChip}>
-            <Text style={styles.finLabel}>RESULT</Text>
-            <Text style={[styles.finValue, cvResult >= 0 ? styles.finPos : styles.finNeg]}>
+            <Text style={[styles.finLabel, { fontSize: fs.caption - 1 }]}>RESULT</Text>
+            <Text style={[styles.finValue, cvResult >= 0 ? styles.finPos : styles.finNeg, { fontSize: fs.label }]}>
               {cvResult >= 0 ? '+' : '-'}{fmtUSD(cvResult)}
             </Text>
           </View>
           <View style={styles.finDivider} />
           <View style={styles.finChip}>
-            <Text style={styles.finLabel}>DUE</Text>
-            <Text style={[styles.finValue, dueUSD <= 0 ? styles.finPos : styles.finNeg]}>
+            <Text style={[styles.finLabel, { fontSize: fs.caption - 1 }]}>DUE</Text>
+            <Text style={[styles.finValue, dueUSD <= 0 ? styles.finPos : styles.finNeg, { fontSize: fs.label }]}>
               {dueUSD <= 0 ? '✓ ' : ''}{fmtUSD(dueUSD)}
             </Text>
             {hasLBP && (
-              <Text style={[styles.finValueSmall, dueLBP <= 0 ? styles.finPos : styles.finNeg]}>
+              <Text style={[styles.finValueSmall, dueLBP <= 0 ? styles.finPos : styles.finNeg, { fontSize: fs.caption - 1 }]}>
                 {dueLBP <= 0 ? '✓ ' : ''}{fmtLBP(dueLBP)}
               </Text>
             )}

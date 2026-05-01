@@ -37,6 +37,7 @@ import { theme } from '../theme';
 import { checkAndNotifyOverdue } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from '../lib/i18n';
+import { useFontSize } from '../contexts/FontSizeContext';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
 const TASK_ROW_HEIGHT = 130;
@@ -299,6 +300,7 @@ export default function DashboardScreen() {
   const { teamMember, permissions, organization, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
+  const { fontScale, setFontScale } = useFontSize();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -883,6 +885,21 @@ export default function DashboardScreen() {
             )}
           </View>
         </TouchableOpacity>
+        {/* Font size toggle */}
+        <View style={styles.fontSizePair}>
+          <TouchableOpacity
+            style={[styles.fontSizeBtn, fontScale === 1.0 && styles.fontSizeBtnActive]}
+            onPress={() => setFontScale(1.0)}
+          >
+            <Text style={[styles.fontSizeBtnTextSm, fontScale === 1.0 && styles.fontSizeBtnTextActive]}>A</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.fontSizeBtn, fontScale === 1.15 && styles.fontSizeBtnActive]}
+            onPress={() => setFontScale(1.15)}
+          >
+            <Text style={[styles.fontSizeBtnTextLg, fontScale === 1.15 && styles.fontSizeBtnTextActive]}>A</Text>
+          </TouchableOpacity>
+        </View>
         {/* Help button */}
         <TouchableOpacity
           style={styles.helpBtn}
@@ -1029,15 +1046,15 @@ export default function DashboardScreen() {
       {/* Summary bar */}
       {!showArchived && summaryStats.active > 0 && (
         <View style={styles.summaryBar}>
-          <Text style={styles.summaryItem}>Active: {summaryStats.active}</Text>
-          <Text style={styles.summaryDot}> · </Text>
-          <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger]}>
+          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>Active: {summaryStats.active}</Text>
+          <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
+          <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger, { fontSize: Math.round(11 * fontScale) }]}>
             Overdue: {summaryStats.overdue}
           </Text>
           {permissions.can_see_contract_price && (summaryStats.dueUSD > 0 || summaryStats.dueLBP > 0) && (
             <>
-              <Text style={styles.summaryDot}> · </Text>
-              <Text style={[styles.summaryItem, styles.summaryPrimary]}>
+              <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
+              <Text style={[styles.summaryItem, styles.summaryPrimary, { fontSize: Math.round(11 * fontScale) }]}>
                 Due{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
               </Text>
             </>
@@ -1978,6 +1995,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     lineHeight: 20,
+  },
+
+  // ── Font size toggle ─────────────────────────────────────────
+  fontSizePair: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.color.bgSurface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    overflow: 'hidden',
+  },
+  fontSizeBtn: {
+    width: 28,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fontSizeBtnActive: {
+    backgroundColor: theme.color.primaryDim,
+  },
+  fontSizeBtnTextSm: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.color.textMuted,
+  },
+  fontSizeBtnTextLg: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.color.textMuted,
+  },
+  fontSizeBtnTextActive: {
+    color: theme.color.primary,
   },
 
   // ── Welcome overlay ──────────────────────────────────────────

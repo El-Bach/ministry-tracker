@@ -7,6 +7,7 @@ import AppNavigator from './src/navigation/index';
 import { useOfflineQueue } from './src/store/offlineQueue';
 import { loadLanguage, isFirstLaunchKey, LanguageProvider } from './src/lib/i18n';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { FontSizeProvider } from './src/contexts/FontSizeContext';
 import LanguageSelectScreen from './src/screens/auth/LanguageSelectScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { PlanWarningModal } from './src/components/PlanWarningModal';
@@ -125,28 +126,32 @@ export default function App() {
   if (needsLanguageSelect) {
     return (
       <ErrorBoundary>
-        <LanguageProvider>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
-            </AuthProvider>
-          </SafeAreaProvider>
-        </LanguageProvider>
+        <FontSizeProvider>
+          <LanguageProvider>
+            <SafeAreaProvider>
+              <AuthProvider>
+                <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+              </AuthProvider>
+            </SafeAreaProvider>
+          </LanguageProvider>
+        </FontSizeProvider>
       </ErrorBoundary>
     );
   }
 
   return (
     <ErrorBoundary>
-      <LanguageProvider>
-        <SafeAreaProvider>
-          <AuthProvider>
-            <PlanEnforcementWrapper>
-              <AppNavigator />
-            </PlanEnforcementWrapper>
-          </AuthProvider>
-        </SafeAreaProvider>
-      </LanguageProvider>
+      <FontSizeProvider>
+        <LanguageProvider>
+          <SafeAreaProvider>
+            <AuthProvider>
+              <PlanEnforcementWrapper>
+                <AppNavigator />
+              </PlanEnforcementWrapper>
+            </AuthProvider>
+          </SafeAreaProvider>
+        </LanguageProvider>
+      </FontSizeProvider>
     </ErrorBoundary>
   );
 }
