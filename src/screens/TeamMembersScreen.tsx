@@ -20,6 +20,7 @@ import {
   Modal,
   Share,
   TextInput,
+  Switch,
   Animated,
   PanResponder,
   Platform,
@@ -133,11 +134,16 @@ export default function TeamMembersScreen() {
   const [copiedCode,    setCopiedCode]    = useState<string | null>(null);
 
   // Edit modal (shared for code invitee info + team member info)
-  const [editModal,   setEditModal]   = useState<{ type: 'code' | 'member'; id: string } | null>(null);
-  const [editName,    setEditName]    = useState('');
-  const [editPhone,   setEditPhone]   = useState('');
-  const [editEmail,   setEditEmail]   = useState('');
-  const [editSaving,  setEditSaving]  = useState(false);
+  const [editModal,       setEditModal]       = useState<{ type: 'code' | 'member'; id: string } | null>(null);
+  const [editName,        setEditName]        = useState('');
+  const [editPhone,       setEditPhone]       = useState('');
+  const [editEmail,       setEditEmail]       = useState('');
+  const [editSaving,      setEditSaving]      = useState(false);
+
+  // Custom field definitions + values (member edit only)
+  const [fieldDefs,       setFieldDefs]       = useState<any[]>([]);
+  const [fieldValues,     setFieldValues]     = useState<Record<string, any>>({});
+  const [loadingFields,   setLoadingFields]   = useState(false);
 
   // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -314,11 +320,28 @@ export default function TeamMembersScreen() {
     setEditModal({ type: 'code', id: jc.id });
   };
 
-  const openEditMember = (tm: any) => {
+  const openEditMember = async (tm: any) => {
     setEditName(tm.name ?? '');
     setEditPhone(tm.phone ?? '');
     setEditEmail(tm.email ?? '');
+    setFieldDefs([]);
+    setFieldValues({});
     setEditModal({ type: 'member', id: tm.id });
+    // Load custom field definitions + existing values for this member
+    setLoadingFields(true);
+    const [defsRes, valsRes] = await Promise.all([
+      supabase.from('team_member_field_definitions').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('team_member_field_values').select('*').eq('team_member_id', tm.id),
+    ]);
+    if (defsRes.data) setFieldDefs(defsRes.data);
+    if (valsRes.data) {
+      const vals: Record<string, any> = {};
+      valsRes.data.forEach((v: any) => {
+        vals[v.field_id] = v.value_boolean ?? v.value_number ?? v.value_text ?? '';
+      });
+      setFieldValues(vals);
+    }
+    setLoadingFields(false);
   };
 
   const handleSaveEdit = async () => {
@@ -341,6 +364,21 @@ export default function TeamMembersScreen() {
         await supabase.from('org_join_codes').update({
           invitee_name: editName.trim(),
         }).eq('id', member.joined_via_code);
+      }
+      // Save custom field values
+      for (const def of fieldDefs) {
+        const raw = fieldValues[def.id];
+        if (raw === undefined || raw === null || raw === '') continue;
+        const isBoolean = def.field_type === 'boolean';
+        const isNumber  = def.field_type === 'number' || def.field_type === 'currency';
+        await supabase.from('team_member_field_values').upsert({
+          team_member_id: editModal.id,
+          field_id:       def.id,
+          value_boolean:  isBoolean ? raw          : null,
+          value_number:   isNumber  ? (parseFloat(String(raw).replace(/,/g, '')) || null) : null,
+          value_text:     !isBoolean && !isNumber ? String(raw) : null,
+          updated_at:     new Date().toISOString(),
+        }, { onConflict: 'team_member_id,field_id' });
       }
     }
     setEditSaving(false);
@@ -765,62 +803,136 @@ export default function TeamMembersScreen() {
       <Modal visible={!!editModal} transparent animationType="slide" onRequestClose={() => setEditModal(null)}>
         <View style={{ flex: 1 }}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditModal(null)} />
-        <View style={s.editSheet}>
-          <Text style={s.editSheetTitle}>
-            {editModal?.type === 'code' ? '✎ Edit Invitee Info' : '✎ Edit Member Info'}
-          </Text>
-
-          <Text style={s.editLabel}>Name</Text>
-          <TextInput
-            style={s.editInput}
-            value={editName}
-            onChangeText={setEditName}
-            placeholder="Full name"
-            placeholderTextColor={theme.color.textMuted}
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
-
-          <Text style={s.editLabel}>Phone</Text>
-          <TextInput
-            style={s.editInput}
-            value={editPhone}
-            onChangeText={setEditPhone}
-            placeholder="+961 71 000 000"
-            placeholderTextColor={theme.color.textMuted}
-            keyboardType="phone-pad"
-            autoCorrect={false}
-          />
-
-          {editModal?.type === 'code' && (
-            <>
-              <Text style={s.editLabel}>Email</Text>
-              <TextInput
-                style={s.editInput}
-                value={editEmail}
-                onChangeText={setEditEmail}
-                placeholder="email@example.com"
-                placeholderTextColor={theme.color.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </>
-          )}
-
-          <TouchableOpacity
-            style={[s.editSaveBtn, editSaving && { opacity: 0.6 }]}
-            onPress={handleSaveEdit}
-            disabled={editSaving}
-            activeOpacity={0.8}
+          <KeyboardAwareScrollView
+            style={s.editSheet}
+            contentContainerStyle={{ paddingBottom: 36 }}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid
+            extraScrollHeight={40}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={s.editSaveBtnText}>{editSaving ? 'Saving…' : 'Save'}</Text>
-          </TouchableOpacity>
+            <Text style={s.editSheetTitle}>
+              {editModal?.type === 'code' ? '✎ Edit Invitee Info' : '✎ Edit Member Info'}
+            </Text>
 
-          <TouchableOpacity style={s.editCancelBtn} onPress={() => setEditModal(null)}>
-            <Text style={s.editCancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+            {/* ── Core fields ── */}
+            <Text style={s.editLabel}>Name</Text>
+            <TextInput
+              style={s.editInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Full name"
+              placeholderTextColor={theme.color.textMuted}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+
+            <Text style={s.editLabel}>Phone</Text>
+            <TextInput
+              style={s.editInput}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="+961 71 000 000"
+              placeholderTextColor={theme.color.textMuted}
+              keyboardType="phone-pad"
+              autoCorrect={false}
+            />
+
+            {editModal?.type === 'code' && (
+              <>
+                <Text style={s.editLabel}>Email</Text>
+                <TextInput
+                  style={s.editInput}
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  placeholder="email@example.com"
+                  placeholderTextColor={theme.color.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </>
+            )}
+
+            {/* ── Custom fields (member only) ── */}
+            {editModal?.type === 'member' && (
+              loadingFields ? (
+                <ActivityIndicator color={theme.color.primary} style={{ marginTop: 16 }} />
+              ) : fieldDefs.length > 0 ? (
+                <>
+                  <View style={s.editFieldsDivider}>
+                    <Text style={s.editFieldsDividerText}>ADDITIONAL INFO</Text>
+                  </View>
+                  {fieldDefs.map((def) => {
+                    const val = fieldValues[def.id];
+                    const isBoolean  = def.field_type === 'boolean';
+                    const isNumber   = def.field_type === 'number' || def.field_type === 'currency';
+                    const isTextarea = def.field_type === 'textarea';
+                    const isSelect   = def.field_type === 'select';
+                    const keyboard   = isNumber ? 'numeric' : def.field_type === 'email' ? 'email-address' : def.field_type === 'phone' ? 'phone-pad' : 'default';
+
+                    return (
+                      <View key={def.id}>
+                        <Text style={s.editLabel}>{def.label.toUpperCase()}{def.is_required ? ' *' : ''}</Text>
+                        {isBoolean ? (
+                          <View style={s.editBoolRow}>
+                            <Text style={{ color: theme.color.textSecondary, fontSize: 14 }}>
+                              {val ? 'Yes' : 'No'}
+                            </Text>
+                            <Switch
+                              value={!!val}
+                              onValueChange={(v) => setFieldValues(prev => ({ ...prev, [def.id]: v }))}
+                              trackColor={{ false: theme.color.border, true: theme.color.primary + '88' }}
+                              thumbColor={val ? theme.color.primary : theme.color.textMuted}
+                            />
+                          </View>
+                        ) : isSelect && def.options ? (
+                          <View style={s.editSelectRow}>
+                            {(typeof def.options === 'string' ? JSON.parse(def.options) : def.options).map((opt: string) => (
+                              <TouchableOpacity
+                                key={opt}
+                                style={[s.editSelectChip, val === opt && s.editSelectChipActive]}
+                                onPress={() => setFieldValues(prev => ({ ...prev, [def.id]: opt }))}
+                              >
+                                <Text style={[s.editSelectChipText, val === opt && s.editSelectChipTextActive]}>
+                                  {opt}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ) : (
+                          <TextInput
+                            style={[s.editInput, isTextarea && { height: 80, textAlignVertical: 'top' }]}
+                            value={val !== undefined && val !== null ? String(val) : ''}
+                            onChangeText={(t) => setFieldValues(prev => ({ ...prev, [def.id]: t }))}
+                            placeholder={def.label}
+                            placeholderTextColor={theme.color.textMuted}
+                            keyboardType={keyboard}
+                            multiline={isTextarea}
+                            autoCapitalize={def.field_type === 'email' ? 'none' : 'sentences'}
+                            autoCorrect={false}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
+                </>
+              ) : null
+            )}
+
+            <TouchableOpacity
+              style={[s.editSaveBtn, editSaving && { opacity: 0.6 }]}
+              onPress={handleSaveEdit}
+              disabled={editSaving}
+              activeOpacity={0.8}
+            >
+              <Text style={s.editSaveBtnText}>{editSaving ? 'Saving…' : 'Save'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={s.editCancelBtn} onPress={() => setEditModal(null)}>
+              <Text style={s.editCancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </KeyboardAwareScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1133,4 +1245,59 @@ const s = StyleSheet.create({
   // ── Inline edit hint ─────────────────────────────────────────
   editHint:   { fontSize: 13, color: theme.color.textMuted, marginStart: 2 },
   inviteeAdd: { fontSize: 14, color: theme.color.textMuted, fontStyle: 'italic' },
+
+  // ── Custom field section divider ─────────────────────────────
+  editFieldsDivider: {
+    marginTop:        theme.spacing.space4,
+    marginBottom:     theme.spacing.space2,
+    borderTopWidth:   1,
+    borderTopColor:   theme.color.border,
+    paddingTop:       theme.spacing.space3,
+  },
+  editFieldsDividerText: {
+    ...theme.typography.sectionDivider,
+    color: theme.color.primary,
+  },
+
+  // ── Boolean field row ────────────────────────────────────────
+  editBoolRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.color.bgBase,
+    borderWidth:    1,
+    borderColor:    theme.color.border,
+    borderRadius:   theme.radius.md,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   10,
+    marginTop:      4,
+  },
+
+  // ── Select field chips ───────────────────────────────────────
+  editSelectRow: {
+    flexDirection:  'row',
+    flexWrap:       'wrap',
+    gap:            8,
+    marginTop:      6,
+  },
+  editSelectChip: {
+    borderWidth:       1,
+    borderColor:       theme.color.border,
+    borderRadius:      theme.radius.md,
+    paddingHorizontal: 12,
+    paddingVertical:   6,
+    backgroundColor:   theme.color.bgBase,
+  },
+  editSelectChipActive: {
+    borderColor:      theme.color.primary,
+    backgroundColor:  theme.color.primary + '18',
+  },
+  editSelectChipText: {
+    fontSize:   13,
+    fontWeight: '600',
+    color:      theme.color.textSecondary,
+  },
+  editSelectChipTextActive: {
+    color: theme.color.primary,
+  },
 });
