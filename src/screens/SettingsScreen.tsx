@@ -295,6 +295,7 @@ export default function SettingsScreen() {
  const [inviteRole, setInviteRole]   = useState<'admin' | 'member' | 'viewer'>('member');
  const [inviting, setInviting]       = useState(false);
  const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; email: string; role: string; expires_at: string }>>([]);
+ const [activeCodeCount, setActiveCodeCount] = useState(0);
 
  // Help & FAQ modals
  const [showHelp, setShowHelp] = useState(false);
@@ -454,14 +455,16 @@ export default function SettingsScreen() {
  const [inviteCountryCode, setInviteCountryCode] = useState(DEFAULT_COUNTRY.code);
 
  const fetchData = useCallback(async () => {
- const [tmRes, invRes] = await Promise.all([
+ const [tmRes, invRes, codesRes] = await Promise.all([
  supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
  supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
+ supabase.from('org_join_codes').select('id', { count: 'exact' }).is('deleted_at', null).eq('org_id', teamMember?.org_id ?? ''),
  ]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);
  if (invRes.data) setPendingInvites(invRes.data as any[]);
+ setActiveCodeCount(codesRes.count ?? 0);
  setLoading(false);
- }, []);
+ }, [teamMember?.org_id]);
 
  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
@@ -579,7 +582,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>👥</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
-       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ''}</Text>
+       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{activeCodeCount > 0 ? `, ${activeCodeCount} invitee${activeCodeCount !== 1 ? 's' : ''}` : ''}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
