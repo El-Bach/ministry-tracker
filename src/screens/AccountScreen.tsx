@@ -258,12 +258,11 @@ export default function AccountScreen() {
   const planInfo = PLAN_LABELS[currentPlanKey] ?? PLAN_LABELS.free;
 
   const handleUpgradePress = (planKey: string) => {
-    const msg = encodeURIComponent(
-      `Hi, I'd like to upgrade my GovPilot account to the ${planKey.charAt(0).toUpperCase() + planKey.slice(1)} plan.\n\nOrganization: ${organization?.name ?? '—'}\nEmail: ${teamMember?.email ?? '—'}\n\n_GovPilot, Powered by KTS_`
+    const planLabel = planKey.charAt(0).toUpperCase() + planKey.slice(1);
+    const body = encodeURIComponent(
+      `Hi,\n\nI'd like to upgrade my GovPilot account to the ${planLabel} plan.\n\nOrganization: ${organization?.name ?? '—'}\nEmail: ${teamMember?.email ?? '—'}\nMobile: ${teamMember?.phone ?? '—'}`,
     );
-    Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`).catch(() =>
-      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade to ${planKey} Plan&body=${decodeURIComponent(msg)}`)
-    );
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade to ${planLabel} Plan&body=${body}`);
   };
 
   const handleDeleteAccount = () => {

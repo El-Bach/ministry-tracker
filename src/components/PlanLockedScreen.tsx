@@ -5,23 +5,22 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking, StatusBar, SafeAreaView } from 'react-native';
 import { theme } from '../theme';
-import { SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../lib/config';
+import { SUPPORT_EMAIL } from '../lib/config';
 
 interface Props {
   planName: string;
   isOwner: boolean;
   orgName: string;
   ownerEmail: string;
+  ownerPhone?: string;
 }
 
-export function PlanLockedScreen({ planName, isOwner, orgName, ownerEmail }: Props) {
+export function PlanLockedScreen({ planName, isOwner, orgName, ownerEmail, ownerPhone }: Props) {
   const handleUpgrade = () => {
-    const msg = encodeURIComponent(
-      `Hi, I'd like to upgrade my GovPilot account.\n\nOrganization: ${orgName}\nEmail: ${ownerEmail}\n\n_GovPilot, Powered by KTS_`,
+    const body = encodeURIComponent(
+      `Hi,\n\nI'd like to upgrade my GovPilot account.\n\nOrganization: ${orgName}\nEmail: ${ownerEmail}\nMobile: ${ownerPhone ?? '—'}`,
     );
-    Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`).catch(() =>
-      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade GovPilot Plan`),
-    );
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade GovPilot Plan&body=${body}`);
   };
 
   const handleContactSupport = () => {

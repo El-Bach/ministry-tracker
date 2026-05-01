@@ -59,6 +59,7 @@ function PlanEnforcementWrapper({ children }: { children: React.ReactNode }) {
         isOwner={isOwner}
         orgName={organization?.name ?? ''}
         ownerEmail={teamMember?.email ?? ''}
+        ownerPhone={teamMember?.phone}
       />
     );
   }
@@ -83,6 +84,7 @@ function PlanEnforcementWrapper({ children }: { children: React.ReactNode }) {
           isOwner={isOwner}
           orgName={organization?.name ?? ''}
           ownerEmail={teamMember?.email ?? ''}
+          ownerPhone={teamMember?.phone}
           onDismiss={() => setWarningVisible(false)}
         />
       )}

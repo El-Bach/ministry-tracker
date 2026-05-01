@@ -5,7 +5,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { theme } from '../theme';
-import { SUPPORT_WHATSAPP, SUPPORT_EMAIL } from '../lib/config';
+import { SUPPORT_EMAIL } from '../lib/config';
 
 interface Props {
   visible: boolean;
@@ -17,6 +17,7 @@ interface Props {
   isOwner: boolean;
   orgName: string;
   ownerEmail: string;
+  ownerPhone?: string;
   onDismiss: () => void;
 }
 
@@ -30,18 +31,17 @@ export function PlanWarningModal({
   isOwner,
   orgName,
   ownerEmail,
+  ownerPhone,
   onDismiss,
 }: Props) {
   const resourceLabel = limitType === 'members' ? 'team members' : 'active files';
   const dayWord = daysRemaining === 1 ? 'day' : 'days';
 
   const handleUpgrade = () => {
-    const msg = encodeURIComponent(
-      `Hi, I'd like to upgrade my GovPilot account.\n\nOrganization: ${orgName}\nEmail: ${ownerEmail}\n\n_GovPilot, Powered by KTS_`,
+    const body = encodeURIComponent(
+      `Hi,\n\nI'd like to upgrade my GovPilot account.\n\nOrganization: ${orgName}\nEmail: ${ownerEmail}\nMobile: ${ownerPhone ?? '—'}`,
     );
-    Linking.openURL(`https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`).catch(() =>
-      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade GovPilot Plan`),
-    );
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Upgrade GovPilot Plan&body=${body}`);
   };
 
   return (
