@@ -185,11 +185,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // Role changed — update permissions instantly
+          // Merge all updated fields (name, phone, role, etc.) into local state instantly
+          setTeamMember((prev) => prev ? { ...prev, ...row } : prev);
+
+          // If role changed, reload permissions
           const newRole = row?.role as string | undefined;
-          if (!newRole) return;
-          setTeamMember((prev) => prev ? { ...prev, role: newRole } : prev);
-          await loadPermissionsForRole(newRole, orgId, setPermissions);
+          if (newRole) {
+            await loadPermissionsForRole(newRole, orgId, setPermissions);
+          }
         },
       )
       .subscribe();
