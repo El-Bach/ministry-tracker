@@ -752,12 +752,16 @@ export default function SettingsScreen() {
  {/* Sign out */}
  <TouchableOpacity
  style={ss.signOutBtn}
- onPress={() =>
- Alert.alert(t('signOut'), 'Are you sure?', [
- { text: t('cancel'), style: 'cancel' },
- { text: t('signOut'), style: 'destructive', onPress: signOut },
- ])
- }
+ onPress={() => {
+   if (Platform.OS === 'web') {
+     if ((window as any).confirm('Are you sure you want to sign out?')) signOut();
+   } else {
+     Alert.alert(t('signOut'), 'Are you sure?', [
+       { text: t('cancel'), style: 'cancel' },
+       { text: t('signOut'), style: 'destructive', onPress: signOut },
+     ]);
+   }
+ }}
  >
  <Text style={ss.signOutText}>{t('signOut')}</Text>
  </TouchableOpacity>
