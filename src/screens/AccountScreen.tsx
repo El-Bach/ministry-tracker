@@ -2,7 +2,7 @@
 // User profile: view/edit name & phone, change password, org info, sign out + plan upgrade
 // Session 26 / 28
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -109,6 +109,15 @@ const PLANS = [
 
 type PlanKey = 'free' | 'basic' | 'premium' | 'starter' | 'business';
 
+// null = unlimited
+const PLAN_LIMITS: Record<string, { members: number | null; files: number | null }> = {
+  free:     { members: 3,    files: 25   },
+  basic:    { members: 10,   files: null },
+  premium:  { members: null, files: null },
+  starter:  { members: null, files: null },
+  business: { members: null, files: null },
+};
+
 export default function AccountScreen() {
   const navigation = useNavigation();
   const { teamMember, organization, signOut, refreshTeamMember, isOwner } = useAuth();
@@ -131,6 +140,8 @@ export default function AccountScreen() {
 
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [billingAnnual,  setBillingAnnual]  = useState(false);
+  const [usage,          setUsage]          = useState<{ members: number; files: number } | null>(null);
+  const [fetchingUsage,  setFetchingUsage]  = useState(false);
 
   // Join company via code
   const [joinCode,       setJoinCode]       = useState('');
@@ -149,6 +160,30 @@ export default function AccountScreen() {
     if (organization?.name) setEditOrgName(organization.name);
   }, [organization]);
 
+  // Fetch live usage counts whenever the plans modal opens
+  const fetchUsage = useCallback(async () => {
+    if (!teamMember?.org_id) return;
+    setFetchingUsage(true);
+    const [membersRes, filesRes] = await Promise.all([
+      supabase
+        .from('team_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', teamMember.org_id)
+        .is('deleted_at', null),
+      supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', teamMember.org_id)
+        .eq('is_archived', false),
+    ]);
+    setUsage({ members: membersRes.count ?? 0, files: filesRes.count ?? 0 });
+    setFetchingUsage(false);
+  }, [teamMember?.org_id]);
+
+  useEffect(() => {
+    if (showPlansModal) fetchUsage();
+  }, [showPlansModal, fetchUsage]);
+
   // Display identifier for this user (phone or email)
   const displayIdentifier = teamMember?.email
     ? emailToDisplay(teamMember.email)
@@ -156,11 +191,11 @@ export default function AccountScreen() {
   const identifierIsPhone = isPhoneInput(displayIdentifier);
 
   const saveProfile = async () => {
-    if (!editName.trim()) { Alert.alert('Required', 'Name cannot be empty.'); return; }
+    if (!editName.trim())  { Alert.alert('Required', 'Name cannot be empty.'); return; }
+    if (!editPhone.trim()) { Alert.alert('Required', 'Phone number cannot be empty.'); return; }
     if (!teamMember?.id) return;
     setSavingProfile(true);
-    const updates: Record<string, string> = { name: editName.trim() };
-    if (editPhone.trim()) updates.phone = editPhone.trim();
+    const updates: Record<string, string> = { name: editName.trim(), phone: editPhone.trim() };
     const { error } = await supabase.from('team_members').update(updates).eq('id', teamMember.id);
     setSavingProfile(false);
     if (error) { Alert.alert('Error', error.message); return; }
@@ -419,7 +454,7 @@ export default function AccountScreen() {
             />
           </View>
           <View style={s.field}>
-            <Text style={s.label}>PHONE NUMBER (optional)</Text>
+            <Text style={s.label}>PHONE NUMBER</Text>
             <TextInput
               style={s.input}
               value={editPhone}
@@ -428,6 +463,11 @@ export default function AccountScreen() {
               placeholderTextColor={theme.color.textMuted}
               keyboardType="phone-pad"
             />
+            <Text style={s.fieldHint}>
+              {identifierIsPhone
+                ? '📱 This is your registered login number'
+                : '📱 Your contact number as registered in the system'}
+            </Text>
           </View>
           <TouchableOpacity
             style={[s.saveBtn, savingProfile && s.btnDisabled]}
@@ -546,6 +586,53 @@ export default function AccountScreen() {
                 <View style={s.savingBadge}><Text style={s.savingBadgeText}>Save 33%</Text></View>
               </TouchableOpacity>
             </View>
+
+            {/* ── Live usage ── */}
+            {fetchingUsage ? (
+              <ActivityIndicator color={theme.color.primary} style={{ marginBottom: 12 }} />
+            ) : usage ? (() => {
+              const limits  = PLAN_LIMITS[currentPlanKey] ?? { members: null, files: null };
+              const items = [
+                { label: 'Team Members', current: usage.members, limit: limits.members },
+                { label: 'Active Files',  current: usage.files,   limit: limits.files   },
+              ];
+              const anyOver = items.some(({ current, limit }) => limit !== null && current > limit);
+              return (
+                <View style={s.usageCard}>
+                  <Text style={s.usageCardTitle}>YOUR CURRENT USAGE</Text>
+                  {items.map(({ label, current, limit }) => {
+                    const over = limit !== null && current > limit;
+                    const pct  = limit != null ? Math.min(current / limit, 1) : 0;
+                    return (
+                      <View key={label} style={s.usageItem}>
+                        <View style={s.usageLabelRow}>
+                          <Text style={s.usageLabel}>{label}</Text>
+                          <Text style={[s.usageCount, over && s.usageCountOver]}>
+                            {current}
+                            <Text style={s.usageLimit}>{limit != null ? ` / ${limit}` : ' / ∞'}</Text>
+                          </Text>
+                        </View>
+                        <View style={s.usageBarBg}>
+                          <View style={[
+                            s.usageBarFg,
+                            { width: `${(limit != null ? pct : 0) * 100}%` as any },
+                            over ? s.usageBarOver : s.usageBarOk,
+                          ]} />
+                        </View>
+                        {over && (
+                          <Text style={s.usageOverHint}>⚠️ Over plan limit — upgrade to add more</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                  {anyOver && (
+                    <Text style={s.usageOverBanner}>
+                      You are using more than your current plan allows. Please upgrade to keep using all features.
+                    </Text>
+                  )}
+                </View>
+              );
+            })() : null}
 
             {/* Plan cards */}
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.plansScroll}>
@@ -881,9 +968,54 @@ const s = StyleSheet.create({
     marginTop:  4,
   },
 
+  // ── Usage card (inside plans modal) ──────────────────────────
+  usageCard: {
+    marginHorizontal: theme.spacing.space4,
+    marginBottom:     theme.spacing.space4,
+    backgroundColor:  theme.color.bgSurface,
+    borderRadius:     theme.radius.lg,
+    borderWidth:      1,
+    borderColor:      theme.color.border,
+    padding:          theme.spacing.space3,
+    gap:              10,
+  },
+  usageCardTitle: {
+    ...theme.typography.sectionDivider,
+    color:       theme.color.textMuted,
+    marginBottom: 2,
+  },
+  usageItem:     { gap: 5 },
+  usageLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  usageLabel:    { ...theme.typography.label, color: theme.color.textSecondary, fontSize: 13 },
+  usageCount:    { fontSize: 13, fontWeight: '700', color: theme.color.textPrimary },
+  usageCountOver: { color: theme.color.danger },
+  usageLimit:    { fontWeight: '400', color: theme.color.textMuted },
+  usageBarBg: {
+    height:          6,
+    borderRadius:    4,
+    backgroundColor: theme.color.bgBase,
+    overflow:        'hidden',
+  },
+  usageBarFg:   { height: 6, borderRadius: 4 },
+  usageBarOk:   { backgroundColor: theme.color.success },
+  usageBarOver: { backgroundColor: theme.color.danger },
+  usageOverHint: { fontSize: 11, color: theme.color.danger, fontWeight: '600' },
+  usageOverBanner: {
+    fontSize:        12,
+    color:           theme.color.danger,
+    fontWeight:      '600',
+    backgroundColor: theme.color.danger + '12',
+    borderRadius:    theme.radius.md,
+    padding:         8,
+    borderWidth:     1,
+    borderColor:     theme.color.danger + '30',
+    lineHeight:      18,
+  },
+
   // Form
-  field:  { gap: 6 },
-  label:  { ...theme.typography.sectionDivider, letterSpacing: 1.1 },
+  field:     { gap: 6 },
+  fieldHint: { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 2 },
+  label:     { ...theme.typography.sectionDivider, letterSpacing: 1.1 },
   input: {
     backgroundColor: theme.color.bgBase,
     borderWidth:     1,
