@@ -396,10 +396,23 @@ export default function TeamMembersScreen() {
   };
 
   // ── Edit invitee / member info ───────────────────────────────
-  const openEditCode = (jc: any) => {
+  // If the code's invitee has already joined as a team member, open the full
+  // member edit (with custom fields). Only fall back to the 3-field code edit
+  // when the code hasn't been used yet and there is no linked member row.
+  const openEditCode = async (jc: any) => {
+    // Check if someone already joined using this code
+    const linkedMember = teamMembers.find(tm => (tm as any).joined_via_code === jc.id && !tm.deleted_at);
+    if (linkedMember) {
+      // Route to the full member edit — same experience as tapping the member card
+      await openEditMember(linkedMember);
+      return;
+    }
+    // Code not yet used — edit the pre-registered invitee details only
     setEditName(jc.invitee_name ?? '');
     setEditPhone(jc.invitee_phone ?? '');
     setEditEmail(jc.invitee_email ?? '');
+    setFieldDefs([]);
+    setFieldValues({});
     setEditModal({ type: 'code', id: jc.id });
   };
 
@@ -943,9 +956,7 @@ export default function TeamMembersScreen() {
             extraScrollHeight={40}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={s.editSheetTitle}>
-              {editModal?.type === 'code' ? '✎ Edit Invitee Info' : '✎ Edit Member Info'}
-            </Text>
+            <Text style={s.editSheetTitle}>✎ Edit Member Info</Text>
 
             {/* ── Core fields ── */}
             <Text style={s.editLabel}>Name</Text>
