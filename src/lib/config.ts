@@ -3,10 +3,10 @@
 // Update these values here — they are used across all screens.
 
 /** WhatsApp number for support and plan upgrades (E.164 without '+') */
-export const SUPPORT_WHATSAPP = '96170123456';
+export const SUPPORT_WHATSAPP = '96170123456'; // kept for upgrade CTA only
 
-/** Support email address */
-export const SUPPORT_EMAIL = 'hello@govpilot.app';
+/** Support / management email address */
+export const SUPPORT_EMAIL = 'management@kts-lb.com';
 
 /** Legal pages (hosted on Netlify) */
 export const PRIVACY_URL = 'https://ministry-papers.netlify.app/privacy.html';

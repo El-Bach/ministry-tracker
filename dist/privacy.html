@@ -19,7 +19,8 @@
       border-bottom: 1px solid #1e293b;
       margin-bottom: 40px;
     }
-    .logo { font-size: 22px; font-weight: 800; color: #6366f1; margin-bottom: 6px; }
+    .logo { font-size: 22px; font-weight: 800; color: #6366f1; margin-bottom: 4px; }
+    .powered { font-size: 13px; color: #64748b; margin-bottom: 10px; }
     .doc-title { font-size: 28px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
     .meta { font-size: 13px; color: #64748b; }
     h2 {
@@ -43,6 +44,7 @@
       margin-top: 16px;
     }
     .contact-box p { margin: 0; }
+    .contact-box p + p { margin-top: 8px; }
     footer {
       margin-top: 60px;
       padding-top: 24px;
@@ -62,70 +64,105 @@
   <div class="container">
     <header>
       <div class="logo">GovPilot</div>
+      <div class="powered">Powered by KTS</div>
       <div class="doc-title">Privacy Policy</div>
-      <div class="meta">Effective date: 26 April 2026 &nbsp;·&nbsp; Last updated: 26 April 2026</div>
+      <div class="meta">Effective date: 1 May 2026 &nbsp;·&nbsp; Last updated: 1 May 2026</div>
     </header>
 
-    <p>GovPilot ("we", "our", or "us") is a file-tracking and ministry-clearing application operated by El-Bach's. This Privacy Policy explains what data we collect, how we use it, and your rights regarding your information.</p>
-    <p>By using GovPilot you agree to the practices described in this policy.</p>
+    <p>GovPilot ("we", "our", or "us") is a professional file-tracking and ministry-clearing application powered by KTS. This Privacy Policy explains what personal data we collect, how we use it, and the rights you have regarding your information.</p>
+    <p>By creating an account or using GovPilot you agree to the practices described in this policy. If you do not agree, please discontinue use of the application.</p>
 
     <h2>1. Information We Collect</h2>
     <p>We collect only the information necessary to operate the service:</p>
     <ul>
-      <li><strong>Account information:</strong> your full name, email address or phone number, and password (stored as a secure hash by Supabase Auth).</li>
-      <li><strong>Organisation data:</strong> company name, team member names and roles, and invite codes.</li>
-      <li><strong>File and client data:</strong> client names, phone numbers, reference contacts, file notes, stage statuses, financial transactions, and documents you upload or scan.</li>
-      <li><strong>Device information:</strong> push notification token (used solely to deliver in-app notifications to your device).</li>
-      <li><strong>Usage data:</strong> activity timestamps, stage status changes, and comments entered within the app.</li>
+      <li><strong>Account information:</strong> your full name, email address or phone number, and password (stored as a secure hash managed by Supabase Auth — we never see your plaintext password).</li>
+      <li><strong>Organisation data:</strong> company name, team member names, phone numbers, roles (owner / admin / member / viewer), and invite codes issued by your organisation.</li>
+      <li><strong>Client and file data:</strong> client names, phone numbers, reference contacts, file notes, stage statuses, due dates, financial transactions (amounts in USD and LBP), and documents you upload or scan within the app.</li>
+      <li><strong>Stage and workflow data:</strong> route stages, status updates, per-stage city assignments, external assignee information, and stage requirements entered by your team.</li>
+      <li><strong>Document data:</strong> scanned images and uploaded files stored securely in cloud storage; document names and links to stage requirements.</li>
+      <li><strong>Financial data:</strong> expense and revenue transactions, contract prices, and financial report data — all scoped to your organisation only.</li>
+      <li><strong>Custom field data:</strong> any additional client or team member fields your organisation defines (e.g. ID number, address, social security number) and the values entered for those fields.</li>
+      <li><strong>Device information:</strong> push notification token (used solely to deliver real-time in-app notifications to your device).</li>
+      <li><strong>Activity data:</strong> timestamps of status changes, comments posted within the app, and document uploads — used for the activity log and audit trail.</li>
     </ul>
-    <p>We do <strong>not</strong> collect GPS location, payment card details, or any biometric data.</p>
+    <p>We do <strong>not</strong> collect GPS location, payment card details, biometric data, or any data beyond what is explicitly entered by you or your team within the app.</p>
 
     <h2>2. How We Use Your Information</h2>
     <ul>
-      <li>To provide and operate the GovPilot service.</li>
-      <li>To send push notifications about file activity (status changes, comments, new files) — only to members of your organisation.</li>
-      <li>To allow team members within the same organisation to collaborate on files.</li>
-      <li>To generate financial reports and summaries within your organisation.</li>
-      <li>To respond to support requests you send us.</li>
+      <li>To create and manage your account and your organisation's workspace.</li>
+      <li>To provide the core service: file tracking, stage management, client management, and document storage.</li>
+      <li>To send push notifications to team members about file activity — status changes, new comments, new files — according to each member's individual notification preferences.</li>
+      <li>To enforce role-based access control so that each team member sees only the data they are permitted to access.</li>
+      <li>To apply per-member file visibility rules configured by your organisation's owner or admin.</li>
+      <li>To generate financial reports and summaries accessible within your organisation.</li>
+      <li>To allow the organisation owner to manage team members, invite codes, and organisation settings.</li>
+      <li>To respond to support requests, account deletion requests, or data inquiries you send us.</li>
     </ul>
-    <p>We do <strong>not</strong> sell, rent, or share your data with any third party for marketing purposes.</p>
+    <p>We do <strong>not</strong> sell, rent, share, or disclose your data to any third party for advertising or marketing purposes.</p>
 
     <h2>3. Data Storage and Security</h2>
-    <p>All data is stored on <strong>Supabase</strong> (hosted on Amazon Web Services, US-East region). Supabase applies Row Level Security (RLS) policies so that each organisation's data is strictly isolated — no other organisation can access your data.</p>
-    <p>Data is encrypted in transit (HTTPS/TLS) and at rest. Supabase Auth manages passwords using bcrypt hashing — we never see or store your plaintext password.</p>
-    <p>Session tokens are stored locally on your device using AsyncStorage. On rooted or jailbroken devices this storage may be accessible to other apps; we recommend keeping your device secure.</p>
+    <p>All data is stored on <strong>Supabase</strong>, hosted on Amazon Web Services (US-East region). Supabase applies Row Level Security (RLS) policies so that each organisation's data is strictly isolated — no user or organisation can access another organisation's data.</p>
+    <p>Data is encrypted in transit using HTTPS/TLS and encrypted at rest. Passwords are managed by Supabase Auth using bcrypt hashing.</p>
+    <p>Document files (scanned images and uploads) are stored in a private Supabase Storage bucket accessible only to authenticated members of your organisation.</p>
+    <p>Session tokens are stored locally on your device using AsyncStorage. We recommend keeping your device secured with a passcode and keeping the operating system up to date.</p>
 
-    <h2>4. Data Retention</h2>
-    <p>We retain your data for as long as your account is active. If you delete your account, your team_members record is removed immediately and your authentication account is hard-deleted within 24 hours via our secure deletion process. File and client data associated with your organisation remains until the organisation owner deletes it.</p>
+    <h2>4. Role-Based Access and Visibility Controls</h2>
+    <p>GovPilot uses a four-tier role system (Owner, Admin, Member, Viewer) to control what each team member can see and do. In addition, organisation owners and admins can apply per-member file visibility restrictions — hiding specific files from specific team members — using the Visibility &amp; Permissions settings.</p>
+    <p>These controls are enforced both in the application and at the database level via Row Level Security policies.</p>
 
-    <h2>5. Your Rights</h2>
+    <h2>5. Push Notifications</h2>
+    <p>GovPilot sends push notifications about file activity including status changes, new comments, and new files. Each team member can configure their notification preferences individually under <strong>Settings → Notifications</strong>, including:</p>
+    <ul>
+      <li>A master on/off toggle for all notifications.</li>
+      <li>Filters by notification type (comments, status changes, new files).</li>
+      <li>The ability to mute notifications from specific team members.</li>
+    </ul>
+    <p>You can also disable all push notifications from your device's system settings at any time. Disabling notifications does not affect your ability to use the app.</p>
+
+    <h2>6. Data Retention</h2>
+    <p>We retain your personal data for as long as your account remains active. If you delete your account:</p>
+    <ul>
+      <li>Your <em>team_members</em> profile record is soft-deleted immediately, revoking access to the app.</li>
+      <li>Your authentication account (email/phone and password hash) is permanently deleted within 24 hours via our secure deletion process.</li>
+      <li>File, client, and organisation data associated with your organisation remains accessible to the organisation owner until they choose to delete it — your personal identity is removed from that data.</li>
+    </ul>
+    <p>Organisation owners wishing to delete all organisational data should contact us at the address below.</p>
+
+    <h2>7. Your Rights</h2>
     <p>You have the right to:</p>
     <ul>
-      <li><strong>Access</strong> the personal data we hold about you.</li>
-      <li><strong>Correct</strong> inaccurate data via the Account screen in the app.</li>
-      <li><strong>Delete</strong> your account at any time via Account → Security → Delete Account in the app.</li>
-      <li><strong>Export</strong> your data by contacting us at the address below.</li>
-      <li><strong>Object</strong> to processing by contacting us — we will respond within 30 days.</li>
+      <li><strong>Access</strong> the personal data we hold about you — contact us and we will provide a summary within 30 days.</li>
+      <li><strong>Correct</strong> inaccurate data via the Account screen in the app (name, phone number, and custom fields).</li>
+      <li><strong>Delete</strong> your account at any time via <strong>Account → Security → Delete Account</strong> in the app.</li>
+      <li><strong>Export</strong> your data by contacting us — we will provide your data in a machine-readable format within 30 days.</li>
+      <li><strong>Object</strong> to any processing by contacting us — we will respond within 30 days.</li>
+      <li><strong>Withdraw consent</strong> by closing your account; withdrawal does not affect the lawfulness of prior processing.</li>
     </ul>
 
-    <h2>6. Push Notifications</h2>
-    <p>GovPilot sends push notifications to team members about file activity. You can control which notifications you receive in the app under Settings → Notifications. You can also disable all notifications from your device's system settings at any time.</p>
+    <h2>8. Third-Party Services</h2>
+    <p>GovPilot relies on the following third-party infrastructure providers:</p>
+    <ul>
+      <li><strong>Supabase</strong> — database, authentication, real-time subscriptions, and file storage (supabase.com).</li>
+      <li><strong>Expo Push Notification Service</strong> — delivery of push notifications to iOS and Android devices (expo.dev).</li>
+    </ul>
+    <p>These providers process data only as necessary to deliver the service and are governed by their own privacy policies. We do not share data with any other third parties.</p>
 
-    <h2>7. Children's Privacy</h2>
-    <p>GovPilot is a professional business application intended for users aged 18 and over. We do not knowingly collect data from anyone under 18. If you believe a minor has registered, please contact us immediately.</p>
+    <h2>9. Children's Privacy</h2>
+    <p>GovPilot is a professional business application intended for users aged 18 and over. We do not knowingly collect data from anyone under 18. If you believe a minor has registered an account, please contact us immediately so we can remove the account.</p>
 
-    <h2>8. Changes to This Policy</h2>
-    <p>We may update this policy as the service evolves. We will notify registered users of material changes via a push notification or email. Continued use of GovPilot after changes are posted constitutes acceptance of the updated policy.</p>
+    <h2>10. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy as the service evolves. We will notify registered users of material changes via a push notification or email at least 14 days before the changes take effect. Continued use of GovPilot after that date constitutes acceptance of the updated policy.</p>
+    <p>The "Last updated" date at the top of this page reflects when the most recent version was published.</p>
 
-    <h2>9. Contact Us</h2>
+    <h2>11. Contact Us</h2>
+    <p>For any privacy questions, data access requests, correction requests, or deletion requests, please contact us:</p>
     <div class="contact-box">
-      <p>For any privacy questions, data requests, or deletion requests, contact us at:</p>
-      <p style="margin-top:10px;"><strong>Email:</strong> <a href="mailto:hello@govpilot.app">hello@govpilot.app</a></p>
-      <p><strong>WhatsApp:</strong> <a href="https://wa.me/96170123456">+961 70 123 456</a></p>
+      <p><strong>Email:</strong> <a href="mailto:management@kts-lb.com">management@kts-lb.com</a></p>
+      <p style="margin-top:8px; font-size:13px; color:#64748b;">We aim to respond to all privacy-related inquiries within 30 days.</p>
     </div>
 
     <footer>
-      <span>© 2026 GovPilot · El-Bach's</span>
+      <span>© 2026 GovPilot · Powered by KTS</span>
       <span>
         <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
         <a href="terms.html">Terms of Service</a>
