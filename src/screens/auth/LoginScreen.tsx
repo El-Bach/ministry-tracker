@@ -21,6 +21,7 @@ import { useAuth } from '../../hooks/useAuth';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
+import { useTranslation } from '../../lib/i18n';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -41,6 +42,7 @@ function friendlyAuthError(raw: string): string {
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const navigation  = useNavigation<Nav>();
+  const { t } = useTranslation();
 
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -57,14 +59,14 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Required', 'Please enter your email address and password.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setLoading(true);
     const { error } = await signIn(email.trim().toLowerCase(), password);
     setLoading(false);
     if (error) {
-      Alert.alert('Login Failed', friendlyAuthError(error));
+      Alert.alert(t('loginFailed'), friendlyAuthError(error));
     }
   };
 
@@ -78,7 +80,7 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) {
-      Alert.alert('Required', 'Please enter your email address.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setForgotLoading(true);
@@ -88,7 +90,7 @@ export default function LoginScreen() {
     );
     setForgotLoading(false);
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('error'), error.message);
     } else {
       setForgotSent(true);
     }
@@ -120,7 +122,7 @@ export default function LoginScreen() {
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>EMAIL ADDRESS</Text>
+            <Text style={styles.label}>{t('email').toUpperCase()}</Text>
             <TextInput
               style={styles.input}
               value={email}
@@ -135,9 +137,9 @@ export default function LoginScreen() {
 
           <View style={styles.field}>
             <View style={styles.passwordLabelRow}>
-              <Text style={styles.label}>PASSWORD</Text>
+              <Text style={styles.label}>{t('password').toUpperCase()}</Text>
               <TouchableOpacity onPress={openForgot} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={styles.forgotLink}>Forgot password?</Text>
+                <Text style={styles.forgotLink}>{t('forgotPassword')}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.passwordRow}>
@@ -170,7 +172,7 @@ export default function LoginScreen() {
           >
             {loading
               ? <ActivityIndicator color={theme.color.white} />
-              : <Text style={styles.buttonText}>Sign In</Text>}
+              : <Text style={styles.buttonText}>{t('signIn')}</Text>}
           </TouchableOpacity>
 
           {/* ─── Forgot password panel ─── */}
@@ -178,19 +180,19 @@ export default function LoginScreen() {
             <View style={styles.forgotCard}>
               {forgotSent ? (
                 <>
-                  <Text style={styles.forgotTitle}>✅ Email sent</Text>
+                  <Text style={styles.forgotTitle}>✅ {t('resetSent')}</Text>
                   <Text style={styles.forgotDesc}>
-                    Check your inbox at <Text style={{ fontWeight: '700' }}>{forgotEmail}</Text> for a password-reset link.
+                    <Text style={{ fontWeight: '700' }}>{forgotEmail}</Text>
                   </Text>
                   <TouchableOpacity onPress={() => setShowForgot(false)}>
-                    <Text style={styles.forgotClose}>Close</Text>
+                    <Text style={styles.forgotClose}>{t('close')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
-                  <Text style={styles.forgotTitle}>Reset your password</Text>
+                  <Text style={styles.forgotTitle}>{t('resetPassword')}</Text>
                   <Text style={styles.forgotDesc}>
-                    Enter your email address and we'll send you a link to reset your password.
+                    {t('enterEmail')}
                   </Text>
                   <TextInput
                     style={styles.forgotInput}
@@ -207,7 +209,7 @@ export default function LoginScreen() {
                       style={styles.forgotCancelBtn}
                       onPress={() => setShowForgot(false)}
                     >
-                      <Text style={styles.forgotCancelText}>Cancel</Text>
+                      <Text style={styles.forgotCancelText}>{t('cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.forgotSendBtn, forgotLoading && styles.buttonDisabled]}
@@ -217,7 +219,7 @@ export default function LoginScreen() {
                     >
                       {forgotLoading
                         ? <ActivityIndicator color={theme.color.white} size="small" />
-                        : <Text style={styles.forgotSendText}>Send Reset Email</Text>}
+                        : <Text style={styles.forgotSendText}>{t('sendResetLink')}</Text>}
                     </TouchableOpacity>
                   </View>
                 </>
@@ -229,13 +231,13 @@ export default function LoginScreen() {
 
         {/* Sign up link */}
         <View style={styles.signupRow}>
-          <Text style={styles.signupText}>New to GovPilot? </Text>
+          <Text style={styles.signupText}>{t('noAccount')} </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.signupLink}>Create an account</Text>
+            <Text style={styles.signupLink}>{t('createAccount')}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>Your data is private and secure</Text>
+        <Text style={styles.footer}>{t('poweredBy')}</Text>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
