@@ -78,6 +78,7 @@ function DynamicFieldInput({
  value?: FieldValue;
  onChange: (v: FieldValue) => void;
 }) {
+ const { t } = useTranslation();
  const [locLoading, setLocLoading] = React.useState(false);
  const [selectOpen, setSelectOpen] = React.useState(false);
  const ft = definition.field_type;
@@ -218,7 +219,7 @@ function DynamicFieldInput({
  setLocLoading(true);
  try {
  const { status } = await Location.requestForegroundPermissionsAsync();
- if (status !== 'granted') { Alert.alert('Permission denied', 'Location needed.'); return; }
+ if (status !== 'granted') { Alert.alert(t('warning'), t('fieldRequired')); return; }
  const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
  const coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
  try {
@@ -226,7 +227,7 @@ function DynamicFieldInput({
  const address = [place.street, place.city, place.country].filter(Boolean).join(', ');
  onChange({ ...base, value_json: { ...coords, address } as Record<string, unknown> });
  } catch { onChange({ ...base, value_json: coords as Record<string, unknown> }); }
- } catch { Alert.alert('Error', 'Could not get location.'); }
+ } catch { Alert.alert(t('error'), t('somethingWrong')); }
  finally { setLocLoading(false); }
  }}>
  {locLoading ? <ActivityIndicator color={theme.color.primary} size="small" /> :
@@ -472,6 +473,7 @@ function PickerModal({
  onAddNew?: (initialName?: string) => void;
  addNewLabel?: string;
 }) {
+ const { t } = useTranslation();
  const [query, setQuery] = useState('');
  const filtered = query
  ? items.filter((i) => i.label.toLowerCase().includes(query.toLowerCase()))
@@ -498,7 +500,7 @@ function PickerModal({
               style={ms.sheetSearch}
               value={query}
               onChangeText={setQuery}
-              placeholder="Search..."
+              placeholder={t('searchInput')}
               placeholderTextColor={theme.color.textMuted}
               autoCorrect={false}
               autoCapitalize="none"
@@ -969,7 +971,7 @@ export default function NewTaskScreen() {
 
  const createCityForDraftStage = async (idx: number) => {
    const name = svcStageNewCityName.trim();
-   if (!name) { Alert.alert('Required', 'City name is required.'); return; }
+   if (!name) { Alert.alert(t('required'), t('fieldRequired')); return; }
    setSvcStageSavingCity(true);
    const { data, error } = await supabase
      .from('cities')
@@ -977,7 +979,7 @@ export default function NewTaskScreen() {
      .select()
      .single();
    setSvcStageSavingCity(false);
-   if (error) { Alert.alert('Error', error.message); return; }
+   if (error) { Alert.alert(t('error'), error.message); return; }
    const created = data as City;
    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
    setDraftStageCity(idx, { id: created.id, name: created.name });
@@ -989,7 +991,7 @@ export default function NewTaskScreen() {
  // ── Inline create handlers (city + external assignee) ────────
  const handleCreateCityForStage = async (stageId: string) => {
    const name = newCityName.trim();
-   if (!name) { Alert.alert('Required', 'City name is required.'); return; }
+   if (!name) { Alert.alert(t('required'), t('fieldRequired')); return; }
    setSavingNewCity(true);
    const { data, error } = await supabase
      .from('cities')
@@ -997,7 +999,7 @@ export default function NewTaskScreen() {
      .select()
      .single();
    setSavingNewCity(false);
-   if (error) { Alert.alert('Error', error.message); return; }
+   if (error) { Alert.alert(t('error'), error.message); return; }
    const created = data as City;
    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
    await persistStageCity(stageId, { cityId: created.id, cityName: created.name });
@@ -1008,7 +1010,7 @@ export default function NewTaskScreen() {
 
  const handleCreateExtAssigneeForStage = async (stageId: string) => {
    const name = newExtName.trim();
-   if (!name) { Alert.alert('Required', 'Name is required.'); return; }
+   if (!name) { Alert.alert(t('required'), t('fieldRequired')); return; }
    setSavingNewExt(true);
    const { data, error } = await supabase
      .from('assignees')
@@ -1022,7 +1024,7 @@ export default function NewTaskScreen() {
      .select('*, creator:team_members!created_by(name)')
      .single();
    setSavingNewExt(false);
-   if (error) { Alert.alert('Error', error.message); return; }
+   if (error) { Alert.alert(t('error'), error.message); return; }
    const created = data as any;
    setAllAssignees(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
    setStageAssigneeMap(m => ({ ...m, [stageId]: { id: created.id, name: created.name, isExt: true } }));
@@ -1130,7 +1132,7 @@ export default function NewTaskScreen() {
  // Add a new required document for the currently selected service
  const handleAddDocFromSheet = async () => {
    const title = newDocTitle.trim();
-   if (!title) { Alert.alert('Required', 'Document title is required.'); return; }
+   if (!title) { Alert.alert(t('required'), t('fieldRequired')); return; }
    if (!selectedService) return;
    setSavingNewDoc(true);
    const maxOrder = sheetDocs.length > 0
@@ -1147,7 +1149,7 @@ export default function NewTaskScreen() {
      .select()
      .single();
    setSavingNewDoc(false);
-   if (error) { Alert.alert('Error', error.message); return; }
+   if (error) { Alert.alert(t('error'), error.message); return; }
    if (data) {
      setSheetDocs(prev => [...prev, data]);
      setSheetDocReqs(prev => ({ ...prev, [(data as any).id]: [] }));
@@ -1167,12 +1169,12 @@ export default function NewTaskScreen() {
    lines.push('_GovPilot, Powered by KTS_');
    const msg = encodeURIComponent(lines.join('\n'));
    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
-     Alert.alert('Error', 'Could not open WhatsApp.')
+     Alert.alert(t('error'), t('somethingWrong'))
    );
  };
 
  const handleDeleteService = (item: PickerItem) => {
-   Alert.alert('Delete Service', `Delete "${item.label}"?`, [
+   Alert.alert(t('deleteService'), `${t('confirmDelete')} — "${item.label}"`, [
      { text: 'Cancel', style: 'cancel' },
      {
        text: 'Delete', style: 'destructive',
@@ -1189,7 +1191,7 @@ export default function NewTaskScreen() {
  };
 
  const handleDeleteStage = (item: PickerItem) => {
-   Alert.alert('Delete Stage', `Permanently delete "${item.label}" from the stages directory?`, [
+   Alert.alert(t('deleteStage'), `${t('confirmDelete')} — "${item.label}"`, [
      { text: 'Cancel', style: 'cancel' },
      {
        text: 'Delete', style: 'destructive',
@@ -1278,12 +1280,12 @@ export default function NewTaskScreen() {
  // ─── Create custom field definition on the fly ───────────────
  const handleCreateCustomField = async () => {
  if (!newFieldLabel.trim()) {
- Alert.alert('Required', 'Field label is required.');
+ Alert.alert(t('required'), t('fieldRequired'));
  return;
  }
  const needsOptions = ['select', 'multiselect'].includes(newFieldType);
  if (needsOptions && !newFieldOptions.trim()) {
- Alert.alert('Required', 'Add at least one option (comma-separated).');
+ Alert.alert(t('required'), t('fieldRequired'));
  return;
  }
  setSavingNewField(true);
@@ -1307,7 +1309,7 @@ export default function NewTaskScreen() {
  .select()
  .single();
  setSavingNewField(false);
- if (error) { Alert.alert('Error', error.message); return; }
+ if (error) { Alert.alert(t('error'), error.message); return; }
  await reloadFieldDefs();
  setActiveFieldIds((prev) => [...prev, data.id]);
  setNewFieldLabel('');
@@ -1320,7 +1322,7 @@ export default function NewTaskScreen() {
 
  const handleCreateClient = async () => {
  if (!newClientName.trim()) {
- Alert.alert('Required', 'Client name is required.');
+ Alert.alert(t('required'), t('fieldRequired'));
  return;
  }
 
@@ -1369,7 +1371,7 @@ export default function NewTaskScreen() {
  })
  .select()
  .single();
- if (error) { Alert.alert('Error', error.message); return; }
+ if (error) { Alert.alert(t('error'), error.message); return; }
  const c = data as Client;
 
  // Save custom field values
@@ -1398,7 +1400,7 @@ export default function NewTaskScreen() {
 
  const handleCreateService = async () => {
    if (!newServiceName.trim()) {
-     Alert.alert('Required', 'Service name is required.');
+     Alert.alert(t('required'), t('fieldRequired'));
      return;
    }
    // Duplicate check (case-insensitive, scoped to current org)
@@ -1430,7 +1432,7 @@ export default function NewTaskScreen() {
      .insert({ name: newServiceName.trim(), estimated_duration_days: 0, org_id: teamMember?.org_id ?? null })
      .select()
      .single();
-   if (error) { Alert.alert('Error', error.message); setSavingService(false); return; }
+   if (error) { Alert.alert(t('error'), error.message); setSavingService(false); return; }
    const sv = data as Service;
    // Create ministries + link as default stages — silently reuse existing
    // ministries (same name in this org) instead of creating duplicates.
@@ -1503,7 +1505,7 @@ export default function NewTaskScreen() {
 
  const handleCreateStage = async () => {
  if (!newStageName.trim()) {
- Alert.alert('Required', 'Stage name is required.');
+ Alert.alert(t('required'), t('fieldRequired'));
  return;
  }
  // Duplicate check
@@ -1537,7 +1539,7 @@ export default function NewTaskScreen() {
  .select()
  .single();
  setSavingStage(false);
- if (error) { Alert.alert('Error', error.message); return; }
+ if (error) { Alert.alert(t('error'), error.message); return; }
  const stage = data as Ministry;
  setStages((prev) => [...prev, stage]);
  setRouteStops((prev) => {
@@ -1565,7 +1567,7 @@ export default function NewTaskScreen() {
    .update({ name: editingStageName.trim() })
    .eq('id', stage.id);
  setSavingStageRename(false);
- if (error) { Alert.alert('Error', error.message); return; }
+ if (error) { Alert.alert(t('error'), error.message); return; }
  const newName = editingStageName.trim();
  setRouteStops((prev) => prev.map((s, i) => i === editingStageIdx ? { ...s, name: newName } : s));
  setStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, name: newName } : s));
@@ -1586,7 +1588,7 @@ export default function NewTaskScreen() {
 
  const handleSave = async () => {
  const err = validate();
- if (err) { Alert.alert('Validation', err); return; }
+ if (err) { Alert.alert(t('warning'), err); return; }
 
  const dueDateISO = dueDate.trim() ? toISO(dueDate) : null;
 
@@ -1654,7 +1656,7 @@ export default function NewTaskScreen() {
  new_status: 'Submitted',
  });
 
- Alert.alert('File Created', 'The file has been created successfully.', [
+ Alert.alert(t('success'), t('savedSuccess'), [
  { text: 'OK', onPress: () => navigation.goBack() },
  ]);
  } catch (e: unknown) {
@@ -1698,7 +1700,7 @@ export default function NewTaskScreen() {
  style={s.inlineInput}
  value={newClientName}
  onChangeText={setNewClientName}
- placeholder="Full name *"
+ placeholder={t('fullNameRequired')}
  placeholderTextColor={theme.color.textMuted}
  />
  <PhoneInput
@@ -1706,14 +1708,14 @@ export default function NewTaskScreen() {
  onChangeText={setNewClientPhone}
  countryCode={newClientPhoneCountry}
  onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
- placeholder="Phone number"
+ placeholder={t('phoneNumber')}
  style={{ marginBottom: 10 }}
  />
  <TextInput
  style={s.inlineInput}
  value={newClientRefName}
  onChangeText={setNewClientRefName}
- placeholder="Reference name (optional)"
+ placeholder={t('referenceName')}
  placeholderTextColor={theme.color.textMuted}
  />
  <PhoneInput
@@ -1721,7 +1723,7 @@ export default function NewTaskScreen() {
  onChangeText={setNewClientRefPhone}
  countryCode={newClientRefPhoneCountry}
  onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
- placeholder="Reference phone (optional)"
+ placeholder={t('referencePhone')}
  style={{ marginBottom: 10 }}
  />
  {/* Active custom fields — only ones user added */}
@@ -1810,7 +1812,7 @@ export default function NewTaskScreen() {
      style={s.inlineInput}
      value={newServiceName}
      onChangeText={setNewServiceName}
-     placeholder="Service name *"
+     placeholder={`${t('serviceName')} *`}
      placeholderTextColor={theme.color.textMuted}
      autoFocus
    />
@@ -1853,7 +1855,7 @@ export default function NewTaskScreen() {
                  style={s.stageDetailSearch}
                  value={svcStageCitySearch}
                  onChangeText={setSvcStageCitySearch}
-                 placeholder="Search city..."
+                 placeholder={t('searchCity')}
                  placeholderTextColor={theme.color.textMuted}
                />
                {draft.cityId && (
@@ -1891,7 +1893,7 @@ export default function NewTaskScreen() {
                      style={s.inlineCreateInput}
                      value={svcStageNewCityName}
                      onChangeText={setSvcStageNewCityName}
-                     placeholder="City name"
+                     placeholder={t('city')}
                      placeholderTextColor={theme.color.textMuted}
                      autoFocus
                    />
@@ -1935,7 +1937,7 @@ export default function NewTaskScreen() {
        style={[s.inlineInput, { flex: 1, marginBottom: 0 }]}
        value={newServiceStageInput}
        onChangeText={setNewServiceStageInput}
-       placeholder="+ Stage name"
+       placeholder={`+ ${t('stageName')}`}
        placeholderTextColor={theme.color.textMuted}
        onSubmitEditing={() => {
          if (newServiceStageInput.trim()) {
@@ -2123,7 +2125,7 @@ export default function NewTaskScreen() {
                      style={s.inlineCreateInput}
                      value={newCityName}
                      onChangeText={setNewCityName}
-                     placeholder="City name"
+                     placeholder={t('city')}
                      placeholderTextColor={theme.color.textMuted}
                    />
                    <View style={s.inlineCreateActions}>
@@ -2153,7 +2155,7 @@ export default function NewTaskScreen() {
                style={s.stageDetailSearch}
                value={stageAssigneeSearch}
                onChangeText={setStageAssigneeSearch}
-               placeholder="Search assignee..."
+               placeholder={t('searchMember')}
                placeholderTextColor={theme.color.textMuted}
              />
              <View>
@@ -2212,14 +2214,14 @@ export default function NewTaskScreen() {
                      style={s.inlineCreateInput}
                      value={newExtName}
                      onChangeText={setNewExtName}
-                     placeholder="Name *"
+                     placeholder={`${t('name')} *`}
                      placeholderTextColor={theme.color.textMuted}
                    />
                    <TextInput
                      style={s.inlineCreateInput}
                      value={newExtPhone}
                      onChangeText={setNewExtPhone}
-                     placeholder="Phone (optional)"
+                     placeholder={t('phoneNumberOpt')}
                      placeholderTextColor={theme.color.textMuted}
                      keyboardType="phone-pad"
                    />
@@ -2227,7 +2229,7 @@ export default function NewTaskScreen() {
                      style={s.inlineCreateInput}
                      value={newExtReference}
                      onChangeText={setNewExtReference}
-                     placeholder="Reference (optional)"
+                     placeholder={t('referenceOpt')}
                      placeholderTextColor={theme.color.textMuted}
                    />
                    <View style={s.inlineCreateActions}>
@@ -2293,7 +2295,7 @@ export default function NewTaskScreen() {
  style={s.inlineInput}
  value={newStageName}
  onChangeText={setNewStageName}
- placeholder="Stage name *"
+ placeholder={`${t('stageName')} *`}
  placeholderTextColor={theme.color.textMuted}
  />
  <TouchableOpacity
@@ -2332,7 +2334,7 @@ export default function NewTaskScreen() {
  style={s.notesInput}
  value={notes}
  onChangeText={setNotes}
- placeholder="Additional notes..."
+ placeholder={t('notes')}
  placeholderTextColor={theme.color.textMuted}
  multiline
  numberOfLines={4}
@@ -2679,7 +2681,7 @@ export default function NewTaskScreen() {
                       style={ds.addDocInput}
                       value={newDocTitle}
                       onChangeText={setNewDocTitle}
-                      placeholder="Document title (e.g. ID copy, Bank statement)"
+                      placeholder={t('documentName')}
                       placeholderTextColor={theme.color.textMuted}
                       autoFocus
                     />

@@ -433,13 +433,13 @@ export default function TaskDetailScreen() {
   // ─── Add transaction ─────────────────────────────────────
   const handleAddTransaction = async () => {
     if (!txDescription.trim()) {
-      Alert.alert('Required', 'Please enter a description.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     const usd = parseFloat(txAmountUSD) || 0;
     const lbp = parseFloat(txAmountLBP.replace(/,/g, '')) || 0;
     if (usd === 0 && lbp === 0) {
-      Alert.alert('Required', 'Enter at least one amount (USD or LBP).');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSavingTx(true);
@@ -454,7 +454,7 @@ export default function TaskDetailScreen() {
       created_by:   teamMember?.id,
     });
     setSavingTx(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setTxDescription('');
     setTxAmountUSD('');
     setTxAmountLBP('');
@@ -469,13 +469,13 @@ export default function TaskDetailScreen() {
   const handleEditTransaction = async () => {
     if (!editingTx) return;
     if (!editTxDescription.trim()) {
-      Alert.alert('Required', 'Please enter a description.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     const usd = parseFloat(editTxAmountUSD) || 0;
     const lbp = parseFloat(editTxAmountLBP.replace(/,/g, '')) || 0;
     if (usd === 0 && lbp === 0) {
-      Alert.alert('Required', 'Enter at least one amount (USD or LBP).');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSavingEditTx(true);
@@ -489,7 +489,7 @@ export default function TaskDetailScreen() {
       })
       .eq('id', editingTx.id);
     setSavingEditTx(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setEditingTx(null);
     setEditTxStopId(null);
     setShowEditTxStagePicker(false);
@@ -518,7 +518,7 @@ export default function TaskDetailScreen() {
       }
       return;
     }
-    Alert.alert('Delete', `Delete "${tx.description}"?`, [
+    Alert.alert(t('delete'), `${t('confirmDelete')} — "${tx.description}"`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: doDelete },
     ]);
@@ -550,7 +550,7 @@ export default function TaskDetailScreen() {
       setEditPriceNote('');
       fetchTask();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert(t('error'), e.message);
     } finally {
       setSavingPrice(false);
     }
@@ -608,14 +608,14 @@ export default function TaskDetailScreen() {
 
   const handleCreateStageInEdit = async () => {
     if (!newStageName.trim()) {
-      Alert.alert('Required', 'Stage name is required.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     const duplicate = allStages.find(
       (m) => m.name.trim().toLowerCase() === newStageName.trim().toLowerCase()
     );
     if (duplicate) {
-      Alert.alert('Already exists', `A stage named "${duplicate.name}" already exists. Select it from the list below.`);
+      Alert.alert(t('warning'), `"${duplicate.name}" — ${t('duplicateClient')}`);
       return;
     }
     setSavingNewStage(true);
@@ -625,7 +625,7 @@ export default function TaskDetailScreen() {
       .select()
       .single();
     setSavingNewStage(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     const stage = data as Ministry;
     setAllStages((prev) => [...prev, stage].sort((a, b) => a.name.localeCompare(b.name)));
     setEditingStops((prev) => [...prev, stage]);
@@ -695,7 +695,7 @@ export default function TaskDetailScreen() {
       setShowEditStages(false);
       fetchTask();
     } catch (e: unknown) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('error'), (e as Error).message);
     } finally {
       setSavingStages(false);
     }
@@ -736,7 +736,7 @@ export default function TaskDetailScreen() {
 
   const handleSaveEdit = async () => {
     if (!editServiceId) {
-      Alert.alert('Required', 'Please select a service.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSavingEdit(true);
@@ -749,7 +749,7 @@ export default function TaskDetailScreen() {
       })
       .eq('id', taskId);
     setSavingEdit(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setShowEditTask(false);
     fetchTask();
   };
@@ -774,7 +774,7 @@ export default function TaskDetailScreen() {
     try {
       await Print.printAsync({ uri: doc.file_url });
     } catch (e: any) {
-      Alert.alert('Print failed', e.message ?? 'Could not print document.');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     } finally {
       setPrintingDoc(false);
     }
@@ -793,7 +793,7 @@ export default function TaskDetailScreen() {
 
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        Alert.alert('Not available', 'Sharing is not supported on this device.');
+        Alert.alert(t('error'), t('somethingWrong'));
         return;
       }
       const isImg = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
@@ -804,7 +804,7 @@ export default function TaskDetailScreen() {
       });
     } catch (e: any) {
       setStatusMsg('');
-      Alert.alert('Share failed', e.message ?? 'Could not share document.');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     }
   };
 
@@ -818,7 +818,7 @@ export default function TaskDetailScreen() {
 
   // ─── Document archive ────────────────────────────────────────
   const handleDeleteDocument = (doc: TaskDocument) => {
-    Alert.alert('Delete Document', `Delete "${doc.file_name}"?`, [
+    Alert.alert(t('deleteDoc'), `${t('confirmDelete')} — "${doc.file_name}"`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -895,7 +895,7 @@ export default function TaskDetailScreen() {
 
       fetchTask();
     } catch (e: any) {
-      Alert.alert('Upload Failed', e.message ?? 'Could not upload PDF.');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     } finally {
       setUploadingPdf(false);
     }
@@ -967,7 +967,7 @@ export default function TaskDetailScreen() {
           .eq('id', taskId);
 
         if (shouldArchive) {
-          Alert.alert('File Completed', 'All stages are done. This file has been moved to the archive.');
+          Alert.alert(t('done'), `${t('archive')} — ${t('savedSuccess')}`);
         }
 
         // Notify the assignee if it's not the current user (direct push)
@@ -993,7 +993,7 @@ export default function TaskDetailScreen() {
 
         fetchTask();
       } catch (e: unknown) {
-        Alert.alert('Error', (e as Error).message);
+        Alert.alert(t('error'), (e as Error).message);
       }
     } else {
       await enqueue({
@@ -1006,7 +1006,7 @@ export default function TaskDetailScreen() {
           updatedBy: teamMember?.id ?? '',
         },
       });
-      Alert.alert('Queued', 'Update saved locally. It will sync when you reconnect.');
+      Alert.alert(t('saved'), t('savedSuccess'));
       fetchTask();
     }
 
@@ -1027,7 +1027,7 @@ export default function TaskDetailScreen() {
         body: newComment.trim(),
       });
       if (error) {
-        Alert.alert('Error', error.message);
+        Alert.alert(t('error'), error.message);
       } else {
         setNewComment('');
         fetchTask();
@@ -1053,7 +1053,7 @@ export default function TaskDetailScreen() {
         },
       });
       setNewComment('');
-      Alert.alert('Queued', 'Comment will sync when you reconnect.');
+      Alert.alert(t('saved'), t('savedSuccess'));
     }
 
     setPostingComment(false);
@@ -1068,7 +1068,7 @@ export default function TaskDetailScreen() {
       .update({ body: editingCommentBody.trim() })
       .eq('id', editingCommentId);
     setSavingEditComment(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setEditingCommentId(null);
     setEditingCommentBody('');
     fetchTask();
@@ -1078,7 +1078,7 @@ export default function TaskDetailScreen() {
   const handleStartRecording = async () => {
     try {
       const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) { Alert.alert('Permission', 'Microphone permission is required.'); return; }
+      if (!granted) { Alert.alert(t('warning'), t('fieldRequired')); return; }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
 
       // Use explicit prepare+start instead of createAsync for better Expo Go compatibility
@@ -1097,7 +1097,7 @@ export default function TaskDetailScreen() {
         }, 1000);
       }, 100);
     } catch (e: unknown) {
-      Alert.alert('Recording Error', (e as any)?.message ?? String(e) ?? 'Could not start recording.');
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
     }
   };
 
@@ -1112,7 +1112,7 @@ export default function TaskDetailScreen() {
       setRecordingObj(null);
       setIsRecording(false);
       if (!uri) {
-        Alert.alert('Error', 'No audio was captured. Please try again.');
+        Alert.alert(t('error'), t('somethingWrong'));
         setRecordingDuration(0);
         return;
       }
@@ -1120,7 +1120,7 @@ export default function TaskDetailScreen() {
     } catch (e: unknown) {
       setIsRecording(false);
       setRecordingObj(null);
-      Alert.alert('Recording Error', (e as any)?.message ?? String(e) ?? 'Could not stop recording.');
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
     }
   };
 
@@ -1199,7 +1199,7 @@ export default function TaskDetailScreen() {
       setRecordingDuration(0);
       fetchTask();
     } catch (e: unknown) {
-      Alert.alert('Error', (e as any)?.message ?? String(e) ?? 'Failed to upload voice note.');
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
     } finally {
       setUploadingVoice(false);
     }
@@ -1233,7 +1233,7 @@ export default function TaskDetailScreen() {
       );
       setSoundObj(sound);
     } catch (e: unknown) {
-      Alert.alert('Error', 'Could not play voice note.');
+      Alert.alert(t('error'), t('somethingWrong'));
       setPlayingCommentId(null);
     }
   };
@@ -1253,7 +1253,7 @@ export default function TaskDetailScreen() {
       .eq('id', stopId);
     setSavingStopDueDate(null);
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('error'), error.message);
       return;
     }
     setStopDueDatePickerStopId(null);
@@ -1296,7 +1296,7 @@ export default function TaskDetailScreen() {
   };
 
   const handleCreateExtAssigneeForStop = async (stopId: string) => {
-    if (!newExtName.trim()) { Alert.alert('Required', 'Name is required.'); return; }
+    if (!newExtName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingExtAssignee(true);
     const { data, error } = await supabase
       .from('assignees')
@@ -1304,7 +1304,7 @@ export default function TaskDetailScreen() {
       .select('*, creator:team_members!created_by(name)')
       .single();
     setSavingExtAssignee(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setExtAssignees(prev => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
     setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
     setShowCreateExtForm(false);
@@ -1326,11 +1326,11 @@ export default function TaskDetailScreen() {
   };
 
   const handleCreateCity = async (stopId: string) => {
-    if (!newCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingCity(true);
     const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
     setSavingCity(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     const created = data as City;
     setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     setNewCityName('');
@@ -1339,11 +1339,11 @@ export default function TaskDetailScreen() {
   };
 
   const handleCreateCityInEditModal = async (stageId: string) => {
-    if (!newCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingCity(true);
     const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
     setSavingCity(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     const created = data as City;
     setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
     setEditStageCities(prev => ({ ...prev, [stageId]: { cityId: created.id, cityName: created.name } }));
@@ -1353,7 +1353,7 @@ export default function TaskDetailScreen() {
   };
 
   const handleDeleteComment = (commentId: string) => {
-    Alert.alert('Delete Comment', 'Delete this comment?', [
+    Alert.alert(t('deleteComment'), t('confirmDelete'), [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         await supabase.from('task_comments').delete().eq('id', commentId);
@@ -1484,7 +1484,7 @@ export default function TaskDetailScreen() {
     lines.push('_GovPilot, Powered by KTS_');
     const msg = encodeURIComponent(lines.join('\n'));
     Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
-      Alert.alert('Error', 'Could not open WhatsApp.')
+      Alert.alert(t('error'), t('somethingWrong'))
     );
   };
 
@@ -1543,7 +1543,7 @@ export default function TaskDetailScreen() {
               });
 
               setDuplicating(false);
-              Alert.alert('File Duplicated', 'New file created successfully.', [
+              Alert.alert(t('duplicate'), t('savedSuccess'), [
                 {
                   text: 'Open New File',
                   onPress: () => {
@@ -1557,7 +1557,7 @@ export default function TaskDetailScreen() {
               ]);
             } catch (e: any) {
               setDuplicating(false);
-              Alert.alert('Error', e.message ?? 'Failed to duplicate file.');
+              Alert.alert(t('error'), e.message ?? t('somethingWrong'));
             }
           },
         },
@@ -1619,7 +1619,7 @@ export default function TaskDetailScreen() {
                 style={s.assigneeSearchInput}
                 value={assigneeSearch}
                 onChangeText={setAssigneeSearch}
-                placeholder="Search team members..."
+                placeholder={t('searchMember')}
                 placeholderTextColor={theme.color.textMuted}
                 autoFocus
               />
@@ -2064,7 +2064,7 @@ export default function TaskDetailScreen() {
                           style={s.stageNameInput}
                           value={stageNameEdit}
                           onChangeText={setStageNameEdit}
-                          placeholder="Stage name..."
+                          placeholder={t('stageName')}
                           placeholderTextColor={theme.color.textMuted}
                           autoFocus
                         />
@@ -2216,7 +2216,7 @@ export default function TaskDetailScreen() {
                     <View style={s.stopDropdown}>
                       <TextInput style={s.citySearchInner} value={stopCitySearch}
                         onChangeText={text => { setStopCitySearch(text); setShowCreateCityForm(false); setNewCityName(text); }}
-                        placeholder="Search city..." placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
+                        placeholder={t('searchCity')} placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
                       {/* Create new city — always visible above the list */}
                       <TouchableOpacity
                         style={[s.cityDropdownItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
@@ -2229,7 +2229,7 @@ export default function TaskDetailScreen() {
                       {showCreateCityForm && (
                         <View style={{ padding: theme.spacing.space2, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
                           <TextInput style={s.newMemberInput} value={newCityName} onChangeText={setNewCityName}
-                            placeholder="City name *" placeholderTextColor={theme.color.textMuted} />
+                            placeholder={`${t('city')} *`} placeholderTextColor={theme.color.textMuted} />
                           <TouchableOpacity
                             style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
                             onPress={() => handleCreateCity(stop.id)}
@@ -2302,7 +2302,7 @@ export default function TaskDetailScreen() {
                         style={s.stopAssigneeSearch}
                         value={stopAssigneeSearch}
                         onChangeText={setStopAssigneeSearch}
-                        placeholder="Search network..."
+                        placeholder={t('searchContact')}
                         placeholderTextColor={theme.color.textMuted}
                         autoCorrect={false}
                         clearButtonMode="while-editing"
@@ -2375,11 +2375,11 @@ export default function TaskDetailScreen() {
                       {showCreateExtForm && (
                         <View style={{ padding: theme.spacing.space3, gap: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}>
                           <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
-                            placeholder="Full name *" placeholderTextColor={theme.color.textMuted} />
+                            placeholder={t('fullNameRequired')} placeholderTextColor={theme.color.textMuted} />
                           <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone}
-                            placeholder="Phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                            placeholder={t('phone')} placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
                           <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference}
-                            placeholder="Reference" placeholderTextColor={theme.color.textMuted} />
+                            placeholder={t('reference')} placeholderTextColor={theme.color.textMuted} />
                           <TouchableOpacity
                             style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
                             onPress={() => handleCreateExtAssigneeForStop(stop.id)}
@@ -2697,7 +2697,7 @@ export default function TaskDetailScreen() {
                 style={s.txInput}
                 value={txDescription}
                 onChangeText={setTxDescription}
-                placeholder="Description *"
+                placeholder={`${t('description')} *`}
                 placeholderTextColor={theme.color.textMuted}
               />
 
@@ -2815,7 +2815,7 @@ export default function TaskDetailScreen() {
                       style={s.txInput}
                       value={editTxDescription}
                       onChangeText={setEditTxDescription}
-                      placeholder="Description"
+                      placeholder={t('description')}
                       placeholderTextColor={theme.color.textMuted}
                       returnKeyType="done"
                     />
@@ -3018,7 +3018,7 @@ export default function TaskDetailScreen() {
                 style={s.txInput}
                 value={editPriceNote}
                 onChangeText={setEditPriceNote}
-                placeholder="Reason for change"
+                placeholder={t('description')}
                 placeholderTextColor={theme.color.textMuted}
               />
               <TouchableOpacity
@@ -3105,7 +3105,7 @@ export default function TaskDetailScreen() {
                 style={[s.stageNameInput, { minHeight: 80, textAlignVertical: 'top' }]}
                 value={rejectionReason}
                 onChangeText={setRejectionReason}
-                placeholder="Enter reason for rejection..."
+                placeholder={t('rejectionReason')}
                 placeholderTextColor={theme.color.textMuted}
                 multiline
                 autoFocus
@@ -3205,7 +3205,7 @@ export default function TaskDetailScreen() {
                         style={s.citySearchInner}
                         value={editCitySearch}
                         onChangeText={text => { setEditCitySearch(text); setEditCreateCityOpen(false); setNewCityName(text); }}
-                        placeholder="Search city..."
+                        placeholder={t('searchCity')}
                         placeholderTextColor={theme.color.textMuted}
                         autoFocus
                         autoCorrect={false}
@@ -3225,7 +3225,7 @@ export default function TaskDetailScreen() {
                             style={s.newMemberInput}
                             value={newCityName}
                             onChangeText={setNewCityName}
-                            placeholder="City name *"
+                            placeholder={`${t('city')} *`}
                             placeholderTextColor={theme.color.textMuted}
                           />
                           <TouchableOpacity
@@ -3291,7 +3291,7 @@ export default function TaskDetailScreen() {
                 style={s.editStageSearchInput}
                 value={editStageSearch}
                 onChangeText={setEditStageSearch}
-                placeholder="Search stages..."
+                placeholder={t('searchStage')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCorrect={false}
                 autoCapitalize="none"
@@ -3334,7 +3334,7 @@ export default function TaskDetailScreen() {
                     style={s.createStageInput}
                     value={newStageName}
                     onChangeText={setNewStageName}
-                    placeholder="Stage name *"
+                    placeholder={`${t('stageName')} *`}
                     placeholderTextColor={theme.color.textMuted}
                   />
                   <TouchableOpacity
@@ -3403,7 +3403,7 @@ export default function TaskDetailScreen() {
                   style={s.renameInput}
                   value={renameText}
                   onChangeText={setRenameText}
-                  placeholder="Document name"
+                  placeholder={t('documentName')}
                   placeholderTextColor={theme.color.textMuted}
                   autoFocus
                   returnKeyType="done"
@@ -3567,7 +3567,7 @@ export default function TaskDetailScreen() {
                   <Text style={s.viewerLoadingText}>Loading document...</Text>
                 </View>
               )}
-              onError={() => { Alert.alert('Error', 'Could not load the document.'); setViewingDoc(null); }}
+              onError={() => { Alert.alert(t('error'), t('somethingWrong')); setViewingDoc(null); }}
               scalesPageToFit
             />
           ) : null}
@@ -3642,7 +3642,7 @@ export default function TaskDetailScreen() {
                   style={[s.newMemberInput, { minHeight: 80, textAlignVertical: 'top' }]}
                   value={editNotes}
                   onChangeText={setEditNotes}
-                  placeholder="Notes..."
+                  placeholder={t('notes')}
                   placeholderTextColor={theme.color.textMuted}
                   multiline
                 />

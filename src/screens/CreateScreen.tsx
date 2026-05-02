@@ -310,7 +310,7 @@ export default function CreateScreen() {
       .insert({ name: newClientName.trim(), client_id: autoId, phone: fullPhone, reference_name: newClientRefName.trim() || null, reference_phone: fullRefPhone, org_id: orgId })
       .select()
       .single();
-    if (error || !data) { setSavingClient(false); Alert.alert('Error', error?.message ?? 'Failed'); return; }
+    if (error || !data) { setSavingClient(false); Alert.alert(t('error'), error?.message ?? t('failedToSave')); return; }
     const inserts: any[] = [];
     for (const def of clientFormFieldDefs) {
       const val = clientFormFieldValues[def.id];
@@ -416,7 +416,7 @@ export default function CreateScreen() {
   };
 
   const handleCreateStageCity = async (ministryId: string) => {
-    if (!newStageCityName.trim()) { Alert.alert('Required', 'City name is required.'); return; }
+    if (!newStageCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingStageCity(true);
     const { data, error } = await supabase
       .from('cities')
@@ -424,7 +424,7 @@ export default function CreateScreen() {
       .select()
       .single();
     setSavingStageCity(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setAllCities(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
     setNewStageCityName('');
     setShowCreateStageCityForm(false);
@@ -585,7 +585,7 @@ export default function CreateScreen() {
       assigneeId = editNetworkId;
     } else {
       const { data: newContact, error } = await supabase.from('assignees').insert(payload).select().single();
-      if (error || !newContact) { setSavingNetwork(false); Alert.alert('Error', error?.message ?? 'Failed to save'); return; }
+      if (error || !newContact) { setSavingNetwork(false); Alert.alert(t('error'), error?.message ?? t('failedToSave')); return; }
       assigneeId = (newContact as any).id;
     }
     setSavingNetwork(false);
@@ -631,13 +631,13 @@ export default function CreateScreen() {
     }));
     const { error } = await supabase.from('assignees').insert(inserts);
     setImportingContacts(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setShowImportModal(false);
     setImportRaw('');
     setImportRows([]);
     const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
     if (data) setNetwork(data as any[]);
-    Alert.alert('Imported ✓', `${inserts.length} contact${inserts.length !== 1 ? 's' : ''} added to Network.`);
+    Alert.alert(t('success'), `${inserts.length} ${t('contacts')}`);
   };
 
   // ── Service import helpers ───────────────────────────────────
@@ -665,13 +665,13 @@ export default function CreateScreen() {
     }));
     const { error } = await supabase.from('services').insert(inserts);
     setImportingServices(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setShowSvcImportModal(false);
     setSvcImportRaw('');
     setSvcImportRows([]);
     const { data } = await supabase.from('services').select('*').order('name');
     if (data) setServices(data as Service[]);
-    Alert.alert('Imported ✓', `${inserts.length} service${inserts.length !== 1 ? 's' : ''} added.`);
+    Alert.alert(t('success'), `${inserts.length} ${t('services')}`);
   };
 
   // ── Service document handlers ─────────────────────────────
@@ -739,7 +739,7 @@ export default function CreateScreen() {
     lines.push('_GovPilot, Powered by KTS_');
     const msg = encodeURIComponent(lines.join('\n'));
     Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
-      Alert.alert('Error', 'Could not open WhatsApp.')
+      Alert.alert(t('error'), t('somethingWrong'))
     );
   };
 
@@ -826,12 +826,12 @@ export default function CreateScreen() {
     }));
     const { error } = await supabase.from('clients').insert(inserts);
     setImportingClients(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     const { data } = await supabase.from('clients').select('*').order('name');
     if (data) setClients(data as Client[]);
     setShowClientImport(false); setClientImportRaw(''); setClientImportRows([]);
     const skippedMsg = duplicates.length > 0 ? `\n${t('skippedDuplicates')}: ${duplicates.join(', ')}` : '';
-    Alert.alert('Imported', `${inserts.length} client${inserts.length !== 1 ? 's' : ''} added.${skippedMsg}`);
+    Alert.alert(t('success'), `${inserts.length} ${t('clients')}${skippedMsg}`);
   };
 
   // ── Stages import helpers ─────────────────────────────────
@@ -844,10 +844,10 @@ export default function CreateScreen() {
     const inserts = stageImportNames.map(name => ({ name, type: 'parent' as const, org_id: orgId }));
     const { data, error } = await supabase.from('ministries').insert(inserts).select();
     setImportingStages(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     if (data) setMinistries(prev => [...prev, ...(data as any[])].sort((a,b) => a.name.localeCompare(b.name)));
     setShowStageImport(false); setStageImportRaw(''); setStageImportNames([]);
-    Alert.alert('Imported', `${inserts.length} stage${inserts.length !== 1 ? 's' : ''} added.`);
+    Alert.alert(t('success'), `${inserts.length} ${t('stages')}`);
   };
 
   const handleImportDocs = async () => {
@@ -864,12 +864,12 @@ export default function CreateScreen() {
     }));
     const { data, error } = await supabase.from('service_documents').insert(inserts).select();
     setImportingDocs(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     if (data) setServiceDocs(prev => ({ ...prev, [docImportSvcId]: [...(prev[docImportSvcId] ?? []), ...(data as ServiceDocument[])] }));
     setDocImportSvcId(null);
     setDocImportRaw('');
     setDocImportTitles([]);
-    Alert.alert('Imported', `${inserts.length} documents added.`);
+    Alert.alert(t('success'), `${inserts.length} ${t('documents')}`);
   };
 
   // ── UI ────────────────────────────────────────────────────
@@ -1074,7 +1074,7 @@ export default function CreateScreen() {
                     onPress={async () => {
                       if (!scannerPerm?.granted) {
                         const { granted } = await requestScannerPerm();
-                        if (!granted) { Alert.alert('Permission required', 'Camera access is needed to scan ID / QR codes.'); return; }
+                        if (!granted) { Alert.alert(t('warning'), t('fieldRequired')); return; }
                       }
                       scannerCooldown.current = false;
                       setShowIdScanner(true);
@@ -1133,7 +1133,7 @@ export default function CreateScreen() {
                   style={s.modalInput}
                   value={newClientName}
                   onChangeText={setNewClientName}
-                  placeholder="Full name *"
+                  placeholder={t('fullNameRequired')}
                   placeholderTextColor={theme.color.textMuted}
                   autoFocus
                 />
@@ -1142,7 +1142,7 @@ export default function CreateScreen() {
                   onChangeText={setNewClientPhone}
                   countryCode={newClientPhoneCountry}
                   onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
-                  placeholder="Phone number"
+                  placeholder={t('phoneNumber')}
                   style={{ marginBottom: 10 }}
                 />
                 <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
@@ -1150,7 +1150,7 @@ export default function CreateScreen() {
                   style={s.modalInput}
                   value={newClientRefName}
                   onChangeText={setNewClientRefName}
-                  placeholder="Reference name"
+                  placeholder={t('referenceName')}
                   placeholderTextColor={theme.color.textMuted}
                 />
                 <PhoneInput
@@ -1158,7 +1158,7 @@ export default function CreateScreen() {
                   onChangeText={setNewClientRefPhone}
                   countryCode={newClientRefPhoneCountry}
                   onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
-                  placeholder="Reference phone"
+                  placeholder={t('referencePhone')}
                   style={{ marginBottom: 10 }}
                 />
                 {loadingClientFields ? (
@@ -1443,7 +1443,7 @@ export default function CreateScreen() {
                     style={s.importPreviewBtn}
                     onPress={() => {
                       const rows = parseSvcImportText(svcImportRaw);
-                      if (!rows.length) { Alert.alert('Nothing found', 'No valid rows detected. Make sure the service name is in the first column.'); return; }
+                      if (!rows.length) { Alert.alert(t('noResults'), t('emptyList')); return; }
                       setSvcImportRows(rows);
                     }}
                   >
@@ -1482,7 +1482,7 @@ export default function CreateScreen() {
                   style={s.mgmtSearchInput}
                   value={serviceSearch}
                   onChangeText={setServiceSearch}
-                  placeholder="Search services..."
+                  placeholder={t('searchService')}
                   placeholderTextColor={theme.color.textMuted}
                   clearButtonMode="while-editing"
                   autoCorrect={false}
@@ -1491,7 +1491,7 @@ export default function CreateScreen() {
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                 <View style={s.mgmtAddBlock}>
                   <Text style={s.mgmtAddSectionLabel}>NEW SERVICE</Text>
-                  <TextInput style={s.modalInput} value={newSvcName} onChangeText={setNewSvcName} placeholder="Service name *" placeholderTextColor={theme.color.textMuted} />
+                  <TextInput style={s.modalInput} value={newSvcName} onChangeText={setNewSvcName} placeholder={`${t('serviceName')} *`} placeholderTextColor={theme.color.textMuted} />
                   <View style={s.mgmtPriceRow}>
                     <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceUSD} onChangeText={setNewSvcPriceUSD} placeholder="Base price USD" placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
                     <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setNewSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder="Base price LBP" placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
@@ -1574,7 +1574,7 @@ export default function CreateScreen() {
                                     style={[s.mgmtSearchInput, { flex: 1 }]}
                                     value={svcStageNewName}
                                     onChangeText={setSvcStageNewName}
-                                    placeholder="Stage name..."
+                                    placeholder={t('stageName')}
                                     placeholderTextColor={theme.color.textMuted}
                                   />
                                   <TouchableOpacity style={s.inlineAddBtn} onPress={() => handleAddSvcStage(sv.id)} disabled={savingNewSvcStage}>
@@ -1646,7 +1646,7 @@ export default function CreateScreen() {
                     style={s.docImportTextArea}
                     value={stageImportRaw}
                     onChangeText={(t) => { setStageImportRaw(t); setStageImportNames([]); }}
-                    placeholder="Paste stage names here..."
+                    placeholder={t('paste')}
                     placeholderTextColor={theme.color.textMuted}
                     multiline
                     textAlignVertical="top"
@@ -1674,7 +1674,7 @@ export default function CreateScreen() {
                   style={s.mgmtSearchInput}
                   value={stageSearch}
                   onChangeText={setStageSearch}
-                  placeholder="Search stages..."
+                  placeholder={t('searchStage')}
                   placeholderTextColor={theme.color.textMuted}
                   clearButtonMode="while-editing"
                   autoCorrect={false}
@@ -1683,7 +1683,7 @@ export default function CreateScreen() {
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                 <View style={[s.mgmtAddBlock, { flexDirection: 'row', alignItems: 'flex-end', gap: 8 }]}>
                   <Text style={[s.mgmtAddSectionLabel, { position: 'absolute', top: 14, left: 14 }]}>NEW STAGE</Text>
-                  <TextInput style={[s.modalInput, { flex: 1, marginTop: 20 }]} value={newStageName} onChangeText={setNewStageName} placeholder="Stage name *" placeholderTextColor={theme.color.textMuted} />
+                  <TextInput style={[s.modalInput, { flex: 1, marginTop: 20 }]} value={newStageName} onChangeText={setNewStageName} placeholder={`${t('stageName')} *`} placeholderTextColor={theme.color.textMuted} />
                   <TouchableOpacity style={s.mgmtAddBtn} onPress={handleCreateStage} disabled={savingNewStage}>
                     {savingNewStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ Add</Text>}
                   </TouchableOpacity>
@@ -1741,7 +1741,7 @@ export default function CreateScreen() {
                               style={s.mgmtSearchInput}
                               value={stageCitySearch}
                               onChangeText={text => { setStageCitySearch(text); setShowCreateStageCityForm(false); setNewStageCityName(text); }}
-                              placeholder="Search city..."
+                              placeholder={t('searchCity')}
                               placeholderTextColor={theme.color.textMuted}
                               autoCorrect={false}
                             />
@@ -1760,7 +1760,7 @@ export default function CreateScreen() {
                                   style={s.mgmtSearchInput}
                                   value={newStageCityName}
                                   onChangeText={setNewStageCityName}
-                                  placeholder="City name *"
+                                  placeholder={`${t('city')} *`}
                                   placeholderTextColor={theme.color.textMuted}
                                   autoFocus
                                 />
@@ -1955,7 +1955,7 @@ export default function CreateScreen() {
                     style={s.importPreviewBtn}
                     onPress={() => {
                       const rows = parseImportText(importRaw);
-                      if (!rows.length) { Alert.alert('Nothing found', 'No valid rows detected. Make sure Name is in the first column.'); return; }
+                      if (!rows.length) { Alert.alert(t('noResults'), t('emptyList')); return; }
                       setImportRows(rows);
                     }}
                   >
@@ -1992,7 +1992,7 @@ export default function CreateScreen() {
                 <>
                   <View style={s.mgmtSearchRow}>
                     <TextInput style={s.mgmtSearchInput} value={networkSearch} onChangeText={setNetworkSearch}
-                      placeholder="Search contacts..." placeholderTextColor={theme.color.textMuted}
+                      placeholder={t('searchContact')} placeholderTextColor={theme.color.textMuted}
                       clearButtonMode="while-editing" autoCorrect={false} />
                   </View>
                   <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
@@ -2044,14 +2044,14 @@ export default function CreateScreen() {
                 <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
                   {/* Basic fields */}
                   <TextInput style={s.modalInput} value={netName} onChangeText={setNetName}
-                    placeholder="Full name *" placeholderTextColor={theme.color.textMuted} autoFocus={!editNetworkId} />
+                    placeholder={t('fullNameRequired')} placeholderTextColor={theme.color.textMuted} autoFocus={!editNetworkId} />
                   <TextInput style={s.modalInput} value={netPhone} onChangeText={setNetPhone}
-                    placeholder="Phone number" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                    placeholder={t('phoneNumber')} placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
                   <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
                   <TextInput style={s.modalInput} value={netReference} onChangeText={setNetReference}
-                    placeholder="Reference name" placeholderTextColor={theme.color.textMuted} />
+                    placeholder={t('referenceName')} placeholderTextColor={theme.color.textMuted} />
                   <TextInput style={s.modalInput} value={netRefPhone} onChangeText={setNetRefPhone}
-                    placeholder="Reference phone" placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
+                    placeholder={t('referencePhone')} placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
 
                   {/* City picker */}
                   <TouchableOpacity style={s.netCityTrigger} onPress={() => { setShowNetCityPicker(v => !v); setShowNetFieldPicker(false); }}>
@@ -2067,7 +2067,7 @@ export default function CreateScreen() {
                   {showNetCityPicker && (
                     <View style={s.netCityDropdown}>
                       <TextInput style={s.netCitySearch} value={netCitySearch} onChangeText={setNetCitySearch}
-                        placeholder="Search cities..." placeholderTextColor={theme.color.textMuted} />
+                        placeholder={t('searchCity')} placeholderTextColor={theme.color.textMuted} />
                       <View>
                         {allCities
                           .filter(c => !netCitySearch.trim() || c.name.toLowerCase().includes(netCitySearch.toLowerCase()))
@@ -2288,7 +2288,7 @@ export default function CreateScreen() {
                 style={s.mgmtSearchInput}
                 value={docSearch}
                 onChangeText={setDocSearch}
-                placeholder="Search services..."
+                placeholder={t('searchService')}
                 placeholderTextColor={theme.color.textMuted}
                 clearButtonMode="while-editing"
                 autoCorrect={false}
@@ -2446,7 +2446,7 @@ export default function CreateScreen() {
                               style={s.docImportTextArea}
                               value={docImportRaw}
                               onChangeText={(t) => { setDocImportRaw(t); setDocImportTitles([]); }}
-                              placeholder="Paste Excel column here..."
+                              placeholder={t('paste')}
                               placeholderTextColor={theme.color.textMuted}
                               multiline
                               textAlignVertical="top"
