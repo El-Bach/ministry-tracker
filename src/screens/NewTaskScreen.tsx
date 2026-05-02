@@ -941,7 +941,7 @@ export default function NewTaskScreen() {
  // Refresh clients list after returning from EditClient screen
  useFocusEffect(
    React.useCallback(() => {
-     supabase.from('clients').select('*').order('name').then(({ data }) => {
+     supabase.from('clients').select('*').eq('org_id', teamMember?.org_id ?? '').order('name').then(({ data }) => {
        if (data) setClients(data as Client[]);
      });
      // Refresh stages for selected service
@@ -1066,13 +1066,15 @@ export default function NewTaskScreen() {
  };
 
  const loadData = async () => {
+ const orgId = teamMember?.org_id ?? '';
+ if (!orgId) return;
  const [c, sv, m, tm, ci, asgn] = await Promise.all([
- supabase.from('clients').select('*').order('name'),
- supabase.from('services').select('*').order('name'),
- supabase.from('ministries').select('*, city:cities(id,name)').order('name'),
- supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
- supabase.from('cities').select('*').order('name'),
- supabase.from('assignees').select('*').order('name'),
+ supabase.from('clients').select('*').eq('org_id', orgId).order('name'),
+ supabase.from('services').select('*').eq('org_id', orgId).order('name'),
+ supabase.from('ministries').select('*, city:cities(id,name)').eq('org_id', orgId).order('name'),
+ supabase.from('team_members').select('*').eq('org_id', orgId).is('deleted_at', null).order('name'),
+ supabase.from('cities').select('*').eq('org_id', orgId).order('name'),
+ supabase.from('assignees').select('*').eq('org_id', orgId).order('name'),
  ]);
  if (c.data) {
    setClients(c.data as Client[]);

@@ -76,10 +76,11 @@ export default function TeamScreen() {
 
   const fetchData = useCallback(async () => {
     const [membersRes, tasksRes, labelsRes, defsRes] = await Promise.all([
-      supabase.from('team_members').select('*').order('name'),
+      supabase.from('team_members').select('*').eq('org_id', currentMember?.org_id ?? '').order('name'),
       supabase
         .from('tasks')
         .select('*, client:clients(*), service:services(*)')
+        .eq('org_id', currentMember?.org_id ?? '')
         .not('assigned_to', 'is', null),
       supabase.from('status_labels').select('*').eq('org_id', currentMember?.org_id ?? '').order('sort_order'),
       supabase.from('team_member_field_definitions').select('*').eq('is_active', true).order('sort_order'),

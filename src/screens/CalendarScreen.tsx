@@ -60,6 +60,7 @@ export default function CalendarScreen() {
       supabase
         .from('tasks')
         .select('*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(assigned_to)')
+        .eq('org_id', teamMember?.org_id ?? '')
         .not('due_date', 'is', null),
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? ''),
       supabase

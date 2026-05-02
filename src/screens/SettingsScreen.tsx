@@ -456,8 +456,8 @@ export default function SettingsScreen() {
 
  const fetchData = useCallback(async () => {
  const [tmRes, invRes, codesRes] = await Promise.all([
- supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
- supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
+ supabase.from('team_members').select('*').eq('org_id', teamMember?.org_id ?? '').is('deleted_at', null).order('name'),
+ supabase.from('invitations').select('id, email, role, expires_at').eq('org_id', teamMember?.org_id ?? '').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
  supabase.from('org_join_codes').select('id', { count: 'exact' }).is('deleted_at', null).eq('org_id', teamMember?.org_id ?? ''),
  ]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);

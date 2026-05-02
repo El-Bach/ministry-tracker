@@ -284,9 +284,9 @@ export default function TaskDetailScreen() {
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
-      supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
-      supabase.from('cities').select('*').order('name'),
-      supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').order('name'),
+      supabase.from('team_members').select('*').eq('org_id', teamMember?.org_id ?? '').is('deleted_at', null).order('name'),
+      supabase.from('cities').select('*').eq('org_id', teamMember?.org_id ?? '').order('name'),
+      supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').eq('org_id', teamMember?.org_id ?? '').order('name'),
     ]);
 
     if (citiesRes.data) setAllCities(citiesRes.data as City[]);

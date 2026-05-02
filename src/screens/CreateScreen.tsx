@@ -214,13 +214,14 @@ export default function CreateScreen() {
 
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
+    if (!orgId) return;
     const [c, s, m, net, cities, fieldDefs] = await Promise.all([
-      supabase.from('clients').select('*').order('name'),
-      supabase.from('services').select('*').order('name'),
-      supabase.from('ministries').select('*, city:cities(id,name)').eq('type', 'parent').order('name'),
-      supabase.from('assignees').select('*, city:cities(id,name)').order('name'),
-      supabase.from('cities').select('*').order('name'),
-      supabase.from('client_field_definitions').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('clients').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('services').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('ministries').select('*, city:cities(id,name)').eq('type', 'parent').eq('org_id', orgId).order('name'),
+      supabase.from('assignees').select('*, city:cities(id,name)').eq('org_id', orgId).order('name'),
+      supabase.from('cities').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('client_field_definitions').select('*').eq('org_id', orgId).eq('is_active', true).order('sort_order'),
     ]);
     if (c.data) setClients(c.data as Client[]);
     if (s.data) setServices(s.data as Service[]);
