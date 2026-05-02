@@ -428,19 +428,21 @@ export default function DashboardScreen() {
   }, []);
 
   const fetchData = useCallback(async () => {
+    const orgId = teamMember?.org_id ?? '';
     const [tasksRes, labelsRes, membersRes, ministriesRes, clientsRes, svcRes, citiesRes, blocksRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(
           `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(*), route_stops:task_route_stops(*, ministry:ministries(*), city:cities(id,name)), transactions:file_transactions(type,amount_usd,amount_lbp)`
         )
+        .eq('org_id', orgId)
         .order('created_at', { ascending: false }),
-      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
-      supabase.from('team_members').select('*').order('name'),
-      supabase.from('ministries').select('*').eq('type', 'parent').order('name'),
-      supabase.from('clients').select('*').order('name'),
-      supabase.from('services').select('*').order('name'),
-      supabase.from('cities').select('*').order('name'),
+      supabase.from('status_labels').select('*').eq('org_id', orgId).order('sort_order'),
+      supabase.from('team_members').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('ministries').select('*').eq('org_id', orgId).eq('type', 'parent').order('name'),
+      supabase.from('clients').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('services').select('*').eq('org_id', orgId).order('name'),
+      supabase.from('cities').select('*').eq('org_id', orgId).order('name'),
       // Fetch files that have been blocked for this specific member
       teamMember?.id
         ? supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
