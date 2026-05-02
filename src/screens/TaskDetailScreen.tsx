@@ -284,7 +284,7 @@ export default function TaskDetailScreen() {
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
-      supabase.from('team_members').select('*').order('name'),
+      supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
       supabase.from('cities').select('*').order('name'),
       supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').order('name'),
     ]);
@@ -1425,6 +1425,7 @@ export default function TaskDetailScreen() {
     if (task.due_date) parts.push(`تاريخ الاستحقاق: ${formatDateOnly(task.due_date)}`);
     if (stops.length > 0) parts.push(`\n*المراحل:*\n${stageLines}`);
     if (task.notes) parts.push(`\nملاحظات: ${task.notes}`);
+    parts.push('\n_GovPilot, Powered by KTS_');
 
     const msg = parts.join('\n');
     Linking.openURL(`https://wa.me/?text=${encodeURIComponent(msg)}`);
@@ -1467,9 +1468,15 @@ export default function TaskDetailScreen() {
     if (!task?.service || sheetDocs.length === 0) return;
     const lines = [`📋 *${task.service.name}* — Required Documents:\n`];
     sheetDocs.forEach((doc: any, idx: number) => {
-      lines.push(`${idx + 1}. *${doc.title}*`);
-      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+      if (doc.is_checked) {
+        lines.push(`~${idx + 1}. ${doc.title}~`);
+        (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   ~• ${r.title}~`));
+      } else {
+        lines.push(`${idx + 1}. *${doc.title}*`);
+        (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
+      }
     });
+    lines.push('\n_GovPilot, Powered by KTS_');
     const msg = encodeURIComponent(lines.join('\n'));
     Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
       Alert.alert('Error', 'Could not open WhatsApp.')
@@ -2416,6 +2423,8 @@ export default function TaskDetailScreen() {
         </View>
 
         {/* ── FINANCIALS ── */}
+        {(permissions.can_see_file_financials || permissions.can_see_contract_price ||
+          permissions.can_add_expenses || permissions.can_add_revenue) && (
         <View style={s.section}>
           {/* Title row */}
           <View style={s.sectionTitleRow}>
@@ -2487,7 +2496,8 @@ export default function TaskDetailScreen() {
             )}
           </View>}
 
-          {/* P&L summary */}
+          {/* P&L summary — only visible when can_see_file_financials is on */}
+          {permissions.can_see_file_financials && (
           <View style={s.balanceSummary}>
             <View style={s.balanceRow}>
               <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
@@ -2550,9 +2560,10 @@ export default function TaskDetailScreen() {
               </View>
             </View>
           </View>
+          )}
 
           {/* ── C/V USD Conversion Table ── */}
-          {transactions.length > 0 && (() => {
+          {permissions.can_see_file_financials && transactions.length > 0 && (() => {
             const cvFmt = (n: number) =>
               `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
             // C/V = USD + (LBP ÷ locked rate) — both currencies included, per-tx rate used
@@ -2757,8 +2768,8 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
-          {/* Transaction list */}
-          {transactions.length === 0 ? (
+          {/* Transaction list — only visible when can_see_file_financials is on */}
+          {permissions.can_see_file_financials && (transactions.length === 0 ? (
             <Text style={s.emptyText}>No transactions yet</Text>
           ) : (
             transactions.map((tx) => {
@@ -2940,8 +2951,9 @@ export default function TaskDetailScreen() {
                 </View>
               );
             })
-          )}
+          ))}
         </View>
+        )}
 
       </KeyboardAwareScrollView>
 

@@ -455,7 +455,7 @@ interface PickerItem { id: string; label: string; subtitle?: string }
 
 function PickerModal({
  visible, title, items, onSelect, onClose, search, multiSelect, selectedIds,
- onItemAction, itemActionLabel, onItemDelete, onAddNew,
+ onItemAction, itemActionLabel, onItemDelete, onAddNew, addNewLabel,
 }: {
  visible: boolean;
  title: string;
@@ -469,6 +469,7 @@ function PickerModal({
  itemActionLabel?: string;
  onItemDelete?: (item: PickerItem) => void;
  onAddNew?: (initialName?: string) => void;
+ addNewLabel?: string;
 }) {
  const [query, setQuery] = useState('');
  const filtered = query
@@ -568,7 +569,7 @@ function PickerModal({
               style={ms.addNewFooterBtn}
               onPress={() => { setQuery(''); onClose(); onAddNew(undefined); }}
             >
-              <Text style={ms.addNewFooterBtnText}>＋ New Client</Text>
+              <Text style={ms.addNewFooterBtnText}>＋ {addNewLabel ?? 'Create New'}</Text>
             </TouchableOpacity>
           )}
           {multiSelect && (
@@ -671,14 +672,12 @@ const ms = StyleSheet.create({
     marginHorizontal:  theme.spacing.space4,
     marginTop:         theme.spacing.space2,
     marginBottom:      theme.spacing.space3,
-    backgroundColor:   theme.color.bgBase,
+    backgroundColor:   theme.color.primary,
     borderRadius:      theme.radius.lg,
-    paddingVertical:   12,
+    paddingVertical:   14,
     alignItems:        'center',
-    borderWidth:       1,
-    borderColor:       theme.color.border,
   },
-  addNewFooterBtnText: { color: theme.color.primary, fontSize: 15, fontWeight: '700' },
+  addNewFooterBtnText: { color: theme.color.white, fontSize: 15, fontWeight: '700' },
 });
 
 // ─── Field Row ────────────────────────────────────────────────
@@ -1009,6 +1008,7 @@ export default function NewTaskScreen() {
      lines.push(`${idx + 1}. *${doc.title}*`);
      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
    });
+   lines.push('\n_GovPilot, Powered by KTS_');
    const msg = encodeURIComponent(lines.join('\n'));
    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
      Alert.alert('Error', 'Could not open WhatsApp.')
@@ -1070,7 +1070,7 @@ export default function NewTaskScreen() {
  supabase.from('clients').select('*').order('name'),
  supabase.from('services').select('*').order('name'),
  supabase.from('ministries').select('*, city:cities(id,name)').order('name'),
- supabase.from('team_members').select('*').order('name'),
+ supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
  supabase.from('cities').select('*').order('name'),
  supabase.from('assignees').select('*').order('name'),
  ]);
@@ -1437,7 +1437,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewClientForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewClientForm ? `− ${t('cancel')}` : `+ ${t('newClient')}`}
+ {showNewClientForm ? `− ${t('cancel')}` : 'Create New Client'}
  </Text>
  </TouchableOpacity>
  {showNewClientForm && (
@@ -1549,7 +1549,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewServiceForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewServiceForm ? `− ${t('cancel')}` : `+ ${t('newService')}`}
+ {showNewServiceForm ? `− ${t('cancel')}` : 'Create New Service'}
  </Text>
  </TouchableOpacity>
  {showNewServiceForm && (
@@ -1759,7 +1759,7 @@ export default function NewTaskScreen() {
                placeholder="Search assignee..."
                placeholderTextColor={theme.color.textMuted}
              />
-             <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+             <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
                {stageAssigneeMap[stage.id] && (
                  <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
                    <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove assignee</Text>
@@ -1805,7 +1805,7 @@ export default function NewTaskScreen() {
  )}
 
  <TouchableOpacity style={s.addStopBtn} onPress={() => setModal('stage')}>
- <Text style={s.addStopBtnText}>+ {t('addStage')}</Text>
+ <Text style={s.addStopBtnText}>＋ Add Stage</Text>
  </TouchableOpacity>
 
  <TouchableOpacity
@@ -1813,7 +1813,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewStageForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewStageForm ? `− ${t('cancel')}` : `+ ${t('newStage')}`}
+ {showNewStageForm ? `− ${t('cancel')}` : 'Create New Stage'}
  </Text>
  </TouchableOpacity>
  {showNewStageForm && (
@@ -1895,6 +1895,7 @@ export default function NewTaskScreen() {
  onItemDelete={permissions.can_edit_delete_clients ? handleDeleteClient : undefined}
  onClose={() => setModal(null)}
  search
+ addNewLabel="Create New Client"
  onAddNew={(initialName) => {
    setNewClientName(initialName ?? '');
    setNewClientPhone('');
@@ -2230,19 +2231,31 @@ const s = StyleSheet.create({
   fieldRowSelectedHint:  { ...theme.typography.sectionDivider, color: theme.color.primary, marginBottom: 3 },
   fieldRowSelectedValue: { color: theme.color.textPrimary, fontSize: 16, fontWeight: '700' },
   fieldRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    backgroundColor:   theme.color.primary,
+    borderRadius:      theme.radius.lg,
+    paddingVertical:   14,
+    paddingHorizontal: theme.spacing.space4,
   },
-  fieldLabel:       { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '600' },
+  fieldLabel:       { ...theme.typography.body, color: theme.color.white, fontWeight: '700', fontSize: 15 },
   fieldValue:       { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 2 },
   fieldValueText:   { ...theme.typography.body, color: theme.color.textPrimary, flex: 1, textAlign: 'right' },
-  fieldPlaceholder: { ...theme.typography.body, color: theme.color.textMuted, flex: 1, textAlign: 'right' },
-  fieldChevron:     { color: theme.color.textMuted, fontSize: 18 },
+  fieldPlaceholder: { fontSize: 17, fontWeight: '700', color: theme.color.white, flex: 1, textAlign: 'right' },
+  fieldChevron:     { color: theme.color.white, fontSize: 20, fontWeight: '700' },
   hint:             { ...theme.typography.label, color: theme.color.textMuted },
-  addInlineBtn:     { alignSelf: 'flex-start' },
-  addInlineBtnText: { ...theme.typography.label, color: theme.color.primary, fontWeight: '600' },
+  addInlineBtn:     {
+    alignSelf:       'stretch',
+    marginTop:       theme.spacing.space2,
+    backgroundColor: theme.color.bgSurface,
+    borderRadius:    theme.radius.lg,
+    paddingVertical: 12,
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     theme.color.primary,
+  },
+  addInlineBtnText: { color: theme.color.primary, fontSize: 15, fontWeight: '700' },
   inlineForm: {
     backgroundColor: theme.color.bgBase,
     borderRadius:    theme.radius.md,

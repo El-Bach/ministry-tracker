@@ -36,6 +36,7 @@ interface RoleSettings {
   can_update_stage_status:  boolean;
   can_add_edit_stages:      boolean;
   // Financial
+  can_see_file_financials:  boolean;   // gate: entire Financials section inside a file
   can_see_contract_price:   boolean;
   can_see_financial_report: boolean;
   can_add_revenue:          boolean;
@@ -63,6 +64,7 @@ const ADMIN_DEFAULTS: RoleSettings = {
   can_delete_files:         false,
   can_update_stage_status:  true,
   can_add_edit_stages:      true,
+  can_see_file_financials:  true,
   can_see_contract_price:   true,
   can_see_financial_report: false,
   can_add_revenue:          true,
@@ -85,6 +87,7 @@ const MEMBER_DEFAULTS: RoleSettings = {
   can_delete_files:         false,
   can_update_stage_status:  true,
   can_add_edit_stages:      true,
+  can_see_file_financials:  false,
   can_see_contract_price:   true,
   can_see_financial_report: false,
   can_add_revenue:          true,
@@ -107,6 +110,7 @@ const VIEWER_DEFAULTS: RoleSettings = {
   can_delete_files:         false,
   can_update_stage_status:  true,
   can_add_edit_stages:      false,
+  can_see_file_financials:  false,
   can_see_contract_price:   false,
   can_see_financial_report: false,
   can_add_revenue:          false,
@@ -158,7 +162,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     icon: '💰',
     title: 'Financial',
     items: [
-      { key: 'can_see_contract_price',   label: 'See contract price',      description: 'View the agreed billing price on each file' },
+      { key: 'can_see_file_financials',  label: 'See financials in file',   description: 'Show the entire Financials section inside a file (contract price, P&L, transactions)' },
+      { key: 'can_see_contract_price',   label: 'See contract price',       description: 'View the agreed billing price on each file' },
       { key: 'can_see_financial_report', label: 'See financial report',     description: 'Access the full P&L report across all files' },
       { key: 'can_add_revenue',          label: 'Add payments received',    description: 'Log revenue transactions on a file' },
       { key: 'can_add_expenses',         label: 'Add expenses',             description: 'Log expense transactions on a file' },
@@ -264,6 +269,8 @@ export default function VisibilitySettingsScreen() {
           can_delete_files:         row.can_delete_files,
           can_update_stage_status:  row.can_update_stage_status,
           can_add_edit_stages:      row.can_add_edit_stages,
+          // nullable until migration runs — fall back to true for admin, false for others
+          can_see_file_financials:  row.can_see_file_financials  ?? (role === 'admin'),
           can_see_contract_price:   row.can_see_contract_price,
           can_see_financial_report: row.can_see_financial_report,
           can_add_revenue:          row.can_add_revenue,
@@ -297,10 +304,14 @@ export default function VisibilitySettingsScreen() {
     }));
 
     setSaving(true);
+    // Always upsert the FULL settings object — a partial upsert would create a
+    // new row where unset fields fall back to DB column defaults (mostly true),
+    // incorrectly granting permissions that were never explicitly enabled.
+    const fullSettings = { ...settings[activeRole], [key]: value };
     const payload = {
       org_id:    teamMember.org_id,
       role:      activeRole,
-      [key]:     value,
+      ...fullSettings,
       updated_at: new Date().toISOString(),
     };
 

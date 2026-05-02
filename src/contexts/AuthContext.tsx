@@ -15,6 +15,7 @@ import { registerForPushNotifications } from '../lib/notifications';
 export const ALL_PERMISSIONS: OrgPermissions = {
   can_see_all_files: true, can_create_files: true, can_edit_file_details: true,
   can_delete_files: true, can_update_stage_status: true, can_add_edit_stages: true,
+  can_see_file_financials: true,
   can_see_contract_price: true, can_see_financial_report: true, can_add_revenue: true,
   can_add_expenses: true, can_edit_contract_price: true, can_delete_transactions: true,
   can_upload_documents: true, can_delete_documents: true, can_manage_clients: true,
@@ -25,6 +26,7 @@ export const ALL_PERMISSIONS: OrgPermissions = {
 const MEMBER_DEFAULTS: OrgPermissions = {
   can_see_all_files: true, can_create_files: true, can_edit_file_details: true,
   can_delete_files: false, can_update_stage_status: true, can_add_edit_stages: true,
+  can_see_file_financials: false,
   can_see_contract_price: true, can_see_financial_report: false, can_add_revenue: true,
   can_add_expenses: true, can_edit_contract_price: false, can_delete_transactions: false,
   can_upload_documents: true, can_delete_documents: false, can_manage_clients: true,
@@ -33,12 +35,16 @@ const MEMBER_DEFAULTS: OrgPermissions = {
 };
 
 const VIEWER_DEFAULTS: OrgPermissions = {
-  can_see_all_files: true, can_create_files: false, can_edit_file_details: false,
+  // Restrictive by default — viewer sees only files assigned to them,
+  // cannot create/edit/delete files, cannot access financial data.
+  // Matches VisibilitySettingsScreen.VIEWER_DEFAULTS exactly.
+  can_see_all_files: false, can_create_files: false, can_edit_file_details: false,
   can_delete_files: false, can_update_stage_status: true, can_add_edit_stages: false,
+  can_see_file_financials: false,
   can_see_contract_price: false, can_see_financial_report: false, can_add_revenue: false,
-  can_add_expenses: false, can_edit_contract_price: false, can_delete_transactions: false,
-  can_upload_documents: false, can_delete_documents: false, can_manage_clients: false,
-  can_add_comments: false, can_delete_comments: false, can_manage_catalog: false,
+  can_add_expenses: true, can_edit_contract_price: false, can_delete_transactions: false,
+  can_upload_documents: true, can_delete_documents: false, can_manage_clients: false,
+  can_add_comments: true, can_delete_comments: false, can_manage_catalog: false,
   can_edit_delete_clients: false,
 };
 
@@ -179,11 +185,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // Role changed — update permissions instantly
+          // Merge all updated fields (name, phone, role, etc.) into local state instantly
+          setTeamMember((prev) => prev ? { ...prev, ...row } : prev);
+
+          // If role changed, reload permissions
           const newRole = row?.role as string | undefined;
-          if (!newRole) return;
-          setTeamMember((prev) => prev ? { ...prev, role: newRole } : prev);
-          await loadPermissionsForRole(newRole, orgId, setPermissions);
+          if (newRole) {
+            await loadPermissionsForRole(newRole, orgId, setPermissions);
+          }
         },
       )
       .subscribe();

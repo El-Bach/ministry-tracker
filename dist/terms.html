@@ -19,7 +19,8 @@
       border-bottom: 1px solid #1e293b;
       margin-bottom: 40px;
     }
-    .logo { font-size: 22px; font-weight: 800; color: #6366f1; margin-bottom: 6px; }
+    .logo { font-size: 22px; font-weight: 800; color: #6366f1; margin-bottom: 4px; }
+    .powered { font-size: 13px; color: #64748b; margin-bottom: 10px; }
     .doc-title { font-size: 28px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
     .meta { font-size: 13px; color: #64748b; }
     h2 {
@@ -51,6 +52,7 @@
       margin-top: 16px;
     }
     .contact-box p { margin: 0; }
+    .contact-box p + p { margin-top: 8px; }
     footer {
       margin-top: 60px;
       padding-top: 24px;
@@ -70,94 +72,130 @@
   <div class="container">
     <header>
       <div class="logo">GovPilot</div>
+      <div class="powered">Powered by KTS</div>
       <div class="doc-title">Terms of Service</div>
-      <div class="meta">Effective date: 26 April 2026 &nbsp;·&nbsp; Last updated: 26 April 2026</div>
+      <div class="meta">Effective date: 1 May 2026 &nbsp;·&nbsp; Last updated: 1 May 2026</div>
     </header>
 
-    <p>These Terms of Service ("Terms") govern your use of GovPilot, a file-tracking and ministry-clearing application operated by El-Bach's ("we", "us", or "our"). By creating an account or using GovPilot you agree to these Terms in full.</p>
+    <p>These Terms of Service ("Terms") govern your use of GovPilot, a professional file-tracking and ministry-clearing application powered by KTS ("we", "us", or "our"). By creating an account or using GovPilot you agree to these Terms in full.</p>
+    <p>If you do not agree to these Terms, you must not use the application.</p>
 
     <h2>1. Description of Service</h2>
-    <p>GovPilot is a professional tool that helps clearance offices, law firms, notary offices, and government brokers track client files through government ministry pipelines. Features include:</p>
+    <p>GovPilot is a multi-tenant SaaS application that helps clearance offices, law firms, notary offices, and government brokers track client files through government ministry pipelines. The service includes:</p>
     <ul>
-      <li>File and client management with stage-by-stage tracking</li>
-      <li>Document scanning and storage</li>
-      <li>Financial transaction tracking per file</li>
-      <li>Team collaboration with role-based access control</li>
-      <li>Push notifications for file activity</li>
+      <li>File and client management with step-by-step stage tracking and status updates</li>
+      <li>Document scanning (camera) and upload (photo library) with cloud storage</li>
+      <li>Financial transaction tracking in USD and LBP per file, with financial reports and PDF export</li>
+      <li>Role-based team collaboration (Owner, Admin, Member, Viewer) with per-member visibility controls</li>
+      <li>Push notifications for file activity, configurable per user</li>
+      <li>Service and stage catalogue management including required document checklists</li>
+      <li>External assignee (network contact) management</li>
+      <li>Custom client and team member fields</li>
+      <li>Calendar view with stage due dates</li>
+      <li>Global search across files, clients, documents, comments, and transactions</li>
     </ul>
+    <p>The service is available as an Android application (APK) and as a Progressive Web App (PWA) installable on iOS via Safari.</p>
 
     <h2>2. Account Registration</h2>
     <p>To use GovPilot you must create an account with a valid email address or phone number and a secure password. You are responsible for:</p>
     <ul>
-      <li>Keeping your login credentials confidential.</li>
+      <li>Providing accurate and current registration information.</li>
+      <li>Keeping your login credentials confidential and not sharing them with others.</li>
       <li>All activity that occurs under your account.</li>
-      <li>Notifying us immediately if you suspect unauthorised access.</li>
+      <li>Notifying us immediately if you suspect unauthorised access to your account.</li>
     </ul>
-    <p>You must be at least 18 years old to create an account. Accounts registered on behalf of a business must be created by an authorised representative.</p>
+    <p>You must be at least 18 years old to create an account. Accounts registered on behalf of a business must be created by an authorised representative of that business.</p>
+    <p>Each person must have a unique phone number or email address. Attempting to register with a phone number already linked to another account will be blocked.</p>
 
-    <h2>3. Acceptable Use</h2>
+    <h2>3. Organisations and Teams</h2>
+    <p>GovPilot is designed for use by organisations. Each organisation has one Owner who manages the workspace. The Owner can:</p>
+    <ul>
+      <li>Invite team members using single-use invite codes with role assignments.</li>
+      <li>Assign roles (Admin, Member, Viewer) to control each member's access level.</li>
+      <li>Revoke access for any team member at any time.</li>
+      <li>Control which files each member can see using per-member visibility settings.</li>
+      <li>Edit the organisation name and manage subscription plans.</li>
+    </ul>
+    <p>All data entered into GovPilot is scoped to your organisation. Other organisations cannot access your data.</p>
+
+    <h2>4. Acceptable Use</h2>
     <p>You agree to use GovPilot only for lawful business purposes. You must not:</p>
     <ul>
-      <li>Upload or share illegal, fraudulent, or defamatory content.</li>
-      <li>Attempt to reverse-engineer, decompile, or extract source code from the app.</li>
-      <li>Use the service to store personal data you are not authorised to process.</li>
-      <li>Interfere with or disrupt the service or its infrastructure.</li>
-      <li>Share your account credentials with users outside your organisation.</li>
-      <li>Use the service in any way that violates applicable laws or regulations.</li>
+      <li>Upload or share illegal, fraudulent, defamatory, or offensive content.</li>
+      <li>Attempt to reverse-engineer, decompile, or extract source code from the application.</li>
+      <li>Use the service to store personal data you are not authorised to process under applicable law.</li>
+      <li>Interfere with or disrupt the service, its servers, or its infrastructure.</li>
+      <li>Share your account credentials or invite codes with unauthorised persons.</li>
+      <li>Use automated scripts or bots to access or scrape the service.</li>
+      <li>Use the service in any way that violates applicable laws or regulations, including data protection laws.</li>
     </ul>
 
-    <h2>4. Subscription Plans and Billing</h2>
-    <p>GovPilot offers a Free plan and paid plans (Basic, Premium). Paid plans are activated through direct contact with our team via WhatsApp or email — no automatic in-app billing is processed currently.</p>
+    <h2>5. Subscription Plans and Billing</h2>
+    <p>GovPilot offers a Free plan and paid plans (Basic, Premium). Plan details are displayed in the app under <strong>Account → My Company → View Plans</strong>.</p>
     <ul>
-      <li>Plan features and limits are described in the app under Account → Plans.</li>
-      <li>We reserve the right to change pricing with 30 days' notice to existing subscribers.</li>
-      <li>Refunds are considered on a case-by-case basis — contact us within 7 days of payment.</li>
+      <li><strong>Free plan:</strong> up to 3 team members and up to 25 active files. No payment required.</li>
+      <li><strong>Basic plan:</strong> up to 10 team members and unlimited active files.</li>
+      <li><strong>Premium plan:</strong> unlimited team members, unlimited files, and a dedicated account manager.</li>
+    </ul>
+    <p>Paid plans are activated by contacting us directly via email. No automatic billing is processed in-app at this time. Payment terms, amounts, and billing cycles are agreed directly between you and KTS at the time of subscription.</p>
+    <ul>
+      <li>We reserve the right to change pricing with 30 days' written notice to existing paying subscribers.</li>
+      <li>Refund requests are considered on a case-by-case basis. Contact us within 7 days of a payment if you believe a refund is warranted.</li>
+      <li>Exceeding the limits of your current plan does not automatically upgrade your subscription; you must contact us to upgrade.</li>
     </ul>
 
-    <h2>5. Data Ownership</h2>
+    <h2>6. Data Ownership</h2>
     <div class="highlight-box">
-      <p><strong>Your data belongs to you.</strong> We claim no ownership over any client files, documents, financial records, or other content you enter into GovPilot. We process your data solely to provide the service.</p>
+      <p><strong>Your data belongs to you.</strong> KTS claims no ownership over any client files, documents, financial records, or other content your organisation enters into GovPilot. We process your data solely to provide the service you have subscribed to.</p>
     </div>
-    <p>You grant us a limited licence to store, display, and transmit your data as necessary to operate the service.</p>
+    <p>You grant KTS a limited, non-exclusive licence to store, display, process, and transmit your data as necessary to operate and improve the service. This licence terminates when your organisation deletes its data or closes its account.</p>
 
-    <h2>6. Data Security and Availability</h2>
-    <p>We take reasonable technical measures to protect your data, including encrypted storage and Row Level Security policies that isolate each organisation's data. However, no system is 100% secure. We cannot guarantee uninterrupted availability of the service.</p>
-    <p>We target best-effort uptime but do not provide an SLA on the Free plan. Paid plans may include uptime commitments communicated at the time of subscription.</p>
-
-    <h2>7. Account Deletion</h2>
-    <p>You may delete your account at any time from Account → Security → Delete Account within the app. Upon deletion:</p>
+    <h2>7. Data Security and Availability</h2>
+    <p>We implement reasonable technical measures to protect your data, including:</p>
     <ul>
-      <li>Your personal profile and authentication account are permanently removed.</li>
-      <li>File and client data associated with your organisation remains accessible to the organisation owner until they choose to delete it.</li>
-      <li>Deleted data cannot be recovered.</li>
+      <li>Encrypted data transmission (HTTPS/TLS).</li>
+      <li>Encrypted data storage via Supabase on Amazon Web Services.</li>
+      <li>Row Level Security (RLS) database policies isolating each organisation's data.</li>
+      <li>Bcrypt password hashing — we never store or see your plaintext password.</li>
     </ul>
-    <p>Organisation owners must transfer ownership before deleting their account.</p>
+    <p>No system is 100% secure. We cannot guarantee uninterrupted availability. The Free plan does not include an uptime Service Level Agreement (SLA). Paid plans may include uptime commitments agreed at the time of subscription.</p>
+    <p>We are not responsible for data loss resulting from actions taken by you or your team within the application (e.g. accidental deletion of files or transactions).</p>
 
-    <h2>8. Termination by Us</h2>
-    <p>We reserve the right to suspend or terminate accounts that violate these Terms, engage in fraudulent activity, or present a security risk — with or without prior notice depending on severity. We will make reasonable efforts to notify you and preserve your data for a reasonable period where possible.</p>
+    <h2>8. Account and Data Deletion</h2>
+    <p>You may delete your personal account at any time from <strong>Account → Security → Delete Account</strong> in the app. Upon deletion:</p>
+    <ul>
+      <li>Your personal profile and authentication credentials are permanently removed.</li>
+      <li>File and client data associated with your organisation remains accessible to the organisation owner.</li>
+      <li>Deleted accounts and data cannot be recovered.</li>
+    </ul>
+    <p>Organisation owners must transfer ownership to another admin before deleting their own account. To delete all organisational data, contact us at the address below.</p>
 
-    <h2>9. Limitation of Liability</h2>
-    <p>To the maximum extent permitted by applicable law, El-Bach's shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of GovPilot, including loss of data, loss of revenue, or business interruption.</p>
-    <p>Our total liability to you for any claim arising out of these Terms shall not exceed the amount you paid us in the 12 months preceding the claim.</p>
+    <h2>9. Termination by Us</h2>
+    <p>We reserve the right to suspend or terminate accounts that violate these Terms, engage in fraudulent activity, or present a security risk to the service or other users. We will make reasonable efforts to notify you before termination and to preserve your data for a reasonable period except where severity requires immediate action.</p>
 
-    <h2>10. Disclaimer of Warranties</h2>
-    <p>GovPilot is provided "as is" and "as available" without warranties of any kind, express or implied, including fitness for a particular purpose or non-infringement. We do not warrant that the service will be error-free or uninterrupted.</p>
+    <h2>10. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by applicable law, KTS shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of GovPilot, including but not limited to loss of data, loss of revenue, or business interruption.</p>
+    <p>Our total aggregate liability to you for any claim arising out of or related to these Terms shall not exceed the total amount you paid us in the 12 months immediately preceding the event giving rise to the claim. If you are on the Free plan, our liability is limited to USD 100.</p>
 
-    <h2>11. Changes to These Terms</h2>
-    <p>We may update these Terms as the service evolves. We will notify users of material changes via push notification or email at least 14 days before they take effect. Continued use of GovPilot after the effective date constitutes acceptance of the updated Terms.</p>
+    <h2>11. Disclaimer of Warranties</h2>
+    <p>GovPilot is provided "as is" and "as available" without warranties of any kind, express or implied, including warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not warrant that the service will be error-free, uninterrupted, or free from security vulnerabilities.</p>
 
-    <h2>12. Governing Law</h2>
-    <p>These Terms are governed by the laws of the Republic of Lebanon. Any disputes shall be subject to the exclusive jurisdiction of the courts of Beirut, Lebanon.</p>
+    <h2>12. Changes to These Terms</h2>
+    <p>We may update these Terms as the service evolves. We will notify registered users of material changes via push notification or email at least 14 days before the new Terms take effect. Continued use of GovPilot after the effective date constitutes acceptance of the updated Terms.</p>
+    <p>The "Last updated" date at the top of this page reflects when the most recent version was published.</p>
 
-    <h2>13. Contact Us</h2>
+    <h2>13. Governing Law</h2>
+    <p>These Terms are governed by the laws of the Republic of Lebanon. Any dispute arising out of or relating to these Terms or the use of GovPilot shall be subject to the exclusive jurisdiction of the competent courts of Beirut, Lebanon.</p>
+
+    <h2>14. Contact Us</h2>
+    <p>For questions about these Terms, billing enquiries, data requests, or legal notices, please contact us:</p>
     <div class="contact-box">
-      <p>For questions about these Terms, billing disputes, or legal notices, contact us at:</p>
-      <p style="margin-top:10px;"><strong>Email:</strong> <a href="mailto:hello@govpilot.app">hello@govpilot.app</a></p>
-      <p><strong>WhatsApp:</strong> <a href="https://wa.me/96170123456">+961 70 123 456</a></p>
+      <p><strong>Email:</strong> <a href="mailto:management@kts-lb.com">management@kts-lb.com</a></p>
+      <p style="margin-top:8px; font-size:13px; color:#64748b;">We aim to respond to all enquiries within 5 business days.</p>
     </div>
 
     <footer>
-      <span>© 2026 GovPilot · El-Bach's</span>
+      <span>© 2026 GovPilot · Powered by KTS</span>
       <span>
         <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
         <a href="terms.html">Terms of Service</a>

@@ -21,6 +21,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { DashboardStackParamList } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
@@ -102,6 +103,7 @@ function ResultRow({
 // ─── Main screen ──────────────────────────────────────────────
 export default function GlobalSearchScreen() {
   const navigation = useNavigation<Nav>();
+  const { permissions, teamMember } = useAuth();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AllResults>(EMPTY);
@@ -258,11 +260,47 @@ export default function GlobalSearchScreen() {
         id: m.id, name: m.name, email: m.email, role: m.role, phone: m.phone,
       }));
 
-      setResults({ clients, tasks, documents, comments, requirements, transactions, contacts, members });
+      // ── Task visibility filter ─────────────────────────────────
+      // Build the set of task IDs that are blocked from this member
+      const blocksRes = teamMember?.id
+        ? await supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
+        : { data: [] };
+      const blockedIds = new Set<string>((blocksRes.data ?? []).map((b: any) => b.task_id as string));
+
+      // If can_see_all_files is false, build an allowlist from task + stage assignments
+      let allowedTaskIds: Set<string> | null = null;
+      if (!permissions.can_see_all_files && teamMember?.id) {
+        const [assignedTasksRes, assignedStagesRes] = await Promise.all([
+          supabase.from('tasks').select('id').eq('assigned_to', teamMember.id),
+          supabase.from('task_route_stops').select('task_id').eq('assigned_to', teamMember.id),
+        ]);
+        allowedTaskIds = new Set<string>();
+        (assignedTasksRes.data ?? []).forEach((t: any) => allowedTaskIds!.add(t.id as string));
+        (assignedStagesRes.data ?? []).forEach((s: any) => allowedTaskIds!.add(s.task_id as string));
+        // Remove explicitly-blocked IDs from allowlist
+        for (const id of blockedIds) allowedTaskIds.delete(id);
+      }
+
+      const isTaskVisible = (taskId: string): boolean => {
+        if (blockedIds.has(taskId)) return false;
+        if (allowedTaskIds !== null && !allowedTaskIds.has(taskId)) return false;
+        return true;
+      };
+
+      setResults({
+        clients,
+        tasks:        tasks.filter((t) => isTaskVisible(t.id)),
+        documents:    documents.filter((d) => isTaskVisible(d.task_id)),
+        comments:     comments.filter((c) => isTaskVisible(c.task_id)),
+        requirements: requirements.filter((r) => isTaskVisible(r.task_id)),
+        transactions: transactions.filter((t) => isTaskVisible(t.task_id)),
+        contacts,
+        members,
+      });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [permissions, teamMember]);
 
   useEffect(() => {
     if (query.trim().length < 2) { setResults(EMPTY); setLoading(false); return; }

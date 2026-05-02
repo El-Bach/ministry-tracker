@@ -84,7 +84,7 @@ function dayKey(iso: string): string {
 
 export default function ActivityScreen() {
   const navigation = useNavigation<Nav>();
-  const { teamMember } = useAuth();
+  const { teamMember, permissions } = useAuth();
   const [sections, setSections] = useState<DaySection[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -151,8 +151,38 @@ export default function ActivityScreen() {
         comment_body: r.description,
       }));
 
+      // ── Task visibility filter ──────────────────────────────────────────────
+      // Build blocked IDs and optional allowlist, same logic as DashboardScreen
+      const blocksRes = teamMember?.id
+        ? await supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
+        : { data: [] };
+      const blockedIds = new Set<string>((blocksRes.data ?? []).map((b: any) => b.task_id as string));
+
+      let allowedTaskIds: Set<string> | null = null;
+      if (!permissions.can_see_all_files && teamMember?.id) {
+        const [atRes, asRes] = await Promise.all([
+          supabase.from('tasks').select('id').eq('assigned_to', teamMember.id),
+          supabase.from('task_route_stops').select('task_id').eq('assigned_to', teamMember.id),
+        ]);
+        allowedTaskIds = new Set<string>();
+        (atRes.data ?? []).forEach((t: any) => allowedTaskIds!.add(t.id as string));
+        (asRes.data ?? []).forEach((s: any) => allowedTaskIds!.add(s.task_id as string));
+        for (const id of blockedIds) allowedTaskIds.delete(id);
+      }
+
+      const isTaskVisible = (taskId?: string): boolean => {
+        if (!taskId) return true; // no task_id = deletion log — always show
+        if (blockedIds.has(taskId)) return false;
+        if (allowedTaskIds !== null && !allowedTaskIds.has(taskId)) return false;
+        return true;
+      };
+
+      // Filter status + comment items by task visibility
+      const visibleStatusItems  = statusItems.filter((i) => isTaskVisible(i.task_id));
+      const visibleCommentItems = commentItems.filter((i) => isTaskVisible(i.task_id));
+
       // Merge and sort
-      const all = [...statusItems, ...commentItems, ...logItems].sort(
+      const all = [...visibleStatusItems, ...visibleCommentItems, ...logItems].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ).slice(0, 150);
 
@@ -182,7 +212,7 @@ export default function ActivityScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [permissions, teamMember]);
 
   useFocusEffect(useCallback(() => { fetchActivity(); }, [fetchActivity]));
 

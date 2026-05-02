@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TeamMember } from '../types';
 import { normalizeToEmail, isPhoneInput } from '../lib/authHelpers';
 import { LANGUAGES, Language, saveLanguage, getCurrentLang, useTranslation } from '../lib/i18n';
@@ -295,6 +295,7 @@ export default function SettingsScreen() {
  const [inviteRole, setInviteRole]   = useState<'admin' | 'member' | 'viewer'>('member');
  const [inviting, setInviting]       = useState(false);
  const [pendingInvites, setPendingInvites] = useState<Array<{ id: string; email: string; role: string; expires_at: string }>>([]);
+ const [activeCodeCount, setActiveCodeCount] = useState(0);
 
  // Help & FAQ modals
  const [showHelp, setShowHelp] = useState(false);
@@ -454,16 +455,18 @@ export default function SettingsScreen() {
  const [inviteCountryCode, setInviteCountryCode] = useState(DEFAULT_COUNTRY.code);
 
  const fetchData = useCallback(async () => {
- const [tmRes, invRes] = await Promise.all([
- supabase.from('team_members').select('*').order('name'),
+ const [tmRes, invRes, codesRes] = await Promise.all([
+ supabase.from('team_members').select('*').is('deleted_at', null).order('name'),
  supabase.from('invitations').select('id, email, role, expires_at').is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
+ supabase.from('org_join_codes').select('id', { count: 'exact' }).is('deleted_at', null).eq('org_id', teamMember?.org_id ?? ''),
  ]);
  if (tmRes.data) setTeamMembers(tmRes.data as TeamMember[]);
  if (invRes.data) setPendingInvites(invRes.data as any[]);
+ setActiveCodeCount(codesRes.count ?? 0);
  setLoading(false);
- }, []);
+ }, [teamMember?.org_id]);
 
- useEffect(() => { fetchData(); }, [fetchData]);
+ useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
  // ─── Delete helpers ───────────────────────────────────────
  const confirmDelete = (label: string, onConfirm: () => void) => {
@@ -579,7 +582,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>👥</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
-       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{pendingInvites.length > 0 ? ` · ${pendingInvites.length} pending` : ''}</Text>
+       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{activeCodeCount > 0 ? `, ${activeCodeCount} invitee${activeCodeCount !== 1 ? 's' : ''}` : ''}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
@@ -749,12 +752,16 @@ export default function SettingsScreen() {
  {/* Sign out */}
  <TouchableOpacity
  style={ss.signOutBtn}
- onPress={() =>
- Alert.alert(t('signOut'), 'Are you sure?', [
- { text: t('cancel'), style: 'cancel' },
- { text: t('signOut'), style: 'destructive', onPress: signOut },
- ])
- }
+ onPress={() => {
+   if (Platform.OS === 'web') {
+     if ((window as any).confirm('Are you sure you want to sign out?')) signOut();
+   } else {
+     Alert.alert(t('signOut'), 'Are you sure?', [
+       { text: t('cancel'), style: 'cancel' },
+       { text: t('signOut'), style: 'destructive', onPress: signOut },
+     ]);
+   }
+ }}
  >
  <Text style={ss.signOutText}>{t('signOut')}</Text>
  </TouchableOpacity>

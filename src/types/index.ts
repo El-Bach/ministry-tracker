@@ -5,8 +5,9 @@ export interface Organization {
   id: string;
   name: string;
   slug?: string;
-  plan: 'free' | 'starter' | 'business';
-  usd_to_lbp_rate?: number;   // daily exchange rate, editable by owner/admin
+  plan: 'free' | 'basic' | 'premium' | 'starter' | 'business';
+  usd_to_lbp_rate?: number;          // daily exchange rate, editable by owner/admin
+  plan_limit_exceeded_at?: string | null; // ISO timestamp — set when limit first hit
   created_at: string;
 }
 
@@ -218,6 +219,7 @@ export interface OrgPermissions {
   can_delete_files: boolean;
   can_update_stage_status: boolean;
   can_add_edit_stages: boolean;
+  can_see_file_financials: boolean;   // gate for the entire Financials section inside a file
   can_see_contract_price: boolean;
   can_see_financial_report: boolean;
   can_add_revenue: boolean;
@@ -253,7 +255,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Calendar: undefined;
-  Create: undefined;
+  Create: { openSection?: 'clients' | 'services' | 'stages' } | undefined;
   Settings: undefined;
 };
 

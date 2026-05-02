@@ -349,6 +349,8 @@ export default function StageRequirementsScreen() {
     });
     lines.push('');
     lines.push(`${done}/${total} completed`);
+    lines.push('');
+    lines.push('_GovPilot, Powered by KTS_');
     const msg = lines.join('\n');
     Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
       Alert.alert('Error', 'Could not open WhatsApp.')
@@ -375,6 +377,8 @@ export default function StageRequirementsScreen() {
     if (req.attachment_url) {
       lines.push(`  📎 ${req.attachment_name || 'Attachment'}`);
     }
+    lines.push('');
+    lines.push('_GovPilot, Powered by KTS_');
     const msg = lines.join('\n');
     Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
       Alert.alert('Error', 'Could not open WhatsApp.')

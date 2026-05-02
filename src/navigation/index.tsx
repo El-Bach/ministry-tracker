@@ -5,12 +5,13 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../hooks/useAuth';
 import { theme } from '../theme';
 import { useTranslation } from '../lib/i18n';
+import { useFontSize } from '../contexts/FontSizeContext';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
@@ -69,6 +70,29 @@ function GovPilotLogo() {
   );
 }
 
+// ─── Font size toggle (header right on Dashboard) ────────────
+function FontSizeToggle() {
+  const { fontScale, setFontScale } = useFontSize();
+  return (
+    <View style={styles.fsPair}>
+      <TouchableOpacity
+        style={[styles.fsBtn, fontScale === 1.0 && styles.fsBtnActive]}
+        onPress={() => setFontScale(1.0)}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      >
+        <Text style={[styles.fsBtnTextSm, fontScale === 1.0 && styles.fsBtnTextActive]}>A</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.fsBtn, fontScale === 1.25 && styles.fsBtnActive]}
+        onPress={() => setFontScale(1.25)}
+        hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+      >
+        <Text style={[styles.fsBtnTextLg, fontScale === 1.25 && styles.fsBtnTextActive]}>A</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // ─── Tab bar icon component ─────────────────────────────────
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   const icons: Record<string, string> = {
@@ -103,7 +127,7 @@ function DashboardStack() {
       <DashStack.Screen
         name="DashboardHome"
         component={DashboardScreen}
-        options={{ headerTitle: () => <GovPilotLogo />, headerShown: true }}
+        options={{ headerTitle: () => <GovPilotLogo />, headerRight: () => <FontSizeToggle />, headerShown: true }}
       />
       <DashStack.Screen
         name="NewTask"
@@ -391,5 +415,39 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: theme.color.primary,
     marginTop: 4,
+  },
+
+  // Font size toggle (header right)
+  fsPair: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: theme.spacing.space3,
+    backgroundColor: theme.color.bgSurface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    overflow: 'hidden',
+  },
+  fsBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsBtnActive: {
+    backgroundColor: theme.color.primaryDim,
+  },
+  fsBtnTextSm: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.color.textMuted,
+  },
+  fsBtnTextLg: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: theme.color.textMuted,
+  },
+  fsBtnTextActive: {
+    color: theme.color.primary,
   },
 });

@@ -37,6 +37,7 @@ import { theme } from '../theme';
 import { checkAndNotifyOverdue } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from '../lib/i18n';
+import { useFontSize } from '../contexts/FontSizeContext';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
 const TASK_ROW_HEIGHT = 130;
@@ -270,15 +271,18 @@ interface Filters {
   ministryId: string;
   cityIds: string[];      // multi-select
   teamMemberId: string;
+  overdueOnly: boolean;
 }
 
 
-// A task is archived when all its stops are Done or Rejected (or DB flag)
+const TERMINAL_STATUSES = new Set(['Done', 'Rejected', 'Received & Closed']);
+
+// A task is archived when all its stops are terminal (Done/Rejected/Received & Closed) or DB flag
 function isTaskArchived(task: Task): boolean {
   const stopsTotal = task.route_stops?.length ?? 0;
   return (
     task.is_archived === true ||
-    (stopsTotal > 0 && task.route_stops!.every((s) => s.status === 'Done' || s.status === 'Rejected'))
+    (stopsTotal > 0 && task.route_stops!.every((s) => TERMINAL_STATUSES.has(s.status)))
   );
 }
 
@@ -296,6 +300,7 @@ export default function DashboardScreen() {
   const { teamMember, permissions, organization, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
   const { t } = useTranslation();
+  const { fontScale } = useFontSize();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -311,12 +316,37 @@ export default function DashboardScreen() {
     ministryId: '',
     cityIds: [],
     teamMemberId: '',
+    overdueOnly: false,
   });
 
   const [showArchived, setShowArchived] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const [services, setServices] = useState<Service[]>([]);
+
+  // ── Welcome overlay ──────────────────────────────────────────
+  const WELCOME_DISMISSED_KEY = '@welcome_dismissed';
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeNeverShow, setWelcomeNeverShow] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(WELCOME_DISMISSED_KEY).then((val) => {
+      if (val !== 'true') setShowWelcome(true);
+    });
+  }, []);
+
+  const closeWelcome = async () => {
+    if (welcomeNeverShow) {
+      await AsyncStorage.setItem(WELCOME_DISMISSED_KEY, 'true');
+    }
+    setShowWelcome(false);
+  };
+
+  const goToCreateSection = async (section?: 'clients' | 'services' | 'stages') => {
+    await closeWelcome();
+    // Navigate to the Create tab (sibling tab), optionally opening a section
+    navigation.getParent()?.navigate('Create', section ? { openSection: section } : undefined);
+  };
 
   // Bulk select mode — removed per user request
 
@@ -502,7 +532,16 @@ export default function DashboardScreen() {
       const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
       if (!hasMinistry) return false;
     }
-    if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+    if (filters.teamMemberId) {
+      const assignedAtTask  = task.assigned_to === filters.teamMemberId;
+      const assignedAtStage = (task.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+      if (!assignedAtTask && !assignedAtStage) return false;
+    }
+    if (filters.overdueOnly) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!task.due_date || new Date(task.due_date + 'T00:00:00') >= today) return false;
+    }
     return true;
   });
 
@@ -666,7 +705,16 @@ export default function DashboardScreen() {
           const hasMinistry = task.route_stops?.some((s) => s.ministry_id === filters.ministryId);
           if (!hasMinistry) return false;
         }
-        if (filters.teamMemberId && task.assigned_to !== filters.teamMemberId) return false;
+        if (filters.teamMemberId) {
+          const assignedAtTask  = task.assigned_to === filters.teamMemberId;
+          const assignedAtStage = (task.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+          if (!assignedAtTask && !assignedAtStage) return false;
+        }
+        if (filters.overdueOnly) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (!task.due_date || new Date(task.due_date + 'T00:00:00') >= today) return false;
+        }
         return true;
       });
     },
@@ -704,13 +752,34 @@ export default function DashboardScreen() {
   const activeFilterCount =
     (filters.serviceIds.length > 0 ? filters.serviceIds.length : 0) +
     (filters.cityIds.length > 0 ? filters.cityIds.length : 0) +
-    (filters.ministryId ? 1 : 0);
+    (filters.ministryId ? 1 : 0) +
+    (filters.overdueOnly ? 1 : 0);
 
-  // Summary bar stats (active tasks only)
+  // Summary bar stats — mirrors the same filters as filteredTasks so counts
+  // always match what the list actually shows (active, non-archived tasks only)
   const summaryStats = useMemo(() => {
-    const active = tasks.filter((t) => !isTaskArchived(t));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const active = tasks.filter((t) => {
+      if (isTaskArchived(t)) return false;
+      // Mirror the teamMember filter so "My Files" mode is consistent
+      if (filters.teamMemberId) {
+        const atTask  = t.assigned_to === filters.teamMemberId;
+        const atStage = (t.route_stops ?? []).some((s: any) => s.assigned_to === filters.teamMemberId);
+        if (!atTask && !atStage) return false;
+      }
+      // Mirror service / city / search filters
+      if (filters.search &&
+        !t.client?.name.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !t.service?.name.toLowerCase().includes(filters.search.toLowerCase())
+      ) return false;
+      if (filters.serviceIds.length > 0 && !filters.serviceIds.includes(t.service_id)) return false;
+      if (filters.cityIds.length > 0) {
+        const hasCity = t.route_stops?.some((s) => s.city_id && filters.cityIds.includes(s.city_id));
+        if (!hasCity) return false;
+      }
+      return true;
+    });
     const overdue = active.filter(
       (t) => t.due_date && new Date(t.due_date + 'T00:00:00') < today
     ).length;
@@ -720,8 +789,14 @@ export default function DashboardScreen() {
         .reduce((s, x) => s + x.amount_usd, 0);
       return sum + Math.max(0, (t.price_usd ?? 0) - paid);
     }, 0);
-    return { active: active.length, overdue, dueUSD };
-  }, [tasks]);
+    const dueLBP = active.reduce((sum, t) => {
+      const paid = (t.transactions ?? [])
+        .filter((x) => x.type === 'revenue')
+        .reduce((s, x) => s + x.amount_lbp, 0);
+      return sum + Math.max(0, (t.price_lbp ?? 0) - paid);
+    }, 0);
+    return { active: active.length, overdue, dueUSD, dueLBP };
+  }, [tasks, filters]);
 
   // Stable named renderItem — avoids FlatList re-renders on every state change
   const allStatusColorsMap = useMemo(
@@ -810,6 +885,13 @@ export default function DashboardScreen() {
             )}
           </View>
         </TouchableOpacity>
+        {/* Help button */}
+        <TouchableOpacity
+          style={styles.helpBtn}
+          onPress={() => { setWelcomeNeverShow(false); setShowWelcome(true); }}
+        >
+          <Text style={styles.helpBtnText}>?</Text>
+        </TouchableOpacity>
       </View>
 
       {/* My Files / All Files toggle */}
@@ -835,6 +917,27 @@ export default function DashboardScreen() {
       {/* Expanded filter panel */}
       {showFilters && (
         <View style={styles.filterPanel}>
+          {/* Overdue filter — only shown when there are overdue files */}
+          {summaryStats.overdue > 0 && (
+            <>
+              <Text style={styles.filterSectionLabel}>STATUS</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+                <TouchableOpacity
+                  style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
+                  onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
+                >
+                  <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.chip, filters.overdueOnly && styles.chipOverdue]}
+                  onPress={() => setFilters((f) => ({ ...f, overdueOnly: !f.overdueOnly }))}
+                >
+                  <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </>
+          )}
+
           {/* Service filter — only services present in current task set */}
           <Text style={styles.filterSectionLabel}>
             SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
@@ -928,16 +1031,16 @@ export default function DashboardScreen() {
       {/* Summary bar */}
       {!showArchived && summaryStats.active > 0 && (
         <View style={styles.summaryBar}>
-          <Text style={styles.summaryItem}>Active: {summaryStats.active}</Text>
-          <Text style={styles.summaryDot}> · </Text>
-          <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger]}>
+          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>Active: {summaryStats.active}</Text>
+          <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
+          <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger, { fontSize: Math.round(11 * fontScale) }]}>
             Overdue: {summaryStats.overdue}
           </Text>
-          {permissions.can_see_contract_price && (
+          {permissions.can_see_contract_price && (summaryStats.dueUSD > 0 || summaryStats.dueLBP > 0) && (
             <>
-              <Text style={styles.summaryDot}> · </Text>
-              <Text style={[styles.summaryItem, summaryStats.dueUSD > 0 && styles.summaryPrimary]}>
-                Due ${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
+              <Text style={[styles.summaryItem, styles.summaryPrimary, { fontSize: Math.round(11 * fontScale) }]}>
+                Due{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
               </Text>
             </>
           )}
@@ -1215,6 +1318,72 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* ── Welcome / Help overlay ── */}
+      <Modal visible={showWelcome} transparent animationType="fade" onRequestClose={closeWelcome}>
+        <View style={styles.welcomeOverlay}>
+          <View style={styles.welcomeCard}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.space4 }}>
+              {/* Title */}
+              <Text style={styles.welcomeTitle}>👋 Welcome to GovPilot</Text>
+              <Text style={styles.welcomeSubtitle}>
+                Before you can work on cases in the dashboard, you'll need to set up your workspace. Follow the steps below to get started.
+              </Text>
+
+              {/* Steps */}
+              {([
+                { n: '1', icon: '➕', title: 'Open the Create window',        body: 'Click the Create button at the bottom of the page to open the setup panel.',             action: () => goToCreateSection() },
+                { n: '2', icon: '👤', title: 'Add your clients',               body: 'Insert the clients that will be associated with your files and cases.',                  action: () => goToCreateSection('clients') },
+                { n: '3', icon: '⚙️', title: 'Define services',                body: 'Add the services offered. These will be available when filling out files on the dashboard.', action: () => goToCreateSection('services') },
+                { n: '4', icon: '🗂️', title: 'Configure stages & other entries', body: 'Set up workflow stages and any additional required entries for your organization.',    action: () => goToCreateSection('stages') },
+                { n: '5', icon: '🏠', title: 'Return to the dashboard',        body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.', action: null },
+              ] as const).map((step) => (
+                <View key={step.n} style={styles.welcomeStep}>
+                  <View style={styles.welcomeStepNum}>
+                    <Text style={styles.welcomeStepNumText}>{step.n}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    {step.action ? (
+                      <TouchableOpacity onPress={step.action} activeOpacity={0.7}>
+                        <Text style={[styles.welcomeStepTitle, styles.welcomeStepLink]}>
+                          {step.icon}  {step.title}  ›
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.welcomeStepTitle}>{step.icon}  {step.title}</Text>
+                    )}
+                    <Text style={styles.welcomeStepBody}>{step.body}</Text>
+                  </View>
+                </View>
+              ))}
+
+              {/* Ready banner */}
+              <View style={styles.welcomeReady}>
+                <Text style={styles.welcomeReadyText}>✅  You're ready to go!</Text>
+              </View>
+
+              {/* Never show again */}
+              <TouchableOpacity
+                style={styles.welcomeCheckRow}
+                onPress={() => setWelcomeNeverShow((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.welcomeCheckBox, welcomeNeverShow && styles.welcomeCheckBoxTicked]}>
+                  {welcomeNeverShow && <Text style={styles.welcomeCheckMark}>✓</Text>}
+                </View>
+                <Text style={styles.welcomeCheckLabel}>
+                  Don't show this welcome screen again
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Close button */}
+            <TouchableOpacity style={styles.welcomeCloseBtn} onPress={closeWelcome}>
+              <Text style={styles.welcomeCloseBtnText}>Got it  →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -1224,6 +1393,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.color.bgBase },
   searchRow: {
     flexDirection:     'row',
+    alignItems:        'center',
     gap:               theme.spacing.space2 + 2,
     paddingHorizontal: theme.spacing.space4,
     paddingVertical:   theme.spacing.space2 + 2,
@@ -1598,6 +1768,14 @@ const styles = StyleSheet.create({
   summaryDot:     { ...theme.typography.caption, color: theme.color.textMuted },
   summaryDanger:  { color: theme.color.danger },
   summaryPrimary: { color: theme.color.primary },
+  chipOverdue: {
+    backgroundColor: '#7f1d1d',
+    borderColor: theme.color.danger,
+  },
+  chipTextOverdue: {
+    color: theme.color.danger,
+    fontWeight: '700',
+  },
   // Global search button
   globalSearchBtn: {
     backgroundColor:   theme.color.bgSurface,
@@ -1785,4 +1963,162 @@ const styles = StyleSheet.create({
     borderColor: theme.color.border,
   },
   bulkCancelBtnText: { color: theme.color.textMuted, fontWeight: '700', fontSize: 13 },
+
+  // ── Help button ──────────────────────────────────────────────
+  helpBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.color.bgSurface,
+    borderWidth: 1,
+    borderColor: theme.color.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  helpBtnText: {
+    color: theme.color.primary,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+
+  // ── Welcome overlay ──────────────────────────────────────────
+  welcomeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.space4,
+  },
+  welcomeCard: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.space5,
+    width: '100%',
+    maxHeight: '88%',
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.color.textPrimary,
+    marginBottom: theme.spacing.space2,
+    textAlign: 'center',
+  },
+  welcomeSubtitle: {
+    fontSize: 13,
+    color: theme.color.textSecondary,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: theme.spacing.space4,
+  },
+  welcomeStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.space3,
+    marginBottom: theme.spacing.space3,
+    backgroundColor: theme.color.bgBase,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.space3,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+  },
+  welcomeStepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.color.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  welcomeStepNumText: {
+    color: theme.color.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  welcomeStepTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.color.textPrimary,
+    marginBottom: 3,
+  },
+  welcomeStepLink: {
+    color: theme.color.primary,
+    textDecorationLine: 'underline',
+  },
+  welcomeStepBody: {
+    fontSize: 12,
+    color: theme.color.textSecondary,
+    lineHeight: 17,
+  },
+  welcomeReady: {
+    backgroundColor: '#064e3b',
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.space2 + 2,
+    paddingHorizontal: theme.spacing.space3,
+    marginTop: theme.spacing.space2,
+    marginBottom: theme.spacing.space4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.color.success,
+  },
+  welcomeReadyText: {
+    color: theme.color.success,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  welcomeCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.space2 + 2,
+    marginBottom: theme.spacing.space4,
+    paddingHorizontal: 2,
+  },
+  welcomeCheckBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.bgBase,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  welcomeCheckBoxTicked: {
+    borderColor: theme.color.primary,
+    backgroundColor: theme.color.primary,
+  },
+  welcomeCheckMark: {
+    color: theme.color.white,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  welcomeCheckLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.color.textSecondary,
+    lineHeight: 17,
+  },
+  welcomeCloseBtn: {
+    backgroundColor: theme.color.primary,
+    borderRadius: theme.radius.md,
+    paddingVertical: theme.spacing.space3,
+    alignItems: 'center',
+    marginTop: theme.spacing.space2,
+  },
+  welcomeCloseBtnText: {
+    color: theme.color.white,
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
