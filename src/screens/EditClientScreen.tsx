@@ -27,6 +27,7 @@ import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useFieldDefinitions, FieldDefinition, FieldValue } from '../components/ClientFieldsForm';
 import { DashboardStackParamList } from '../types';
+import PhoneInput, { DEFAULT_COUNTRY, parseStoredPhone } from '../components/PhoneInput';
 
 type RouteType = RouteProp<DashboardStackParamList, 'EditClient'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -214,8 +215,10 @@ export default function EditClientScreen() {
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientPhoneCountry, setClientPhoneCountry] = useState(DEFAULT_COUNTRY.code);
   const [referenceName, setReferenceName] = useState('');
   const [referencePhone, setReferencePhone] = useState('');
+  const [referencePhoneCountry, setReferencePhoneCountry] = useState(DEFAULT_COUNTRY.code);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -254,9 +257,13 @@ export default function EditClientScreen() {
     ]);
     if (clientRes.data) {
       setClientName(clientRes.data.name);
-      setClientPhone(clientRes.data.phone ?? '');
+      const parsedPhone = parseStoredPhone(clientRes.data.phone);
+      setClientPhone(parsedPhone.local);
+      setClientPhoneCountry(parsedPhone.countryCode);
       setReferenceName(clientRes.data.reference_name ?? '');
-      setReferencePhone(clientRes.data.reference_phone ?? '');
+      const parsedRef = parseStoredPhone(clientRes.data.reference_phone);
+      setReferencePhone(parsedRef.local);
+      setReferencePhoneCountry(parsedRef.countryCode);
     }
     if (valuesRes.data && valuesRes.data.length > 0) {
       const ids: string[] = [];
@@ -287,13 +294,15 @@ export default function EditClientScreen() {
     setSaving(true);
 
     // Update client row
+    const fullPhone    = clientPhone.trim()    ? `${clientPhoneCountry}${clientPhone.trim()}`         : null;
+    const fullRefPhone = referencePhone.trim() ? `${referencePhoneCountry}${referencePhone.trim()}`   : null;
     const { error: clientErr } = await supabase
       .from('clients')
       .update({
         name: clientName.trim(),
-        phone: clientPhone.trim() || null,
+        phone: fullPhone,
         reference_name: referenceName.trim() || null,
-        reference_phone: referencePhone.trim() || null,
+        reference_phone: fullRefPhone,
       })
       .eq('id', clientId);
     if (clientErr) { Alert.alert('Error', clientErr.message); setSaving(false); return; }
@@ -393,13 +402,13 @@ export default function EditClientScreen() {
             placeholder="Full name *"
             placeholderTextColor={theme.color.textMuted}
           />
-          <TextInput
-            style={s.input}
+          <PhoneInput
             value={clientPhone}
             onChangeText={setClientPhone}
+            countryCode={clientPhoneCountry}
+            onCountryChange={(c) => setClientPhoneCountry(c.code)}
             placeholder="Phone number"
-            placeholderTextColor={theme.color.textMuted}
-            keyboardType="phone-pad"
+            style={{ marginBottom: 10 }}
           />
           <Text style={s.subsectionLabel}>REFERENCE</Text>
           <TextInput
@@ -409,13 +418,13 @@ export default function EditClientScreen() {
             placeholder="Reference name"
             placeholderTextColor={theme.color.textMuted}
           />
-          <TextInput
-            style={s.input}
+          <PhoneInput
             value={referencePhone}
             onChangeText={setReferencePhone}
+            countryCode={referencePhoneCountry}
+            onCountryChange={(c) => setReferencePhoneCountry(c.code)}
             placeholder="Reference phone"
-            placeholderTextColor={theme.color.textMuted}
-            keyboardType="phone-pad"
+            style={{ marginBottom: 10 }}
           />
         </View>
 

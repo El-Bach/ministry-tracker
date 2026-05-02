@@ -198,6 +198,35 @@ export const SORTED_COUNTRIES: Country[] = [
 
 export const DEFAULT_COUNTRY = COUNTRIES.find(c => c.iso === 'LB')!;
 
+/**
+ * parseStoredPhone — split a stored phone like "+96170123456" into
+ * { countryCode: "+961", local: "70123456" }.
+ *
+ * Tries longest-prefix match against the COUNTRIES list. Falls back to
+ * DEFAULT_COUNTRY if no match (legacy data, malformed input).
+ */
+export function parseStoredPhone(stored: string | null | undefined): { countryCode: string; local: string } {
+  if (!stored) return { countryCode: DEFAULT_COUNTRY.code, local: '' };
+  const trimmed = stored.trim();
+  if (!trimmed) return { countryCode: DEFAULT_COUNTRY.code, local: '' };
+
+  // Normalize: strip "00" international prefix if present (e.g. "0096170..." → "+96170...")
+  const normalized = trimmed.startsWith('00') ? '+' + trimmed.slice(2) : trimmed;
+
+  if (normalized.startsWith('+')) {
+    // Longest-prefix match (so "+961" beats "+9")
+    const sortedByLen = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length);
+    for (const c of sortedByLen) {
+      if (normalized.startsWith(c.code)) {
+        return { countryCode: c.code, local: normalized.slice(c.code.length) };
+      }
+    }
+  }
+
+  // No country code recognised — assume it's a local Lebanese number
+  return { countryCode: DEFAULT_COUNTRY.code, local: normalized.replace(/^\+/, '') };
+}
+
 interface Props {
   value: string;
   onChangeText: (phone: string) => void;

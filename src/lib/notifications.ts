@@ -113,11 +113,12 @@ export async function sendActivityNotificationToAll(
     if (!members?.length) return;
 
     // 2. Fetch preferences for all recipients in one round-trip
+    // Uses SECURITY DEFINER RPC because notification_prefs RLS only allows
+    // each user to read their own row; the RPC validates org membership and
+    // returns prefs for the requested team_member_ids that are in the same org.
     const memberIds = (members as { id: string; push_token: string }[]).map((m) => m.id);
     const { data: prefs } = await supabase
-      .from('notification_prefs')
-      .select('team_member_id, enabled, notify_comments, notify_status_changes, notify_new_files, muted_actor_ids')
-      .in('team_member_id', memberIds);
+      .rpc('get_notification_prefs_for_send', { p_team_member_ids: memberIds });
 
     const prefsMap = new Map(
       ((prefs ?? []) as any[]).map((p) => [p.team_member_id as string, p])

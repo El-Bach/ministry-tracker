@@ -28,6 +28,7 @@ import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement, MainTabParamList } from '../types';
 import { formatPhoneDisplay } from '../lib/phone';
+import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -109,8 +110,10 @@ export default function CreateScreen() {
   const [showClientForm, setShowClientForm] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientPhoneCountry, setNewClientPhoneCountry] = useState(DEFAULT_COUNTRY.code);
   const [newClientRefName, setNewClientRefName] = useState('');
   const [newClientRefPhone, setNewClientRefPhone] = useState('');
+  const [newClientRefPhoneCountry, setNewClientRefPhoneCountry] = useState(DEFAULT_COUNTRY.code);
   const [savingClient, setSavingClient] = useState(false);
   const [clientFormFieldDefs, setClientFormFieldDefs] = useState<any[]>([]);
   const [clientFormFieldValues, setClientFormFieldValues] = useState<Record<string, string>>({});
@@ -267,8 +270,9 @@ export default function CreateScreen() {
     setSavingClient(true);
 
     // ── Duplicate check ──────────────────────────────────────────────────────
+    const fullPhone = newClientPhone.trim() ? `${newClientPhoneCountry}${newClientPhone.trim()}` : '';
     const orFilters: string[] = [`name.ilike.${newClientName.trim()}`];
-    if (newClientPhone.trim()) orFilters.push(`phone.eq.${newClientPhone.trim()}`);
+    if (fullPhone) orFilters.push(`phone.eq.${fullPhone}`);
     const { data: existing } = await supabase
       .from('clients')
       .select('id, name, phone, client_id')
@@ -299,9 +303,11 @@ export default function CreateScreen() {
   const doInsertClient = async () => {
     setSavingClient(true);
     const autoId = `CLT-${Date.now()}`;
+    const fullPhone    = newClientPhone.trim()    ? `${newClientPhoneCountry}${newClientPhone.trim()}`       : null;
+    const fullRefPhone = newClientRefPhone.trim() ? `${newClientRefPhoneCountry}${newClientRefPhone.trim()}` : null;
     const { data, error } = await supabase
       .from('clients')
-      .insert({ name: newClientName.trim(), client_id: autoId, phone: newClientPhone.trim() || null, reference_name: newClientRefName.trim() || null, reference_phone: newClientRefPhone.trim() || null, org_id: orgId })
+      .insert({ name: newClientName.trim(), client_id: autoId, phone: fullPhone, reference_name: newClientRefName.trim() || null, reference_phone: fullRefPhone, org_id: orgId })
       .select()
       .single();
     if (error || !data) { setSavingClient(false); Alert.alert('Error', error?.message ?? 'Failed'); return; }
@@ -315,8 +321,8 @@ export default function CreateScreen() {
     if (inserts.length > 0) await supabase.from('client_field_values').insert(inserts);
     setSavingClient(false);
     setShowClientForm(false);
-    setNewClientName(''); setNewClientPhone('');
-    setNewClientRefName(''); setNewClientRefPhone('');
+    setNewClientName(''); setNewClientPhone(''); setNewClientPhoneCountry(DEFAULT_COUNTRY.code);
+    setNewClientRefName(''); setNewClientRefPhone(''); setNewClientRefPhoneCountry(DEFAULT_COUNTRY.code);
     setClientFormFieldValues({});
     fetchData();
   };
@@ -1131,13 +1137,13 @@ export default function CreateScreen() {
                   placeholderTextColor={theme.color.textMuted}
                   autoFocus
                 />
-                <TextInput
-                  style={s.modalInput}
+                <PhoneInput
                   value={newClientPhone}
                   onChangeText={setNewClientPhone}
+                  countryCode={newClientPhoneCountry}
+                  onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
                   placeholder="Phone number"
-                  placeholderTextColor={theme.color.textMuted}
-                  keyboardType="phone-pad"
+                  style={{ marginBottom: 10 }}
                 />
                 <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
                 <TextInput
@@ -1147,13 +1153,13 @@ export default function CreateScreen() {
                   placeholder="Reference name"
                   placeholderTextColor={theme.color.textMuted}
                 />
-                <TextInput
-                  style={s.modalInput}
+                <PhoneInput
                   value={newClientRefPhone}
                   onChangeText={setNewClientRefPhone}
+                  countryCode={newClientRefPhoneCountry}
+                  onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
                   placeholder="Reference phone"
-                  placeholderTextColor={theme.color.textMuted}
-                  keyboardType="phone-pad"
+                  style={{ marginBottom: 10 }}
                 />
                 {loadingClientFields ? (
                   <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 20 }} />

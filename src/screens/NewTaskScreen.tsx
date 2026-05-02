@@ -27,6 +27,7 @@ import { theme } from '../theme';
 import { useTranslation } from '../lib/i18n';
 import { FieldDefinition, FieldValue, useFieldDefinitions } from '../components/ClientFieldsForm';
 import * as Location from 'expo-location';
+import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
 
 // ─── Final closure stage — always last, auto-created ────────────────
 const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
@@ -871,8 +872,10 @@ export default function NewTaskScreen() {
  const [showNewClientForm, setShowNewClientForm] = useState(false);
  const [newClientName, setNewClientName] = useState('');
  const [newClientPhone, setNewClientPhone] = useState('');
+ const [newClientPhoneCountry, setNewClientPhoneCountry] = useState(DEFAULT_COUNTRY.code);
  const [newClientRefName, setNewClientRefName] = useState('');
  const [newClientRefPhone, setNewClientRefPhone] = useState('');
+ const [newClientRefPhoneCountry, setNewClientRefPhoneCountry] = useState(DEFAULT_COUNTRY.code);
  const [customFieldValues, setCustomFieldValues] = useState<Record<string, FieldValue>>({});
  const [activeFieldIds, setActiveFieldIds] = useState<string[]>([]); // fields user chose to add
  const [showFieldPicker, setShowFieldPicker] = useState(false);
@@ -1322,8 +1325,9 @@ export default function NewTaskScreen() {
  }
 
  // Duplicate check
+ const fullPhone = newClientPhone.trim() ? `${newClientPhoneCountry}${newClientPhone.trim()}` : '';
  const orFilters: string[] = [`name.ilike.${newClientName.trim()}`];
- if (newClientPhone.trim()) orFilters.push(`phone.eq.${newClientPhone.trim()}`);
+ if (fullPhone) orFilters.push(`phone.eq.${fullPhone}`);
  const { data: existing } = await supabase
    .from('clients')
    .select('id, name, phone, client_id')
@@ -1351,14 +1355,16 @@ export default function NewTaskScreen() {
 
  const doCreateClient = async () => {
  const autoId = `CLT-${Date.now()}`;
+ const fullPhone    = newClientPhone.trim()    ? `${newClientPhoneCountry}${newClientPhone.trim()}`       : null;
+ const fullRefPhone = newClientRefPhone.trim() ? `${newClientRefPhoneCountry}${newClientRefPhone.trim()}` : null;
  const { data, error } = await supabase
  .from('clients')
  .insert({
  name: newClientName.trim(),
  client_id: autoId,
- phone: newClientPhone.trim() || null,
+ phone: fullPhone,
  reference_name: newClientRefName.trim() || null,
- reference_phone: newClientRefPhone.trim() || null,
+ reference_phone: fullRefPhone,
  org_id: teamMember?.org_id ?? null,
  })
  .select()
@@ -1382,8 +1388,10 @@ export default function NewTaskScreen() {
  setShowNewClientForm(false);
  setNewClientName('');
  setNewClientPhone('');
+ setNewClientPhoneCountry(DEFAULT_COUNTRY.code);
  setNewClientRefName('');
  setNewClientRefPhone('');
+ setNewClientRefPhoneCountry(DEFAULT_COUNTRY.code);
  setCustomFieldValues({});
  setActiveFieldIds([]);
  };
@@ -1693,13 +1701,13 @@ export default function NewTaskScreen() {
  placeholder="Full name *"
  placeholderTextColor={theme.color.textMuted}
  />
- <TextInput
- style={s.inlineInput}
+ <PhoneInput
  value={newClientPhone}
  onChangeText={setNewClientPhone}
+ countryCode={newClientPhoneCountry}
+ onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
  placeholder="Phone number"
- placeholderTextColor={theme.color.textMuted}
- keyboardType="phone-pad"
+ style={{ marginBottom: 10 }}
  />
  <TextInput
  style={s.inlineInput}
@@ -1708,13 +1716,13 @@ export default function NewTaskScreen() {
  placeholder="Reference name (optional)"
  placeholderTextColor={theme.color.textMuted}
  />
- <TextInput
- style={s.inlineInput}
+ <PhoneInput
  value={newClientRefPhone}
  onChangeText={setNewClientRefPhone}
+ countryCode={newClientRefPhoneCountry}
+ onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
  placeholder="Reference phone (optional)"
- placeholderTextColor={theme.color.textMuted}
- keyboardType="phone-pad"
+ style={{ marginBottom: 10 }}
  />
  {/* Active custom fields — only ones user added */}
  {activeFieldIds.length > 0 && (
@@ -2362,8 +2370,10 @@ export default function NewTaskScreen() {
  onAddNew={(initialName) => {
    setNewClientName(initialName ?? '');
    setNewClientPhone('');
+   setNewClientPhoneCountry(DEFAULT_COUNTRY.code);
    setNewClientRefName('');
    setNewClientRefPhone('');
+   setNewClientRefPhoneCountry(DEFAULT_COUNTRY.code);
    setCustomFieldValues({});
    setActiveFieldIds([]);
    setShowNewClientForm(true);
