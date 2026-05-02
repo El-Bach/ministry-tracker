@@ -330,10 +330,31 @@ export default function DashboardScreen() {
   const [welcomeNeverShow, setWelcomeNeverShow] = useState(false);
 
   useEffect(() => {
+    // First-launch flow for the org owner:
+    //  • If owner has no phone yet → prompt them to add one in My Account first.
+    //    Welcome overlay is suppressed this run; it will appear after they save the phone.
+    //  • Otherwise (phone exists or user is not the owner) → standard welcome behavior.
     AsyncStorage.getItem(WELCOME_DISMISSED_KEY).then((val) => {
-      if (val !== 'true') setShowWelcome(true);
+      if (val === 'true') return; // user previously dismissed forever
+      if (!teamMember) return;    // wait for auth to resolve
+
+      const ownerNeedsPhone = teamMember.role === 'owner' && !teamMember.phone;
+      if (ownerNeedsPhone) {
+        Alert.alert(
+          '📱 Add Your Phone Number',
+          'Please register your phone number so your team and clients can reach you. Tap OK to add it now.',
+          [{
+            text: 'OK',
+            onPress: () => navigation.navigate('Account', { highlightPhone: true }),
+          }],
+          { cancelable: false },
+        );
+        return;
+      }
+
+      setShowWelcome(true);
     });
-  }, []);
+  }, [teamMember?.role, teamMember?.phone, navigation]);
 
   const closeWelcome = async () => {
     if (welcomeNeverShow) {

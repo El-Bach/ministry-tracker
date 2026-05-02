@@ -18,7 +18,8 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { DashboardStackParamList } from '../types';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
@@ -112,7 +113,12 @@ type PlanKey = 'free' | 'basic' | 'premium' | 'starter' | 'business';
 
 export default function AccountScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<DashboardStackParamList, 'Account'>>();
   const { teamMember, organization, signOut, refreshTeamMember, isOwner } = useAuth();
+
+  // First-launch phone-prompt mode: navigated here from Dashboard with highlightPhone=true
+  // when the owner has no phone yet. Highlights the phone field in light red to guide them.
+  const [highlightPhone, setHighlightPhone] = useState<boolean>(route.params?.highlightPhone === true);
 
   const [editName,      setEditName]      = useState(teamMember?.name ?? '');
   const [editPhone,     setEditPhone]     = useState('');
@@ -192,6 +198,15 @@ export default function AccountScreen() {
     setSavingProfile(false);
     if (error) { Alert.alert('Error', error.message); return; }
     await refreshTeamMember();
+    // If we arrived here from the first-launch phone prompt, return to Dashboard
+    // (which will then show the welcome overlay) and clear the highlight.
+    if (highlightPhone) {
+      setHighlightPhone(false);
+      Alert.alert('Saved', 'Your profile has been updated.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+      return;
+    }
     Alert.alert('Saved', 'Your profile has been updated.');
   };
 
@@ -445,14 +460,17 @@ export default function AccountScreen() {
             />
           </View>
           <View style={s.field}>
-            <Text style={s.label}>PHONE NUMBER</Text>
+            <Text style={[s.label, highlightPhone && { color: '#dc2626' }]}>
+              PHONE NUMBER {highlightPhone ? '←  Add it here' : ''}
+            </Text>
             <TextInput
-              style={s.input}
+              style={[s.input, highlightPhone && { backgroundColor: '#fee2e2', borderColor: '#dc2626' }]}
               value={editPhone}
               onChangeText={setEditPhone}
               placeholder="+961 70 123 456"
               placeholderTextColor={theme.color.textMuted}
               keyboardType="phone-pad"
+              autoFocus={highlightPhone}
             />
             <Text style={s.fieldHint}>
               {identifierIsPhone

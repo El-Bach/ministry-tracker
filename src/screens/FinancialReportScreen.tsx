@@ -157,25 +157,31 @@ export default function FinancialReportScreen() {
 
   // ── Fetch ─────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
+    const orgId = teamMember?.org_id;
+    if (!orgId) { setLoading(false); return; }
     setLoading(true);
 
-    // Tasks with client, service, closed_at
+    // Tasks with client, service, closed_at — scoped to current org
     const { data: tasks, error: tasksErr } = await supabase
       .from('tasks')
       .select('id, current_status, is_archived, price_usd, price_lbp, created_at, closed_at, assigned_to, client:clients(name), service:services(name)')
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false });
 
     if (tasksErr || !tasks) { setLoading(false); return; }
 
-    // Transactions with stop → ministry (for stage filter)
+    // Transactions — filter via inner-join on tasks.org_id (file_transactions has no direct org_id)
     const { data: txs } = await supabase
       .from('file_transactions')
-      .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop_id, stop:task_route_stops(ministry_id)');
+      .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop_id, stop:task_route_stops(ministry_id), task:tasks!inner(org_id)')
+      .eq('task.org_id', orgId);
 
-    // Ministry options for stage filter
+    // Ministry options for stage filter — current org, parent type only
     const { data: ministries } = await supabase
       .from('ministries')
       .select('id, name')
+      .eq('org_id', orgId)
+      .eq('type', 'parent')
       .order('name');
     if (ministries) setStageOptions(ministries as { id: string; name: string }[]);
 
@@ -247,7 +253,7 @@ export default function FinancialReportScreen() {
     setRows(built);
     setServiceOptions([...new Set(built.map((r) => r.serviceName))].sort());
     setLoading(false);
-  }, [rate]);
+  }, [rate, teamMember?.org_id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -255,11 +261,14 @@ export default function FinancialReportScreen() {
   const [stagedRows, setStagedRows] = useState<ReportRow[]>([]);
   useEffect(() => {
     if (!filterStage) { setStagedRows(rows); return; }
-    // Re-fetch transactions filtered by selected ministry
+    const orgId = teamMember?.org_id;
+    if (!orgId) { setStagedRows(rows); return; }
+    // Re-fetch transactions filtered by selected ministry — scoped to current org
     (async () => {
       const { data: txs } = await supabase
         .from('file_transactions')
-        .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop:task_route_stops(ministry_id)');
+        .select('task_id, type, amount_usd, amount_lbp, rate_usd_lbp, stop:task_route_stops(ministry_id), task:tasks!inner(org_id)')
+        .eq('task.org_id', orgId);
 
       const map: Record<string, { revenueUSD: number; revenueLBP: number; expenseUSD: number; expenseLBP: number; cvRevenue: number; cvExpense: number }> = {};
       for (const tx of txs ?? []) {
@@ -292,7 +301,7 @@ export default function FinancialReportScreen() {
         });
       setStagedRows(updated);
     })();
-  }, [filterStage, rows, rate]);
+  }, [filterStage, rows, rate, teamMember?.org_id]);
 
   // ── Apply all filters ─────────────────────────────────────
   const filtered = useMemo(() => {

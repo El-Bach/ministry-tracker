@@ -1,6 +1,7 @@
 // src/screens/auth/LoginScreen.tsx
-// Separate Email tab and Phone tab login.
-// Both use the same Supabase auth via normalizeToEmail().
+// Email + password login. Phone login was removed — accounts that were
+// originally registered via phone still authenticate through Supabase using
+// their internal @cleartrack.internal email; ask support to migrate them.
 
 import React, { useState } from 'react';
 import {
@@ -20,11 +21,8 @@ import { useAuth } from '../../hooks/useAuth';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
-import { normalizeToEmail } from '../../lib/authHelpers';
-import PhoneInput, { DEFAULT_COUNTRY } from '../../components/PhoneInput';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type LoginMode = 'email' | 'phone';
 
 // Map raw Supabase error messages to friendly text
 function friendlyAuthError(raw: string): string {
@@ -44,10 +42,7 @@ export default function LoginScreen() {
   const { signIn } = useAuth();
   const navigation  = useNavigation<Nav>();
 
-  const [mode,        setMode]        = useState<LoginMode>('email');
   const [email,       setEmail]       = useState('');
-  const [phone,       setPhone]       = useState('');
-  const [countryCode, setCountryCode] = useState(DEFAULT_COUNTRY.code);
   const [password,    setPassword]    = useState('');
   const [loading,     setLoading]     = useState(false);
   const [showPass,    setShowPass]    = useState(false);
@@ -58,36 +53,19 @@ export default function LoginScreen() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent,   setForgotSent]   = useState(false);
 
-  const identifier = mode === 'email'
-    ? email
-    : phone.trim() ? `${countryCode}${phone.trim()}` : '';
-
   // ─── Sign in ────────────────────────────────────────────────
 
   const handleLogin = async () => {
-    if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Required', mode === 'email'
-        ? 'Please enter your email address and password.'
-        : 'Please enter your phone number and password.');
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Required', 'Please enter your email address and password.');
       return;
     }
     setLoading(true);
-    const supabaseEmail = normalizeToEmail(identifier);
-    const { error } = await signIn(supabaseEmail, password);
+    const { error } = await signIn(email.trim().toLowerCase(), password);
     setLoading(false);
     if (error) {
       Alert.alert('Login Failed', friendlyAuthError(error));
     }
-  };
-
-  const switchMode = (next: LoginMode) => {
-    setMode(next);
-    setEmail('');
-    setPhone('');
-    setCountryCode(DEFAULT_COUNTRY.code);
-    setPassword('');
-    setShowForgot(false);
-    setForgotSent(false);
   };
 
   // ─── Forgot password ─────────────────────────────────────────
@@ -139,65 +117,28 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {/* Mode toggle tabs */}
-        <View style={styles.tabs}>
-          <TouchableOpacity
-            style={[styles.tab, mode === 'email' && styles.tabActive]}
-            onPress={() => switchMode('email')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, mode === 'email' && styles.tabTextActive]}>
-              ✉️  Email
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, mode === 'phone' && styles.tabActive]}
-            onPress={() => switchMode('phone')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, mode === 'phone' && styles.tabTextActive]}>
-              📱  Phone
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Form */}
         <View style={styles.form}>
-          {mode === 'email' ? (
-            <View style={styles.field}>
-              <Text style={styles.label}>EMAIL ADDRESS</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="your@email.com"
-                placeholderTextColor={theme.color.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-          ) : (
-            <View style={styles.field}>
-              <Text style={styles.label}>PHONE NUMBER</Text>
-              <PhoneInput
-                value={phone}
-                onChangeText={setPhone}
-                countryCode={countryCode}
-                onCountryChange={c => setCountryCode(c.code)}
-              />
-            </View>
-          )}
+          <View style={styles.field}>
+            <Text style={styles.label}>EMAIL ADDRESS</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="your@email.com"
+              placeholderTextColor={theme.color.textMuted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
           <View style={styles.field}>
             <View style={styles.passwordLabelRow}>
               <Text style={styles.label}>PASSWORD</Text>
-              {/* Forgot password link — email mode only */}
-              {mode === 'email' && (
-                <TouchableOpacity onPress={openForgot} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.forgotLink}>Forgot password?</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity onPress={openForgot} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.forgotLink}>Forgot password?</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.passwordRow}>
               <TextInput
@@ -233,7 +174,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {/* ─── Forgot password panel ─── */}
-          {showForgot && mode === 'email' && (
+          {showForgot && (
             <View style={styles.forgotCard}>
               {forgotSent ? (
                 <>
@@ -284,12 +225,6 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Phone mode: no forgot-password support */}
-          {mode === 'phone' && (
-            <Text style={styles.phoneNote}>
-              To reset your password, contact your organization administrator.
-            </Text>
-          )}
         </View>
 
         {/* Sign up link */}

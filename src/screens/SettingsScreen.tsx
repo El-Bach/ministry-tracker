@@ -582,7 +582,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>👥</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
-       <Text style={ss.navCardSubtitle}>{teamMembers.length} members{activeCodeCount > 0 ? `, ${activeCodeCount} invitee${activeCodeCount !== 1 ? 's' : ''}` : ''}</Text>
+       <Text style={ss.navCardSubtitle}>{teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''}{activeCodeCount > 0 ? `, ${activeCodeCount} invitee${activeCodeCount !== 1 ? 's' : ''}` : ''}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>

@@ -1,7 +1,7 @@
 // src/screens/NewTaskScreen.tsx
 // Create new task: client → service → stages route → assignee → due date
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
  View,
  Text,
@@ -166,7 +166,7 @@ function DynamicFieldInput({
  <Text style={selected.length > 0 ? dfi.selectVal : dfi.selectPlaceholder}>{display}</Text>
  <Text style={dfi.selectChevron}>›</Text>
  </TouchableOpacity>
- <Modal visible={selectOpen} transparent animationType="slide"
+ <Modal visible={selectOpen} transparent animationType="fade"
  onRequestClose={() => setSelectOpen(false)}>
  <View style={dfi.modalOverlay}>
  <View style={dfi.modalSheet}>
@@ -323,10 +323,10 @@ const dfi = StyleSheet.create({
 
 // ─── Field picker modal styles ────────────────────────────────
 const fp = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-start', paddingTop: 60 },
   sheet: {
-    backgroundColor: theme.color.bgSurface, borderTopLeftRadius: 20,
-    borderTopRightRadius: 20, maxHeight: '75%', paddingBottom: 32,
+    backgroundColor: theme.color.bgSurface, borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20, maxHeight: '75%', paddingBottom: 32,
     ...theme.shadow.modal, zIndex: theme.zIndex.modal,
   },
   header: {
@@ -477,7 +477,7 @@ function PickerModal({
  : items;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior="padding"
         style={ms.overlay}
@@ -584,15 +584,15 @@ function PickerModal({
 }
 
 const ms = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-start', paddingTop: 60 },
   sheet: {
-    backgroundColor:      theme.color.bgSurface,
-    borderTopLeftRadius:  20,
-    borderTopRightRadius: 20,
-    maxHeight:            '80%',
-    paddingBottom:        theme.spacing.space2,
+    backgroundColor:         theme.color.bgSurface,
+    borderBottomLeftRadius:  20,
+    borderBottomRightRadius: 20,
+    maxHeight:               '80%',
+    paddingBottom:           theme.spacing.space2,
     ...theme.shadow.modal,
-    zIndex:               theme.zIndex.modal,
+    zIndex:                  theme.zIndex.modal,
   },
   sheetHeader: {
     flexDirection:     'row',
@@ -891,9 +891,16 @@ export default function NewTaskScreen() {
  // New service form
  const [showNewServiceForm, setShowNewServiceForm] = useState(false);
  const [newServiceName, setNewServiceName] = useState('');
- const [newServiceStageNames, setNewServiceStageNames] = useState<string[]>([]);
+ // Each draft stage carries an optional default city — persisted to ministries.city_id on save
+ const [newServiceStages, setNewServiceStages] = useState<Array<{ name: string; cityId?: string; cityName?: string }>>([]);
  const [newServiceStageInput, setNewServiceStageInput] = useState('');
  const [savingService, setSavingService] = useState(false);
+ // Per-draft-stage city picker state
+ const [expandedSvcStageIdx, setExpandedSvcStageIdx] = useState<number | null>(null);
+ const [svcStageCitySearch, setSvcStageCitySearch] = useState('');
+ const [svcStageCreateOpen, setSvcStageCreateOpen] = useState(false);
+ const [svcStageNewCityName, setSvcStageNewCityName] = useState('');
+ const [svcStageSavingCity, setSvcStageSavingCity] = useState(false);
 
  // New stage form
  const [showNewStageForm, setShowNewStageForm] = useState(false);
@@ -910,7 +917,116 @@ export default function NewTaskScreen() {
  const [stageAssigneeSearch, setStageAssigneeSearch] = useState('');
  const [stageDetailTab, setStageDetailTab] = useState<'city' | 'assignee'>('city');
 
+ // Inline create-city form state
+ const [showCreateCityForm, setShowCreateCityForm] = useState(false);
+ const [newCityName, setNewCityName] = useState('');
+ const [savingNewCity, setSavingNewCity] = useState(false);
+ const newCityInputRef = useRef<TextInput>(null);
+
+ // Inline create-assignee (external) form state
+ const [showCreateExtForm, setShowCreateExtForm] = useState(false);
+ const [newExtName, setNewExtName] = useState('');
+ const [newExtPhone, setNewExtPhone] = useState('');
+ const [newExtReference, setNewExtReference] = useState('');
+ const [savingNewExt, setSavingNewExt] = useState(false);
+ const newExtNameInputRef = useRef<TextInput>(null);
+
  const [saving, setSaving] = useState(false);
+
+ // ── Stage city: update local map AND persist as the stage's default city ─
+ // (so the city travels with the stage everywhere — Manage Stages, future
+ //  files using this stage, etc.)
+ const persistStageCity = async (
+   stageId: string,
+   city: { cityId: string; cityName: string } | null,
+ ) => {
+   setStageCityMap(m => ({ ...m, [stageId]: city }));
+   // Update the ministry's default city. Best-effort — UI already moved on.
+   await supabase
+     .from('ministries')
+     .update({ city_id: city?.cityId ?? null })
+     .eq('id', stageId);
+   // Keep the local stages cache in sync so it shows immediately if the user
+   // re-opens the stage picker for another file in the same session.
+   setStages(prev => prev.map(st =>
+     st.id === stageId
+       ? { ...st, city_id: city?.cityId ?? null, city: city ? { id: city.cityId, name: city.cityName } as any : undefined }
+       : st
+   ));
+ };
+
+ // ── Service-form draft-stage city helpers ───────────────────
+ const setDraftStageCity = (idx: number, city: { id: string; name: string } | null) => {
+   setNewServiceStages(prev => prev.map((s, i) =>
+     i === idx
+       ? { ...s, cityId: city?.id, cityName: city?.name }
+       : s
+   ));
+ };
+
+ const createCityForDraftStage = async (idx: number) => {
+   const name = svcStageNewCityName.trim();
+   if (!name) { Alert.alert('Required', 'City name is required.'); return; }
+   setSvcStageSavingCity(true);
+   const { data, error } = await supabase
+     .from('cities')
+     .insert({ name, org_id: teamMember?.org_id ?? null })
+     .select()
+     .single();
+   setSvcStageSavingCity(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   const created = data as City;
+   setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+   setDraftStageCity(idx, { id: created.id, name: created.name });
+   setSvcStageNewCityName('');
+   setSvcStageCreateOpen(false);
+   setSvcStageCitySearch('');
+ };
+
+ // ── Inline create handlers (city + external assignee) ────────
+ const handleCreateCityForStage = async (stageId: string) => {
+   const name = newCityName.trim();
+   if (!name) { Alert.alert('Required', 'City name is required.'); return; }
+   setSavingNewCity(true);
+   const { data, error } = await supabase
+     .from('cities')
+     .insert({ name, org_id: teamMember?.org_id ?? null })
+     .select()
+     .single();
+   setSavingNewCity(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   const created = data as City;
+   setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+   await persistStageCity(stageId, { cityId: created.id, cityName: created.name });
+   setNewCityName('');
+   setShowCreateCityForm(false);
+   setStageCitySearch('');
+ };
+
+ const handleCreateExtAssigneeForStage = async (stageId: string) => {
+   const name = newExtName.trim();
+   if (!name) { Alert.alert('Required', 'Name is required.'); return; }
+   setSavingNewExt(true);
+   const { data, error } = await supabase
+     .from('assignees')
+     .insert({
+       name,
+       phone:     newExtPhone.trim()     || null,
+       reference: newExtReference.trim() || null,
+       created_by: teamMember?.id,
+       org_id:     teamMember?.org_id ?? null,
+     })
+     .select('*, creator:team_members!created_by(name)')
+     .single();
+   setSavingNewExt(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   const created = data as any;
+   setAllAssignees(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+   setStageAssigneeMap(m => ({ ...m, [stageId]: { id: created.id, name: created.name, isExt: true } }));
+   setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
+   setShowCreateExtForm(false);
+   setStageAssigneeSearch('');
+ };
 
  // ── Required docs bottom-sheet ────────────────────────────
  const [showDocSheet, setShowDocSheet]           = useState(false);
@@ -918,6 +1034,11 @@ export default function NewTaskScreen() {
  const [sheetDocReqs, setSheetDocReqs]           = useState<Record<string, any[]>>({});
  const [sheetExpandedId, setSheetExpandedId]     = useState<string | null>(null);
  const [loadingSheetDocs, setLoadingSheetDocs]   = useState(false);
+
+ // Inline add-document state (within the Required Docs sheet)
+ const [showAddDocForm, setShowAddDocForm] = useState(false);
+ const [newDocTitle, setNewDocTitle]       = useState('');
+ const [savingNewDoc, setSavingNewDoc]     = useState(false);
 
  // Stage inline rename
  const [editingStageIdx, setEditingStageIdx] = useState<number | null>(null);
@@ -936,7 +1057,9 @@ export default function NewTaskScreen() {
 
  useEffect(() => {
  loadData();
- }, []);
+ // Re-run if org changes (auth resolves later, org switch, etc.)
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [teamMember?.org_id]);
 
  // Refresh clients list after returning from EditClient screen
  useFocusEffect(
@@ -1001,6 +1124,35 @@ export default function NewTaskScreen() {
    setLoadingSheetDocs(false);
  };
 
+ // Add a new required document for the currently selected service
+ const handleAddDocFromSheet = async () => {
+   const title = newDocTitle.trim();
+   if (!title) { Alert.alert('Required', 'Document title is required.'); return; }
+   if (!selectedService) return;
+   setSavingNewDoc(true);
+   const maxOrder = sheetDocs.length > 0
+     ? Math.max(...sheetDocs.map((d: any) => d.sort_order ?? 0))
+     : 0;
+   const { data, error } = await supabase
+     .from('service_documents')
+     .insert({
+       service_id: selectedService.id,
+       title,
+       sort_order: maxOrder + 1,
+       org_id:     teamMember?.org_id ?? null,
+     })
+     .select()
+     .single();
+   setSavingNewDoc(false);
+   if (error) { Alert.alert('Error', error.message); return; }
+   if (data) {
+     setSheetDocs(prev => [...prev, data]);
+     setSheetDocReqs(prev => ({ ...prev, [(data as any).id]: [] }));
+   }
+   setNewDocTitle('');
+   setShowAddDocForm(false);
+ };
+
  const handleShareDocsWhatsApp = () => {
    if (!selectedService || sheetDocs.length === 0) return;
    const lines: string[] = [`📋 *${selectedService.name}* — Required Documents:\n`];
@@ -1008,7 +1160,8 @@ export default function NewTaskScreen() {
      lines.push(`${idx + 1}. *${doc.title}*`);
      (sheetDocReqs[doc.id] ?? []).forEach((r: any) => lines.push(`   • ${r.title}`));
    });
-   lines.push('\n_GovPilot, Powered by KTS_');
+   if (teamMember?.name) lines.push(`\n_Generated by ${teamMember.name}_`);
+   lines.push('_GovPilot, Powered by KTS_');
    const msg = encodeURIComponent(lines.join('\n'));
    Linking.openURL(`https://wa.me/?text=${msg}`).catch(() =>
      Alert.alert('Error', 'Could not open WhatsApp.')
@@ -1071,7 +1224,7 @@ export default function NewTaskScreen() {
  const [c, sv, m, tm, ci, asgn] = await Promise.all([
  supabase.from('clients').select('*').eq('org_id', orgId).order('name'),
  supabase.from('services').select('*').eq('org_id', orgId).order('name'),
- supabase.from('ministries').select('*, city:cities(id,name)').eq('org_id', orgId).order('name'),
+ supabase.from('ministries').select('*, city:cities(id,name)').eq('org_id', orgId).eq('type', 'parent').order('name'),
  supabase.from('team_members').select('*').eq('org_id', orgId).is('deleted_at', null).order('name'),
  supabase.from('cities').select('*').eq('org_id', orgId).order('name'),
  supabase.from('assignees').select('*').eq('org_id', orgId).order('name'),
@@ -1240,6 +1393,29 @@ export default function NewTaskScreen() {
      Alert.alert('Required', 'Service name is required.');
      return;
    }
+   // Duplicate check (case-insensitive, scoped to current org)
+   const { data: dupSvc } = await supabase
+     .from('services')
+     .select('id, name')
+     .eq('org_id', teamMember?.org_id ?? '')
+     .ilike('name', newServiceName.trim())
+     .limit(1)
+     .maybeSingle();
+   if (dupSvc) {
+     Alert.alert(
+       'Duplicate Service',
+       `A service named "${(dupSvc as any).name}" already exists.\n\nCreate anyway?`,
+       [
+         { text: t('cancel'), style: 'cancel' },
+         { text: 'Create anyway', onPress: () => doCreateService() },
+       ],
+     );
+     return;
+   }
+   doCreateService();
+ };
+
+ const doCreateService = async () => {
    setSavingService(true);
    const { data, error } = await supabase
      .from('services')
@@ -1248,31 +1424,73 @@ export default function NewTaskScreen() {
      .single();
    if (error) { Alert.alert('Error', error.message); setSavingService(false); return; }
    const sv = data as Service;
-   // Create ministries + link as default stages
+   // Create ministries + link as default stages — silently reuse existing
+   // ministries (same name in this org) instead of creating duplicates.
    const stageMinistries: Ministry[] = [];
-   const names = newServiceStageNames.filter((n) => n.trim());
-   for (let i = 0; i < names.length; i++) {
-     const { data: mData } = await supabase
+   const cityMapForRouteStops: Record<string, { cityId: string; cityName: string } | null> = {};
+   const pendingInput = newServiceStageInput.trim();
+   const drafts: Array<{ name: string; cityId?: string; cityName?: string }> = [
+     ...newServiceStages.filter((d) => d.name.trim()),
+     ...(pendingInput ? [{ name: pendingInput }] : []),
+   ];
+   for (let i = 0; i < drafts.length; i++) {
+     const draft = drafts[i];
+     // Look up existing parent ministry with same name in this org
+     const { data: existing } = await supabase
        .from('ministries')
-       .insert({ name: names[i], type: 'child', org_id: teamMember?.org_id ?? null })
-       .select()
-       .single();
-     if (mData) {
+       .select('*, city:cities(id,name)')
+       .eq('org_id', teamMember?.org_id ?? '')
+       .eq('type', 'parent')
+       .ilike('name', draft.name)
+       .limit(1)
+       .maybeSingle();
+     let ministry: Ministry | null = (existing as Ministry) ?? null;
+     if (!ministry) {
+       // New ministry — include the chosen city as the default
+       const { data: mData } = await supabase
+         .from('ministries')
+         .insert({
+           name:    draft.name,
+           type:    'parent',
+           org_id:  teamMember?.org_id ?? null,
+           city_id: draft.cityId ?? null,
+         })
+         .select('*, city:cities(id,name)')
+         .single();
+       ministry = (mData as Ministry) ?? null;
+     }
+     if (ministry) {
        await supabase.from('service_default_stages').insert({
-         service_id: sv.id, ministry_id: mData.id, stop_order: i + 1,
+         service_id: sv.id, ministry_id: ministry.id, stop_order: i + 1,
        });
-       stageMinistries.push(mData as Ministry);
+       stageMinistries.push(ministry);
+       // Pre-populate the per-stage city map for this file from either the
+       // draft's chosen city OR the existing ministry's default city
+       const cityId = draft.cityId ?? ministry.city_id;
+       const cityName = draft.cityName ?? (ministry as any).city?.name;
+       if (cityId && cityName) {
+         cityMapForRouteStops[ministry.id] = { cityId, cityName };
+       }
      }
    }
    setSavingService(false);
    setServices((prev) => [...prev, sv]);
    setSelectedService(sv);
    setRouteStops(stageMinistries);
-   setStages((prev) => [...prev, ...stageMinistries]);
+   setStageCityMap((prev) => ({ ...prev, ...cityMapForRouteStops }));
+   // Merge into stages cache without creating UI duplicates
+   setStages((prev) => {
+     const seen = new Set(prev.map(s => s.id));
+     return [...prev, ...stageMinistries.filter(s => !seen.has(s.id))];
+   });
    setShowNewServiceForm(false);
    setNewServiceName('');
-   setNewServiceStageNames([]);
+   setNewServiceStages([]);
    setNewServiceStageInput('');
+   setExpandedSvcStageIdx(null);
+   setSvcStageCitySearch('');
+   setSvcStageCreateOpen(false);
+   setSvcStageNewCityName('');
  };
 
  const handleCreateStage = async () => {
@@ -1280,6 +1498,30 @@ export default function NewTaskScreen() {
  Alert.alert('Required', 'Stage name is required.');
  return;
  }
+ // Duplicate check
+ const { data: dupStage } = await supabase
+   .from('ministries')
+   .select('id, name')
+   .eq('org_id', teamMember?.org_id ?? '')
+   .eq('type', 'parent')
+   .ilike('name', newStageName.trim())
+   .limit(1)
+   .maybeSingle();
+ if (dupStage) {
+   Alert.alert(
+     'Duplicate Stage',
+     `A stage named "${(dupStage as any).name}" already exists.\n\nCreate anyway?`,
+     [
+       { text: t('cancel'), style: 'cancel' },
+       { text: 'Create anyway', onPress: () => doCreateStage() },
+     ],
+   );
+   return;
+ }
+ doCreateStage();
+ };
+
+ const doCreateStage = async () => {
  setSavingStage(true);
  const { data, error } = await supabase
  .from('ministries')
@@ -1565,17 +1807,117 @@ export default function NewTaskScreen() {
      autoFocus
    />
    {/* Stages builder */}
-   {newServiceStageNames.length > 0 && (
+   {newServiceStages.length > 0 && (
      <View style={s.newSvcStageList}>
-       {newServiceStageNames.map((name, idx) => (
-         <View key={idx} style={s.newSvcStageRow}>
-           <View style={s.stageIndex}>
-             <Text style={s.stageIndexText}>{idx + 1}</Text>
+       {newServiceStages.map((draft, idx) => (
+         <View key={idx}>
+           <View style={s.newSvcStageRow}>
+             <View style={s.stageIndex}>
+               <Text style={s.stageIndexText}>{idx + 1}</Text>
+             </View>
+             <View style={{ flex: 1 }}>
+               <Text style={s.newSvcStageName} numberOfLines={1}>{draft.name}</Text>
+               <TouchableOpacity
+                 onPress={() => {
+                   setExpandedSvcStageIdx(expandedSvcStageIdx === idx ? null : idx);
+                   setSvcStageCitySearch('');
+                   setSvcStageCreateOpen(false);
+                   setSvcStageNewCityName('');
+                 }}
+               >
+                 <Text style={{ fontSize: 11, color: draft.cityName ? theme.color.primary : theme.color.textMuted, marginTop: 2, fontWeight: draft.cityName ? '600' : '400' }}>
+                   {draft.cityName ? `📍 ${draft.cityName}` : '📍 Tap to set city'}
+                 </Text>
+               </TouchableOpacity>
+             </View>
+             <TouchableOpacity onPress={() => {
+               setNewServiceStages((prev) => prev.filter((_, i) => i !== idx));
+               if (expandedSvcStageIdx === idx) setExpandedSvcStageIdx(null);
+             }}>
+               <Text style={s.stageRemove}>✕</Text>
+             </TouchableOpacity>
            </View>
-           <Text style={s.newSvcStageName} numberOfLines={1}>{name}</Text>
-           <TouchableOpacity onPress={() => setNewServiceStageNames((prev) => prev.filter((_, i) => i !== idx))}>
-             <Text style={s.stageRemove}>✕</Text>
-           </TouchableOpacity>
+
+           {/* Inline city picker for this draft stage */}
+           {expandedSvcStageIdx === idx && (
+             <View style={s.stageDetailPanel}>
+               <TextInput
+                 style={s.stageDetailSearch}
+                 value={svcStageCitySearch}
+                 onChangeText={setSvcStageCitySearch}
+                 placeholder="Search city..."
+                 placeholderTextColor={theme.color.textMuted}
+               />
+               {draft.cityId && (
+                 <TouchableOpacity onPress={() => setDraftStageCity(idx, null)}>
+                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove city</Text>
+                 </TouchableOpacity>
+               )}
+               {allCities
+                 .filter(c => !svcStageCitySearch.trim() || c.name.includes(svcStageCitySearch.trim()))
+                 .slice(0, 10)
+                 .map(c => (
+                   <TouchableOpacity
+                     key={c.id}
+                     style={[s.stageDetailItem, draft.cityId === c.id && s.stageDetailItemActive]}
+                     onPress={() => { setDraftStageCity(idx, { id: c.id, name: c.name }); setSvcStageCitySearch(''); }}
+                   >
+                     <Text style={s.stageDetailItemText}>{c.name}</Text>
+                     {draft.cityId === c.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
+                   </TouchableOpacity>
+                 ))}
+               {/* Create new city for this draft */}
+               {!svcStageCreateOpen ? (
+                 <TouchableOpacity
+                   style={s.inlineCreateBtn}
+                   onPress={() => {
+                     setSvcStageCreateOpen(true);
+                     if (svcStageCitySearch.trim()) setSvcStageNewCityName(svcStageCitySearch.trim());
+                   }}
+                 >
+                   <Text style={s.inlineCreateBtnText}>＋ Create new city</Text>
+                 </TouchableOpacity>
+               ) : (
+                 <View style={s.inlineCreateForm}>
+                   <TextInput
+                     style={s.inlineCreateInput}
+                     value={svcStageNewCityName}
+                     onChangeText={setSvcStageNewCityName}
+                     placeholder="City name"
+                     placeholderTextColor={theme.color.textMuted}
+                     autoFocus
+                   />
+                   <View style={s.inlineCreateActions}>
+                     <TouchableOpacity
+                       style={s.inlineCancelBtn}
+                       onPress={() => { setSvcStageCreateOpen(false); setSvcStageNewCityName(''); }}
+                     >
+                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                     </TouchableOpacity>
+                     <TouchableOpacity
+                       style={[s.inlineSaveBtn, svcStageSavingCity && { opacity: 0.6 }]}
+                       disabled={svcStageSavingCity}
+                       onPress={() => createCityForDraftStage(idx)}
+                     >
+                       <Text style={s.inlineSaveBtnText}>{svcStageSavingCity ? 'Saving...' : 'Create & Add'}</Text>
+                     </TouchableOpacity>
+                   </View>
+                 </View>
+               )}
+
+               <TouchableOpacity
+                 style={s.stageDetailSaveBtn}
+                 onPress={() => {
+                   setExpandedSvcStageIdx(null);
+                   setSvcStageCitySearch('');
+                   setSvcStageCreateOpen(false);
+                   setSvcStageNewCityName('');
+                 }}
+               >
+                 <Text style={s.stageDetailSaveBtnText}>✓ Done</Text>
+               </TouchableOpacity>
+             </View>
+           )}
          </View>
        ))}
      </View>
@@ -1589,7 +1931,7 @@ export default function NewTaskScreen() {
        placeholderTextColor={theme.color.textMuted}
        onSubmitEditing={() => {
          if (newServiceStageInput.trim()) {
-           setNewServiceStageNames((prev) => [...prev, newServiceStageInput.trim()]);
+           setNewServiceStages((prev) => [...prev, { name: newServiceStageInput.trim() }]);
            setNewServiceStageInput('');
          }
        }}
@@ -1599,7 +1941,7 @@ export default function NewTaskScreen() {
        style={s.newSvcPlusBtn}
        onPress={() => {
          if (newServiceStageInput.trim()) {
-           setNewServiceStageNames((prev) => [...prev, newServiceStageInput.trim()]);
+           setNewServiceStages((prev) => [...prev, { name: newServiceStageInput.trim() }]);
            setNewServiceStageInput('');
          }
        }}
@@ -1659,11 +2001,14 @@ export default function NewTaskScreen() {
            activeOpacity={0.7}
          >
            <Text style={s.stageName} numberOfLines={1}>{stage.name}</Text>
-           <Text style={{ fontSize: 11, color: theme.color.textMuted, marginTop: 2 }}>
-             {[stageCityMap[stage.id]?.cityName && `📍 ${stageCityMap[stage.id]!.cityName}`,
-               stageAssigneeMap[stage.id]?.name && `👤 ${stageAssigneeMap[stage.id]!.name}`]
-               .filter(Boolean).join('  ') || '📍 tap to set city & assignee'}
-           </Text>
+           {/* Show the discovery hint only when nothing is set yet — once a city or assignee
+               is picked, those values appear in the picker (with ✓), so we don't duplicate
+               them under the stage name. */}
+           {!stageCityMap[stage.id] && !stageAssigneeMap[stage.id] && (
+             <Text style={{ fontSize: 11, color: theme.color.textMuted, marginTop: 2 }}>
+               📍 tap to set city & assignee
+             </Text>
+           )}
          </TouchableOpacity>
        )}
        <View style={s.stageActions}>
@@ -1729,9 +2074,9 @@ export default function NewTaskScreen() {
                placeholder="Search city..."
                placeholderTextColor={theme.color.textMuted}
              />
-             <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
+             <View>
                {stageCityMap[stage.id] && (
-                 <TouchableOpacity onPress={() => setStageCityMap(m => ({ ...m, [stage.id]: null }))}>
+                 <TouchableOpacity onPress={() => persistStageCity(stage.id, null)}>
                    <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove city</Text>
                  </TouchableOpacity>
                )}
@@ -1742,13 +2087,55 @@ export default function NewTaskScreen() {
                    <TouchableOpacity
                      key={c.id}
                      style={[s.stageDetailItem, stageCityMap[stage.id]?.cityId === c.id && s.stageDetailItemActive]}
-                     onPress={() => { setStageCityMap(m => ({ ...m, [stage.id]: { cityId: c.id, cityName: c.name } })); setStageCitySearch(''); }}
+                     onPress={() => { persistStageCity(stage.id, { cityId: c.id, cityName: c.name }); setStageCitySearch(''); }}
                    >
                      <Text style={s.stageDetailItemText}>{c.name}</Text>
                      {stageCityMap[stage.id]?.cityId === c.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
                    </TouchableOpacity>
                  ))}
-             </ScrollView>
+               {/* Create new city */}
+               {!showCreateCityForm ? (
+                 <TouchableOpacity
+                   style={s.inlineCreateBtn}
+                   onPress={() => {
+                     setShowCreateCityForm(true);
+                     // Pre-fill from search if user typed something
+                     if (stageCitySearch.trim()) setNewCityName(stageCitySearch.trim());
+                     // Delay focus so KeyboardAwareScrollView has time to scroll
+                     // the input above the keyboard before it pops up.
+                     setTimeout(() => newCityInputRef.current?.focus(), 300);
+                   }}
+                 >
+                   <Text style={s.inlineCreateBtnText}>＋ Create new city</Text>
+                 </TouchableOpacity>
+               ) : (
+                 <View style={s.inlineCreateForm}>
+                   <TextInput
+                     ref={newCityInputRef}
+                     style={s.inlineCreateInput}
+                     value={newCityName}
+                     onChangeText={setNewCityName}
+                     placeholder="City name"
+                     placeholderTextColor={theme.color.textMuted}
+                   />
+                   <View style={s.inlineCreateActions}>
+                     <TouchableOpacity
+                       style={s.inlineCancelBtn}
+                       onPress={() => { setShowCreateCityForm(false); setNewCityName(''); }}
+                     >
+                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                     </TouchableOpacity>
+                     <TouchableOpacity
+                       style={[s.inlineSaveBtn, savingNewCity && { opacity: 0.6 }]}
+                       disabled={savingNewCity}
+                       onPress={() => handleCreateCityForStage(stage.id)}
+                     >
+                       <Text style={s.inlineSaveBtnText}>{savingNewCity ? 'Saving...' : 'Create & Add'}</Text>
+                     </TouchableOpacity>
+                   </View>
+                 </View>
+               )}
+             </View>
            </>
          )}
 
@@ -1761,7 +2148,7 @@ export default function NewTaskScreen() {
                placeholder="Search assignee..."
                placeholderTextColor={theme.color.textMuted}
              />
-             <ScrollView style={{ maxHeight: 260 }} keyboardShouldPersistTaps="handled">
+             <View>
                {stageAssigneeMap[stage.id] && (
                  <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
                    <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove assignee</Text>
@@ -1770,6 +2157,7 @@ export default function NewTaskScreen() {
                <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 4, fontWeight: '700' }}>TEAM</Text>
                {teamMembers
                  .filter(tm => !stageAssigneeSearch.trim() || tm.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
+                 .slice(0, 15)
                  .map(tm => (
                    <TouchableOpacity
                      key={tm.id}
@@ -1785,6 +2173,7 @@ export default function NewTaskScreen() {
                )}
                {allAssignees
                  .filter(a => !stageAssigneeSearch.trim() || a.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
+                 .slice(0, 15)
                  .map(a => (
                    <TouchableOpacity
                      key={a.id}
@@ -1795,9 +2184,81 @@ export default function NewTaskScreen() {
                      {stageAssigneeMap[stage.id]?.id === a.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
                    </TouchableOpacity>
                  ))}
-             </ScrollView>
+               {/* Create new external contact */}
+               {!showCreateExtForm ? (
+                 <TouchableOpacity
+                   style={s.inlineCreateBtn}
+                   onPress={() => {
+                     setShowCreateExtForm(true);
+                     if (stageAssigneeSearch.trim()) setNewExtName(stageAssigneeSearch.trim());
+                     // Delay focus so KeyboardAwareScrollView can scroll the input above the keyboard
+                     setTimeout(() => newExtNameInputRef.current?.focus(), 300);
+                   }}
+                 >
+                   <Text style={s.inlineCreateBtnText}>＋ Create new contact</Text>
+                 </TouchableOpacity>
+               ) : (
+                 <View style={s.inlineCreateForm}>
+                   <TextInput
+                     ref={newExtNameInputRef}
+                     style={s.inlineCreateInput}
+                     value={newExtName}
+                     onChangeText={setNewExtName}
+                     placeholder="Name *"
+                     placeholderTextColor={theme.color.textMuted}
+                   />
+                   <TextInput
+                     style={s.inlineCreateInput}
+                     value={newExtPhone}
+                     onChangeText={setNewExtPhone}
+                     placeholder="Phone (optional)"
+                     placeholderTextColor={theme.color.textMuted}
+                     keyboardType="phone-pad"
+                   />
+                   <TextInput
+                     style={s.inlineCreateInput}
+                     value={newExtReference}
+                     onChangeText={setNewExtReference}
+                     placeholder="Reference (optional)"
+                     placeholderTextColor={theme.color.textMuted}
+                   />
+                   <View style={s.inlineCreateActions}>
+                     <TouchableOpacity
+                       style={s.inlineCancelBtn}
+                       onPress={() => {
+                         setShowCreateExtForm(false);
+                         setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
+                       }}
+                     >
+                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                     </TouchableOpacity>
+                     <TouchableOpacity
+                       style={[s.inlineSaveBtn, savingNewExt && { opacity: 0.6 }]}
+                       disabled={savingNewExt}
+                       onPress={() => handleCreateExtAssigneeForStage(stage.id)}
+                     >
+                       <Text style={s.inlineSaveBtnText}>{savingNewExt ? 'Saving...' : 'Create & Add'}</Text>
+                     </TouchableOpacity>
+                   </View>
+                 </View>
+               )}
+             </View>
            </>
          )}
+
+         {/* Save & close — confirms current city/assignee selection and collapses the picker */}
+         <TouchableOpacity
+           style={s.stageDetailSaveBtn}
+           onPress={() => {
+             setOpenStageDetailId(null);
+             setStageCitySearch('');
+             setStageAssigneeSearch('');
+             setShowCreateCityForm(false);
+             setShowCreateExtForm(false);
+           }}
+         >
+           <Text style={s.stageDetailSaveBtnText}>✓ Save</Text>
+         </TouchableOpacity>
        </View>
      )}
    </View>
@@ -1946,7 +2407,7 @@ export default function NewTaskScreen() {
       <Modal
         visible={showFieldPicker}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => { setShowFieldPicker(false); setShowCreateField(false); }}
       >
         <KeyboardAvoidingView
@@ -2087,7 +2548,7 @@ export default function NewTaskScreen() {
  <Modal
  visible={showFieldTypePicker}
  transparent
- animationType="slide"
+ animationType="fade"
  onRequestClose={() => setShowFieldTypePicker(false)}
  >
         <KeyboardAvoidingView
@@ -2129,7 +2590,7 @@ export default function NewTaskScreen() {
       <Modal
         visible={showDocSheet}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setShowDocSheet(false)}
       >
         <View style={ds.overlay}>
@@ -2150,47 +2611,87 @@ export default function NewTaskScreen() {
             {/* Body */}
             {loadingSheetDocs ? (
               <ActivityIndicator color={theme.color.primary} style={{ margin: 32 }} />
-            ) : sheetDocs.length === 0 ? (
-              <Text style={ds.empty}>No documents listed for this service.</Text>
             ) : (
               <ScrollView
                 contentContainerStyle={{ padding: theme.spacing.space3 }}
                 keyboardShouldPersistTaps="handled"
               >
-                {sheetDocs.map((doc: any, idx: number) => {
-                  const reqs = sheetDocReqs[doc.id] ?? [];
-                  const isOpen = sheetExpandedId === doc.id;
-                  return (
-                    <View key={doc.id} style={ds.docCard}>
-                      <TouchableOpacity
-                        style={ds.docRow}
-                        onPress={() => setSheetExpandedId(isOpen ? null : doc.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={ds.docNum}>{idx + 1}.</Text>
-                        <Text style={ds.docTitle} numberOfLines={2}>{doc.title}</Text>
-                        {reqs.length > 0 && (
-                          <View style={ds.badge}>
-                            <Text style={ds.badgeText}>{reqs.length}</Text>
+                {sheetDocs.length === 0 ? (
+                  <Text style={ds.empty}>No documents listed for this service.</Text>
+                ) : (
+                  sheetDocs.map((doc: any, idx: number) => {
+                    const reqs = sheetDocReqs[doc.id] ?? [];
+                    const isOpen = sheetExpandedId === doc.id;
+                    return (
+                      <View key={doc.id} style={ds.docCard}>
+                        <TouchableOpacity
+                          style={ds.docRow}
+                          onPress={() => setSheetExpandedId(isOpen ? null : doc.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={ds.docNum}>{idx + 1}.</Text>
+                          <Text style={ds.docTitle} numberOfLines={2}>{doc.title}</Text>
+                          {reqs.length > 0 && (
+                            <View style={ds.badge}>
+                              <Text style={ds.badgeText}>{reqs.length}</Text>
+                            </View>
+                          )}
+                          {reqs.length > 0 && (
+                            <Text style={ds.arrow}>{isOpen ? '▼' : '▶'}</Text>
+                          )}
+                        </TouchableOpacity>
+                        {isOpen && reqs.length > 0 && (
+                          <View style={ds.reqList}>
+                            {reqs.map((r: any) => (
+                              <View key={r.id} style={ds.reqRow}>
+                                <Text style={ds.reqBullet}>•</Text>
+                                <Text style={ds.reqTitle}>{r.title}</Text>
+                              </View>
+                            ))}
                           </View>
                         )}
-                        {reqs.length > 0 && (
-                          <Text style={ds.arrow}>{isOpen ? '▼' : '▶'}</Text>
-                        )}
+                      </View>
+                    );
+                  })
+                )}
+
+                {/* Add new document — inline button + form */}
+                {!showAddDocForm ? (
+                  <TouchableOpacity
+                    style={ds.addDocBtn}
+                    onPress={() => setShowAddDocForm(true)}
+                  >
+                    <Text style={ds.addDocBtnText}>＋ Add new document</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={ds.addDocForm}>
+                    <TextInput
+                      style={ds.addDocInput}
+                      value={newDocTitle}
+                      onChangeText={setNewDocTitle}
+                      placeholder="Document title (e.g. ID copy, Bank statement)"
+                      placeholderTextColor={theme.color.textMuted}
+                      autoFocus
+                    />
+                    <View style={ds.addDocActions}>
+                      <TouchableOpacity
+                        style={ds.addDocCancelBtn}
+                        onPress={() => { setShowAddDocForm(false); setNewDocTitle(''); }}
+                      >
+                        <Text style={ds.addDocCancelText}>Cancel</Text>
                       </TouchableOpacity>
-                      {isOpen && reqs.length > 0 && (
-                        <View style={ds.reqList}>
-                          {reqs.map((r: any) => (
-                            <View key={r.id} style={ds.reqRow}>
-                              <Text style={ds.reqBullet}>•</Text>
-                              <Text style={ds.reqTitle}>{r.title}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
+                      <TouchableOpacity
+                        style={[ds.addDocSaveBtn, savingNewDoc && { opacity: 0.6 }]}
+                        disabled={savingNewDoc}
+                        onPress={handleAddDocFromSheet}
+                      >
+                        <Text style={ds.addDocSaveText}>
+                          {savingNewDoc ? 'Saving...' : 'Save'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                  );
-                })}
+                  </View>
+                )}
               </ScrollView>
             )}
 
@@ -2319,6 +2820,19 @@ const s = StyleSheet.create({
   },
   stageDetailTabActive: { backgroundColor: theme.color.primary + '22' },
   stageDetailTabText: { ...theme.typography.label, color: theme.color.textMuted, fontWeight: '700' },
+  // Save button at the bottom of the inline city/assignee picker
+  stageDetailSaveBtn: {
+    marginTop:       theme.spacing.space3,
+    paddingVertical: 12,
+    borderRadius:    theme.radius.md,
+    backgroundColor: theme.color.primary,
+    alignItems:      'center',
+  },
+  stageDetailSaveBtnText: {
+    color:      theme.color.white,
+    fontSize:   14,
+    fontWeight: '700',
+  },
   stageDetailSearch: {
     backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md,
     borderWidth: 1, borderColor: theme.color.border, color: theme.color.textPrimary,
@@ -2332,6 +2846,68 @@ const s = StyleSheet.create({
   },
   stageDetailItemActive: { backgroundColor: theme.color.primary + '18' },
   stageDetailItemText: { ...theme.typography.body, color: theme.color.textPrimary },
+  // Inline create-new (city / contact) inside stage city/assignee picker
+  inlineCreateBtn: {
+    marginTop:    theme.spacing.space2,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2 + 2,
+    borderRadius:  theme.radius.md,
+    borderWidth:   1,
+    borderColor:   theme.color.primary,
+    backgroundColor: theme.color.primary + '11',
+    alignItems:    'center',
+  },
+  inlineCreateBtnText: {
+    color:      theme.color.primary,
+    fontSize:   13,
+    fontWeight: '700',
+  },
+  inlineCreateForm: {
+    marginTop:       theme.spacing.space2,
+    padding:         theme.spacing.space3,
+    borderRadius:    theme.radius.md,
+    borderWidth:     1,
+    borderColor:     theme.color.primary + '55',
+    backgroundColor: theme.color.bgSurface,
+    gap:             theme.spacing.space2,
+  },
+  inlineCreateInput: {
+    backgroundColor: theme.color.bgBase,
+    borderRadius:    theme.radius.sm,
+    borderWidth:     1,
+    borderColor:     theme.color.border,
+    color:           theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    fontSize:        13,
+  },
+  inlineCreateActions: {
+    flexDirection:  'row',
+    justifyContent: 'flex-end',
+    gap:            theme.spacing.space2,
+    marginTop:      2,
+  },
+  inlineCancelBtn: {
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space2,
+    borderRadius:      theme.radius.sm,
+  },
+  inlineCancelBtnText: {
+    color:      theme.color.textSecondary,
+    fontSize:   13,
+    fontWeight: '600',
+  },
+  inlineSaveBtn: {
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical:   theme.spacing.space2,
+    borderRadius:      theme.radius.sm,
+    backgroundColor:   theme.color.primary,
+  },
+  inlineSaveBtnText: {
+    color:      theme.color.white,
+    fontSize:   13,
+    fontWeight: '700',
+  },
   stageArrow:        { color: theme.color.primary, fontSize: 18, fontWeight: '700', padding: 2 },
   stageRemove:       { color: theme.color.danger, fontSize: 16, padding: 2 },
   stageEdit:         { color: theme.color.textSecondary, fontSize: 15, padding: 2 },
@@ -2462,8 +3038,8 @@ const s = StyleSheet.create({
 
 // ─── Required Docs Sheet styles ───────────────────────────────
 const ds = StyleSheet.create({
-  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet:     { backgroundColor: theme.color.bgSurface, borderTopLeftRadius: theme.radius.xl, borderTopRightRadius: theme.radius.xl, maxHeight: '75%', paddingBottom: theme.spacing.space4 },
+  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-start', paddingTop: 60 },
+  sheet:     { backgroundColor: theme.color.bgSurface, borderBottomLeftRadius: theme.radius.xl, borderBottomRightRadius: theme.radius.xl, maxHeight: '75%', paddingBottom: theme.spacing.space4 },
   header:    { flexDirection: 'row', alignItems: 'flex-start', padding: theme.spacing.space4, borderBottomWidth: 1, borderBottomColor: theme.color.border },
   title:     { color: theme.color.textPrimary, fontSize: 17, fontWeight: '700' },
   subtitle:  { color: theme.color.textSecondary, fontSize: 13, marginTop: 2 },
@@ -2482,4 +3058,64 @@ const ds = StyleSheet.create({
   reqTitle:  { flex: 1, color: theme.color.textSecondary, fontSize: 13, lineHeight: 20 },
   waBtn:     { margin: theme.spacing.space3, marginTop: theme.spacing.space2, backgroundColor: '#25D366', borderRadius: theme.radius.lg, paddingVertical: 13, alignItems: 'center' },
   waBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  // Inline add-document button + form (within Required Docs sheet)
+  addDocBtn: {
+    marginTop: theme.spacing.space2,
+    paddingVertical: 12,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.primary,
+    backgroundColor: theme.color.primary + '11',
+    alignItems: 'center',
+  },
+  addDocBtnText: {
+    color: theme.color.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  addDocForm: {
+    marginTop: theme.spacing.space2,
+    padding: theme.spacing.space3,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.color.primary + '55',
+    backgroundColor: theme.color.bgBase,
+    gap: theme.spacing.space2,
+  },
+  addDocInput: {
+    backgroundColor: theme.color.bgSurface,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    color: theme.color.textPrimary,
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: theme.spacing.space2 + 2,
+    fontSize: 14,
+  },
+  addDocActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing.space2,
+  },
+  addDocCancelBtn: {
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical: theme.spacing.space2,
+    borderRadius: theme.radius.sm,
+  },
+  addDocCancelText: {
+    color: theme.color.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  addDocSaveBtn: {
+    paddingHorizontal: theme.spacing.space4,
+    paddingVertical: theme.spacing.space2,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.color.primary,
+  },
+  addDocSaveText: {
+    color: theme.color.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

@@ -112,6 +112,8 @@ export default function GlobalSearchScreen() {
 
   const runSearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) { setResults(EMPTY); setLoading(false); return; }
+    const orgId = teamMember?.org_id;
+    if (!orgId) { setResults(EMPTY); setLoading(false); return; }
     setLoading(true);
     try {
       const like = `%${q.trim()}%`;
@@ -124,54 +126,63 @@ export default function GlobalSearchScreen() {
         // 1. Clients by name, phone, reference, client_id
         supabase.from('clients')
           .select('id, name, phone, client_id, reference_name')
+          .eq('org_id', orgId)
           .or(`name.ilike.${like},phone.ilike.${like},reference_name.ilike.${like},client_id.ilike.${like}`)
           .limit(15),
 
         // 2. Tasks by notes
         supabase.from('tasks')
           .select('id, notes, current_status, client:clients(id,name), service:services(name)')
+          .eq('org_id', orgId)
           .ilike('notes', like)
           .limit(15),
 
-        // 3. Comments
+        // 3. Comments — filter via inner-join on tasks.org_id
         supabase.from('task_comments')
-          .select('id, body, task_id, author:team_members(name), task:tasks(client:clients(name))')
+          .select('id, body, task_id, author:team_members(name), task:tasks!inner(org_id, client:clients(name))')
+          .eq('task.org_id', orgId)
           .ilike('body', like)
           .limit(15),
 
-        // 4. Stage requirements
+        // 4. Stage requirements — filter via inner-join chain through task_route_stops → tasks
         supabase.from('stop_requirements')
-          .select('id, title, is_completed, route_stop:task_route_stops(task_id, task:tasks(client:clients(name)))')
+          .select('id, title, is_completed, route_stop:task_route_stops!inner(task_id, task:tasks!inner(org_id, client:clients(name)))')
+          .eq('route_stop.task.org_id', orgId)
           .ilike('title', like)
           .limit(15),
 
-        // 5. Documents by display_name or file_name
+        // 5. Documents by display_name or file_name — filter via inner-join on tasks.org_id
         supabase.from('task_documents')
-          .select('id, display_name, file_name, task_id, task:tasks(client:clients(name), service:services(name))')
+          .select('id, display_name, file_name, task_id, task:tasks!inner(org_id, client:clients(name), service:services(name))')
+          .eq('task.org_id', orgId)
           .or(`display_name.ilike.${like},file_name.ilike.${like}`)
           .limit(15),
 
-        // 6. Transactions by description
+        // 6. Transactions by description — filter via inner-join on tasks.org_id
         supabase.from('file_transactions')
-          .select('id, description, type, amount_usd, task_id, task:tasks(client:clients(name))')
+          .select('id, description, type, amount_usd, task_id, task:tasks!inner(org_id, client:clients(name))')
+          .eq('task.org_id', orgId)
           .ilike('description', like)
           .limit(15),
 
         // 7. External contacts (assignees)
         supabase.from('assignees')
           .select('id, name, phone, reference, reference_phone')
+          .eq('org_id', orgId)
           .or(`name.ilike.${like},phone.ilike.${like},reference.ilike.${like}`)
           .limit(15),
 
         // 8. Team members
         supabase.from('team_members')
           .select('id, name, email, role, phone')
+          .eq('org_id', orgId)
           .or(`name.ilike.${like},email.ilike.${like}`)
           .limit(10),
 
         // 9. Services by name → get tasks with that service
         supabase.from('services')
           .select('id')
+          .eq('org_id', orgId)
           .ilike('name', like)
           .limit(10),
       ]);
@@ -197,6 +208,7 @@ export default function GlobalSearchScreen() {
       if (clients.length) {
         const { data: clientTasks } = await supabase.from('tasks')
           .select('id, notes, current_status, client:clients(id,name), service:services(name)')
+          .eq('org_id', orgId)
           .in('client_id', clients.map((c) => c.id))
           .limit(20);
         for (const t of (clientTasks ?? []) as any[]) addTask(t);
@@ -207,6 +219,7 @@ export default function GlobalSearchScreen() {
         const serviceIds = (serviceRes.data as any[]).map((s) => s.id);
         const { data: svcTasks } = await supabase.from('tasks')
           .select('id, notes, current_status, client:clients(id,name), service:services(name)')
+          .eq('org_id', orgId)
           .in('service_id', serviceIds)
           .limit(20);
         for (const t of (svcTasks ?? []) as any[]) addTask(t);

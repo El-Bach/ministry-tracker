@@ -155,7 +155,7 @@ export default function TeamMembersScreen() {
   // ── Fetch ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     const [tmRes, codeRes, defsRes, valsRes] = await Promise.all([
-      supabase.from('team_members').select('*').order('name'),
+      supabase.from('team_members').select('*').eq('org_id', teamMember?.org_id ?? '').order('name'),
       supabase
         .from('org_join_codes')
         .select('*')

@@ -91,29 +91,39 @@ export default function ActivityScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchActivity = useCallback(async () => {
+    const orgId = teamMember?.org_id;
+    if (!orgId) {
+      setSections([]);
+      setTotalCount(0);
+      setLoading(false);
+      return;
+    }
     try {
       const [statusRes, commentRes, logRes] = await Promise.all([
         supabase
           .from('status_updates')
           .select(`
             id, created_at, old_status, new_status, task_id,
-            task:tasks(client:clients(name), service:services(name)),
+            task:tasks!inner(org_id, client:clients(name), service:services(name)),
             updater:team_members(name)
           `)
+          .eq('task.org_id', orgId)
           .order('created_at', { ascending: false })
           .limit(100),
         supabase
           .from('task_comments')
           .select(`
             id, created_at, body, task_id,
-            task:tasks(client:clients(name), service:services(name)),
+            task:tasks!inner(org_id, client:clients(name), service:services(name)),
             author:team_members(name)
           `)
+          .eq('task.org_id', orgId)
           .order('created_at', { ascending: false })
           .limit(100),
         supabase
           .from('activity_log')
           .select('id, created_at, event_type, client_name, service_name, actor_name, description')
+          .eq('org_id', orgId)
           .order('created_at', { ascending: false })
           .limit(50),
       ]);
