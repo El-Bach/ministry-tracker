@@ -25,6 +25,7 @@ import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
 import { SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
+import { useTranslation } from '../lib/i18n';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -115,6 +116,7 @@ export default function AccountScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<DashboardStackParamList, 'Account'>>();
   const { teamMember, organization, signOut, refreshTeamMember, isOwner } = useAuth();
+  const { t } = useTranslation();
 
   // First-launch phone-prompt mode: navigated here from Dashboard with highlightPhone=true
   // when the owner has no phone yet. Highlights the phone field in light red to guide them.
@@ -189,61 +191,58 @@ export default function AccountScreen() {
   const identifierIsPhone = isPhoneInput(displayIdentifier);
 
   const saveProfile = async () => {
-    if (!editName.trim())  { Alert.alert('Required', 'Name cannot be empty.'); return; }
-    if (!editPhone.trim()) { Alert.alert('Required', 'Phone number cannot be empty.'); return; }
+    if (!editName.trim())  { Alert.alert(t('required'), t('fieldRequired')); return; }
+    if (!editPhone.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     if (!teamMember?.id) return;
     setSavingProfile(true);
     const updates: Record<string, string> = { name: editName.trim(), phone: editPhone.trim() };
     const { error } = await supabase.from('team_members').update(updates).eq('id', teamMember.id);
     setSavingProfile(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     await refreshTeamMember();
-    // If we arrived here from the first-launch phone prompt, return to Dashboard
-    // (which will then show the welcome overlay) and clear the highlight.
     if (highlightPhone) {
       setHighlightPhone(false);
-      Alert.alert('Saved', 'Your profile has been updated.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('saved'), t('savedSuccess'), [
+        { text: t('ok'), onPress: () => navigation.goBack() },
       ]);
       return;
     }
-    Alert.alert('Saved', 'Your profile has been updated.');
+    Alert.alert(t('saved'), t('savedSuccess'));
   };
 
   const changePassword = async () => {
-    if (!newPwd || newPwd.length < 6) { Alert.alert('Weak Password', 'New password must be at least 6 characters.'); return; }
-    if (newPwd !== confirmPwd) { Alert.alert('Mismatch', 'Passwords do not match.'); return; }
+    if (!newPwd || newPwd.length < 6) { Alert.alert(t('warning'), t('passwordTooShort')); return; }
+    if (newPwd !== confirmPwd) { Alert.alert(t('warning'), t('passwordsMatch')); return; }
     setChangingPwd(true);
-    // Re-authenticate first by signing in with current password
     const email = teamMember?.email ?? '';
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: currentPwd });
     if (signInErr) {
       setChangingPwd(false);
-      Alert.alert('Wrong Password', 'Current password is incorrect.');
+      Alert.alert(t('error'), t('loginFailed'));
       return;
     }
     const { error } = await supabase.auth.updateUser({ password: newPwd });
     setChangingPwd(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setShowPwdModal(false);
     setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
-    Alert.alert('Password Changed', 'Your password has been updated successfully.');
+    Alert.alert(t('success'), t('savedSuccess'));
   };
 
   const saveOrgName = async () => {
-    if (!editOrgName.trim()) { Alert.alert('Required', 'Organization name cannot be empty.'); return; }
+    if (!editOrgName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     if (!organization?.id) return;
     setSavingOrg(true);
     const { error } = await supabase.from('organizations').update({ name: editOrgName.trim() }).eq('id', organization.id);
     setSavingOrg(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setEditingOrgName(false);
     await refreshTeamMember();
   };
 
   const handleJoinCompany = async () => {
     const cleaned = joinCode.trim().toUpperCase();
-    if (cleaned.length < 8) { Alert.alert('Invalid Code', 'Please enter a valid join code.'); return; }
+    if (cleaned.length < 8) { Alert.alert(t('codeNotFound'), t('codeNotFound')); return; }
     setJoiningCompany(true);
 
     // Use SECURITY DEFINER RPC so the org_id change on team_members bypasses
@@ -258,14 +257,14 @@ export default function AccountScreen() {
         : error.message?.includes('deactivated')
         ? 'This code has been deactivated. Ask your admin for a new one.'
         : error.message ?? 'Something went wrong.';
-      Alert.alert('Error', msg);
+      Alert.alert(t('error'), msg);
       return;
     }
 
     setJoinCode('');
     await refreshTeamMember();
-    const orgName = (data as any)?.org_name ?? 'the company';
-    Alert.alert('✅ Joined!', `You've joined ${orgName}. Welcome to the team!`);
+    const orgName = (data as any)?.org_name ?? '';
+    Alert.alert(`✅ ${t('success')}`, `${t('welcomeTo')} ${orgName}`);
   };
 
   const roleBadgeColor = ROLE_COLORS[teamMember?.role ?? 'member'] ?? theme.color.primary;
@@ -449,12 +448,12 @@ export default function AccountScreen() {
         <View style={s.card}>
           <Text style={s.cardTitle}>👤 Edit Profile</Text>
           <View style={s.field}>
-            <Text style={s.label}>DISPLAY NAME</Text>
+            <Text style={s.label}>{t('fullName').toUpperCase()}</Text>
             <TextInput
               style={s.input}
               value={editName}
               onChangeText={setEditName}
-              placeholder="Full name"
+              placeholder={t('fullName')}
               placeholderTextColor={theme.color.textMuted}
               autoCapitalize="words"
             />
@@ -512,7 +511,7 @@ export default function AccountScreen() {
         <TouchableOpacity
           style={s.signOutBtn}
           onPress={() =>
-            Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+            Alert.alert(t('signOut'), t('areYouSure'), [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Sign Out', style: 'destructive', onPress: signOut },
             ])
@@ -542,16 +541,16 @@ export default function AccountScreen() {
             <View style={s.modalSheet}>
               <Text style={s.modalTitle}>Change Password</Text>
               <View style={s.field}>
-                <Text style={s.label}>CURRENT PASSWORD</Text>
-                <TextInput style={s.input} value={currentPwd} onChangeText={setCurrentPwd} secureTextEntry placeholder="Current password" placeholderTextColor={theme.color.textMuted} />
+                <Text style={s.label}>{t('password').toUpperCase()}</Text>
+                <TextInput style={s.input} value={currentPwd} onChangeText={setCurrentPwd} secureTextEntry placeholder={t('password')} placeholderTextColor={theme.color.textMuted} />
               </View>
               <View style={s.field}>
-                <Text style={s.label}>NEW PASSWORD</Text>
-                <TextInput style={s.input} value={newPwd} onChangeText={setNewPwd} secureTextEntry placeholder="Min. 6 characters" placeholderTextColor={theme.color.textMuted} />
+                <Text style={s.label}>{t('changePassword').toUpperCase()}</Text>
+                <TextInput style={s.input} value={newPwd} onChangeText={setNewPwd} secureTextEntry placeholder={t('passwordTooShort')} placeholderTextColor={theme.color.textMuted} />
               </View>
               <View style={s.field}>
-                <Text style={s.label}>CONFIRM NEW PASSWORD</Text>
-                <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholder="Repeat new password" placeholderTextColor={theme.color.textMuted} />
+                <Text style={s.label}>{t('confirmPassword').toUpperCase()}</Text>
+                <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholder={t('confirmPassword')} placeholderTextColor={theme.color.textMuted} />
               </View>
               <TouchableOpacity style={[s.saveBtn, changingPwd && s.btnDisabled]} onPress={changePassword} disabled={changingPwd}>
                 {changingPwd ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.saveBtnText}>Update Password</Text>}

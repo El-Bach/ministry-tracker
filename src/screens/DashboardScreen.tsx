@@ -604,13 +604,13 @@ export default function DashboardScreen() {
   const handleQuickAddTransaction = async () => {
     if (!quickFinanceTask) return;
     if (!quickTxDesc.trim()) {
-      Alert.alert('Required', 'Please enter a description.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     const usd = parseFloat(quickTxUSD) || 0;
     const lbp = parseFloat(quickTxLBP.replace(/,/g, '')) || 0;
     if (usd === 0 && lbp === 0) {
-      Alert.alert('Required', 'Enter at least one amount (USD or LBP).');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSavingQuickTx(true);
@@ -626,7 +626,7 @@ export default function DashboardScreen() {
     });
     setSavingQuickTx(false);
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('error'), error.message);
       return;
     }
     setShowQuickFinance(false);
@@ -657,14 +657,14 @@ export default function DashboardScreen() {
       }
       return;
     }
-    Alert.alert(t('deleteFile'), `Delete "${label}"? This cannot be undone.`, [
+    Alert.alert(t('deleteFile'), `${t('cannotUndo')} — "${label}"`, [
       { text: 'Cancel', style: 'cancel' },
       { text: t('deleteFile'), style: 'destructive', onPress: doDelete },
     ]);
   };
 
   const handleArchiveTask = async (task: Task) => {
-    Alert.alert(t('archiveFile'), `Move "${task.client?.name ?? 'this file'}" to archive?`, [
+    Alert.alert(t('archiveFile'), `${t('archive')} — "${task.client?.name ?? t('file')}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: t('archiveFile'), style: 'destructive', onPress: async () => {
@@ -943,7 +943,7 @@ export default function DashboardScreen() {
           {/* Overdue filter — only shown when there are overdue files */}
           {summaryStats.overdue > 0 && (
             <>
-              <Text style={styles.filterSectionLabel}>STATUS</Text>
+              <Text style={styles.filterSectionLabel}>{t('fileStatus').toUpperCase()}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
                 <TouchableOpacity
                   style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
@@ -1078,7 +1078,7 @@ export default function DashboardScreen() {
         ListHeaderComponent={
           matchingClients.length > 0 ? (
             <View style={styles.clientSection}>
-              <Text style={styles.clientSectionLabel}>CLIENTS</Text>
+              <Text style={styles.clientSectionLabel}>{t('clients').toUpperCase()}</Text>
               {matchingClients.map((c) => (
                 <TouchableOpacity
                   key={c.id}
@@ -1116,7 +1116,7 @@ export default function DashboardScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>⊞</Text>
             <Text style={styles.emptyText}>{t('noFilesFound')}</Text>
-            <Text style={styles.emptySubtext}>Adjust filters or create a new file</Text>
+            <Text style={styles.emptySubtext}>{t('startByAdding')}</Text>
           </View>
         }
         refreshControl={
@@ -1182,7 +1182,7 @@ export default function DashboardScreen() {
               style={styles.qfInput}
               value={quickTxDesc}
               onChangeText={setQuickTxDesc}
-              placeholder="Description *"
+              placeholder={`${t('description')} *`}
               placeholderTextColor={theme.color.textMuted}
               autoFocus
             />
@@ -1302,7 +1302,7 @@ export default function DashboardScreen() {
         >
           <View style={styles.qsSheet}>
             <View style={styles.qsHandle} />
-            <Text style={styles.qsTitle}>Update Status</Text>
+            <Text style={styles.qsTitle}>{t('updateStatus')}</Text>
             {quickStatusTask && (
               <Text style={styles.qsSubtitle} numberOfLines={1}>
                 {quickStatusTask.client?.name} · {quickStatusTask.service?.name}
@@ -1335,7 +1335,7 @@ export default function DashboardScreen() {
               })}
             </View>
             <TouchableOpacity style={styles.qsCancelBtn} onPress={() => setQuickStatusTask(null)}>
-              <Text style={styles.qsCancelText}>Cancel</Text>
+              <Text style={styles.qsCancelText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1347,7 +1347,7 @@ export default function DashboardScreen() {
           <View style={styles.welcomeCard}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.space4 }}>
               {/* Title */}
-              <Text style={styles.welcomeTitle}>👋 Welcome to GovPilot</Text>
+              <Text style={styles.welcomeTitle}>👋 {t('welcomeTo')} GovPilot</Text>
               <Text style={styles.welcomeSubtitle}>
                 Before you can work on cases in the dashboard, you'll need to set up your workspace. Follow the steps below to get started.
               </Text>
@@ -1401,7 +1401,7 @@ export default function DashboardScreen() {
 
             {/* Close button */}
             <TouchableOpacity style={styles.welcomeCloseBtn} onPress={closeWelcome}>
-              <Text style={styles.welcomeCloseBtnText}>Got it  →</Text>
+              <Text style={styles.welcomeCloseBtnText}>{t('done')}  →</Text>
             </TouchableOpacity>
           </View>
         </View>

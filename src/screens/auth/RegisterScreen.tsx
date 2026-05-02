@@ -29,6 +29,7 @@ import {
   isPhoneInput,
 } from '../../lib/authHelpers';
 import PhoneInput, { DEFAULT_COUNTRY } from '../../components/PhoneInput';
+import { useTranslation } from '../../lib/i18n';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -45,6 +46,7 @@ interface CodePreview {
 
 export default function RegisterScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
 
   // ── Step 1: invite code
   const [mode,         setMode]         = useState<ScreenMode>('code');
@@ -88,7 +90,7 @@ export default function RegisterScreen() {
   const handleValidateCode = async () => {
     const cleaned = inviteCode.trim().toUpperCase();
     if (!cleaned) {
-      Alert.alert('Enter Code', 'Please enter your invite code.');
+      Alert.alert(t('enterCode'), t('fieldRequired'));
       return;
     }
     setValidating(true);
@@ -97,7 +99,7 @@ export default function RegisterScreen() {
       const { data, error } = await supabase.rpc('lookup_invite_code', { p_code: cleaned });
 
       if (error || !data) {
-        Alert.alert('Invalid Code', 'This invite code was not found. Please check and try again.');
+        Alert.alert(t('codeNotFound'), t('codeNotFound'));
         return;
       }
 
@@ -115,7 +117,7 @@ export default function RegisterScreen() {
 
       fadeTransition(() => setMode('details'));
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not validate code.');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     } finally {
       setValidating(false);
     }
@@ -128,19 +130,19 @@ export default function RegisterScreen() {
     if (!codePreview) return;
 
     if (!fullName.trim()) {
-      Alert.alert('Required', 'Please enter your full name.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert('Required', 'Please enter your phone number.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+      Alert.alert(t('warning'), t('passwordTooShort'));
       return;
     }
     if (password !== confirmPass) {
-      Alert.alert('Password Mismatch', 'Passwords do not match.');
+      Alert.alert(t('warning'), t('passwordsMatch'));
       return;
     }
 
@@ -150,10 +152,7 @@ export default function RegisterScreen() {
 
     // Phone lock: if inviteePhone is set, the entered phone must match
     if (codePreview.inviteePhone && codePreview.inviteePhone !== fullPhone) {
-      Alert.alert(
-        'Phone Mismatch',
-        'This code is reserved for a different phone number. Please use the phone number you were invited with.'
-      );
+      Alert.alert(t('warning'), t('phoneLocked'));
       return;
     }
 
@@ -210,7 +209,7 @@ export default function RegisterScreen() {
       const msg: string = (err.message ?? 'Something went wrong.')
         .replace(/p\d+@cleartrack\.internal/g, fullPhone)
         .replace(/\+?\d{7,}@cleartrack\.internal/g, fullPhone);
-      Alert.alert('Registration Failed', msg);
+      Alert.alert(t('error'), msg);
     } finally {
       setLoading(false);
     }
@@ -221,28 +220,28 @@ export default function RegisterScreen() {
   // ─────────────────────────────────────────────────────────────
   const handleCreateOrg = async () => {
     if (!orgFullName.trim()) {
-      Alert.alert('Required', 'Please enter your full name.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     if (!orgEmail.trim()) {
-      Alert.alert('Required', 'Please enter your email address.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(orgEmail.trim())) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      Alert.alert(t('error'), t('invalidEmail'));
       return;
     }
     if (!orgName.trim()) {
-      Alert.alert('Required', 'Please enter your company name.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     if (orgPassword.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+      Alert.alert(t('warning'), t('passwordTooShort'));
       return;
     }
     if (orgPassword !== orgConfirm) {
-      Alert.alert('Password Mismatch', 'Passwords do not match.');
+      Alert.alert(t('warning'), t('passwordsMatch'));
       return;
     }
 
@@ -270,7 +269,7 @@ export default function RegisterScreen() {
       if (createErr) throw new Error('Failed to create organization: ' + createErr.message);
 
     } catch (err: any) {
-      Alert.alert('Registration Failed', err.message ?? 'Something went wrong.');
+      Alert.alert(t('error'), err.message ?? t('somethingWrong'));
     } finally {
       setOrgLoading(false);
     }
@@ -294,15 +293,15 @@ export default function RegisterScreen() {
             <Text style={s.logoIcon}>⊞</Text>
           </View>
           <Text style={s.title}>
-            {mode === 'neworg' ? 'Create Organization' : 'Join GovPilot'}
+            {mode === 'neworg' ? t('createOrganization') : t('createAccount')}
           </Text>
           <Text style={s.subtitle}>
-            {mode === 'code'    && 'Enter your invite code to get started'}
-            {mode === 'details' && `Joining ${codePreview?.orgName ?? ''} as ${capitalize(codePreview?.role ?? '')}`}
-            {mode === 'neworg'  && 'Set up your organization and start tracking files'}
+            {mode === 'code'    && t('enterInviteCode')}
+            {mode === 'details' && `${t('youInvitedTo')} ${codePreview?.orgName ?? ''} (${capitalize(codePreview?.role ?? '')})`}
+            {mode === 'neworg'  && t('newOrgFlow')}
           </Text>
           <Text style={s.poweredBy}>
-            Powered by <Text style={s.poweredByKts}>KTS</Text>
+            {t('poweredBy')}
           </Text>
         </View>
 
@@ -314,7 +313,7 @@ export default function RegisterScreen() {
           {mode === 'code' && (
             <View style={s.form}>
               <View style={s.field}>
-                <Text style={s.label}>INVITE CODE</Text>
+                <Text style={s.label}>{t('inviteCode').toUpperCase()}</Text>
                 <TextInput
                   style={[s.input, s.codeInput]}
                   value={inviteCode}
@@ -346,7 +345,7 @@ export default function RegisterScreen() {
                 {validating ? (
                   <ActivityIndicator color={theme.color.white} />
                 ) : (
-                  <Text style={s.buttonText}>Validate Code →</Text>
+                  <Text style={s.buttonText}>{t('validateCode')} →</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -363,36 +362,36 @@ export default function RegisterScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.welcomeTitle}>
                     {codePreview.inviteeName
-                      ? `Welcome, ${codePreview.inviteeName}!`
-                      : 'Code accepted!'}
+                      ? `${t('welcomeTo')} ${codePreview.inviteeName}!`
+                      : `✓ ${t('success')}`}
                   </Text>
                   <Text style={s.welcomeSub}>
-                    You'll join <Text style={{ fontWeight: '700' }}>{codePreview.orgName}</Text> as{' '}
-                    <Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{codePreview.role}</Text>
+                    {t('youInvitedTo')} <Text style={{ fontWeight: '700' }}>{codePreview.orgName}</Text>{' '}
+                    (<Text style={{ fontWeight: '700', textTransform: 'capitalize' }}>{codePreview.role}</Text>)
                   </Text>
                 </View>
               </View>
 
               {/* Full name */}
               <View style={s.field}>
-                <Text style={s.label}>YOUR NAME</Text>
+                <Text style={s.label}>{t('fullName').toUpperCase()}</Text>
                 <TextInput
                   style={s.input}
                   value={fullName}
                   onChangeText={setFullName}
-                  placeholder="Full name"
+                  placeholder={t('fullName')}
                   placeholderTextColor={theme.color.textMuted}
                   autoCapitalize="words"
                   editable={!codePreview.inviteeName} // locked if pre-filled
                 />
                 {!!codePreview.inviteeName && (
-                  <Text style={s.lockedHint}>Pre-filled from your invitation</Text>
+                  <Text style={s.lockedHint}>🔒</Text>
                 )}
               </View>
 
               {/* Phone — locked if code has inviteePhone */}
               <View style={s.field}>
-                <Text style={s.label}>PHONE NUMBER</Text>
+                <Text style={s.label}>{t('phoneNumber').toUpperCase()}</Text>
                 {codePreview.inviteePhone ? (
                   // Locked display
                   <View style={[s.input, s.lockedInput]}>
@@ -409,19 +408,19 @@ export default function RegisterScreen() {
                   />
                 )}
                 {!!codePreview.inviteePhone && (
-                  <Text style={s.lockedHint}>This code is tied to this phone number</Text>
+                  <Text style={s.lockedHint}>🔒</Text>
                 )}
               </View>
 
               {/* Password */}
               <View style={s.field}>
-                <Text style={s.label}>PASSWORD</Text>
+                <Text style={s.label}>{t('password').toUpperCase()}</Text>
                 <View style={s.passWrap}>
                   <TextInput
                     style={s.passInput}
                     value={password}
                     onChangeText={setPassword}
-                    placeholder="Min. 6 characters"
+                    placeholder={t('passwordTooShort')}
                     placeholderTextColor={theme.color.textMuted}
                     secureTextEntry={!showPass}
                     autoCapitalize="none"
@@ -434,13 +433,13 @@ export default function RegisterScreen() {
               </View>
 
               <View style={s.field}>
-                <Text style={s.label}>CONFIRM PASSWORD</Text>
+                <Text style={s.label}>{t('confirmPassword').toUpperCase()}</Text>
                 <View style={s.passWrap}>
                   <TextInput
                     style={s.passInput}
                     value={confirmPass}
                     onChangeText={setConfirmPass}
-                    placeholder="Repeat password"
+                    placeholder={t('confirmPassword')}
                     placeholderTextColor={theme.color.textMuted}
                     secureTextEntry={!showConfirm}
                     autoCapitalize="none"
@@ -461,7 +460,7 @@ export default function RegisterScreen() {
                 {loading ? (
                   <ActivityIndicator color={theme.color.white} />
                 ) : (
-                  <Text style={s.buttonText}>Create Account & Join</Text>
+                  <Text style={s.buttonText}>{t('createAccount')}</Text>
                 )}
               </TouchableOpacity>
 
@@ -471,7 +470,7 @@ export default function RegisterScreen() {
                 onPress={() => fadeTransition(() => { setMode('code'); setCodePreview(null); })}
                 activeOpacity={0.7}
               >
-                <Text style={s.backBtnText}>← Different code</Text>
+                <Text style={s.backBtnText}>← {t('back')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -482,19 +481,19 @@ export default function RegisterScreen() {
           {mode === 'neworg' && (
             <View style={s.form}>
               <View style={s.field}>
-                <Text style={s.label}>YOUR NAME</Text>
+                <Text style={s.label}>{t('fullName').toUpperCase()}</Text>
                 <TextInput
                   style={s.input}
                   value={orgFullName}
                   onChangeText={setOrgFullName}
-                  placeholder="Full name"
+                  placeholder={t('fullName')}
                   placeholderTextColor={theme.color.textMuted}
                   autoCapitalize="words"
                 />
               </View>
 
               <View style={s.field}>
-                <Text style={s.label}>EMAIL ADDRESS</Text>
+                <Text style={s.label}>{t('email').toUpperCase()}</Text>
                 <TextInput
                   style={s.input}
                   value={orgEmail}
@@ -508,25 +507,25 @@ export default function RegisterScreen() {
               </View>
 
               <View style={s.field}>
-                <Text style={s.label}>COMPANY / OFFICE NAME</Text>
+                <Text style={s.label}>{t('orgName').toUpperCase()}</Text>
                 <TextInput
                   style={s.input}
                   value={orgName}
                   onChangeText={setOrgName}
-                  placeholder="Your company or office name"
+                  placeholder={t('orgName')}
                   placeholderTextColor={theme.color.textMuted}
                   autoCapitalize="words"
                 />
               </View>
 
               <View style={s.field}>
-                <Text style={s.label}>PASSWORD</Text>
+                <Text style={s.label}>{t('password').toUpperCase()}</Text>
                 <View style={s.passWrap}>
                   <TextInput
                     style={s.passInput}
                     value={orgPassword}
                     onChangeText={setOrgPassword}
-                    placeholder="Min. 6 characters"
+                    placeholder={t('passwordTooShort')}
                     placeholderTextColor={theme.color.textMuted}
                     secureTextEntry={!showOrgPass}
                     autoCapitalize="none"
@@ -539,13 +538,13 @@ export default function RegisterScreen() {
               </View>
 
               <View style={s.field}>
-                <Text style={s.label}>CONFIRM PASSWORD</Text>
+                <Text style={s.label}>{t('confirmPassword').toUpperCase()}</Text>
                 <View style={s.passWrap}>
                   <TextInput
                     style={s.passInput}
                     value={orgConfirm}
                     onChangeText={setOrgConfirm}
-                    placeholder="Repeat password"
+                    placeholder={t('confirmPassword')}
                     placeholderTextColor={theme.color.textMuted}
                     secureTextEntry={!showOrgConf}
                     autoCapitalize="none"
@@ -566,7 +565,7 @@ export default function RegisterScreen() {
                 {orgLoading ? (
                   <ActivityIndicator color={theme.color.white} />
                 ) : (
-                  <Text style={s.buttonText}>Create Organization</Text>
+                  <Text style={s.buttonText}>{t('createOrganization')}</Text>
                 )}
               </TouchableOpacity>
 
@@ -575,7 +574,7 @@ export default function RegisterScreen() {
                 onPress={() => fadeTransition(() => setMode('code'))}
                 activeOpacity={0.7}
               >
-                <Text style={s.backBtnText}>← I have an invite code</Text>
+                <Text style={s.backBtnText}>← {t('inviteCode')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -590,14 +589,14 @@ export default function RegisterScreen() {
               onPress={() => fadeTransition(() => setMode('neworg'))}
               activeOpacity={0.75}
             >
-              <Text style={s.createOrgBtnText}>🏢 Create a new organization instead</Text>
+              <Text style={s.createOrgBtnText}>🏢 {t('createOrganization')}</Text>
             </TouchableOpacity>
           )}
 
           <View style={s.loginRow}>
-            <Text style={s.loginText}>Already have an account? </Text>
+            <Text style={s.loginText}>{t('haveAccount')} </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={s.loginLink}>Sign In</Text>
+              <Text style={s.loginLink}>{t('signIn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
