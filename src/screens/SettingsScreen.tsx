@@ -570,7 +570,7 @@ export default function SettingsScreen() {
  <Text style={ss.navCardIcon}>👤</Text>
  <View>
  <Text style={ss.navCardTitle}>{t('myAccount')}</Text>
- <Text style={ss.navCardSubtitle}>Edit profile, change password, org settings</Text>
+ <Text style={ss.navCardSubtitle}>{t('editProfileSubtitle')}</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
@@ -582,7 +582,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>👥</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('teamMembers')}</Text>
-       <Text style={ss.navCardSubtitle}>{teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''}{activeCodeCount > 0 ? `, ${activeCodeCount} invitee${activeCodeCount !== 1 ? 's' : ''}` : ''}</Text>
+       <Text style={ss.navCardSubtitle}>{teamMembers.length} {t('teamMember')}{activeCodeCount > 0 ? `, ${activeCodeCount} ${t('invite')}` : ''}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
@@ -594,8 +594,8 @@ export default function SettingsScreen() {
      <View style={ss.navCardLeft}>
        <Text style={ss.navCardIcon}>🔒</Text>
        <View>
-         <Text style={ss.navCardTitle}>Visibility & Permissions</Text>
-         <Text style={ss.navCardSubtitle}>Control what members and viewers can see and do</Text>
+         <Text style={ss.navCardTitle}>{t('visibilityPerms')}</Text>
+         <Text style={ss.navCardSubtitle}>{t('visibilityPermsSubtitle')}</Text>
        </View>
      </View>
      <Text style={ss.navCardChevron}>›</Text>
@@ -612,8 +612,8 @@ export default function SettingsScreen() {
      <View style={ss.navCardLeft}>
        <Text style={ss.navCardIcon}>💱</Text>
        <View>
-         <Text style={ss.navCardTitle}>Exchange Rate</Text>
-         <Text style={ss.navCardSubtitle}>1 USD = {currentRate.toLocaleString('en-US')} LBP · tap to update</Text>
+         <Text style={ss.navCardTitle}>{t('exchangeRateLabel')}</Text>
+         <Text style={ss.navCardSubtitle}>1 USD = {currentRate.toLocaleString('en-US')} LBP · {t('exchangeRateSubtitle')}</Text>
        </View>
      </View>
      <Text style={ss.navCardChevron}>✎</Text>
@@ -630,7 +630,7 @@ export default function SettingsScreen() {
  <Text style={ss.navCardIcon}>⊞</Text>
  <View>
  <Text style={ss.navCardTitle}>{t('clientFields')}</Text>
- <Text style={ss.navCardSubtitle}>Customize what info to collect per client</Text>
+ <Text style={ss.navCardSubtitle}>{t('clientFieldsSubtitle')}</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
@@ -645,8 +645,8 @@ export default function SettingsScreen() {
  <View style={ss.navCardLeft}>
  <Text style={ss.navCardIcon}>👥</Text>
  <View>
- <Text style={ss.navCardTitle}>Team Member Fields</Text>
- <Text style={ss.navCardSubtitle}>Custom fields for team member profiles</Text>
+ <Text style={ss.navCardTitle}>{t('screenTeamMemberFields')}</Text>
+ <Text style={ss.navCardSubtitle}>{t('teamMemberFieldsSubtitle')}</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
@@ -663,7 +663,7 @@ export default function SettingsScreen() {
  <Text style={ss.navCardIcon}>📊</Text>
  <View>
  <Text style={ss.navCardTitle}>{t('financialReport')}</Text>
- <Text style={ss.navCardSubtitle}>P&L across all files — filter by client or service</Text>
+ <Text style={ss.navCardSubtitle}>{t('financialReportSubtitle')}</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>
@@ -680,7 +680,7 @@ export default function SettingsScreen() {
  <Text style={ss.navCardIcon}>🔔</Text>
  <View>
  <Text style={ss.navCardTitle}>{t('notifications')}</Text>
- <Text style={ss.navCardSubtitle}>Types, muted members, and push preferences</Text>
+ <Text style={ss.navCardSubtitle}>{t('contactSupportDesc')}</Text>
  </View>
  </View>
  <Text style={ss.navCardChevron}>›</Text>

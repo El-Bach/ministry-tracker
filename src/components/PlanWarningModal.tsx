@@ -6,6 +6,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import { theme } from '../theme';
 import { SUPPORT_EMAIL } from '../lib/config';
+import { useTranslation } from '../lib/i18n';
 
 interface Props {
   visible: boolean;
@@ -34,8 +35,8 @@ export function PlanWarningModal({
   ownerPhone,
   onDismiss,
 }: Props) {
-  const resourceLabel = limitType === 'members' ? 'team members' : 'active files';
-  const dayWord = daysRemaining === 1 ? 'day' : 'days';
+  const { t } = useTranslation();
+  const resourceLabel = limitType === 'members' ? t('teamMember') : t('files');
 
   const handleUpgrade = () => {
     const body = encodeURIComponent(
@@ -56,43 +57,40 @@ export function PlanWarningModal({
 
           {/* Icon + title */}
           <Text style={s.icon}>⚠️</Text>
-          <Text style={s.title}>Plan Limit Reached</Text>
+          <Text style={s.title}>{t('planLimitReached')}</Text>
 
           {/* Body */}
           <Text style={s.body}>
-            Your{' '}
-            <Text style={s.bold}>{planName.charAt(0).toUpperCase() + planName.slice(1)}</Text>
-            {' '}plan allows{' '}
-            <Text style={s.bold}>{limitValue} {resourceLabel}</Text>.
+            {t('planLimitBody').replace('{count}', `${limitValue}`)}{' '}({resourceLabel})
             {'\n\n'}
             {daysRemaining > 0
-              ? `You have ${daysRemaining} ${dayWord} before GovPilot stops working. Upgrade now to continue without interruption.`
-              : 'Your grace period ends today. Upgrade now to avoid losing access.'}
+              ? t('planGraceBody').replace('{days}', `${daysRemaining}`)
+              : t('planGraceBody').replace('{days}', '0')}
           </Text>
 
           {/* Countdown pill */}
           <View style={s.pill}>
             <Text style={s.pillText}>
-              🕐 {daysRemaining > 0 ? `${daysRemaining} ${dayWord} remaining` : 'Last day'}
+              🕐 {daysRemaining > 0 ? `${daysRemaining} ${t('planLimitChip')}` : t('planLimitChip')}
             </Text>
           </View>
 
           {/* CTA */}
           {isOwner ? (
             <TouchableOpacity style={s.upgradeBtn} onPress={handleUpgrade} activeOpacity={0.85}>
-              <Text style={s.upgradeBtnText}>Upgrade Now</Text>
+              <Text style={s.upgradeBtnText}>{t('planUpgradeNow')}</Text>
             </TouchableOpacity>
           ) : (
             <View style={s.nonOwnerBox}>
               <Text style={s.nonOwnerText}>
-                Please ask your organization owner to upgrade the plan.
+                {t('contactSupport')}
               </Text>
             </View>
           )}
 
           {/* Dismiss link */}
           <TouchableOpacity style={s.remindBtn} onPress={onDismiss}>
-            <Text style={s.remindBtnText}>Remind Me Later</Text>
+            <Text style={s.remindBtnText}>{t('planRemindLater')}</Text>
           </TouchableOpacity>
 
         </View>

@@ -382,7 +382,7 @@ export default function VisibilitySettingsScreen() {
             activeOpacity={0.75}
           >
             <Text style={[s.roleTabText, activeRole === r && s.roleTabTextActive]}>
-              {r === 'admin' ? '🛡 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+              {r === 'admin' ? `🛡 ${t('tabAdmin')}` : r === 'member' ? `👤 ${t('tabMember')}` : `👁 ${t('tabViewer')}`}
             </Text>
           </TouchableOpacity>
         ))}
@@ -393,10 +393,10 @@ export default function VisibilitySettingsScreen() {
       <View style={s.roleDescBanner}>
         <Text style={s.roleDescText}>
           {activeRole === 'admin'
-            ? 'Admins can manage team settings and invite new members. Configure their file & financial access here.'
+            ? t('adminTabDesc')
             : activeRole === 'member'
-            ? 'Members are regular employees — they can create and work on files.'
-            : 'Viewers have limited access — they can only see and update what you allow below.'}
+            ? t('memberTabDesc')
+            : t('viewerTabDesc')}
         </Text>
       </View>
 
@@ -406,11 +406,11 @@ export default function VisibilitySettingsScreen() {
         <View style={s.group}>
           <View style={s.groupHeader}>
             <Text style={s.groupIcon}>👁</Text>
-            <Text style={s.groupTitle}>File Visibility</Text>
+            <Text style={s.groupTitle}>{t('fileVisibilitySection')}</Text>
           </View>
           <View style={s.visSectionDesc}>
             <Text style={s.visSectionDescText}>
-              Tap a member to control which specific files they can see
+              {t('fileVisibilityDesc')}
             </Text>
           </View>
           {members.length === 0 ? (
@@ -419,8 +419,8 @@ export default function VisibilitySettingsScreen() {
             </View>
           ) : (
             members.map((m, idx) => {
-              const roleLabel = m.role === 'admin' ? '🛡 Admin'
-                : m.role === 'member' ? '👤 Member' : '👁 Viewer';
+              const roleLabel = m.role === 'admin' ? `🛡 ${t('tabAdmin')}`
+                : m.role === 'member' ? `👤 ${t('tabMember')}` : `👁 ${t('tabViewer')}`;
               return (
                 <TouchableOpacity
                   key={m.id}

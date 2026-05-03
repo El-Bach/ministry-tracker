@@ -239,12 +239,12 @@ function SettingsStack() {
       <SettStack.Screen
         name="TeamMembers"
         component={TeamMembersScreen}
-        options={{ title: 'Team Members', headerBackTitle: t('screenBack') }}
+        options={{ title: t('teamMembers'), headerBackTitle: t('screenBack') }}
       />
       <SettStack.Screen
         name="VisibilitySettings"
         component={VisibilitySettingsScreen}
-        options={{ title: 'Visibility & Permissions', headerBackTitle: t('screenBack') }}
+        options={{ title: t('visibilityPerms'), headerBackTitle: t('screenBack') }}
       />
       <SettStack.Screen
         name="MemberFileVisibility"

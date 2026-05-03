@@ -197,7 +197,18 @@ export type TranslationKey =
   | 'help8Title' | 'help8S1' | 'help8S2' | 'help8S3' | 'help8S4'
   // ── Phase 4: Extended FAQ entries (9-14) ───────────────────────────────────
   | 'faqQ9' | 'faqA9' | 'faqQ10' | 'faqA10' | 'faqQ11' | 'faqA11'
-  | 'faqQ12' | 'faqA12' | 'faqQ13' | 'faqA13' | 'faqQ14' | 'faqA14';
+  | 'faqQ12' | 'faqA12' | 'faqQ13' | 'faqA13' | 'faqQ14' | 'faqA14'
+  // ── Phase 5: Bug-fix translations for screens still showing English ──
+  | 'quickActions' | 'todayBtn' | 'noEvents' | 'itemsCount'
+  | 'editProfileSubtitle' | 'membersInviteesCount' | 'visibilityPermsSubtitle'
+  | 'exchangeRateLabel' | 'exchangeRateSubtitle' | 'clientFieldsSubtitle'
+  | 'teamMemberFieldsSubtitle' | 'financialReportSubtitle'
+  | 'tabAdmin' | 'tabMember' | 'tabViewer' | 'adminTabDesc' | 'memberTabDesc' | 'viewerTabDesc'
+  | 'fileVisibilitySection' | 'fileVisibilityDesc'
+  | 'planLimitReached' | 'planLimitBody' | 'planGraceBody' | 'planLimitChip'
+  | 'planUpgradeNow' | 'planRemindLater'
+  // Day names for calendar
+  | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -613,6 +624,35 @@ const ar: Translations = {
   faqA13: 'افتح الملف واضغط أيقونة الطباعة 🖨 في الرأس. يُولّد هذا ملف PDF منسّق يلخص الملف والمراحل والشؤون المالية يمكنك مشاركته أو طباعته.',
   faqQ14: 'كيف أدعو عضو فريق؟',
   faqA14: 'انتقل إلى الإعدادات ← أعضاء الفريق ← "✉️ دعوة". أدخل بريده الإلكتروني أو رقم هاتفه واختر دوره. سيسجل في التطبيق بنفس المُعرّف ويُضاف تلقائياً إلى مؤسستك.',
+  // ── Phase 5 fixes ────
+  quickActions: 'إجراءات سريعة',
+  todayBtn: 'اليوم',
+  noEvents: 'لا توجد أحداث',
+  itemsCount: 'عنصر',
+  editProfileSubtitle: 'تعديل الملف الشخصي وكلمة المرور وإعدادات المؤسسة',
+  membersInviteesCount: 'عضو، دعوة',
+  visibilityPermsSubtitle: 'تحكم بما يراه ويفعله الأعضاء والمشاهدون',
+  exchangeRateLabel: 'سعر الصرف',
+  exchangeRateSubtitle: 'اضغط للتحديث',
+  clientFieldsSubtitle: 'تخصيص المعلومات التي يتم جمعها لكل عميل',
+  teamMemberFieldsSubtitle: 'حقول مخصصة لملفات أعضاء الفريق',
+  financialReportSubtitle: 'الأرباح والخسائر عبر جميع الملفات — مع فلترة',
+  tabAdmin: 'مسؤول',
+  tabMember: 'عضو',
+  tabViewer: 'مشاهد',
+  adminTabDesc: 'يمكن للمسؤولين إدارة إعدادات الفريق ودعوة أعضاء جدد. اضبط وصولهم للملفات والشؤون المالية هنا.',
+  memberTabDesc: 'يمكن للأعضاء العمل على الملفات المسندة إليهم. اضبط ما يمكنهم رؤيته وفعله.',
+  viewerTabDesc: 'المشاهدون يطّلعون فقط. اضبط ما يمكنهم رؤيته.',
+  fileVisibilitySection: 'ظهور الملفات',
+  fileVisibilityDesc: 'اضغط على عضو للتحكم بالملفات المحددة التي يمكنه رؤيتها',
+  planLimitReached: 'تم بلوغ حدّ الباقة',
+  planLimitBody: 'الباقة المجانية تسمح بـ {count} ملف نشط.',
+  planGraceBody: 'لديك {days} أيام قبل أن يتوقف GovPilot عن العمل. قم بالترقية الآن للمتابعة دون انقطاع.',
+  planLimitChip: 'يوم متبقي',
+  planUpgradeNow: 'الترقية الآن',
+  planRemindLater: 'ذكّرني لاحقاً',
+  mon: 'الإثنين', tue: 'الثلاثاء', wed: 'الأربعاء', thu: 'الخميس',
+  fri: 'الجمعة', sat: 'السبت', sun: 'الأحد',
 };
 
 const en: Translations = {
@@ -1029,6 +1069,35 @@ const en: Translations = {
   faqA13: 'Open the file and tap the 🖨 print icon in the header. This generates a formatted PDF summary of the file, stages, and financials which you can share or print.',
   faqQ14: 'How do I invite a team member?',
   faqA14: 'Go to Settings → Team Members → ✉️ Invite. Enter their email or phone number and choose their role. They register in the app with that same identifier and are automatically added to your organization.',
+  // ── Phase 5 fixes ────
+  quickActions: 'Quick Actions',
+  todayBtn: 'Today',
+  noEvents: 'No events',
+  itemsCount: 'items',
+  editProfileSubtitle: 'Edit profile, change password, org settings',
+  membersInviteesCount: 'members, invitees',
+  visibilityPermsSubtitle: 'Control what members and viewers can see and do',
+  exchangeRateLabel: 'Exchange Rate',
+  exchangeRateSubtitle: 'tap to update',
+  clientFieldsSubtitle: 'Customize what info to collect per client',
+  teamMemberFieldsSubtitle: 'Custom fields for team member profiles',
+  financialReportSubtitle: 'P&L across all files — filter by client or service',
+  tabAdmin: 'Admin',
+  tabMember: 'Member',
+  tabViewer: 'Viewer',
+  adminTabDesc: 'Admins can manage team settings and invite new members. Configure their file & financial access here.',
+  memberTabDesc: 'Members can work on files assigned to them. Configure what they can see and do.',
+  viewerTabDesc: 'Viewers are read-only. Configure what they can see.',
+  fileVisibilitySection: 'File Visibility',
+  fileVisibilityDesc: 'Tap a member to control which specific files they can see',
+  planLimitReached: 'Plan Limit Reached',
+  planLimitBody: 'Your Free plan allows {count} active files.',
+  planGraceBody: 'You have {days} days before GovPilot stops working. Upgrade now to continue without interruption.',
+  planLimitChip: 'days remaining',
+  planUpgradeNow: 'Upgrade Now',
+  planRemindLater: 'Remind Me Later',
+  mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu',
+  fri: 'Fri', sat: 'Sat', sun: 'Sun',
 };
 
 const fr: Translations = {
@@ -1450,6 +1519,35 @@ const fr: Translations = {
   faqA13: "Ouvrez le dossier et appuyez sur l'icône d'impression 🖨 en haut. Cela génère un PDF formaté résumant le dossier, les étapes et les finances que vous pouvez partager ou imprimer.",
   faqQ14: 'Comment inviter un membre d\'équipe ?',
   faqA14: "Allez à Paramètres → Membres de l'équipe → ✉️ Inviter. Entrez son email ou téléphone et choisissez son rôle. Il s'inscrit dans l'app avec le même identifiant et est automatiquement ajouté à votre organisation.",
+  // ── Phase 5 fixes ────
+  quickActions: 'Actions rapides',
+  todayBtn: "Aujourd'hui",
+  noEvents: 'Aucun événement',
+  itemsCount: 'éléments',
+  editProfileSubtitle: "Modifier le profil, le mot de passe, les paramètres de l'organisation",
+  membersInviteesCount: 'membres, invités',
+  visibilityPermsSubtitle: 'Contrôlez ce que les membres et observateurs peuvent voir et faire',
+  exchangeRateLabel: 'Taux de change',
+  exchangeRateSubtitle: 'appuyez pour mettre à jour',
+  clientFieldsSubtitle: "Personnaliser les informations collectées par client",
+  teamMemberFieldsSubtitle: "Champs personnalisés pour les profils des membres",
+  financialReportSubtitle: 'P&L sur tous les dossiers — filtrer par client ou service',
+  tabAdmin: 'Admin',
+  tabMember: 'Membre',
+  tabViewer: 'Observateur',
+  adminTabDesc: "Les admins peuvent gérer les paramètres de l'équipe et inviter de nouveaux membres. Configurez ici leur accès aux dossiers et finances.",
+  memberTabDesc: 'Les membres peuvent travailler sur les dossiers qui leur sont assignés. Configurez ce qu\'ils peuvent voir et faire.',
+  viewerTabDesc: 'Les observateurs sont en lecture seule. Configurez ce qu\'ils peuvent voir.',
+  fileVisibilitySection: 'Visibilité des dossiers',
+  fileVisibilityDesc: 'Appuyez sur un membre pour contrôler quels dossiers spécifiques il peut voir',
+  planLimitReached: 'Limite du forfait atteinte',
+  planLimitBody: 'Votre forfait Gratuit autorise {count} dossiers actifs.',
+  planGraceBody: 'Il vous reste {days} jours avant que GovPilot cesse de fonctionner. Mettez à niveau maintenant pour continuer sans interruption.',
+  planLimitChip: 'jours restants',
+  planUpgradeNow: 'Mettre à niveau',
+  planRemindLater: 'Me rappeler plus tard',
+  mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu',
+  fri: 'Ven', sat: 'Sam', sun: 'Dim',
 };
 
 // Fallback: use English for all other languages

@@ -876,47 +876,47 @@ export default function CreateScreen() {
   const quickActions = [
     ...(permissions.can_create_files ? [{
       icon: '📄',
-      label: '+ New File',
+      label: t('newFileBtn'),
       color: theme.color.primary,
       onPress: () => (navigation as any).navigate('Dashboard', { screen: 'NewTask' }),
     }] : []),
     ...(permissions.can_manage_clients ? [{
       icon: '👤',
-      label: '+ New Client',
+      label: t('newClient'),
       color: '#10b981',
       onPress: () => openNewClientForm(),
     }] : []),
     ...(permissions.can_manage_catalog ? [{
       icon: '⚙',
-      label: '+ New Service',
+      label: t('newService'),
       color: '#f59e0b',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('services'); },
     }] : []),
     ...(permissions.can_manage_catalog ? [{
       icon: '◎',
-      label: '+ New Stage',
+      label: t('newStage'),
       color: '#8b5cf6',
       onPress: () => { setClientSearch(''); setServiceSearch(''); setStageSearch(''); setManageSection('stages'); },
     }] : []),
     ...(permissions.can_manage_catalog ? [{
       icon: '👥',
-      label: 'Network',
+      label: t('network'),
       color: '#06b6d4',
       onPress: () => { setNetworkSearch(''); setShowNetworkForm(false); setShowImportModal(false); setManageSection('network'); },
     }] : []),
     {
       icon: '📋',
-      label: 'Documents',
+      label: t('documents'),
       color: '#a855f7',
       onPress: () => { setExpandedDocSvcId(null); setDocSearch(''); setManageSection('documents'); },
     },
   ];
 
   const manageRows = [
-    ...(permissions.can_manage_clients  ? [{ key: 'clients'  as ManageSection, icon: '👤', label: 'Clients',  count: clients.length }] : []),
-    ...(permissions.can_manage_catalog  ? [{ key: 'services' as ManageSection, icon: '⚙', label: 'Services', count: services.length }] : []),
-    ...(permissions.can_manage_catalog  ? [{ key: 'stages'   as ManageSection, icon: '◎', label: 'Stages',   count: ministries.length }] : []),
-    ...(permissions.can_manage_catalog  ? [{ key: 'network'  as ManageSection, icon: '👥', label: 'Network',  count: network.length }] : []),
+    ...(permissions.can_manage_clients  ? [{ key: 'clients'  as ManageSection, icon: '👤', label: t('clients'),  count: clients.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'services' as ManageSection, icon: '⚙', label: t('services'), count: services.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'stages'   as ManageSection, icon: '◎', label: t('stages'),   count: ministries.length }] : []),
+    ...(permissions.can_manage_catalog  ? [{ key: 'network'  as ManageSection, icon: '👥', label: t('network'),  count: network.length }] : []),
   ];
 
   return (
@@ -928,7 +928,7 @@ export default function CreateScreen() {
         </View>
 
         {/* QUICK ACTIONS */}
-        <Text style={s.sectionLabel}>QUICK ACTIONS</Text>
+        <Text style={s.sectionLabel}>{t('quickActions').toUpperCase()}</Text>
         <View style={s.actionGrid}>
           {quickActions.map((a) => (
             <TouchableOpacity

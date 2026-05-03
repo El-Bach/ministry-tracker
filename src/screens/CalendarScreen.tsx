@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Calendar } from 'react-native-calendars';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -44,7 +44,26 @@ type FileFilter = 'all' | 'mine';
 export default function CalendarScreen() {
   const navigation = useNavigation<Nav>();
   const { teamMember, permissions } = useAuth();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+
+  // Configure react-native-calendars locale strings to match the app language
+  React.useEffect(() => {
+    LocaleConfig.locales.ar = {
+      monthNames: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
+      monthNamesShort: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
+      dayNames: ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'],
+      dayNamesShort: ['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'],
+      today: 'اليوم',
+    };
+    LocaleConfig.locales.fr = {
+      monthNames: ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+      monthNamesShort: ['Jan','Fév','Mars','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'],
+      dayNames: ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'],
+      dayNamesShort: ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
+      today: "Aujourd'hui",
+    };
+    LocaleConfig.defaultLocale = lang === 'ar' || lang === 'fr' ? lang : '';
+  }, [lang]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [stops, setStops] = useState<StopWithTask[]>([]);
   const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
@@ -162,7 +181,7 @@ export default function CalendarScreen() {
             setCalendarKey(k => k + 1); // force Calendar remount at today
           }}
         >
-          <Text style={s.todayBtnText}>Today</Text>
+          <Text style={s.todayBtnText}>{t('todayBtn')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -221,12 +240,13 @@ export default function CalendarScreen() {
       {/* Date header */}
       <View style={s.dateHeader}>
         <Text style={s.dateTitle}>
-          {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-GB', {
-            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          })}
+          {new Date(selectedDate + 'T12:00:00').toLocaleDateString(
+            lang === 'ar' ? 'ar-LB' : lang === 'fr' ? 'fr-FR' : 'en-GB',
+            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' },
+          )}
         </Text>
         <Text style={s.dateCount}>
-          {totalCount} item{totalCount !== 1 ? 's' : ''}
+          {totalCount} {t('itemsCount')}
         </Text>
       </View>
 
