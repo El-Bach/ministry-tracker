@@ -32,6 +32,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { TeamMember } from '../types';
 import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
@@ -116,6 +117,7 @@ function SwipeableMemberRow({
 
 export default function TeamMembersScreen() {
   const { teamMember } = useAuth();
+  const { t } = useTranslation();
   const isOwnerOrAdmin = teamMember?.role === 'owner' || teamMember?.role === 'admin';
 
   const [loading,     setLoading]     = useState(true);
@@ -191,7 +193,7 @@ export default function TeamMembersScreen() {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Confirm', onPress: async () => {
           const { error } = await supabase.from('team_members').update({ role: newRole }).eq('id', tm.id);
-          if (error) { Alert.alert('Error', error.message); return; }
+          if (error) { Alert.alert(t('error'), error.message); return; }
           fetchData();
         }},
       ]
@@ -209,7 +211,7 @@ export default function TeamMembersScreen() {
           const { error } = await supabase.from('team_members')
             .update({ deleted_at: new Date().toISOString(), deleted_by: teamMember?.id })
             .eq('id', tm.id);
-          if (error) Alert.alert('Error', error.message);
+          if (error) Alert.alert(t('error'), error.message);
           else fetchData();
         }},
       ]
@@ -225,7 +227,7 @@ export default function TeamMembersScreen() {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Remove Forever', style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('team_members').delete().eq('id', tm.id);
-          if (error) Alert.alert('Error', error.message);
+          if (error) Alert.alert(t('error'), error.message);
           else fetchData();
         }},
       ]
@@ -247,7 +249,7 @@ export default function TeamMembersScreen() {
       invitee_email: inviteeEmail.trim().toLowerCase() || null,
     });
     setGenerating(false);
-    if (error) { Alert.alert('Error generating code', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setGeneratedCode(code);
     fetchData();
   };
@@ -388,7 +390,7 @@ export default function TeamMembersScreen() {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('org_join_codes').delete().eq('id', codeId);
-          if (error) Alert.alert('Error', error.message);
+          if (error) Alert.alert(t('error'), error.message);
           else fetchData();
         }},
       ]
@@ -559,7 +561,7 @@ export default function TeamMembersScreen() {
           style={s.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search members, email, phone, role…"
+          placeholder={t('searchMember')}
           placeholderTextColor={theme.color.textMuted}
           returnKeyType="search"
           autoCorrect={false}
@@ -889,7 +891,7 @@ export default function TeamMembersScreen() {
                       style={s.formInput}
                       value={inviteeName}
                       onChangeText={setInviteeName}
-                      placeholder="Full name"
+                      placeholder={t('fullName')}
                       placeholderTextColor={theme.color.textMuted}
                       autoCorrect={false}
                     />
@@ -915,7 +917,7 @@ export default function TeamMembersScreen() {
                       style={s.formInput}
                       value={inviteeEmail}
                       onChangeText={setInviteeEmail}
-                      placeholder="employee@example.com"
+                      placeholder={t('email')}
                       placeholderTextColor={theme.color.textMuted}
                       keyboardType="email-address"
                       autoCapitalize="none"
@@ -991,7 +993,7 @@ export default function TeamMembersScreen() {
               style={s.editInput}
               value={editName}
               onChangeText={setEditName}
-              placeholder="Full name"
+              placeholder={t('fullName')}
               placeholderTextColor={theme.color.textMuted}
               autoCapitalize="words"
               autoCorrect={false}
@@ -1015,7 +1017,7 @@ export default function TeamMembersScreen() {
                   style={s.editInput}
                   value={editEmail}
                   onChangeText={setEditEmail}
-                  placeholder="email@example.com"
+                  placeholder={t('email')}
                   placeholderTextColor={theme.color.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"

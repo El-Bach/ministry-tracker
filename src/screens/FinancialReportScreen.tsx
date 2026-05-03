@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import {
   View,
   Text,
@@ -104,6 +105,7 @@ const TODAY_YMD = new Date().toISOString().slice(0, 10);
 // ─── Main screen ─────────────────────────────────────────────
 export default function FinancialReportScreen() {
   const { teamMember, organization } = useAuth();
+  const { t } = useTranslation();
 
   // Exchange rate
   const orgRate = organization?.usd_to_lbp_rate ?? 89500;
@@ -114,7 +116,7 @@ export default function FinancialReportScreen() {
 
   const handleSaveRate = async () => {
     const parsed = parseInt(rateInput.replace(/,/g, ''), 10);
-    if (!parsed || parsed < 1000) { Alert.alert('Invalid', 'Enter a valid rate.'); return; }
+    if (!parsed || parsed < 1000) { Alert.alert(t('error'), t('fieldRequired')); return; }
     setRate(parsed);
     setRateInput(parsed.toLocaleString('en-US'));
     // Also persist to org
@@ -463,9 +465,9 @@ export default function FinancialReportScreen() {
       await FileSystem.copyAsync({ from: uri, to: dest });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(dest, { mimeType: 'application/pdf', dialogTitle: 'Export Financial Report' });
-      else Alert.alert('Sharing unavailable', 'Cannot share files on this device.');
+      else Alert.alert(t('error'), t('somethingWrong'));
     } catch (e: any) {
-      Alert.alert('Export failed', e?.message ?? 'Unknown error');
+      Alert.alert(t('error'), e?.message ?? t('somethingWrong'));
     } finally {
       setExporting(false);
     }
@@ -525,7 +527,7 @@ export default function FinancialReportScreen() {
         {/* Search */}
         <TextInput
           style={s.searchInput}
-          placeholder="Search client or service..."
+          placeholder={t('searchInput')}
           placeholderTextColor={theme.color.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -746,7 +748,7 @@ export default function FinancialReportScreen() {
               style={s.pickerSearch}
               value={stageSearch}
               onChangeText={setStageSearch}
-              placeholder="Search stages..."
+              placeholder={t('searchStage')}
               placeholderTextColor={theme.color.textMuted}
               autoCorrect={false}
               autoCapitalize="none"

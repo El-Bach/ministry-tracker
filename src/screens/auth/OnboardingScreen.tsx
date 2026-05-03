@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
+import { useTranslation } from '../../lib/i18n';
 import { useAuth } from '../../hooks/useAuth';
 import { normalizeToEmail } from '../../lib/authHelpers';
 import { DEFAULT_COUNTRY } from '../../components/PhoneInput';
@@ -24,6 +25,7 @@ const TOTAL_STEPS = 3;
 
 export default function OnboardingScreen() {
   const { teamMember, organization, refreshTeamMember, signOut } = useAuth();
+  const { t } = useTranslation();
 
   const [step,    setStep]    = useState(1);
   const [loading, setLoading] = useState(false);
@@ -110,7 +112,7 @@ export default function OnboardingScreen() {
   // ─── Step handlers ───────────────────────────────────────────
 
   const handleStep1 = async () => {
-    if (!companyName.trim()) { Alert.alert('Required', 'Please enter your company name.'); return; }
+    if (!companyName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     if (!localOrgId) { setStep(2); return; }
     setLoading(true);
     const { error } = await supabase
@@ -118,7 +120,7 @@ export default function OnboardingScreen() {
       .update({ name: companyName.trim() })
       .eq('id', localOrgId);
     setLoading(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setStep(2);
   };
 
@@ -163,7 +165,7 @@ export default function OnboardingScreen() {
           }
         }
       } catch (err: any) {
-        Alert.alert('Error', err.message);
+        Alert.alert(t('error'), err.message);
         setLoading(false);
         return;
       }
@@ -226,7 +228,7 @@ export default function OnboardingScreen() {
         });
       setLoading(false);
       if (error && !error.message.includes('duplicate')) {
-        Alert.alert('Error', error.message);
+        Alert.alert(t('error'), error.message);
         return;
       }
     }
@@ -315,7 +317,7 @@ export default function OnboardingScreen() {
                 style={s.input}
                 value={companyName}
                 onChangeText={setCompanyName}
-                placeholder="Your company name"
+                placeholder={t('orgName')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCapitalize="words"
               />
@@ -344,7 +346,7 @@ export default function OnboardingScreen() {
                 style={s.input}
                 value={serviceName}
                 onChangeText={setServiceName}
-                placeholder="Notarization, Car Plate Transfer..."
+                placeholder={t('serviceName')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCapitalize="words"
               />
@@ -355,7 +357,7 @@ export default function OnboardingScreen() {
                 style={s.input}
                 value={stageName}
                 onChangeText={setStageName}
-                placeholder="Ministry of Interior, Notary..."
+                placeholder={t('stageName')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCapitalize="words"
               />
@@ -391,7 +393,7 @@ export default function OnboardingScreen() {
                 style={s.input}
                 value={inviteName}
                 onChangeText={setInviteName}
-                placeholder="Full name"
+                placeholder={t('fullName')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCapitalize="words"
               />
@@ -424,7 +426,7 @@ export default function OnboardingScreen() {
                   style={s.input}
                   value={inviteEmail}
                   onChangeText={setInviteEmail}
-                  placeholder="colleague@email.com"
+                  placeholder={t('email')}
                   placeholderTextColor={theme.color.textMuted}
                   keyboardType="email-address"
                   autoCapitalize="none"
