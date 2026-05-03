@@ -30,9 +30,9 @@ section per session — without breaking the working monolith.
 | Action handlers — status update cascade | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5d, session 52) |
 | Action handlers — stage CRUD | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5e, session 52) |
 | Action handlers — comments + voice notes | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5f, session 52) |
-| Read path → useQuery | TaskDetailScreen.tsx (Phase 6a, session 52) | ✅ Wrapped — local state mirrors query data |
-| Mutations → useMutation | TBD (Phase 6b) | ⏸ Per-handler conversion |
-| Drop local state mirrors | TBD (Phase 6c) | ⏸ Read from `data` directly |
+| Read path → useQuery | TaskDetailScreen.tsx (Phase 6a, session 52) | ✅ Wrapped |
+| Drop read-only mirrors | TaskDetailScreen.tsx (Phase 6c, session 52) | ✅ 9 mirrors removed |
+| Mutations → useMutation | future polish (Phase 6b deferred) | ⏸ Cosmetic — current handlers already invalidate via fetchTask |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
 **Phase 5 (in progress)** — `useTaskActions.ts` now owns:
@@ -106,32 +106,61 @@ What we now get for free:
 - **Dedup** — concurrent invalidations from realtime + a handler
   collapse into a single network call
 
-#### 6b — Mutations → useMutation (TBD)
+#### 6c — Drop read-only state mirrors (session 52, ✅ DONE)
 
-Convert each handler in `useTaskActions.ts` from a raw async function
-to a `useMutation` call. The `mutation.mutate()` API gives:
+The 9 local `useState` mirrors that were pure copies of `queryData` are
+now gone. Reads come straight from the query data via derived consts:
 
-- **Optimistic updates** — comment posting / status changes can render
+```ts
+const task          = queryData?.task          ?? null;
+const comments      = queryData?.comments      ?? [];
+const statusLabels  = queryData?.statusLabels  ?? [];
+const allMembers    = queryData?.allMembers    ?? [];
+const stopHistories = queryData?.stopHistories ?? {};
+const transactions  = queryData?.transactions  ?? [];
+const priceHistory  = queryData?.priceHistory  ?? [];
+const documents     = queryData?.documents     ?? [];
+const allServices   = queryData?.allServices   ?? [];
+```
+
+The remaining four "writeable mirrors" stay as local state because
+handlers actively mutate them for instant create-new UX:
+- `allCities` — written by `handleCreateCity*`
+- `extAssignees` — written by `handleCreateExtAssigneeForStop`
+- `allStages` — written by `handleCreateStageInEdit`
+- `contractPriceUSD/LBP` — written by `handleSavePrice`
+
+These get seeded from `queryData` on every refetch via a small
+`useEffect`, then handlers can layer their optimistic updates on top.
+
+#### 6b — Mutations → useMutation (deferred, low priority)
+
+Converting each handler in `useTaskActions.ts` from raw async functions
+to `useMutation` calls would give:
+
+- **Optimistic updates** — comment posting / status changes render
   instantly and roll back on error
-- **Loading state per mutation** — replaces the current
-  `setSaving…(true/false)` dance for each handler
-- **Auto query invalidation on success** — drops the explicit
-  `fetchTask()` calls inside handlers
+- **Per-mutation `isPending` state** — could replace the current
+  `setSaving…(true/false)` setters
+- **Cleaner error boundary integration**
 
-Best done one handler-group at a time, starting with the lowest-risk
-slices (comments → documents → transactions → status / stages last).
+Deferred because the current pattern already works correctly:
 
-#### 6c — Drop local state mirrors (TBD)
+- Every handler ends with `fetchTask()` which invalidates the query →
+  TanStack handles the refetch with caching, dedup, and retry
+- The `setSaving…` setters work fine and consumers expect them; replacing
+  them with `mutation.isPending` requires touching the consumer side too
+- Optimistic updates aren't currently in any spec — they'd be a "nice to
+  have" rather than a fix for an actual problem
 
-After 6b, the local `useState`s for `task`, `comments`, `transactions`,
-`documents`, etc. become redundant — every reader can use
-`query.data.task`, `query.data.comments`, etc. directly. Removing the
-mirrors finishes the migration and shrinks `TaskDetailScreen.tsx`
-further.
+If a future feature needs optimistic updates (e.g. comment posting that
+must feel instant on slow networks), convert that specific handler then.
+The pattern is well-established in the React Query docs; no big-bang
+migration needed.
 
 `@tanstack/react-query` is already installed (session 49 added it +
 `src/lib/queryClient.ts`); the App is already wrapped in
-`<QueryClientProvider>`. Phase 6 work is purely TaskDetail-side.
+`<QueryClientProvider>`. Phase 6 (read path) is now complete.
 
 Future phases:
 - Lift action handlers into `hooks/useTaskActions.ts` (~50 handlers)

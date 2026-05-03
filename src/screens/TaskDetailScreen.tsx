@@ -133,16 +133,19 @@ export default function TaskDetailScreen() {
   const { isOnline, enqueue } = useOfflineQueue();
   const { t } = useTranslation();
 
-  const [task, setTask] = useState<Task | null>(null);
-  const [comments, setComments] = useState<TaskComment[]>([]);
-  const [statusLabels, setStatusLabels] = useState<StatusLabel[]>([]);
-  const [allMembers, setAllMembers] = useState<TeamMember[]>([]);
+  // ─── Phase 6c: read-only data is now derived from queryData below ────
+  // task, comments, statusLabels, allMembers, stopHistories, transactions,
+  // priceHistory, documents, allServices — these all come straight out of
+  // useQuery's data. No more local mirrors / no more useEffect copy.
+  // The handlers (in useTaskActions) call fetchTask() to invalidate the
+  // query; React re-renders with the fresh data.
+
   const [loading, setLoading] = useState(true);
 
   // Status update states
   const [selectedStop, setSelectedStop] = useState<TaskRouteStop | null>(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
-  const [stopHistories, setStopHistories] = useState<Record<string, Array<{id: string; old_status?: string; new_status: string; updated_by?: string; updater?: TeamMember; created_at: string}>>>({});
+  // stopHistories now comes from queryData (read-only mirror dropped, Phase 6c)
   const [expandedStopHistory, setExpandedStopHistory] = useState<string | null>(null);
   const [updatingStop, setUpdatingStop] = useState<string | null>(null);
   // Rejection reason
@@ -171,8 +174,7 @@ export default function TaskDetailScreen() {
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Financial transaction states
-  const [transactions, setTransactions] = useState<FileTransaction[]>([]);
+  // Financial transaction states (transactions list comes from queryData, Phase 6c)
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [txType, setTxType] = useState<'expense' | 'revenue'>('expense');
   const [txDescription, setTxDescription] = useState('');
@@ -195,7 +197,7 @@ export default function TaskDetailScreen() {
   // Contract price states
   const [contractPriceUSD, setContractPriceUSD] = useState(0);
   const [contractPriceLBP, setContractPriceLBP] = useState(0);
-  const [priceHistory, setPriceHistory] = useState<Array<{id:string;old_price_usd:number;old_price_lbp:number;new_price_usd:number;new_price_lbp:number;note?:string;changer?:{name:string};created_at:string}>>([]);
+  // priceHistory comes from queryData (Phase 6c)
   const [showPriceHistory, setShowPriceHistory] = useState(false);
   const [showEditPrice, setShowEditPrice] = useState(false);
   const [editPriceUSD, setEditPriceUSD] = useState('');
@@ -217,8 +219,7 @@ export default function TaskDetailScreen() {
   const [showNewStageInEdit, setShowNewStageInEdit] = useState(false);
   const [editStageSearch, setEditStageSearch] = useState('');
 
-  // Edit task states
-  const [allServices, setAllServices] = useState<Service[]>([]);
+  // Edit task states (allServices comes from queryData, Phase 6c)
   const [showEditTask, setShowEditTask] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [showDueDateCalendar, setShowDueDateCalendar] = useState(false);
@@ -230,8 +231,7 @@ export default function TaskDetailScreen() {
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [savingAssignee, setSavingAssignee] = useState(false);
 
-  // Document archive states
-  const [documents, setDocuments] = useState<TaskDocument[]>([]);
+  // Document archive states (documents come from queryData, Phase 6c)
   const [scanMode, setScanMode] = useState<'camera' | 'library' | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
@@ -278,10 +278,73 @@ export default function TaskDetailScreen() {
   const [sheetExpandedId, setSheetExpandedId]   = useState<string | null>(null);
   const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
 
+  // ─── Phase 6a + 6c: TanStack Query (read path) ─────────────────────────
+  // The single fetch is backed by useQuery. Read-only data (task, comments,
+  // statusLabels, allMembers, stopHistories, transactions, priceHistory,
+  // documents, allServices) is derived directly from queryData — no local
+  // mirror useStates. Only fields that handlers actively write to for
+  // optimistic UX (allCities, extAssignees, allStages, contractPrice*)
+  // remain as local state and are seeded by the effect below.
+  const queryClient = useQueryClient();
+  const taskQueryKey = ['task', taskId, teamMember?.org_id ?? ''];
+  const { data: queryData } = useQuery({
+    queryKey: taskQueryKey,
+    queryFn:  () => fetchTaskData(supabase, taskId, teamMember?.org_id ?? ''),
+    enabled:  !!taskId && !!teamMember?.org_id,
+  });
+
+  // Derived read-only data
+  const task          = queryData?.task          ?? null;
+  const comments      = queryData?.comments      ?? [];
+  const statusLabels  = queryData?.statusLabels  ?? [];
+  const allMembers    = queryData?.allMembers    ?? [];
+  const stopHistories = queryData?.stopHistories ?? {};
+  const transactions  = (queryData?.transactions as FileTransaction[] | undefined) ?? [];
+  const priceHistory  = (queryData?.priceHistory as any[] | undefined)              ?? [];
+  const documents     = queryData?.documents     ?? [];
+  const allServices   = queryData?.allServices   ?? [];
+
+  // Seed the writeable mirrors when query data refreshes. Handlers can keep
+  // mutating these locally for instant create-new UX.
+  useEffect(() => {
+    if (!queryData) return;
+    setAllCities(queryData.allCities);
+    setExtAssignees(queryData.extAssignees);
+    setAllStages(queryData.allStages);
+    if (queryData.task) {
+      setContractPriceUSD(queryData.task.price_usd ?? 0);
+      setContractPriceLBP(queryData.task.price_lbp ?? 0);
+    }
+    setLoading(false);
+  }, [queryData]);
+
+  // fetchTask is the prop every handler in useTaskActions calls. It used to
+  // do a manual refetch; it now invalidates the query, letting TanStack handle
+  // the refetch with cache + dedup. Returns Promise<void> so callers that
+  // await it still work.
+  const fetchTask = useCallback(async (): Promise<void> => {
+    await queryClient.invalidateQueries({ queryKey: taskQueryKey });
+  }, [queryClient, taskId, teamMember?.org_id]);
+
+  useRealtime(
+    useCallback(
+      (payload) => {
+        if (
+          payload.table === 'task_route_stops' ||
+          payload.table === 'task_comments' ||
+          payload.table === 'tasks'
+        ) {
+          fetchTask();
+        }
+      },
+      [fetchTask],
+    ),
+    teamMember?.org_id ?? null,
+  );
+
   // ─── Phase 5 COMPLETE: every action handler is in useTaskActions ──────
   // After session 52f, the entire action layer lives in the hook. The
-  // orchestrator (this file) is now a pure JSX wiring layer + state owner —
-  // ready for Phase 6 (TanStack Query migration).
+  // orchestrator (this file) is now a pure JSX wiring layer + state owner.
   const {
     // file-level
     handlePhonePress,
@@ -370,72 +433,6 @@ export default function TaskDetailScreen() {
     soundObj, playingCommentId,
     setSoundObj, setPlayingCommentId, setPlaybackPosition, setPlaybackDuration,
   });
-
-  // ─── Phase 6a: TanStack Query migration (read path) ───────────────────
-  // The single fetch is now backed by useQuery. Benefits over the previous
-  // useEffect+useState approach:
-  //   • Cache: revisiting the same task within staleTime returns instantly
-  //   • Refetch on screen focus (mobile-tuned in queryClient defaults)
-  //   • Automatic retry on transient failure
-  //   • Realtime events trigger query invalidation instead of manual fetch
-  // The local state setters below remain — they copy the query's data into
-  // the existing useStates so all the JSX/handler code works unchanged.
-  // Phase 6b will remove the local copies and read from `data` directly.
-  const queryClient = useQueryClient();
-  const taskQueryKey = ['task', taskId, teamMember?.org_id ?? ''];
-  const { data: queryData } = useQuery({
-    queryKey: taskQueryKey,
-    queryFn:  () => fetchTaskData(supabase, taskId, teamMember?.org_id ?? ''),
-    enabled:  !!taskId && !!teamMember?.org_id,
-  });
-
-  // Copy the query result into local state so the rest of the file (large
-  // JSX tree + handlers) still sees the same shape.
-  useEffect(() => {
-    if (!queryData) return;
-    setAllCities(queryData.allCities);
-    setExtAssignees(queryData.extAssignees);
-    if (queryData.task) {
-      setTask(queryData.task);
-      setContractPriceUSD(queryData.task.price_usd ?? 0);
-      setContractPriceLBP(queryData.task.price_lbp ?? 0);
-    }
-    setComments(queryData.comments);
-    setStatusLabels(queryData.statusLabels);
-    setAllMembers(queryData.allMembers);
-    setStopHistories(queryData.stopHistories);
-    setTransactions(queryData.transactions as FileTransaction[]);
-    setPriceHistory(queryData.priceHistory as any[]);
-    setDocuments(queryData.documents);
-    setAllStages(queryData.allStages);
-    setAllServices(queryData.allServices);
-    setLoading(false);
-  }, [queryData]);
-
-  // `fetchTask` is kept around as the call site that all 34 handlers expect.
-  // Under the hood it now invalidates the query, which causes useQuery to
-  // refetch — same effect, but with TanStack's caching, dedup, and retry
-  // semantics. Returns a Promise<void> so existing `await fetchTask()` calls
-  // continue to work (none currently use the await but defensible to keep).
-  const fetchTask = useCallback(async (): Promise<void> => {
-    await queryClient.invalidateQueries({ queryKey: taskQueryKey });
-  }, [queryClient, taskId, teamMember?.org_id]);
-
-  useRealtime(
-    useCallback(
-      (payload) => {
-        if (
-          payload.table === 'task_route_stops' ||
-          payload.table === 'task_comments' ||
-          payload.table === 'tasks'
-        ) {
-          fetchTask();
-        }
-      },
-      [fetchTask]
-    ),
-    teamMember?.org_id ?? null,
-  );
 
   // Cleanup sound when it changes
   useEffect(() => {
