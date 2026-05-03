@@ -209,7 +209,7 @@ export default function CalendarScreen() {
 
       <Calendar
         key={`${calendarKey}-${lang}`}
-        firstDay={lang === 'ar' ? 6 : 1}
+        firstDay={1}
         markingType="multi-dot"
         markedDates={calendarMarks}
         current={currentMonth}
@@ -274,6 +274,7 @@ export default function CalendarScreen() {
           textDayHeaderFontWeight: '600',
           textDayFontSize: 14,
           textMonthFontSize: 16,
+          textDayHeaderFontSize: lang === 'ar' ? 10 : 12,
         }}
         style={s.calendar}
       />

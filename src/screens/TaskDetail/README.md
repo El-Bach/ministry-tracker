@@ -14,17 +14,23 @@ The original `src/screens/TaskDetailScreen.tsx` is 4,825 lines and handles:
 This folder is the migration target. We're splitting incrementally — one
 section per session — without breaking the working monolith.
 
-## Status (session 50)
+## Status (session 51)
 
 | Section | Lines (in monolith) | Module | Status |
 |---|---|---|---|
-| Header card | ~150 | `components/TaskHeader.tsx` | ✅ Extracted (this session) |
-| Stages section | ~1,500 | `components/StagesSection.tsx` | ⏸ Future session |
-| Financials section | ~600 | `components/FinancialsSection.tsx` | ⏸ Future session |
-| Documents section | ~800 | `components/DocumentsSection.tsx` | ⏸ Future session |
-| Comments section | ~400 | `components/CommentsSection.tsx` | ⏸ Future session |
+| Header card | ~150 | `components/TaskHeader.tsx` | ✅ Extracted (session 50) |
+| Stages section | ~426 | `components/StagesSection.tsx` | ✅ Extracted (session 51) |
+| Financials section | ~545 | `components/FinancialsSection.tsx` | ✅ Extracted (session 51) |
+| Documents section | ~97 | `components/DocumentsSection.tsx` | ✅ Extracted (session 51) |
+| Comments section | ~165 | `components/CommentsSection.tsx` | ✅ Extracted (session 51) |
 | WhatsApp/duplicate handlers | ~150 | `hooks/useTaskActions.ts` | ⏸ Future session |
 | Data fetch | inline | `hooks/useTaskDetail.ts` | ⏸ Future session |
+
+**Phase 2 complete** — all 4 visual sections plus the header are now available
+as parallel modules. The monolithic `TaskDetailScreen.tsx` is unchanged at
+4,825 lines and still serves the live screen. Phase 3 will swap the inline
+JSX in the monolith for these extracted components and lift handler/data-fetch
+logic into hooks.
 
 ## Approach
 
