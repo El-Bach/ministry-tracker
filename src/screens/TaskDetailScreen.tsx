@@ -277,19 +277,36 @@ export default function TaskDetailScreen() {
   const [sheetExpandedId, setSheetExpandedId]   = useState<string | null>(null);
   const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
 
-  // ─── Phase 5: file-level handlers extracted into useTaskActions ────────
-  // (handlePhonePress, handleShareWhatsApp, handleShareDocsWhatsApp,
-  //  handleDuplicateTask). Other handler groups remain inline for now.
+  // ─── Phase 5: handlers extracted into useTaskActions ──────────────────
+  // Currently extracted slices: file-level (Whatsapp / phone / duplicate)
+  // and documents (open / print / share / rename / delete / pick PDF).
+  // Remaining inline: comments, voice notes, transactions, stage CRUD,
+  // status update cascade.
   const {
+    // file-level
     handlePhonePress,
     handleShareWhatsApp,
     handleShareDocsWhatsApp,
     handleDuplicateTask,
+    // documents
+    handleOpenDoc,
+    handlePrintDoc,
+    handleShareDoc,
+    handleRenameDoc,
+    handleDeleteDocument,
+    handlePickPdf,
   } = useTaskActions({
     task,
     sheetDocs,
     sheetDocReqs,
     setDuplicating,
+    taskId,
+    fetchTask: () => fetchTask(),
+    setViewingDoc,
+    setPrintingDoc,
+    setStatusMsg,
+    setDeletingDocId,
+    setUploadingPdf,
   });
 
   const fetchTask = useCallback(async () => {
@@ -716,141 +733,9 @@ export default function TaskDetailScreen() {
   };
 
   // ─── Document actions ─────────────────────────────────────────
-  const handleOpenDoc = (doc: TaskDocument) => {
-    setViewingDoc(doc);
-  };
-
-  const handlePrintDoc = async (doc: TaskDocument) => {
-    setPrintingDoc(true);
-    try {
-      await Print.printAsync({ uri: doc.file_url });
-    } catch (e: any) {
-      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
-    } finally {
-      setPrintingDoc(false);
-    }
-  };
-
-  const handleShareDoc = async (doc: TaskDocument) => {
-    try {
-      // Download the file locally first, then share the actual file (not a URL)
-      const label    = doc.display_name || doc.file_name;
-      const ext      = doc.file_type === 'application/pdf' ? 'pdf' : 'jpg';
-      const localUri = `${FileSystem.cacheDirectory}${label.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
-
-      setStatusMsg('Preparing file...');
-      const { uri } = await FileSystem.downloadAsync(doc.file_url, localUri);
-      setStatusMsg('');
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
-        Alert.alert(t('error'), t('somethingWrong'));
-        return;
-      }
-      const isImg = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
-      await Sharing.shareAsync(uri, {
-        mimeType: isImg ? 'image/jpeg' : 'application/pdf',
-        dialogTitle: label,
-        UTI: isImg ? 'public.jpeg' : 'com.adobe.pdf',
-      });
-    } catch (e: any) {
-      setStatusMsg('');
-      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
-    }
-  };
-
-  // ─── Document rename ──────────────────────────────────────────
-  const handleRenameDoc = async (doc: TaskDocument, newName: string) => {
-    const name = newName.trim();
-    if (!name) return;
-    await supabase.from('task_documents').update({ display_name: name, file_name: name }).eq('id', doc.id);
-    fetchTask();
-  };
-
-  // ─── Document archive ────────────────────────────────────────
-  const handleDeleteDocument = (doc: TaskDocument) => {
-    Alert.alert(t('deleteDoc'), `${t('confirmDelete')} — "${doc.file_name}"`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setDeletingDocId(doc.id);
-          await supabase.from('task_documents').delete().eq('id', doc.id);
-          setDeletingDocId(null);
-          fetchTask();
-        },
-      },
-    ]);
-  };
-
-  // ─── PDF upload from device ───────────────────────────────
-  const handlePickPdf = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.length) return;
-
-      const asset = result.assets[0];
-      const localUri = asset.uri;
-      const originalName = asset.name ?? `Document_${Date.now()}.pdf`;
-      const displayName  = originalName.replace(/\.pdf$/i, '');
-
-      setUploadingPdf(true);
-      const timestamp  = Date.now();
-      const safeName   = displayName.replace(/[^a-z0-9]/gi, '_');
-      const filePath   = `documents/${taskId}/${safeName}_${timestamp}.pdf`;
-
-      if (Platform.OS === 'web') {
-        const response = await fetch(localUri);
-        const blob     = await response.blob();
-        const { error: upErr } = await supabase.storage
-          .from('task-attachments')
-          .upload(filePath, blob, { contentType: 'application/pdf', upsert: false });
-        if (upErr) throw upErr;
-      } else {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
-        const anonKey     = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-        const uploadUrl   = `${supabaseUrl}/storage/v1/object/task-attachments/${filePath}`;
-        const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
-          httpMethod:  'POST',
-          uploadType:  FileSystem.FileSystemUploadType.MULTIPART,
-          fieldName:   'file',
-          mimeType:    'application/pdf',
-          headers: {
-            apikey:        anonKey,
-            Authorization: `Bearer ${accessToken ?? anonKey}`,
-          },
-        });
-        if (uploadResult.status < 200 || uploadResult.status >= 300) {
-          throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
-        }
-      }
-
-      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
-
-      const { error: dbErr } = await supabase.from('task_documents').insert({
-        task_id:      taskId,
-        file_name:    displayName,
-        display_name: displayName,
-        file_url:     publicUrl,
-        file_type:    'application/pdf',
-        uploaded_by:  teamMember?.id ?? null,
-      });
-      if (dbErr) throw dbErr;
-
-      fetchTask();
-    } catch (e: any) {
-      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
+  // Document handlers (handleOpenDoc, handlePrintDoc, handleShareDoc,
+  // handleRenameDoc, handleDeleteDocument, handlePickPdf) are now provided
+  // by useTaskActions. See ./TaskDetail/hooks/useTaskActions.ts
 
   // ─── Status update ────────────────────────────────────────
   const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string, reason?: string) => {

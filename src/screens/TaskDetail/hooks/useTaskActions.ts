@@ -1,38 +1,52 @@
 // src/screens/TaskDetail/hooks/useTaskActions.ts
 //
-// First slice of the action-handler extraction (Phase 5 of the TaskDetail
-// refactor — see ../README.md). This pulls the FILE-LEVEL handlers out of
-// the monolith because they have the cleanest inputs/outputs:
+// Slice of the action-handler extraction (Phase 5 of the TaskDetail refactor
+// — see ../README.md). This is the central home for all task-level handlers
+// that used to live inline in the 4,800-line monolith.
 //
+// Currently extracted:
+//
+//   FILE-LEVEL (session 52a)
 //   • handlePhonePress       — Alert with Call / WhatsApp links
 //   • handleShareWhatsApp    — opens wa.me with a status message
 //   • handleShareDocsWhatsApp — opens wa.me with the required-docs checklist
 //   • handleDuplicateTask    — clones the file (new file_id, all stages reset)
 //
-// These handlers all READ task state but don't mutate it (or mutate via a
-// single setter passed in). Other handler groups — comments / voice notes /
-// stage CRUD / transactions — touch many pieces of state and will be
-// extracted in later sessions.
+//   DOCUMENTS (session 52b — this commit)
+//   • handleOpenDoc          — opens the in-app document viewer modal
+//   • handlePrintDoc         — opens the OS print sheet for a document
+//   • handleShareDoc         — downloads + share-sheets a document file
+//   • handleRenameDoc        — updates display_name + file_name
+//   • handleDeleteDocument   — Alert + hard-delete from task_documents
+//   • handlePickPdf          — DocumentPicker → upload to storage → DB row
+//
+// Future slices (per ../README.md): transactions, stage CRUD, comments,
+// voice notes, status update cascade.
 //
 // Pattern: the hook gets context (auth, navigation, t) from React hooks
 // directly; everything else (the task itself, sheet state, setters) is
 // passed in via the options object so the hook stays a pure consumer.
 //
-// To extend in a future session, add another handler in the same shape:
+// To extend, add another handler in the same shape:
 //   1. Take the function out of TaskDetailScreen.tsx
 //   2. Identify what state it reads / writes
 //   3. Add the read state to UseTaskActionsOptions; add the writers as
-//      callback args (setX, setY)
+//      setter args (setX) on the same options object
 //   4. Drop the inline copy and destructure the new handler from the hook
 
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 
 import supabase from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../lib/i18n';
 import { Task, DashboardStackParamList } from '../../../types';
+import { TaskDocumentLite } from '../components/DocumentsSection';
 
 // Local helper — identical to the one at the top of TaskDetailScreen.tsx.
 // Inlined here so the hook is self-contained; we'll deduplicate when more
@@ -46,6 +60,7 @@ function formatDateOnly(iso: string) {
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
 
 export interface UseTaskActionsOptions {
+  // ── File-level slice ────────────────────────────────────────────────
   /** The currently-loaded task. Handlers no-op when null. */
   task: Task | null;
   /** Service-document rows currently displayed in the Required Docs sheet. */
@@ -54,17 +69,45 @@ export interface UseTaskActionsOptions {
   sheetDocReqs: Record<string, any[]>;
   /** Setter for the duplicate-in-progress spinner shown on the duplicate button. */
   setDuplicating: (b: boolean) => void;
+
+  // ── Documents slice ────────────────────────────────────────────────
+  /** The current task's id — used as the FK + storage path prefix. */
+  taskId: string;
+  /** Refetch the task (mutations call this after success to refresh UI). */
+  fetchTask: () => void;
+  /** Setter for which doc is open in the in-app viewer modal. */
+  setViewingDoc: (doc: TaskDocumentLite | null) => void;
+  /** Setter for the print-spinner state. */
+  setPrintingDoc: (b: boolean) => void;
+  /** Setter for the small status banner ("Preparing file…") shown during share. */
+  setStatusMsg: (msg: string) => void;
+  /** Setter for which doc is currently being deleted (per-row spinner). */
+  setDeletingDocId: (id: string | null) => void;
+  /** Setter for the global PDF-upload spinner. */
+  setUploadingPdf: (b: boolean) => void;
 }
 
 export interface UseTaskActionsReturn {
+  // File-level
   handlePhonePress:        (phone: string, name?: string) => void;
   handleShareWhatsApp:     () => void;
   handleShareDocsWhatsApp: () => void;
   handleDuplicateTask:     () => void;
+  // Documents
+  handleOpenDoc:           (doc: TaskDocumentLite) => void;
+  handlePrintDoc:          (doc: TaskDocumentLite) => Promise<void>;
+  handleShareDoc:          (doc: TaskDocumentLite) => Promise<void>;
+  handleRenameDoc:         (doc: TaskDocumentLite, newName: string) => Promise<void>;
+  handleDeleteDocument:    (doc: TaskDocumentLite) => void;
+  handlePickPdf:           () => Promise<void>;
 }
 
 export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsReturn {
-  const { task, sheetDocs, sheetDocReqs, setDuplicating } = opts;
+  const {
+    task, sheetDocs, sheetDocReqs, setDuplicating,
+    taskId, fetchTask,
+    setViewingDoc, setPrintingDoc, setStatusMsg, setDeletingDocId, setUploadingPdf,
+  } = opts;
   const { teamMember } = useAuth();
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
@@ -213,10 +256,170 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     );
   };
 
+  // ─── Documents ─────────────────────────────────────────────────────────
+  // Open a document in the in-app viewer modal. The viewer reads `viewingDoc`
+  // state from the parent and renders an Image / WebView accordingly.
+  const handleOpenDoc = (doc: TaskDocumentLite) => {
+    setViewingDoc(doc);
+  };
+
+  // Print a document via the OS print sheet.
+  const handlePrintDoc = async (doc: TaskDocumentLite) => {
+    setPrintingDoc(true);
+    try {
+      await Print.printAsync({ uri: doc.file_url });
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
+    } finally {
+      setPrintingDoc(false);
+    }
+  };
+
+  // Download a document to the cache, then open the OS share sheet with the
+  // actual file (not just the URL — that way the recipient gets the file
+  // attached, not a link).
+  const handleShareDoc = async (doc: TaskDocumentLite) => {
+    try {
+      const label    = doc.display_name || doc.file_name;
+      const ext      = doc.file_type === 'application/pdf' ? 'pdf' : 'jpg';
+      const localUri = `${FileSystem.cacheDirectory}${label.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
+
+      setStatusMsg('Preparing file...');
+      const { uri } = await FileSystem.downloadAsync(doc.file_url, localUri);
+      setStatusMsg('');
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert(t('error'), t('somethingWrong'));
+        return;
+      }
+      const isImg = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
+      await Sharing.shareAsync(uri, {
+        mimeType:    isImg ? 'image/jpeg' : 'application/pdf',
+        dialogTitle: label,
+        UTI:         isImg ? 'public.jpeg' : 'com.adobe.pdf',
+      });
+    } catch (e: any) {
+      setStatusMsg('');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
+    }
+  };
+
+  // Rename a document — updates display_name + file_name in the DB then
+  // refreshes the task to pull the change back into the UI.
+  const handleRenameDoc = async (doc: TaskDocumentLite, newName: string) => {
+    const name = newName.trim();
+    if (!name) return;
+    await supabase
+      .from('task_documents')
+      .update({ display_name: name, file_name: name })
+      .eq('id', doc.id);
+    fetchTask();
+  };
+
+  // Delete a document with a confirmation Alert. Hard-deletes from
+  // task_documents (does NOT touch the storage object — that's left for a
+  // background cleanup job to handle).
+  const handleDeleteDocument = (doc: TaskDocumentLite) => {
+    Alert.alert(t('deleteDoc'), `${t('confirmDelete')} — "${doc.file_name}"`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingDocId(doc.id);
+          await supabase.from('task_documents').delete().eq('id', doc.id);
+          setDeletingDocId(null);
+          fetchTask();
+        },
+      },
+    ]);
+  };
+
+  // PDF upload from the device's file picker. Goes:
+  //   DocumentPicker → cache URI → Supabase Storage upload → DB row insert
+  // Web uses fetch + storage.upload (Blob), native uses FileSystem.uploadAsync
+  // (multipart) — same destination, two paths because RN's File API
+  // doesn't read local file:// URIs as Blobs.
+  const handlePickPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset        = result.assets[0];
+      const localUri     = asset.uri;
+      const originalName = asset.name ?? `Document_${Date.now()}.pdf`;
+      const displayName  = originalName.replace(/\.pdf$/i, '');
+
+      setUploadingPdf(true);
+      const timestamp = Date.now();
+      const safeName  = displayName.replace(/[^a-z0-9]/gi, '_');
+      const filePath  = `documents/${taskId}/${safeName}_${timestamp}.pdf`;
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(localUri);
+        const blob     = await response.blob();
+        const { error: upErr } = await supabase.storage
+          .from('task-attachments')
+          .upload(filePath, blob, { contentType: 'application/pdf', upsert: false });
+        if (upErr) throw upErr;
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const anonKey     = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+        const uploadUrl   = `${supabaseUrl}/storage/v1/object/task-attachments/${filePath}`;
+        const uploadResult = await FileSystem.uploadAsync(uploadUrl, localUri, {
+          httpMethod:  'POST',
+          uploadType:  FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName:   'file',
+          mimeType:    'application/pdf',
+          headers: {
+            apikey:        anonKey,
+            Authorization: `Bearer ${accessToken ?? anonKey}`,
+          },
+        });
+        if (uploadResult.status < 200 || uploadResult.status >= 300) {
+          throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
+        }
+      }
+
+      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
+      const publicUrl = urlData.publicUrl;
+
+      const { error: dbErr } = await supabase.from('task_documents').insert({
+        task_id:      taskId,
+        file_name:    displayName,
+        display_name: displayName,
+        file_url:     publicUrl,
+        file_type:    'application/pdf',
+        uploaded_by:  teamMember?.id ?? null,
+      });
+      if (dbErr) throw dbErr;
+
+      fetchTask();
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
   return {
+    // File-level
     handlePhonePress,
     handleShareWhatsApp,
     handleShareDocsWhatsApp,
     handleDuplicateTask,
+    // Documents
+    handleOpenDoc,
+    handlePrintDoc,
+    handleShareDoc,
+    handleRenameDoc,
+    handleDeleteDocument,
+    handlePickPdf,
   };
 }

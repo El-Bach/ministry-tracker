@@ -24,19 +24,26 @@ section per session — without breaking the working monolith.
 | Documents section | `components/DocumentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
 | Comments section | `components/CommentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
 | Data fetch | `fetchTaskData.ts` | ✅ Extracted + wired (Phase 4) |
-| Action handlers — file-level slice | `hooks/useTaskActions.ts` | 🟡 Started (Phase 5, session 52) |
-| Action handlers — comments / voice / docs / stages / transactions | `hooks/useTaskActions.ts` | ⏸ Future sessions |
+| Action handlers — file-level slice | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5a, session 52) |
+| Action handlers — documents slice | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5b, session 52) |
+| Action handlers — comments / voice / stages / transactions / status | `hooks/useTaskActions.ts` | ⏸ Future sessions |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
-**Phase 5 (in progress)** — `useTaskActions.ts` now owns the file-level
-handlers: `handlePhonePress`, `handleShareWhatsApp`,
-`handleShareDocsWhatsApp`, `handleDuplicateTask`. These were chosen first
-because they have minimal state coupling — they read `task` / `sheetDocs`
-and emit side effects (Alert / Linking / a single mutation), nothing more.
+**Phase 5 (in progress)** — `useTaskActions.ts` now owns:
+- **File-level slice** (5a): `handlePhonePress`, `handleShareWhatsApp`,
+  `handleShareDocsWhatsApp`, `handleDuplicateTask`.
+- **Documents slice** (5b): `handleOpenDoc`, `handlePrintDoc`,
+  `handleShareDoc`, `handleRenameDoc`, `handleDeleteDocument`,
+  `handlePickPdf` (the latter handles the full DocumentPicker → cache →
+  Supabase Storage upload → DB insert chain).
 
-`TaskDetailScreen.tsx` now at 3,493 lines (was 3,601 after Phase 4).
-Cumulative shrink from the original monolith: 4,828 → 3,493 lines
-(-1,335, -28%). All 28 unit tests pass; zero TypeScript errors.
+10 handlers total now in the hook. Each takes its required state via the
+`UseTaskActionsOptions` interface; setters are passed in explicitly so
+ownership remains with the orchestrator (TaskDetailScreen).
+
+`TaskDetailScreen.tsx` now at 3,378 lines (was 3,601 after Phase 4).
+Cumulative shrink from the original monolith: 4,828 → 3,378 lines
+(-1,450, -30%). All 28 unit tests pass; zero TypeScript errors.
 
 **Why incremental?** Each remaining handler group (comments / voice /
 stages / transactions) has 5–10 pieces of state coupled to the parent.
@@ -46,25 +53,21 @@ each group right than rush.
 
 ### Next slices to extract (in priority order)
 
-1. **Documents (5 handlers)** — `handleOpenDoc`, `handlePrintDoc`,
-   `handleShareDoc`, `handleRenameDoc`, `handleDeleteDocument`,
-   `handlePickPdf`. State coupling: `documents`, viewer modal setters.
-   Should fit one session.
-2. **Transactions (4 handlers)** — `handleAddTransaction`,
+1. **Transactions (4 handlers)** — `handleAddTransaction`,
    `handleEditTransaction`, `handleDeleteTransaction`, `handleSavePrice`.
    State coupling: `transactions`, contract price + edit form state.
-3. **Stage CRUD (8 handlers)** — `handleSetStopDueDate`,
+2. **Stage CRUD (8 handlers)** — `handleSetStopDueDate`,
    `handleSetStopCity`, `handleSetStopAssignee`,
    `handleCreateExtAssigneeForStop`, `handleCreateCity`,
    `handleCreateCityInEditModal`, `handleRenameStopMinistry`,
-   `handleSaveStages`, `handleCreateStageInEdit`. Highest coupling.
-4. **Comments + voice notes (8 handlers)** — `handlePostComment`,
+   `handleSaveStages`, `handleCreateStageInEdit`. Higher coupling.
+3. **Comments + voice notes (10 handlers)** — `handlePostComment`,
    `handleSaveEditComment`, `handleDeleteComment`,
    `handleStartRecording`, `handleStopRecording`,
    `handleDiscardRecording`, `handleSendVoiceNote`, `handlePlayPause`,
    `handleStopListening`, `handleTextFromVoice`. Tangled with audio +
    recording state — extract last.
-5. **Status / archive cascade (1 handler)** — `handleUpdateStopStatus`.
+4. **Status / archive cascade (1 handler)** — `handleUpdateStopStatus`.
    Touches almost every part of state, but it's a single function so the
    options interface is bounded.
 
