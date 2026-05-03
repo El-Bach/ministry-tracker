@@ -76,13 +76,38 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    // normalizeIdentifier handles BOTH email and any phone format:
-    //   "john@company.com"  → "john@company.com" (lowercased)
-    //   "+961 70 123 456"   → "p96170123456@cleartrack.internal"
-    //   "03653342"          → "p96103653342@cleartrack.internal"  (Lebanon assumed)
-    //   "0096103653342"     → "p96103653342@cleartrack.internal"
-    //   "961 03 653 342"    → "p96103653342@cleartrack.internal"
-    const supabaseEmail = normalizeIdentifier(email.trim());
+
+    const trimmed = email.trim();
+    const looksLikePhone = !trimmed.includes('@');
+
+    // Resolve the actual Supabase Auth email to sign in with.
+    //
+    // For phone input we try the `lookup_auth_email_by_phone` RPC first — this
+    // returns the user's REAL auth email by scanning team_members.phone. That
+    // way, owners who registered by email but later added a phone in their
+    // profile can log in with either identifier.
+    //
+    // If the RPC returns NULL (no match) we fall back to the local conversion
+    // (`p<digits>@cleartrack.internal`) which still works for users whose auth
+    // identity actually IS their phone (registered via phone originally).
+    let supabaseEmail: string;
+    if (looksLikePhone) {
+      try {
+        const { data, error: rpcErr } = await supabase
+          .rpc('lookup_auth_email_by_phone', { p_phone: trimmed });
+        if (!rpcErr && typeof data === 'string' && data.length > 0) {
+          supabaseEmail = data;
+        } else {
+          supabaseEmail = normalizeIdentifier(trimmed);
+        }
+      } catch {
+        // RPC not deployed yet, or transient network error — fall back.
+        supabaseEmail = normalizeIdentifier(trimmed);
+      }
+    } else {
+      supabaseEmail = normalizeIdentifier(trimmed);
+    }
+
     const { error } = await signIn(supabaseEmail, password);
     setLoading(false);
     if (error) {
