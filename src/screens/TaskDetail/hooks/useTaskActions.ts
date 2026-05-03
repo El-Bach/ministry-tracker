@@ -20,14 +20,17 @@
 //   • handleDeleteDocument   — Alert + hard-delete from task_documents
 //   • handlePickPdf          — DocumentPicker → upload to storage → DB row
 //
-//   TRANSACTIONS / CONTRACT PRICE (session 52c — this commit)
+//   TRANSACTIONS / CONTRACT PRICE (session 52c)
 //   • handleAddTransaction    — insert revenue/expense + clear form
 //   • handleEditTransaction   — update an existing transaction
 //   • handleDeleteTransaction — Alert + delete + audit comment
 //   • handleSavePrice         — update contract price + history insert
 //
-// Future slices (per ../README.md): stage CRUD, comments, voice notes,
-// status update cascade.
+//   STATUS UPDATE CASCADE (session 52d — this commit)
+//   • handleUpdateStopStatus  — full per-stop status change with archive
+//                                cascade, push fan-out, and offline queue
+//
+// Future slices (per ../README.md): stage CRUD, comments, voice notes.
 //
 // Pattern: the hook gets context (auth, navigation, t) from React hooks
 // directly; everything else (the task itself, sheet state, setters) is
@@ -51,7 +54,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import supabase from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../lib/i18n';
-import { Task, DashboardStackParamList } from '../../../types';
+import { useOfflineQueue } from '../../../store/offlineQueue';
+import { sendPushNotification, sendActivityNotificationToAll } from '../../../lib/notifications';
+import { Task, TaskRouteStop, DashboardStackParamList } from '../../../types';
 import { TaskDocumentLite } from '../components/DocumentsSection';
 import { FileTransaction } from '../components/FinancialsSection';
 
@@ -143,6 +148,14 @@ export interface UseTaskActionsOptions {
   setContractPriceLBP: (n: number) => void;
   setShowEditPrice:    (b: boolean) => void;
   setEditPriceNote:    (s: string) => void;
+
+  // ── Status update cascade ──────────────────────────────────────────
+  /** Setter for the per-stop "updating…" spinner (id of stop being saved). */
+  setUpdatingStop:     (id: string | null) => void;
+  /** Setter for the status-picker modal's open state. */
+  setShowStatusPicker: (b: boolean) => void;
+  /** Setter for which stop the status picker is targeting. */
+  setSelectedStop:     (stop: TaskRouteStop | null) => void;
 }
 
 export interface UseTaskActionsReturn {
@@ -163,6 +176,8 @@ export interface UseTaskActionsReturn {
   handleEditTransaction:   () => Promise<void>;
   handleDeleteTransaction: (tx: FileTransaction) => void;
   handleSavePrice:         () => Promise<void>;
+  // Status update cascade
+  handleUpdateStopStatus:  (stop: TaskRouteStop, newStatus: string, reason?: string) => Promise<void>;
 }
 
 export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsReturn {
@@ -182,10 +197,13 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     // contract price
     editPriceUSD, editPriceLBP, editPriceNote, contractPriceUSD, contractPriceLBP,
     setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
+    // status update cascade
+    setUpdatingStop, setShowStatusPicker, setSelectedStop,
   } = opts;
   const { teamMember } = useAuth();
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
+  const { isOnline, enqueue } = useOfflineQueue();
 
   // ─── Phone-number long-press menu (Call / WhatsApp / Cancel) ───────────
   const handlePhonePress = (phone: string, name?: string) => {
@@ -633,6 +651,146 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     }
   };
 
+  // ─── Status update cascade ─────────────────────────────────────────────
+  // The single most central handler in TaskDetailScreen. Updates one stop's
+  // status and cascades the change through the file's lifecycle:
+  //
+  //   1. Patch task_route_stops.status (+ rejection_reason for "Rejected")
+  //   2. Append to status_updates audit log
+  //   3. Re-read all stops to determine if EVERY stop is now terminal
+  //      (Done / Rejected / Received & Closed)
+  //   4. Patch tasks.current_status — and if all terminal, also set
+  //      is_archived = true, closed_at = now, due_date = today (when empty)
+  //   5. Show "Done — Saved" alert when archiving
+  //   6. Direct push notification to the file's main assignee (skip self)
+  //   7. Broadcast push fan-out via sendActivityNotificationToAll (honors
+  //      every recipient's notification_prefs)
+  //
+  // Offline path: enqueue the change (status_update action) + show
+  // optimistic "Saved" alert + refetch (which will hit the local cache
+  // until the device comes back online).
+  const handleUpdateStopStatus = async (
+    stop: TaskRouteStop,
+    newStatus: string,
+    reason?: string,
+  ) => {
+    setUpdatingStop(stop.id);
+    const oldStatus = stop.status;
+    const now = new Date().toISOString();
+
+    if (isOnline) {
+      try {
+        // 1. Patch the stop status (and rejection_reason iff Rejected)
+        const { error } = await supabase
+          .from('task_route_stops')
+          .update({
+            status:           newStatus,
+            updated_at:       now,
+            updated_by:       teamMember?.id,
+            rejection_reason: newStatus === 'Rejected' ? (reason ?? null) : null,
+          })
+          .eq('id', stop.id);
+        if (error) throw error;
+
+        // 2. Audit row in status_updates (drives the activity feed)
+        await supabase.from('status_updates').insert({
+          task_id:    taskId,
+          stop_id:    stop.id,
+          updated_by: teamMember?.id,
+          old_status: oldStatus,
+          new_status: newStatus,
+        });
+
+        // 3. Re-read all stops so we can decide if the file should archive.
+        //    Note: the row we just updated may not be visible yet via the
+        //    local task object (no realtime), so we hit the DB.
+        const { data: allStops } = await supabase
+          .from('task_route_stops')
+          .select('id, status')
+          .eq('task_id', taskId);
+
+        const TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
+        let newTaskStatus = newStatus;
+        let shouldArchive = false;
+        if (allStops) {
+          // The freshly-read row already reflects newStatus, but be defensive:
+          // for the row we just updated, use newStatus directly.
+          const allDone = allStops.every((s: { id: string; status: string }, i: number) =>
+            (i === allStops.findIndex((x: { id: string }) => x.id === stop.id))
+              ? TERMINAL.includes(newStatus)
+              : TERMINAL.includes(s.status)
+          );
+          newTaskStatus = allDone ? 'Done' : newStatus;
+          shouldArchive = allDone;
+        }
+
+        // 4. Patch the task — archive cascade includes due_date default
+        const todayStr = now.slice(0, 10); // YYYY-MM-DD
+        await supabase
+          .from('tasks')
+          .update({
+            current_status: newTaskStatus,
+            updated_at:     now,
+            ...(shouldArchive ? {
+              is_archived: true,
+              closed_at:   now,
+              ...(!task?.due_date ? { due_date: todayStr } : {}),
+            } : {}),
+          })
+          .eq('id', taskId);
+
+        // 5. User-visible confirmation when the file just closed
+        if (shouldArchive) {
+          Alert.alert(t('done'), `${t('archive')} — ${t('savedSuccess')}`);
+        }
+
+        // 6. Direct push to the file's assignee (skip if the actor is the assignee)
+        if (task?.assignee?.push_token && task.assignee.id !== teamMember?.id) {
+          sendPushNotification(
+            task.assignee.push_token,
+            'Stage Updated',
+            `${task.client?.name} — ${stop.ministry?.name}: ${newStatus}`,
+            { taskId },
+          );
+        }
+
+        // 7. Broadcast — every team member's prefs are honored server-side
+        const actorName = teamMember?.name ?? 'Someone';
+        sendActivityNotificationToAll(
+          supabase,
+          teamMember?.id,
+          `🔄 ${actorName}`,
+          `${task?.client?.name ?? 'File'} · ${stop.ministry?.name ?? 'Stage'} → ${newStatus}`,
+          'status',
+          { taskId },
+        );
+
+        fetchTask();
+      } catch (e: unknown) {
+        Alert.alert(t('error'), (e as Error).message);
+      }
+    } else {
+      // Offline: queue the change for later. Status updates retry up to
+      // MAX_RETRIES (5) before being discarded — see store/offlineQueue.ts.
+      await enqueue({
+        type: 'status_update',
+        payload: {
+          stopId:    stop.id,
+          taskId,
+          newStatus,
+          oldStatus,
+          updatedBy: teamMember?.id ?? '',
+        },
+      });
+      Alert.alert(t('saved'), t('savedSuccess'));
+      fetchTask();
+    }
+
+    setUpdatingStop(null);
+    setShowStatusPicker(false);
+    setSelectedStop(null);
+  };
+
   return {
     // File-level
     handlePhonePress,
@@ -651,5 +809,7 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     handleEditTransaction,
     handleDeleteTransaction,
     handleSavePrice,
+    // Status update cascade
+    handleUpdateStopStatus,
   };
 }

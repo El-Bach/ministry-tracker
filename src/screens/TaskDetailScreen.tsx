@@ -279,9 +279,9 @@ export default function TaskDetailScreen() {
 
   // ─── Phase 5: handlers extracted into useTaskActions ──────────────────
   // Currently extracted slices: file-level (Whatsapp / phone / duplicate),
-  // documents (open / print / share / rename / delete / pick PDF), and
-  // transactions + contract price. Remaining inline: comments, voice notes,
-  // stage CRUD, status update cascade.
+  // documents (open / print / share / rename / delete / pick PDF),
+  // transactions + contract price, and the status update cascade.
+  // Remaining inline: comments, voice notes, stage CRUD.
   const {
     // file-level
     handlePhonePress,
@@ -300,6 +300,8 @@ export default function TaskDetailScreen() {
     handleEditTransaction,
     handleDeleteTransaction,
     handleSavePrice,
+    // status update cascade
+    handleUpdateStopStatus,
   } = useTaskActions({
     task,
     sheetDocs,
@@ -324,6 +326,8 @@ export default function TaskDetailScreen() {
     // contract price
     editPriceUSD, editPriceLBP, editPriceNote, contractPriceUSD, contractPriceLBP,
     setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
+    // status update cascade
+    setUpdatingStop, setShowStatusPicker, setSelectedStop,
   });
 
   const fetchTask = useCallback(async () => {
@@ -632,119 +636,8 @@ export default function TaskDetailScreen() {
   // handleRenameDoc, handleDeleteDocument, handlePickPdf) are now provided
   // by useTaskActions. See ./TaskDetail/hooks/useTaskActions.ts
 
-  // ─── Status update ────────────────────────────────────────
-  const handleUpdateStopStatus = async (stop: TaskRouteStop, newStatus: string, reason?: string) => {
-    setUpdatingStop(stop.id);
-    const oldStatus = stop.status;
-    const now = new Date().toISOString();
-
-    if (isOnline) {
-      try {
-        // Update the stop status (clear rejection_reason unless new status is Rejected)
-        const { error } = await supabase
-          .from('task_route_stops')
-          .update({
-            status: newStatus,
-            updated_at: now,
-            updated_by: teamMember?.id,
-            rejection_reason: newStatus === 'Rejected' ? (reason ?? null) : null,
-          })
-          .eq('id', stop.id);
-
-        if (error) throw error;
-
-        // Log to status_updates history
-        await supabase.from('status_updates').insert({
-          task_id: taskId,
-          stop_id: stop.id,
-          updated_by: teamMember?.id,
-          old_status: oldStatus,
-          new_status: newStatus,
-        });
-
-        // Only update task overall status if ALL stops are Done
-        // or set to the latest updated stop status if not all done
-        const { data: allStops } = await supabase
-          .from('task_route_stops')
-          .select('id, status')
-          .eq('task_id', taskId);
-
-        const TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
-        let newTaskStatus = newStatus;
-        let shouldArchive = false;
-        if (allStops) {
-          const allDone = allStops.every((s: { id: string; status: string }, i: number) =>
-            (i === allStops.findIndex((x: { id: string }) => x.id === stop.id))
-              ? TERMINAL.includes(newStatus)
-              : TERMINAL.includes(s.status)
-          );
-          newTaskStatus = allDone ? 'Done' : newStatus;
-          shouldArchive = allDone;
-        }
-
-        // Auto-set due_date to today when file closes (if not already set)
-        const todayStr = now.slice(0, 10); // YYYY-MM-DD
-        await supabase
-          .from('tasks')
-          .update({
-            current_status: newTaskStatus,
-            updated_at: now,
-            ...(shouldArchive ? {
-              is_archived: true,
-              closed_at: now,
-              ...(!task?.due_date ? { due_date: todayStr } : {}),
-            } : {}),
-          })
-          .eq('id', taskId);
-
-        if (shouldArchive) {
-          Alert.alert(t('done'), `${t('archive')} — ${t('savedSuccess')}`);
-        }
-
-        // Notify the assignee if it's not the current user (direct push)
-        if (task?.assignee?.push_token && task.assignee.id !== teamMember?.id) {
-          sendPushNotification(
-            task.assignee.push_token,
-            'Stage Updated',
-            `${task.client?.name} — ${stop.ministry?.name}: ${newStatus}`,
-            { taskId }
-          );
-        }
-
-        // Broadcast status change to all team members
-        const actorName = teamMember?.name ?? 'Someone';
-        sendActivityNotificationToAll(
-          supabase,
-          teamMember?.id,
-          `🔄 ${actorName}`,
-          `${task?.client?.name ?? 'File'} · ${stop.ministry?.name ?? 'Stage'} → ${newStatus}`,
-          'status',
-          { taskId }
-        );
-
-        fetchTask();
-      } catch (e: unknown) {
-        Alert.alert(t('error'), (e as Error).message);
-      }
-    } else {
-      await enqueue({
-        type: 'status_update',
-        payload: {
-          stopId: stop.id,
-          taskId,
-          newStatus,
-          oldStatus,
-          updatedBy: teamMember?.id ?? '',
-        },
-      });
-      Alert.alert(t('saved'), t('savedSuccess'));
-      fetchTask();
-    }
-
-    setUpdatingStop(null);
-    setShowStatusPicker(false);
-    setSelectedStop(null);
-  };
+  // handleUpdateStopStatus is now provided by useTaskActions.
+  // See ./TaskDetail/hooks/useTaskActions.ts
 
   // ─── Post comment ─────────────────────────────────────────
   const handlePostComment = async () => {
