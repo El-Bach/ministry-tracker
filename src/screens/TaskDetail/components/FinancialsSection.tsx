@@ -159,6 +159,40 @@ export function FinancialsSection(props: Props) {
     return tx.amount_usd + tx.amount_lbp / r;
   };
 
+  // ─── Currency cell helper ──────────────────────────────────────────
+  // Renders a fixed-width cell with the currency symbol left-anchored and
+  // the number right-anchored, with whitespace between them. Optional sign
+  // sits to the left of the symbol.
+  //   width=80, currency='USD', value=750     → "$        750"
+  //   width=120, currency='LBP', value=2000   → "LBP    2,000"
+  //   sign='-', currency='USD', value=50      → "- $       50"
+  // The textStyle prop gets applied to BOTH the symbol and the number so
+  // they share color, fontSize, fontWeight (matches the row's existing style).
+  const AmountCell: React.FC<{
+    width:      number;
+    currency:   'USD' | 'LBP';
+    value:      number;
+    sign?:      '' | '+' | '-';
+    decimals?:  number;
+    textStyle?: any;
+  }> = ({ width, currency, value, sign = '', decimals = 0, textStyle }) => {
+    const symbol = currency === 'USD' ? '$' : 'LBP';
+    const number = Math.abs(value).toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return (
+      <View style={[{ width, flexDirection: 'row', alignItems: 'baseline' }]}>
+        <Text style={textStyle}>
+          {sign ? `${sign} ` : ''}{symbol}
+        </Text>
+        <Text style={[textStyle, { flex: 1, textAlign: 'right', marginLeft: 4 }]}>
+          {number}
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <View style={s.section}>
       <View style={s.sectionTitleRow}>
@@ -178,24 +212,33 @@ export function FinancialsSection(props: Props) {
               </TouchableOpacity>
             )}
           </View>
-          <View style={s.balanceAmounts}>
-            <Text style={s.contractPriceVal}>{fmtUSD(contractPriceUSD)}</Text>
-            <Text style={s.contractPriceValLBP}>{fmtLBP(contractPriceLBP)}</Text>
+          {/* Contract price row — uses the same column layout as the P&L
+              rows below so $/LBP align vertically across all rows. */}
+          <View style={[s.balanceRow, { marginTop: theme.spacing.space1 }]}>
+            <View style={{ flex: 1 }} />
+            <AmountCell width={80}  currency="USD" value={contractPriceUSD} textStyle={s.contractPriceVal} />
+            <AmountCell width={120} currency="LBP" value={contractPriceLBP} textStyle={s.contractPriceValLBP} />
           </View>
           {contractPriceUSD > 0 && (
             <View style={[s.balanceRow, { marginTop: theme.spacing.space2 }]}>
               <Text style={s.balanceLabel}>{t('balance').toUpperCase()}</Text>
-              <Text style={[s.balanceCol, outstandingUSD > 0 ? s.negative : s.positive]}>
-                {fmtUSD(outstandingUSD)}
-              </Text>
-              <Text style={[
-                s.balanceColLBP,
-                contractPriceLBP > 0
-                  ? (outstandingLBP > 0 ? s.negative : s.positive)
-                  : s.balanceRevenueLBP,
-              ]}>
-                {fmtLBP(outstandingLBP)}
-              </Text>
+              <AmountCell
+                width={80}
+                currency="USD"
+                value={outstandingUSD}
+                textStyle={[s.balanceColTxt, outstandingUSD > 0 ? s.negative : s.positive]}
+              />
+              <AmountCell
+                width={120}
+                currency="LBP"
+                value={outstandingLBP}
+                textStyle={[
+                  s.balanceColLBPTxt,
+                  contractPriceLBP > 0
+                    ? (outstandingLBP > 0 ? s.negative : s.positive)
+                    : s.balanceRevenueLBP,
+                ]}
+              />
             </View>
           )}
         </View>
@@ -239,30 +282,43 @@ export function FinancialsSection(props: Props) {
         <View style={s.balanceSummary}>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
-            <Text style={[s.balanceCol, s.balanceRevenue]}>{fmtUSD(totalRevenueUSD)}</Text>
-            <Text style={[s.balanceColLBP, s.balanceRevenueLBP]}>{fmtLBP(totalRevenueLBP)}</Text>
+            <AmountCell width={80}  currency="USD" value={totalRevenueUSD} textStyle={[s.balanceColTxt, s.balanceRevenue]} />
+            <AmountCell width={120} currency="LBP" value={totalRevenueLBP} textStyle={[s.balanceColLBPTxt, s.balanceRevenueLBP]} />
           </View>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('expense').toUpperCase()}S</Text>
-            <Text style={[s.balanceCol, s.balanceExpense]}>- {fmtUSD(totalExpenseUSD)}</Text>
-            <Text style={[s.balanceColLBP, s.balanceExpenseLBP]}>- {fmtLBP(totalExpenseLBP)}</Text>
+            <AmountCell width={80}  currency="USD" value={totalExpenseUSD} sign="-" textStyle={[s.balanceColTxt, s.balanceExpense]} />
+            <AmountCell width={120} currency="LBP" value={totalExpenseLBP} sign="-" textStyle={[s.balanceColLBPTxt, s.balanceExpenseLBP]} />
           </View>
           <View style={s.balanceDivider} />
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('netBalance')}</Text>
-            <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
-              {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
-            </Text>
-            <Text style={[s.balanceColLBP, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}>
-              {balanceLBP >= 0 ? '+' : '-'} {fmtLBP(balanceLBP)}
-            </Text>
+            <AmountCell
+              width={80}
+              currency="USD"
+              value={balanceUSD}
+              sign={balanceUSD >= 0 ? '+' : '-'}
+              textStyle={[s.balanceColTxt, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}
+            />
+            <AmountCell
+              width={120}
+              currency="LBP"
+              value={balanceLBP}
+              sign={balanceLBP >= 0 ? '+' : '-'}
+              textStyle={[s.balanceColLBPTxt, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}
+            />
           </View>
           <View style={s.balanceDivider} />
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('cvUSD')}</Text>
-            <Text style={[s.balanceCol, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}>
-              {totalCombinedUSD >= 0 ? '+' : '-'} ${Math.abs(totalCombinedUSD).toLocaleString('en-US', { maximumFractionDigits: 2 })}
-            </Text>
+            <AmountCell
+              width={80}
+              currency="USD"
+              value={totalCombinedUSD}
+              sign={totalCombinedUSD >= 0 ? '+' : '-'}
+              decimals={2}
+              textStyle={[s.balanceColTxt, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}
+            />
             <View style={{ width: 120, alignItems: 'flex-end' }}>
               {editingRate ? (
                 <TextInput
@@ -681,6 +737,10 @@ const s = StyleSheet.create({
   balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balanceCol: { fontSize: 14, fontWeight: '700', minWidth: 80, textAlign: 'right' },
   balanceColLBP: { fontSize: 13, color: theme.color.textSecondary, minWidth: 120, textAlign: 'right' },
+  // Text-only variants for AmountCell — no width (the wrapper View owns
+  // width). Inherit typography weight/size from balanceCol/balanceColLBP.
+  balanceColTxt:    { fontSize: 14, fontWeight: '700' },
+  balanceColLBPTxt: { fontSize: 13, color: theme.color.textSecondary },
   balanceRevenue: { color: theme.color.success },
   balanceRevenueLBP: { color: theme.color.success },
   balanceExpense: { color: theme.color.danger },
