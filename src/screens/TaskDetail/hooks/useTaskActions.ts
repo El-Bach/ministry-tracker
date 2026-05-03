@@ -30,7 +30,7 @@
 //   • handleUpdateStopStatus  — full per-stop status change with archive
 //                                cascade, push fan-out, and offline queue
 //
-//   STAGE CRUD (session 52e — this commit)
+//   STAGE CRUD (session 52e)
 //   • handleCreateStageInEdit       — insert a new ministry from edit modal
 //   • handleSaveStages              — full route_stops rewrite + final stage
 //   • handleSetStopDueDate          — patch stop's due_date
@@ -42,7 +42,22 @@
 //   • handleCreateCity              — insert city + auto-assign to stop
 //   • handleCreateCityInEditModal   — insert city + select for edit-modal
 //
-// Future slices (per ../README.md): comments + voice notes.
+//   COMMENTS + VOICE NOTES (session 52f — this commit, FINAL slice)
+//   • handlePostComment       — insert a text comment + push fan-out
+//                                (offline path enqueues via offline queue)
+//   • handleSaveEditComment   — update an existing comment's body
+//   • handleDeleteComment     — confirmation Alert + delete
+//   • handleStartRecording    — request mic permission, start Audio.Recording
+//   • handleStopRecording     — stop + capture URI for upload
+//   • handleDiscardRecording  — drop the local URI
+//   • handleSendVoiceNote     — base64 → upload to storage → comment with audio_url
+//   • handlePlayPause         — toggle Audio.Sound playback for a comment
+//   • handleTextFromVoice     — speech-to-text (no-op; VoiceModule shimmed null)
+//   • handleStopListening     — stop the speech-to-text session
+//
+// All action handlers are now in this hook. After this commit,
+// TaskDetailScreen.tsx is a pure JSX wiring layer ready for Phase 6
+// (TanStack Query migration).
 //
 // Pattern: the hook gets context (auth, navigation, t) from React hooks
 // directly; everything else (the task itself, sheet state, setters) is
@@ -55,7 +70,7 @@
 //      setter args (setX) on the same options object
 //   4. Drop the inline copy and destructure the new handler from the hook
 
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -63,6 +78,14 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
+
+// Speech-to-text removed (the package caused Android Gradle duplicate-class
+// errors). Voice note RECORDING via expo-av still works — only the live
+// "transcribe me as I speak" feature is shimmed null. Same shape as the
+// parent's VoiceModule constant so handleTextFromVoice / handleStopListening
+// behave identically.
+const VoiceModule: any = null;
 
 import supabase from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -228,6 +251,41 @@ export interface UseTaskActionsOptions {
   setEditStageCities:      Dispatch<SetStateAction<Record<string, { cityId: string | null; cityName: string | null }>>>;
   setEditCreateCityOpen:   (b: boolean) => void;
   setEditCityPickerMiniId: (id: string | null) => void;
+
+  // ── Comments + voice notes ─────────────────────────────────────────
+  // Comment form
+  newComment:             string;
+  editingCommentId:       string | null;
+  editingCommentBody:     string;
+  setNewComment:          (s: string) => void;
+  setPostingComment:      (b: boolean) => void;
+  setEditingCommentId:    (id: string | null) => void;
+  setEditingCommentBody:  (s: string) => void;
+  setSavingEditComment:   (b: boolean) => void;
+
+  // Voice recording state
+  recordingObj:           Audio.Recording | null;
+  recordedUri:            string | null;
+  /** Interval id for the recording-duration counter — owned by the parent so
+   *  cleanup on unmount stays simple (parent has a useEffect cleanup). */
+  recordingTimerRef:      MutableRefObject<ReturnType<typeof setInterval> | null>;
+  setIsRecording:         (b: boolean) => void;
+  setRecordingObj:        (rec: Audio.Recording | null) => void;
+  setRecordingDuration:   Dispatch<SetStateAction<number>>;
+  setRecordedUri:         (uri: string | null) => void;
+  setUploadingVoice:      (b: boolean) => void;
+
+  // Speech-to-text (shimmed — handlers no-op when VoiceModule is null)
+  setIsListening:         (b: boolean) => void;
+  setVoicePartial:        (s: string) => void;
+
+  // Voice playback
+  soundObj:               Audio.Sound | null;
+  playingCommentId:       string | null;
+  setSoundObj:            (s: Audio.Sound | null) => void;
+  setPlayingCommentId:    (id: string | null) => void;
+  setPlaybackPosition:    (n: number) => void;
+  setPlaybackDuration:    (n: number) => void;
 }
 
 export interface UseTaskActionsReturn {
@@ -260,6 +318,17 @@ export interface UseTaskActionsReturn {
   handleCreateExtAssigneeForStop: (stopId: string) => Promise<void>;
   handleCreateCity:               (stopId: string) => Promise<void>;
   handleCreateCityInEditModal:    (stageId: string) => Promise<void>;
+  // Comments + voice notes
+  handlePostComment:              () => Promise<void>;
+  handleSaveEditComment:          () => Promise<void>;
+  handleDeleteComment:            (commentId: string) => void;
+  handleStartRecording:           () => Promise<void>;
+  handleStopRecording:            () => Promise<void>;
+  handleDiscardRecording:         () => void;
+  handleSendVoiceNote:            () => Promise<void>;
+  handlePlayPause:                (commentId: string, audioUrl: string) => Promise<void>;
+  handleTextFromVoice:            () => Promise<void>;
+  handleStopListening:            () => Promise<void>;
 }
 
 export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsReturn {
@@ -293,6 +362,14 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     setShowCreateExtForm,
     setSavingCity, setNewCityName, setShowCreateCityForm,
     setAllCities, setEditStageCities, setEditCreateCityOpen, setEditCityPickerMiniId,
+    // comments + voice
+    newComment, editingCommentId, editingCommentBody,
+    setNewComment, setPostingComment, setEditingCommentId, setEditingCommentBody, setSavingEditComment,
+    recordingObj, recordedUri, recordingTimerRef,
+    setIsRecording, setRecordingObj, setRecordingDuration, setRecordedUri, setUploadingVoice,
+    setIsListening, setVoicePartial,
+    soundObj, playingCommentId,
+    setSoundObj, setPlayingCommentId, setPlaybackPosition, setPlaybackDuration,
   } = opts;
   const { teamMember } = useAuth();
   const { t } = useTranslation();
@@ -1112,6 +1189,255 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     setEditCityPickerMiniId(null);
   };
 
+  // ─── Comments + voice notes ────────────────────────────────────────────
+  // Post a text comment. Online: insert + push fan-out to other team
+  // members. Offline: enqueue via the offline queue (which retries once
+  // connectivity returns).
+  const handlePostComment = async () => {
+    if (!newComment.trim()) return;
+    setPostingComment(true);
+
+    if (isOnline) {
+      const { error } = await supabase.from('task_comments').insert({
+        task_id:   taskId,
+        author_id: teamMember?.id,
+        body:      newComment.trim(),
+      });
+      if (error) {
+        Alert.alert(t('error'), error.message);
+      } else {
+        setNewComment('');
+        fetchTask();
+        const clientName = task?.client?.name ?? 'a file';
+        const actorName  = teamMember?.name    ?? 'Someone';
+        sendActivityNotificationToAll(
+          supabase,
+          teamMember?.id,
+          `💬 ${actorName}`,
+          `${clientName}: ${newComment.trim()}`,
+          'comment',
+          { taskId },
+        );
+      }
+    } else {
+      await enqueue({
+        type: 'comment',
+        payload: {
+          taskId,
+          authorId: teamMember?.id ?? '',
+          body:     newComment.trim(),
+        },
+      });
+      setNewComment('');
+      Alert.alert(t('saved'), t('savedSuccess'));
+    }
+
+    setPostingComment(false);
+  };
+
+  // Save the user's edits to an existing comment.
+  const handleSaveEditComment = async () => {
+    if (!editingCommentId || !editingCommentBody.trim()) return;
+    setSavingEditComment(true);
+    const { error } = await supabase
+      .from('task_comments')
+      .update({ body: editingCommentBody.trim() })
+      .eq('id', editingCommentId);
+    setSavingEditComment(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    setEditingCommentId(null);
+    setEditingCommentBody('');
+    fetchTask();
+  };
+
+  // Delete a comment with confirmation.
+  const handleDeleteComment = (commentId: string) => {
+    Alert.alert(t('deleteComment'), t('confirmDelete'), [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.from('task_comments').delete().eq('id', commentId);
+          fetchTask();
+        },
+      },
+    ]);
+  };
+
+  // ── Voice note recording ───────────────────────────────────────────────
+  // Start a voice recording. Requests mic permission, prepares an
+  // Audio.Recording, and starts a 1Hz duration counter. Note: the timer
+  // ref lives in the parent so the parent's unmount cleanup can clear it.
+  const handleStartRecording = async () => {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert(t('warning'), t('fieldRequired')); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+
+      // Explicit prepare+start (instead of createAsync) for better Expo Go compat
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+
+      // Set state AFTER recording is fully started, then start timer separately —
+      // the small delay lets React flush the setRecordingObj before the interval fires.
+      setIsRecording(true);
+      setRecordingDuration(0);
+      setRecordingObj(rec);
+      setTimeout(() => {
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingDuration((d) => d + 1);
+        }, 1000);
+      }, 100);
+    } catch (e: unknown) {
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
+    }
+  };
+
+  // Stop the active recording. Captures the URI BEFORE stopAndUnloadAsync
+  // because the URI becomes inaccessible once the recording is unloaded.
+  const handleStopRecording = async () => {
+    if (!recordingObj) return;
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    try {
+      const uri = recordingObj.getURI(); // capture FIRST
+      await recordingObj.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      setRecordingObj(null);
+      setIsRecording(false);
+      if (!uri) {
+        Alert.alert(t('error'), t('somethingWrong'));
+        setRecordingDuration(0);
+        return;
+      }
+      setRecordedUri(uri);
+    } catch (e: unknown) {
+      setIsRecording(false);
+      setRecordingObj(null);
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
+    }
+  };
+
+  // Discard a recorded-but-not-sent voice note.
+  const handleDiscardRecording = () => {
+    setRecordedUri(null);
+    setRecordingDuration(0);
+  };
+
+  // Speech-to-text — currently shimmed because the package caused Android
+  // Gradle duplicate-class errors. handleTextFromVoice opens an alert
+  // explaining the feature is APK-only; handleStopListening tries best-effort
+  // to stop a session if one was started.
+  const handleTextFromVoice = async () => {
+    if (!VoiceModule) {
+      Alert.alert('يتطلب بناء APK', 'ميزة تحويل الصوت إلى نص تعمل فقط في نسخة APK، وليس في Expo Go.');
+      return;
+    }
+    handleDiscardRecording();
+    try {
+      setIsListening(true);
+      setVoicePartial('');
+      await VoiceModule.start('ar-LB');
+    } catch (e: any) {
+      setIsListening(false);
+      try {
+        await VoiceModule.start('ar');
+        setIsListening(true);
+      } catch (e2: any) {
+        Alert.alert('خطأ', e2?.message ?? 'تعذّر بدء التعرف على الكلام.');
+      }
+    }
+  };
+
+  const handleStopListening = async () => {
+    try { await VoiceModule?.stop(); } catch {}
+    setIsListening(false);
+    setVoicePartial('');
+  };
+
+  // Send a voice note: read the local file as base64 → upload to Supabase
+  // Storage → insert a comment with audio_url. Same pattern as handlePickPdf
+  // but for audio. We use base64-via-supabase-client (instead of the
+  // FileSystem.uploadAsync path) because audio files are smaller and the
+  // base64 path is simpler / more proven on Expo Go.
+  const handleSendVoiceNote = async () => {
+    if (!recordedUri) return;
+    setUploadingVoice(true);
+    try {
+      const timestamp   = Date.now();
+      const ext         = recordedUri.split('.').pop()?.toLowerCase() ?? 'm4a';
+      const storagePath = `voice-notes/${taskId}/${timestamp}.${ext}`;
+      const contentType = ext === 'mp4' ? 'audio/mp4' : 'audio/m4a';
+
+      const base64 = await FileSystem.readAsStringAsync(recordedUri, {
+        encoding: (FileSystem as any).EncodingType?.Base64 ?? 'base64',
+      });
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      const { error: upErr } = await supabase.storage
+        .from('task-attachments')
+        .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType, upsert: true });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(storagePath);
+      const audioUrl = urlData?.publicUrl ?? '';
+
+      const { error } = await supabase.from('task_comments').insert({
+        task_id:   taskId,
+        author_id: teamMember?.id,
+        body:      '🎤 Voice note',
+        audio_url: audioUrl,
+      });
+      if (error) throw error;
+      setRecordedUri(null);
+      setRecordingDuration(0);
+      fetchTask();
+    } catch (e: unknown) {
+      Alert.alert(t('error'), (e as any)?.message ?? String(e) ?? t('somethingWrong'));
+    } finally {
+      setUploadingVoice(false);
+    }
+  };
+
+  // Toggle play/pause for a voice-note comment. Tapping the same comment's
+  // play button while it's playing pauses it. Tapping a different comment
+  // unloads the current sound and starts the new one.
+  const handlePlayPause = async (commentId: string, audioUrl: string) => {
+    if (playingCommentId === commentId) {
+      if (soundObj) { await soundObj.pauseAsync(); }
+      setPlayingCommentId(null);
+      return;
+    }
+    if (soundObj) { await soundObj.unloadAsync(); setSoundObj(null); }
+    setPlayingCommentId(commentId);
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded) {
+            setPlaybackPosition(status.positionMillis ?? 0);
+            setPlaybackDuration(status.durationMillis ?? 0);
+            if (status.didJustFinish) {
+              setPlayingCommentId(null);
+              setSoundObj(null);
+            }
+          }
+        },
+      );
+      setSoundObj(sound);
+    } catch (e: unknown) {
+      Alert.alert(t('error'), t('somethingWrong'));
+      setPlayingCommentId(null);
+    }
+  };
+
   return {
     // File-level
     handlePhonePress,
@@ -1142,5 +1468,16 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     handleCreateExtAssigneeForStop,
     handleCreateCity,
     handleCreateCityInEditModal,
+    // Comments + voice notes
+    handlePostComment,
+    handleSaveEditComment,
+    handleDeleteComment,
+    handleStartRecording,
+    handleStopRecording,
+    handleDiscardRecording,
+    handleSendVoiceNote,
+    handlePlayPause,
+    handleTextFromVoice,
+    handleStopListening,
   };
 }

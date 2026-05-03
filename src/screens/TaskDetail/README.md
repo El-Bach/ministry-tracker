@@ -29,7 +29,8 @@ section per session — without breaking the working monolith.
 | Action handlers — transactions + contract price | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5c, session 52) |
 | Action handlers — status update cascade | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5d, session 52) |
 | Action handlers — stage CRUD | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5e, session 52) |
-| Action handlers — comments + voice notes | `hooks/useTaskActions.ts` | ⏸ Last future slice |
+| Action handlers — comments + voice notes | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5f, session 52) |
+| Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Phase 6+ (TanStack Query) |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
 **Phase 5 (in progress)** — `useTaskActions.ts` now owns:
@@ -53,20 +54,26 @@ section per session — without breaking the working monolith.
   `handleRenameStopMinistry`, `handleSetStopCity`, `handleSetStopAssignee`
   (with auto-fill city from Network contact), `handleCreateExtAssigneeForStop`,
   `handleCreateCity`, `handleCreateCityInEditModal`.
+- **Comments + voice notes** (5f, FINAL): 10 handlers —
+  `handlePostComment` (with offline queue path + push fan-out),
+  `handleSaveEditComment`, `handleDeleteComment`, the full
+  voice-recording lifecycle (`handleStartRecording`, `handleStopRecording`,
+  `handleDiscardRecording`, `handleSendVoiceNote` — base64 → storage
+  upload → comment with audio_url), `handlePlayPause` (Audio.Sound
+  toggle), and the speech-to-text shim (`handleTextFromVoice` /
+  `handleStopListening` — no-op since the package is disabled).
+  The only audio-state piece that stays in the parent is the
+  `recordingTimerRef` (it's a useRef, gets cleared by the parent's
+  unmount cleanup useEffect).
 
-24 handlers total now in the hook. Each takes its required state via the
-`UseTaskActionsOptions` interface; setters are passed in explicitly so
-ownership remains with the orchestrator (TaskDetailScreen).
+**🎉 PHASE 5 COMPLETE.** All 34 action handlers now live in the hook.
+The orchestrator (`TaskDetailScreen.tsx`) is a pure JSX wiring layer +
+state owner — exactly the architectural boundary we wanted.
 
-After 5e, the only handlers still inline in TaskDetailScreen are the
-**comments + voice notes** group (`handlePostComment`, `handleSaveEditComment`,
-`handleDeleteComment`, voice-recording lifecycle, audio playback). These
-are the most coupled — they touch `Audio.Sound` instances, recording
-timer refs, and a partially-removed speech-to-text package. Saved for last.
-
-`TaskDetailScreen.tsx` now at 3,007 lines (was 3,601 after Phase 4).
-Cumulative shrink from the original monolith: 4,828 → 3,007 lines
-(-1,821, -38%). All 28 unit tests pass; zero TypeScript errors.
+`TaskDetailScreen.tsx` final size: **2,801 lines** (was 3,601 after
+Phase 4, was 4,828 originally). Cumulative shrink: **-2,027 lines, -42%**.
+The hook is 1,483 lines for 34 handlers — readable, well-typed,
+self-documenting. All 28 unit tests pass; zero TypeScript errors.
 
 **Why incremental?** Each remaining handler group (comments / voice /
 stages / transactions) has 5–10 pieces of state coupled to the parent.
@@ -74,16 +81,33 @@ Extracting them needs either a fat options object on the hook or a state
 lift first. Doing it in one session would be high-risk; we'd rather get
 each group right than rush.
 
-### Next slices to extract
+### Phase 6: TanStack Query migration
 
-1. **Comments + voice notes (10 handlers)** — `handlePostComment`,
-   `handleSaveEditComment`, `handleDeleteComment`,
-   `handleStartRecording`, `handleStopRecording`,
-   `handleDiscardRecording`, `handleSendVoiceNote`, `handlePlayPause`,
-   `handleStopListening`, `handleTextFromVoice`. Tangled with audio +
-   recording state. After this last slice, **all** action handlers will
-   live in `useTaskActions.ts` and TaskDetailScreen becomes a pure JSX
-   wiring layer ready for Phase 6 (TanStack Query migration).
+With Phase 5 complete the data flow is now cleanly separated from UI:
+
+- `fetchTaskData.ts` — read path
+- `useTaskActions.ts` — all 34 mutation handlers
+- `TaskDetailScreen.tsx` — JSX + local state + setter orchestration only
+
+Phase 6 wraps the read path in `useQuery` and converts the mutation
+handlers in `useTaskActions` to `useMutation` calls. The benefits:
+
+1. **Cache + automatic refetch** — replaces the manual `fetchTask()`
+   calls scattered through every handler. Mutations invalidate the
+   query and TanStack handles the refetch automatically.
+2. **Optimistic updates** — comment posting / status changes / etc.
+   can render instantly and roll back on error, instead of waiting for
+   the server round-trip.
+3. **Refetch on focus / reconnect** — TanStack Query's defaults
+   already match what users expect for a mobile app (refetch when the
+   screen regains focus or the device reconnects).
+4. **Realtime subscription dance goes away** — invalidating queries
+   from realtime callbacks is more reliable than the current
+   `useRealtime` + manual setter dance.
+
+`@tanstack/react-query` is already installed (session 49 added it +
+`src/lib/queryClient.ts`); the App is already wrapped in
+`<QueryClientProvider>`. Phase 6 work is purely TaskDetail-side.
 
 Future phases:
 - Lift action handlers into `hooks/useTaskActions.ts` (~50 handlers)
