@@ -707,7 +707,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>📖</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('helpGuide')}</Text>
-       <Text style={ss.navCardSubtitle}>How to use every feature of GovPilot</Text>
+       <Text style={ss.navCardSubtitle}>{t('helpGuideDesc')}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
@@ -731,7 +731,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>🐛</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('reportBug')}</Text>
-       <Text style={ss.navCardSubtitle}>Tell us what went wrong</Text>
+       <Text style={ss.navCardSubtitle}>{t('reportBugDesc')}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
@@ -775,92 +775,21 @@ export default function SettingsScreen() {
    <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>📖 Help Guide</Text>
+         <Text style={ss.helpTitle}>{t('helpGuideTitle')}</Text>
          <TouchableOpacity onPress={() => setShowHelp(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
            <Text style={ss.helpClose}>✕</Text>
          </TouchableOpacity>
        </View>
        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
-           {
-             icon: '📁',
-             title: 'Creating a File',
-             steps: [
-               'Go to the Dashboard and tap ＋ New File.',
-               'Select or create a client — enter their name, phone, and reference contact.',
-               'Choose a service — this loads its default stages automatically.',
-               'Set a contract price (optional) and a due date, then tap Create.',
-             ],
-           },
-           {
-             icon: '🗂',
-             title: 'Managing Stages',
-             steps: [
-               'Open a file → tap ✎ Edit Stages to add, remove, or reorder stages.',
-               'Each stage has its own status: Pending → In Review → Done (or Rejected).',
-               'Tap the status badge on a stage to update it — you can also add a rejection reason.',
-               'Set a city 📍 per stage to track where each step happens.',
-               'Stages with due dates appear on the Calendar with color-coded dots.',
-             ],
-           },
-           {
-             icon: '👥',
-             title: 'Assigning People',
-             steps: [
-               'File-level: open a file and tap the Assignee row to assign a team member.',
-               'Stage-level: each stage has its own assignee chip — tap 👤 to assign.',
-               'Network contacts (external agents/lawyers) can be assigned at stage level too.',
-               'Assigned members receive a push notification when a stage is updated.',
-             ],
-           },
-           {
-             icon: '📄',
-             title: 'Documents',
-             steps: [
-               'Inside a file, scroll to DOCUMENTS and tap 📷 Scan or 🖼 Library.',
-               'Frame your document inside the A4 guide and capture.',
-               'Give it a name and optionally link it to a stage requirement.',
-               'Documents can be viewed in-app or shared as a file via the share button.',
-             ],
-           },
-           {
-             icon: '💰',
-             title: 'Financial Tracking',
-             steps: [
-               'Inside a file, scroll to FINANCIALS to see the contract price and balance.',
-               'Tap ＋ Add to record an expense or a payment received.',
-               'Swipe right on any Dashboard card for a quick-add finance shortcut.',
-               'Visit Financial Report (Settings) for a full P&L across all files.',
-             ],
-           },
-           {
-             icon: '📅',
-             title: 'Calendar',
-             steps: [
-               'The Calendar tab shows all files with a due date as colored dots.',
-               'Overdue stages appear in red — tap a date to see the day\'s stages.',
-               'Set a stage due date inside the file detail under each stage row.',
-             ],
-           },
-           {
-             icon: '🔍',
-             title: 'Search',
-             steps: [
-               'Tap the 🔍 icon on the Dashboard to open Global Search.',
-               'Search across files, clients, stages, and documents at once.',
-               'Tap any result to navigate directly to that file or client.',
-             ],
-           },
-           {
-             icon: '🌐',
-             title: 'Network (Contacts)',
-             steps: [
-               'Go to Create → 👥 Network to manage your external contacts.',
-               'Add lawyers, agents, or any external parties with name, phone, and reference.',
-               'Import multiple contacts at once using 📥 Import (paste from Excel).',
-               'Contacts can be assigned to specific stages inside a file.',
-             ],
-           },
+           { icon: '📁', title: t('help1Title'), steps: [t('help1S1'), t('help1S2'), t('help1S3'), t('help1S4')] },
+           { icon: '🗂', title: t('help2Title'), steps: [t('help2S1'), t('help2S2'), t('help2S3'), t('help2S4'), t('help2S5')] },
+           { icon: '👥', title: t('help3Title'), steps: [t('help3S1'), t('help3S2'), t('help3S3'), t('help3S4')] },
+           { icon: '📄', title: t('help4Title'), steps: [t('help4S1'), t('help4S2'), t('help4S3'), t('help4S4')] },
+           { icon: '💰', title: t('help5Title'), steps: [t('help5S1'), t('help5S2'), t('help5S3'), t('help5S4')] },
+           { icon: '📅', title: t('help6Title'), steps: [t('help6S1'), t('help6S2'), t('help6S3')] },
+           { icon: '🔍', title: t('help7Title'), steps: [t('help7S1'), t('help7S2'), t('help7S3')] },
+           { icon: '🌐', title: t('help8Title'), steps: [t('help8S1'), t('help8S2'), t('help8S3'), t('help8S4')] },
          ].map((section, i) => (
            <View key={i} style={ss.helpSection}>
              <View style={ss.helpSectionHeader}>
@@ -892,14 +821,20 @@ export default function SettingsScreen() {
        </View>
        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
-           { q: t('faqQ1'), a: t('faqA1') },
-           { q: t('faqQ2'), a: t('faqA2') },
-           { q: t('faqQ3'), a: t('faqA3') },
-           { q: t('faqQ4'), a: t('faqA4') },
-           { q: t('faqQ5'), a: t('faqA5') },
-           { q: t('faqQ6'), a: t('faqA6') },
-           { q: t('faqQ7'), a: t('faqA7') },
-           { q: t('faqQ8'), a: t('faqA8') },
+           { q: t('faqQ1'),  a: t('faqA1')  },
+           { q: t('faqQ2'),  a: t('faqA2')  },
+           { q: t('faqQ3'),  a: t('faqA3')  },
+           { q: t('faqQ4'),  a: t('faqA4')  },
+           { q: t('faqQ5'),  a: t('faqA5')  },
+           { q: t('faqQ6'),  a: t('faqA6')  },
+           { q: t('faqQ7'),  a: t('faqA7')  },
+           { q: t('faqQ8'),  a: t('faqA8')  },
+           { q: t('faqQ9'),  a: t('faqA9')  },
+           { q: t('faqQ10'), a: t('faqA10') },
+           { q: t('faqQ11'), a: t('faqA11') },
+           { q: t('faqQ12'), a: t('faqA12') },
+           { q: t('faqQ13'), a: t('faqA13') },
+           { q: t('faqQ14'), a: t('faqA14') },
          ].map((item, i) => (
            <TouchableOpacity
              key={i}
