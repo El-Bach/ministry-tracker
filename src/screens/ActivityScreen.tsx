@@ -17,6 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { DashboardStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -84,6 +85,7 @@ function dayKey(iso: string): string {
 
 export default function ActivityScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const { teamMember, permissions } = useAuth();
   const [sections, setSections] = useState<DaySection[]>([]);
   const [totalCount, setTotalCount] = useState(0);

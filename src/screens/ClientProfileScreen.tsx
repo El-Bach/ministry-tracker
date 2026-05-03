@@ -23,6 +23,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import supabase from '../lib/supabase';
 import { formatPhoneDisplay } from '../lib/phone';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { Client, Task, StatusLabel, DashboardStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import StatusBadge from '../components/StatusBadge';
@@ -136,6 +137,7 @@ function SwipeableRow({
 
 export default function ClientProfileScreen() {
   const route = useRoute<ProfileRoute>();
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const { clientId } = route.params;
   const { permissions, teamMember } = useAuth();
@@ -218,7 +220,7 @@ export default function ClientProfileScreen() {
     navigation.navigate('NewTask', { preselectedClientId: clientId });
 
   const handleDeleteTask = (task: Task) => {
-    Alert.alert('Delete File', `Delete this "${task.service?.name ?? 'file'}"? This cannot be undone.`, [
+    Alert.alert(t('deleteFile'), `${t('confirmDelete')} — "${task.service?.name ?? t('file')}"`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -299,7 +301,7 @@ export default function ClientProfileScreen() {
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Statement — ${client.name}` });
     } catch {
-      Alert.alert('Error', 'Could not generate statement. Please try again.');
+      Alert.alert(t('error'), t('somethingWrong'));
     } finally {
       setGeneratingStatement(false);
     }

@@ -20,6 +20,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { DashboardStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -103,6 +104,7 @@ function ResultRow({
 // ─── Main screen ──────────────────────────────────────────────
 export default function GlobalSearchScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const { permissions, teamMember } = useAuth();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -333,7 +335,7 @@ export default function GlobalSearchScreen() {
           style={s.input}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search everything..."
+          placeholder={t("searchInput")}
           placeholderTextColor={theme.color.textMuted}
           autoFocus
           returnKeyType="search"

@@ -23,6 +23,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { TeamMember, Task, StatusLabel, DashboardStackParamList } from '../types';
@@ -46,6 +47,7 @@ interface MemberWithTasks extends TeamMember {
 
 export default function TeamScreen() {
   const navigation = useNavigation<Nav>();
+  const { t } = useTranslation();
   const { teamMember: currentMember } = useAuth();
 
   const [members, setMembers] = useState<MemberWithTasks[]>([]);
@@ -146,7 +148,7 @@ export default function TeamScreen() {
 
   const handleSaveEditMember = async () => {
     if (!editingMember || !editName.trim()) {
-      Alert.alert('Required', 'Name cannot be empty.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSavingEdit(true);
@@ -382,7 +384,7 @@ export default function TeamScreen() {
                 style={s.modalInput}
                 value={editName}
                 onChangeText={setEditName}
-                placeholder="Full name"
+                placeholder={t('fullName')}
                 placeholderTextColor={theme.color.textMuted}
                 autoCorrect={false}
                 autoCapitalize="words"
@@ -392,7 +394,7 @@ export default function TeamScreen() {
                 style={s.modalInput}
                 value={editRole}
                 onChangeText={setEditRole}
-                placeholder="Role or title"
+                placeholder={t("title")}
                 placeholderTextColor={theme.color.textMuted}
                 autoCorrect={false}
                 autoCapitalize="words"
@@ -402,7 +404,7 @@ export default function TeamScreen() {
                 style={s.modalInput}
                 value={editPhone}
                 onChangeText={setEditPhone}
-                placeholder="+961 70 000 000"
+                placeholder={t("phoneNumber")}
                 placeholderTextColor={theme.color.textMuted}
                 keyboardType="phone-pad"
                 autoCorrect={false}

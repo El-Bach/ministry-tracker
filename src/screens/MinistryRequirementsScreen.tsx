@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { MinistryRequirement, DashboardStackParamList } from '../types';
 
 type RouteType = RouteProp<DashboardStackParamList, 'MinistryRequirements'>;
@@ -44,6 +45,7 @@ function typeLabel(key: string) {
 
 export default function MinistryRequirementsScreen() {
   const route = useRoute<RouteType>();
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const { ministryId, ministryName } = route.params;
 
@@ -89,7 +91,7 @@ export default function MinistryRequirementsScreen() {
   };
 
   const handleSave = async () => {
-    if (!formTitle.trim()) { Alert.alert('Required', 'Title is required.'); return; }
+    if (!formTitle.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSaving(true);
     if (editingId) {
       await supabase
@@ -108,7 +110,7 @@ export default function MinistryRequirementsScreen() {
   };
 
   const handleDelete = (req: MinistryRequirement) => {
-    Alert.alert('Delete Requirement', `Delete "${req.title}"?`, [
+    Alert.alert(t('delete'), `${t('confirmDelete')} — "${req.title}"`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -211,7 +213,7 @@ export default function MinistryRequirementsScreen() {
                   style={s.input}
                   value={formTitle}
                   onChangeText={setFormTitle}
-                  placeholder="Requirement title *"
+                  placeholder={`${t("title")} *`}
                   placeholderTextColor={theme.color.textMuted}
                   autoFocus={!editingId}
                 />
@@ -228,7 +230,7 @@ export default function MinistryRequirementsScreen() {
                   style={[s.input, s.notesInput]}
                   value={formNotes}
                   onChangeText={setFormNotes}
-                  placeholder="Notes (optional)"
+                  placeholder={t("notes")}
                   placeholderTextColor={theme.color.textMuted}
                   multiline
                   textAlignVertical="top"

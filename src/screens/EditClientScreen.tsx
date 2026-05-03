@@ -25,6 +25,7 @@ import * as Location from 'expo-location';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useFieldDefinitions, FieldDefinition, FieldValue } from '../components/ClientFieldsForm';
 import { DashboardStackParamList } from '../types';
 import PhoneInput, { DEFAULT_COUNTRY, parseStoredPhone } from '../components/PhoneInput';
@@ -208,6 +209,7 @@ function FieldInput({
 // ─── Main screen ──────────────────────────────────────────────
 export default function EditClientScreen() {
   const route = useRoute<RouteType>();
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const { clientId } = route.params;
 
@@ -290,7 +292,7 @@ export default function EditClientScreen() {
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
-    if (!clientName.trim()) { Alert.alert('Required', 'Client name is required.'); return; }
+    if (!clientName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSaving(true);
 
     // Update client row
@@ -305,7 +307,7 @@ export default function EditClientScreen() {
         reference_phone: fullRefPhone,
       })
       .eq('id', clientId);
-    if (clientErr) { Alert.alert('Error', clientErr.message); setSaving(false); return; }
+    if (clientErr) { Alert.alert(t('error'), clientErr.message); setSaving(false); return; }
 
     // Upsert active field values
     for (const fieldId of activeFieldIds) {
@@ -344,7 +346,7 @@ export default function EditClientScreen() {
   };
 
   const handleCreateCustomField = async () => {
-    if (!newFieldLabel.trim()) { Alert.alert('Required', 'Field name is required.'); return; }
+    if (!newFieldLabel.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingNewField(true);
     const key = newFieldLabel.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     const opts = ['select', 'multiselect'].includes(newFieldType)
@@ -365,7 +367,7 @@ export default function EditClientScreen() {
       .select()
       .single();
     setSavingNewField(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setActiveFieldIds((prev) => [...prev, data.id]);
     setShowCreateField(false);
     setShowFieldPicker(false);
@@ -399,7 +401,7 @@ export default function EditClientScreen() {
             style={s.input}
             value={clientName}
             onChangeText={setClientName}
-            placeholder="Full name *"
+            placeholder={t("fullNameRequired")}
             placeholderTextColor={theme.color.textMuted}
           />
           <PhoneInput
@@ -407,7 +409,7 @@ export default function EditClientScreen() {
             onChangeText={setClientPhone}
             countryCode={clientPhoneCountry}
             onCountryChange={(c) => setClientPhoneCountry(c.code)}
-            placeholder="Phone number"
+            placeholder={t('phoneNumber')}
             style={{ marginBottom: 10 }}
           />
           <Text style={s.subsectionLabel}>REFERENCE</Text>
@@ -415,7 +417,7 @@ export default function EditClientScreen() {
             style={s.input}
             value={referenceName}
             onChangeText={setReferenceName}
-            placeholder="Reference name"
+            placeholder={t('referenceName')}
             placeholderTextColor={theme.color.textMuted}
           />
           <PhoneInput
@@ -423,7 +425,7 @@ export default function EditClientScreen() {
             onChangeText={setReferencePhone}
             countryCode={referencePhoneCountry}
             onCountryChange={(c) => setReferencePhoneCountry(c.code)}
-            placeholder="Reference phone"
+            placeholder={t('referencePhone')}
             style={{ marginBottom: 10 }}
           />
         </View>
@@ -566,7 +568,7 @@ export default function EditClientScreen() {
                         style={fp.createInput}
                         value={newFieldOptions}
                         onChangeText={setNewFieldOptions}
-                        placeholder="Option A, Option B"
+                        placeholder="A, B"
                         placeholderTextColor={theme.color.textMuted}
                       />
                     </>

@@ -17,6 +17,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { SettingsStackParamList } from '../types';
 
@@ -24,6 +25,7 @@ type Route = RouteProp<SettingsStackParamList, 'MemberFileVisibility'>;
 
 export default function MemberFileVisibilityScreen() {
   const { params } = useRoute<Route>();
+  const { t } = useTranslation();
   const { memberId, memberName, memberRole } = params;
   const { teamMember } = useAuth();
 
@@ -138,7 +140,7 @@ export default function MemberFileVisibilityScreen() {
           style={s.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search by client or service name..."
+          placeholder={t("searchFile")}
           placeholderTextColor={theme.color.textMuted}
           autoCorrect={false}
           autoComplete="off"

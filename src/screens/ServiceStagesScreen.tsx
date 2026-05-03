@@ -21,6 +21,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { DashboardStackParamList } from '../types';
 
 type RouteType = RouteProp<DashboardStackParamList, 'ServiceStages'>;
@@ -39,6 +40,7 @@ interface Ministry {
 
 export default function ServiceStagesScreen() {
   const route = useRoute<RouteType>();
+  const { t } = useTranslation();
   const { serviceId, serviceName } = route.params;
 
   const [stages, setStages] = useState<Stage[]>([]);
@@ -101,7 +103,7 @@ export default function ServiceStagesScreen() {
       .select()
       .single();
     setAdding(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setStages((prev) => [...prev, { id: data.id, ministry_id: ministry.id, name: ministry.name, stop_order: nextOrder }]);
     setShowPicker(false);
     setPickerQuery('');
@@ -113,7 +115,7 @@ export default function ServiceStagesScreen() {
       (m) => m.name.trim().toLowerCase() === newMiniName.trim().toLowerCase()
     );
     if (duplicate) {
-      Alert.alert('Already exists', `A stage named "${duplicate.name}" already exists. Select it from the list above.`);
+      Alert.alert(t('warning'), `"${duplicate.name}" — ${t('duplicateClient')}`);
       return;
     }
     setAdding(true);
@@ -122,7 +124,7 @@ export default function ServiceStagesScreen() {
       .insert({ name: newMiniName.trim(), type: 'child' })
       .select()
       .single();
-    if (mErr) { Alert.alert('Error', mErr.message); setAdding(false); return; }
+    if (mErr) { Alert.alert(t('error'), mErr.message); setAdding(false); return; }
     const nextOrder = stages.length + 1;
     const { data, error } = await supabase
       .from('service_default_stages')
@@ -130,7 +132,7 @@ export default function ServiceStagesScreen() {
       .select()
       .single();
     setAdding(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert(t('error'), error.message); return; }
     setAllMinistries((prev) => [...prev, { id: mData.id, name: mData.name }]);
     setStages((prev) => [...prev, { id: data.id, ministry_id: mData.id, name: newMiniName.trim(), stop_order: nextOrder }]);
     setNewMiniName('');
@@ -139,7 +141,7 @@ export default function ServiceStagesScreen() {
   };
 
   const removeStage = (stage: Stage) => {
-    Alert.alert('Remove Stage', `Remove "${stage.name}" from this service?`, [
+    Alert.alert(t('deleteStage'), `${t('confirmDelete')} — "${stage.name}"`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove', style: 'destructive',
@@ -303,7 +305,7 @@ export default function ServiceStagesScreen() {
               style={p.search}
               value={pickerQuery}
               onChangeText={setPickerQuery}
-              placeholder="Search existing stages..."
+              placeholder={t("searchStage")}
               placeholderTextColor={theme.color.textMuted}
               autoCorrect={false}
               autoCapitalize="none"
@@ -348,7 +350,7 @@ export default function ServiceStagesScreen() {
                   style={p.createInput}
                   value={newMiniName}
                   onChangeText={setNewMiniName}
-                  placeholder="New stage name"
+                  placeholder={t("stageName")}
                   placeholderTextColor={theme.color.textMuted}
                   onSubmitEditing={addNewMinistry}
                   returnKeyType="done"

@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { FieldDefinition } from '../components/ClientFieldsForm';
 
 const FIELD_TYPES = [
@@ -40,6 +41,7 @@ const FIELD_TYPES = [
 
 export default function TeamMemberFieldsScreen() {
  const [fields, setFields] = useState<FieldDefinition[]>([]);
+  const { t } = useTranslation();
  const [loading, setLoading] = useState(true);
  const [showAddModal, setShowAddModal] = useState(false);
  const [showEditModal, setShowEditModal] = useState(false);
@@ -89,10 +91,10 @@ export default function TeamMemberFieldsScreen() {
   label.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 
  const handleAdd = async () => {
-  if (!formLabel.trim()) { Alert.alert('Required', 'Field label is required.'); return; }
+  if (!formLabel.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
   const needsOptions = ['select', 'multiselect'].includes(formType);
   if (needsOptions && !formOptions.trim()) {
-   Alert.alert('Required', 'Add at least one option (comma-separated).');
+   Alert.alert(t('required'), t('fieldRequired'));
    return;
   }
   setSaving(true);
@@ -110,7 +112,7 @@ export default function TeamMemberFieldsScreen() {
    sort_order: maxOrder + 1,
   });
   setSaving(false);
-  if (error) { Alert.alert('Error', error.message); return; }
+  if (error) { Alert.alert(t('error'), error.message); return; }
   setShowAddModal(false);
   resetForm();
   load();
@@ -133,7 +135,7 @@ export default function TeamMemberFieldsScreen() {
    })
    .eq('id', editingField.id);
   setSaving(false);
-  if (error) { Alert.alert('Error', error.message); return; }
+  if (error) { Alert.alert(t('error'), error.message); return; }
   setShowEditModal(false);
   setEditingField(null);
   load();
@@ -285,7 +287,7 @@ export default function TeamMemberFieldsScreen() {
           style={fm.input}
           value={formLabel}
           onChangeText={setFormLabel}
-          placeholder="Department"
+          placeholder={t("title")}
           placeholderTextColor={theme.color.textMuted}
           autoCorrect={false}
          />
@@ -308,7 +310,7 @@ export default function TeamMemberFieldsScreen() {
            style={fm.input}
            value={formOptions}
            onChangeText={setFormOptions}
-           placeholder="Option A, Option B, Option C"
+           placeholder="A, B, C"
            placeholderTextColor={theme.color.textMuted}
            autoCorrect={false}
           />
@@ -361,7 +363,7 @@ export default function TeamMemberFieldsScreen() {
           style={fm.input}
           value={formLabel}
           onChangeText={setFormLabel}
-          placeholder="Department"
+          placeholder={t("title")}
           placeholderTextColor={theme.color.textMuted}
           autoCorrect={false}
          />
@@ -384,7 +386,7 @@ export default function TeamMemberFieldsScreen() {
            style={fm.input}
            value={formOptions}
            onChangeText={setFormOptions}
-           placeholder="Option A, Option B, Option C"
+           placeholder="A, B, C"
            placeholderTextColor={theme.color.textMuted}
            autoCorrect={false}
           />

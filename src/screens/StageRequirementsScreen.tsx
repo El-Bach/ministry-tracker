@@ -24,6 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { StopRequirement, DashboardStackParamList } from '../types';
 
@@ -48,6 +49,7 @@ function typeIcon(val: string) {
 
 export default function StageRequirementsScreen() {
   const route = useRoute<ReqRoute>();
+  const { t } = useTranslation();
   const { stopId, stageName, taskId } = route.params;
   const { teamMember } = useAuth();
 
@@ -125,7 +127,7 @@ export default function StageRequirementsScreen() {
 
   async function handleSave() {
     if (!title.trim()) {
-      Alert.alert('Required', 'Please enter a requirement title.');
+      Alert.alert(t('required'), t('fieldRequired'));
       return;
     }
     setSaving(true);
@@ -166,7 +168,7 @@ export default function StageRequirementsScreen() {
       setShowModal(false);
       fetchRequirements();
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to save requirement.');
+      Alert.alert(t('error'), e.message ?? t('failedToSave'));
     } finally {
       setSaving(false);
     }
@@ -225,9 +227,9 @@ export default function StageRequirementsScreen() {
         await supabase.from('tasks')
           .update({ current_status: 'Done', is_archived: true, updated_at: now })
           .eq('id', taskId);
-        Alert.alert('Stage Complete', 'All requirements done — stage marked Done.\nAll stages complete, file archived.');
+        Alert.alert(t('done'), t('savedSuccess'));
       } else {
-        Alert.alert('Stage Complete', 'All requirements done — stage automatically marked Done.');
+        Alert.alert(t('done'), t('savedSuccess'));
       }
     }
   }
@@ -236,7 +238,7 @@ export default function StageRequirementsScreen() {
   async function pickFromLibrary() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow access to your photo library.');
+      Alert.alert(t('warning'), t('fieldRequired'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -253,7 +255,7 @@ export default function StageRequirementsScreen() {
   async function pickFromCamera() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow camera access.');
+      Alert.alert(t('warning'), t('fieldRequired'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -303,7 +305,7 @@ export default function StageRequirementsScreen() {
         requirement_id: editingReq?.id ?? null,
       });
     } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Could not upload file.');
+      Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     } finally {
       setUploading(false);
     }
@@ -329,7 +331,7 @@ export default function StageRequirementsScreen() {
   // ─── WhatsApp send (all requirements) ──────────────────────
   function sendWhatsApp() {
     if (!clientPhone) {
-      Alert.alert('No Phone Number', 'This client has no phone number on file.');
+      Alert.alert(t('warning'), t('fieldRequired'));
       return;
     }
     const clean = clientPhone.replace(/\s+/g, '').replace(/^\+/, '');
@@ -354,14 +356,14 @@ export default function StageRequirementsScreen() {
     lines.push('_GovPilot, Powered by KTS_');
     const msg = lines.join('\n');
     Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
-      Alert.alert('Error', 'Could not open WhatsApp.')
+      Alert.alert(t('error'), t('somethingWrong'))
     );
   }
 
   // ─── WhatsApp send (single requirement) ─────────────────────
   function sendWhatsAppSingle(req: StopRequirement) {
     if (!clientPhone) {
-      Alert.alert('No Phone Number', 'This client has no phone number on file.');
+      Alert.alert(t('warning'), t('fieldRequired'));
       return;
     }
     const clean = clientPhone.replace(/\s+/g, '').replace(/^\+/, '');
@@ -383,7 +385,7 @@ export default function StageRequirementsScreen() {
     lines.push('_GovPilot, Powered by KTS_');
     const msg = lines.join('\n');
     Linking.openURL(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`).catch(() =>
-      Alert.alert('Error', 'Could not open WhatsApp.')
+      Alert.alert(t('error'), t('somethingWrong'))
     );
   }
 
@@ -539,7 +541,7 @@ export default function StageRequirementsScreen() {
               <Text style={s.fieldLabel}>Title *</Text>
               <TextInput
                 style={s.input}
-                placeholder="Requirement title"
+                placeholder={t("title")}
                 placeholderTextColor={theme.color.textMuted}
                 value={title}
                 onChangeText={setTitle}
@@ -560,7 +562,7 @@ export default function StageRequirementsScreen() {
               <Text style={s.fieldLabel}>Notes</Text>
               <TextInput
                 style={[s.input, s.textArea]}
-                placeholder="Additional notes"
+                placeholder={t("notes")}
                 placeholderTextColor={theme.color.textMuted}
                 value={notes}
                 onChangeText={setNotes}

@@ -19,6 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { SettingsStackParamList, TeamMember } from '../types';
 
@@ -210,6 +211,7 @@ type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
 
 export default function VisibilitySettingsScreen() {
   const { teamMember, isOwner, isAdmin } = useAuth();
+  const { t } = useTranslation();
   const navigation = useNavigation<NavProp>();
 
   // Role guard — only owner and admin may access this screen
@@ -326,7 +328,7 @@ export default function VisibilitySettingsScreen() {
         ...prev,
         [activeRole]: { ...prev[activeRole], [key]: !value },
       }));
-      Alert.alert('Error', error.message);
+      Alert.alert(t('error'), error.message);
     }
   };
 
@@ -350,7 +352,7 @@ export default function VisibilitySettingsScreen() {
                 { onConflict: 'org_id,role' }
               );
             setSaving(false);
-            if (error) { Alert.alert('Error', error.message); return; }
+            if (error) { Alert.alert(t('error'), error.message); return; }
             setSettings((prev) => ({ ...prev, [activeRole]: { ...defaults } }));
           },
         },

@@ -17,6 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { TeamMember } from '../types';
 
@@ -38,6 +39,7 @@ const DEFAULT_PREFS: NotifPrefs = {
 
 export default function NotificationSettingsScreen() {
   const { teamMember } = useAuth();
+  const { t } = useTranslation();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,8 +96,8 @@ export default function NotificationSettingsScreen() {
           },
           { onConflict: 'team_member_id' }
         );
-      if (error) Alert.alert('Error', error.message);
-      else Alert.alert('Saved', 'Notification preferences updated.');
+      if (error) Alert.alert(t('error'), error.message);
+      else Alert.alert(t('saved'), t('savedSuccess'));
     } finally {
       setSaving(false);
     }
