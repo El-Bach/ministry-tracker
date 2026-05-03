@@ -582,14 +582,14 @@ export default function TeamMembersScreen() {
             <View style={s.sectionHead}>
               <View style={{ flex: 1 }}>
                 <Text style={s.sectionTitle}>
-                  🔑 Invite Codes{searchQ && (activeCodes.length + revokedCodes.length) > 0
-                    ? ` (${filteredActiveCodes.length + filteredRevokedCodes.length} of ${activeCodes.length + revokedCodes.length})`
+                  {t('inviteCodesTitle')}{searchQ && (activeCodes.length + revokedCodes.length) > 0
+                    ? ` (${filteredActiveCodes.length + filteredRevokedCodes.length} / ${activeCodes.length + revokedCodes.length})`
                     : ''}
                 </Text>
-                <Text style={s.sectionSub}>Each code gives one person access with a specific role</Text>
+                <Text style={s.sectionSub}>{t('inviteCodesDesc')}</Text>
               </View>
               <TouchableOpacity style={s.newBtn} onPress={() => setShowModal(true)} activeOpacity={0.8}>
-                <Text style={s.newBtnText}>＋ New</Text>
+                <Text style={s.newBtnText}>{t('newInvite')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -609,7 +609,7 @@ export default function TeamMembersScreen() {
                   <View style={s.codeCardTop}>
                     <Text style={s.codeText}>{jc.code}</Text>
                     <View style={[s.rolePill, { borderColor: meta.color + '55', backgroundColor: meta.color + '18' }]}>
-                      <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {meta.label}</Text>
+                      <Text style={[s.rolePillText, { color: meta.color }]}>{meta.icon} {t((`role${jc.role.charAt(0).toUpperCase() + jc.role.slice(1)}`) as any)}</Text>
                     </View>
                   </View>
 
@@ -625,7 +625,7 @@ export default function TeamMembersScreen() {
 
                   <View style={s.codeCardBottom}>
                     <Text style={s.codeMeta}>
-                      {jc.use_count} use{jc.use_count !== 1 ? 's' : ''} · Created {fmtDateTime(jc.created_at)}
+                      {jc.use_count} {t('usesCount')} · {t('createdLabel')} {fmtDateTime(jc.created_at)}
                     </Text>
                     <TouchableOpacity onPress={() => handleDeactivateCode(jc.id, jc.code)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Text style={{ color: theme.color.danger, fontSize: 16, fontWeight: '700' }}>✕</Text>

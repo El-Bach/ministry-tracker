@@ -1588,7 +1588,7 @@ export default function TaskDetailScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={s.clientName}>{task.client?.name}</Text>
-                <Text style={s.clientProfileHint}>View profile →</Text>
+                <Text style={s.clientProfileHint}>{t('viewProfile')}</Text>
               </TouchableOpacity>
               {task.client?.phone && (
                 <TouchableOpacity onPress={() => handlePhonePress(task.client!.phone!, task.client?.name)}>
@@ -1629,7 +1629,7 @@ export default function TaskDetailScreen() {
               <View>
                 {task.assignee && (
                   <TouchableOpacity style={s.assigneePickerItem} onPress={() => handleSetFileAssignee(null)}>
-                    <Text style={[s.assigneePickerItemText, { color: theme.color.danger }]}>✕ Remove assignment</Text>
+                    <Text style={[s.assigneePickerItemText, { color: theme.color.danger }]}>{t('removeAssignment')}</Text>
                   </TouchableOpacity>
                 )}
                 {allMembers
@@ -1654,18 +1654,18 @@ export default function TaskDetailScreen() {
           {/* ROW 1: SERVICE (left) + DOCUMENTS (right) — equal width, same level */}
           <View style={s.metaGrid}>
             <View style={s.metaCell}>
-              <Text style={s.metaLabel}>SERVICE</Text>
+              <Text style={s.metaLabel}>{t('service').toUpperCase()}</Text>
               <Text style={s.metaValue} numberOfLines={2}>{task.service?.name}</Text>
             </View>
             <View style={s.metaCell}>
-              <Text style={s.metaLabel}>DOCUMENTS</Text>
+              <Text style={s.metaLabel}>{t('documents').toUpperCase()}</Text>
               {task.service?.id ? (
                 <TouchableOpacity
                   onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(task.service!.id); }}
                   activeOpacity={0.75}
                   style={ds.docSheetChip}
                 >
-                  <Text style={ds.docSheetChipText}>📋 Required Docs</Text>
+                  <Text style={ds.docSheetChipText}>📋 {t('requiredDocs')}</Text>
                 </TouchableOpacity>
               ) : (
                 <Text style={[s.metaValue, { color: theme.color.textMuted }]}>—</Text>
@@ -1676,13 +1676,13 @@ export default function TaskDetailScreen() {
           {/* ROW 2: OPENED (left) + DUE DATE (right) — equal width, same level */}
           <View style={s.metaGrid}>
             <View style={s.metaCell}>
-              <Text style={s.metaLabel}>OPENED</Text>
+              <Text style={s.metaLabel}>{t('opened').toUpperCase()}</Text>
               <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
             </View>
             <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
               <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
               <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
-                {task.due_date ? formatDateOnly(task.due_date) : 'Tap to set'}
+                {task.due_date ? formatDateOnly(task.due_date) : t('tapToSet')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1701,12 +1701,12 @@ export default function TaskDetailScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity style={s.shareWhatsAppBtn} onPress={handleShareWhatsApp}>
-              <Text style={s.shareWhatsAppBtnText}>📤 WhatsApp</Text>
+              <Text style={s.shareWhatsAppBtnText}>{t('whatsappShare')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.duplicateBtn, duplicating && { opacity: 0.6 }]} onPress={handleDuplicateTask} disabled={duplicating}>
               {duplicating
                 ? <ActivityIndicator size="small" color={theme.color.white} />
-                : <Text style={s.duplicateBtnText}>📋 Duplicate</Text>}
+                : <Text style={s.duplicateBtnText}>{t('duplicateFile')}</Text>}
             </TouchableOpacity>
           </View>
         </View>

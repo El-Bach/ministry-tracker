@@ -208,13 +208,54 @@ export default function CalendarScreen() {
       )}
 
       <Calendar
-        key={calendarKey}
-        firstDay={1}
+        key={`${calendarKey}-${lang}`}
+        firstDay={lang === 'ar' ? 6 : 1}
         markingType="multi-dot"
         markedDates={calendarMarks}
         current={currentMonth}
         onMonthChange={(month: { dateString: string }) => setCurrentMonth(month.dateString)}
         onDayPress={(day: { dateString: string }) => setSelectedDate(day.dateString)}
+        // Custom day renderer — uses Arabic-Indic digits when language is Arabic
+        dayComponent={({ date, state, marking, onPress }: any) => {
+          const day = date?.day ?? 0;
+          const dayStr = lang === 'ar'
+            ? String(day).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d, 10)])
+            : String(day);
+          const isToday = state === 'today';
+          const isDisabled = state === 'disabled';
+          const dots = marking?.dots ?? [];
+          const isSelected = !!marking?.selected;
+          return (
+            <TouchableOpacity
+              onPress={() => onPress?.(date)}
+              activeOpacity={0.7}
+              style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: isSelected ? theme.color.primary : 'transparent',
+              }}
+            >
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: isSelected ? theme.color.white :
+                       isDisabled ? theme.color.border :
+                       isToday ? theme.color.primaryText :
+                       theme.color.textSecondary,
+              }}>{dayStr}</Text>
+              {dots.length > 0 && !isSelected && (
+                <View style={{ flexDirection: 'row', gap: 2, marginTop: 1 }}>
+                  {dots.slice(0, 3).map((dot: any, i: number) => (
+                    <View key={i} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: dot.color }} />
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        }}
         theme={{
           backgroundColor: theme.color.bgBase,
           calendarBackground: theme.color.bgBase,

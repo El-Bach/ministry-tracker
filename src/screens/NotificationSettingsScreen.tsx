@@ -135,8 +135,8 @@ export default function NotificationSettingsScreen() {
             <View style={s.rowLeft}>
               <Text style={s.rowIcon}>🔔</Text>
               <View>
-                <Text style={s.rowTitle}>Enable Notifications</Text>
-                <Text style={s.rowSub}>Receive push notifications on this device</Text>
+                <Text style={s.rowTitle}>{t('enableNotifications')}</Text>
+                <Text style={s.rowSub}>{t('enableNotificationsDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -149,14 +149,14 @@ export default function NotificationSettingsScreen() {
         </View>
 
         {/* Type filters */}
-        <Text style={s.sectionLabel}>NOTIFICATION TYPES</Text>
+        <Text style={s.sectionLabel}>{t('notificationTypes')}</Text>
         <View style={[s.card, !prefs.enabled && s.cardDisabled]}>
           <View style={[s.row, s.rowBorder]}>
             <View style={s.rowLeft}>
               <Text style={s.rowIcon}>💬</Text>
               <View>
-                <Text style={s.rowTitle}>Comments &amp; Notes</Text>
-                <Text style={s.rowSub}>When team members add comments to files</Text>
+                <Text style={s.rowTitle}>{t('commentsNotes')}</Text>
+                <Text style={s.rowSub}>{t('commentsNotesDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -172,8 +172,8 @@ export default function NotificationSettingsScreen() {
             <View style={s.rowLeft}>
               <Text style={s.rowIcon}>🔄</Text>
               <View>
-                <Text style={s.rowTitle}>Status Changes</Text>
-                <Text style={s.rowSub}>When file or stage statuses are updated</Text>
+                <Text style={s.rowTitle}>{t('statusChanges')}</Text>
+                <Text style={s.rowSub}>{t('statusChangesDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -189,8 +189,8 @@ export default function NotificationSettingsScreen() {
             <View style={s.rowLeft}>
               <Text style={s.rowIcon}>📁</Text>
               <View>
-                <Text style={s.rowTitle}>New Files</Text>
-                <Text style={s.rowSub}>When a new client file is created</Text>
+                <Text style={s.rowTitle}>{t('newFilesNotif')}</Text>
+                <Text style={s.rowSub}>{t('newFilesNotifDesc')}</Text>
               </View>
             </View>
             <Switch
@@ -204,14 +204,14 @@ export default function NotificationSettingsScreen() {
         </View>
 
         {/* Per-member mute list */}
-        <Text style={s.sectionLabel}>RECEIVE FROM</Text>
+        <Text style={s.sectionLabel}>{t('receiveFrom')}</Text>
         <Text style={s.sectionHint}>
-          Unchecked members won't trigger notifications for you — even when they post comments or update statuses.
+          {t('receiveFromDesc')}
         </Text>
         <View style={[s.card, !prefs.enabled && s.cardDisabled]}>
           {otherMembers.length === 0 ? (
             <View style={s.emptyMembers}>
-              <Text style={s.emptyMembersText}>No other team members yet</Text>
+              <Text style={s.emptyMembersText}>{t('noOtherMembers')}</Text>
             </View>
           ) : (
             otherMembers.map((m, idx) => {
@@ -238,7 +238,12 @@ export default function NotificationSettingsScreen() {
                     <Text style={[s.memberName, isMuted && s.mutedText]}>{m.name}</Text>
                     <View style={s.memberMeta}>
                       <View style={[s.roleBadge, { backgroundColor: roleBadgeColor + '22', borderColor: roleBadgeColor + '55' }]}>
-                        <Text style={[s.roleBadgeText, { color: roleBadgeColor }]}>{m.role}</Text>
+                        <Text style={[s.roleBadgeText, { color: roleBadgeColor }]}>{
+                          m.role === 'owner' ? t('roleOwner') :
+                          m.role === 'admin' ? t('roleAdmin') :
+                          m.role === 'member' ? t('roleMember') :
+                          m.role === 'viewer' ? t('roleViewer') : m.role
+                        }</Text>
                       </View>
                       {isMuted && <Text style={s.mutedBadge}>Muted</Text>}
                     </View>

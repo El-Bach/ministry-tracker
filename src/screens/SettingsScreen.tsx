@@ -1050,7 +1050,7 @@ export default function SettingsScreen() {
    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase }} edges={['top', 'bottom']}>
      {/* Header — fixed at top */}
      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>✉️ Contact Us</Text>
+       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>{t('contactUsTitle')}</Text>
        <TouchableOpacity onPress={() => setShowContactModal(false)} style={{ padding: 8, marginRight: -4 }}>
          <Text style={{ color: theme.color.textMuted, fontSize: 22, fontWeight: '600' }}>✕</Text>
        </TouchableOpacity>
@@ -1062,10 +1062,10 @@ export default function SettingsScreen() {
        keyboardShouldPersistTaps="handled"
        showsVerticalScrollIndicator={false}
      >
-       <Text style={ss.inviteDesc}>Our team at management@kts-lb.com will respond as soon as possible.</Text>
+       <Text style={ss.inviteDesc}>{t('contactUsDesc')}</Text>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>YOUR NAME</Text>
+         <Text style={ss.fieldLabel}>{t('yourName')}</Text>
          <TextInput
            style={ss.fieldInput}
            value={contactName}
@@ -1076,7 +1076,7 @@ export default function SettingsScreen() {
        </View>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>YOUR EMAIL</Text>
+         <Text style={ss.fieldLabel}>{t('yourEmail')}</Text>
          <TextInput
            style={ss.fieldInput}
            value={contactEmail}
@@ -1089,7 +1089,7 @@ export default function SettingsScreen() {
        </View>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>SUBJECT</Text>
+         <Text style={ss.fieldLabel}>{t('subjectLabel')}</Text>
          <TextInput
            style={ss.fieldInput}
            value={contactSubject}
@@ -1100,7 +1100,7 @@ export default function SettingsScreen() {
        </View>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>MESSAGE</Text>
+         <Text style={ss.fieldLabel}>{t('messageLabel')}</Text>
          <TextInput
            style={[ss.fieldInput, { height: 160, textAlignVertical: 'top', paddingTop: 12 }]}
            value={contactMessage}
@@ -1118,7 +1118,7 @@ export default function SettingsScreen() {
        >
          {sendingContact
            ? <ActivityIndicator color={theme.color.white} />
-           : <Text style={ss.inviteBtnText}>Send Message</Text>
+           : <Text style={ss.inviteBtnText}>{t('sendMsg')}</Text>
          }
        </TouchableOpacity>
      </ScrollView>
@@ -1130,7 +1130,7 @@ export default function SettingsScreen() {
    <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase }} edges={['top', 'bottom']}>
      {/* Header — fixed at top */}
      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>🐛 Report a Bug</Text>
+       <Text style={{ ...theme.typography.heading, fontSize: 20, fontWeight: '700', color: theme.color.textPrimary }}>{t('reportBugTitle')}</Text>
        <TouchableOpacity onPress={() => setShowBugModal(false)} style={{ padding: 8, marginRight: -4 }}>
          <Text style={{ color: theme.color.textMuted, fontSize: 22, fontWeight: '600' }}>✕</Text>
        </TouchableOpacity>
@@ -1142,10 +1142,10 @@ export default function SettingsScreen() {
        keyboardShouldPersistTaps="handled"
        showsVerticalScrollIndicator={false}
      >
-       <Text style={ss.inviteDesc}>Describe what happened and how to reproduce it. We'll fix it ASAP.</Text>
+       <Text style={ss.inviteDesc}>{t('reportBugDesc2')}</Text>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>BUG TITLE</Text>
+         <Text style={ss.fieldLabel}>{t('bugTitleLabel')}</Text>
          <TextInput
            style={ss.fieldInput}
            value={bugTitle}
@@ -1156,7 +1156,7 @@ export default function SettingsScreen() {
        </View>
 
        <View style={ss.field}>
-         <Text style={ss.fieldLabel}>DESCRIPTION</Text>
+         <Text style={ss.fieldLabel}>{t('bugDescLabel')}</Text>
          <TextInput
            style={[ss.fieldInput, { height: 180, textAlignVertical: 'top', paddingTop: 12 }]}
            value={bugDesc}
@@ -1174,7 +1174,7 @@ export default function SettingsScreen() {
        >
          {sendingBug
            ? <ActivityIndicator color={theme.color.white} />
-           : <Text style={ss.inviteBtnText}>Submit Bug Report</Text>
+           : <Text style={ss.inviteBtnText}>{t('submitBug')}</Text>
          }
        </TouchableOpacity>
      </ScrollView>

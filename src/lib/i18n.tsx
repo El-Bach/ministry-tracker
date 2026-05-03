@@ -221,7 +221,21 @@ export type TranslationKey =
   | 'frStatusLabel' | 'frClosedFilter' | 'frActiveFilter' | 'frAllFilter'
   | 'frAllFiles' | 'frServiceFilter' | 'frStageFilter' | 'frFrom' | 'frTo'
   | 'frPdf' | 'frReceived' | 'frExpenses' | 'frBalance' | 'frResult'
-  | 'frFilesContract' | 'frCvUsd' | 'frLbpRate' | 'frTapDetails' | 'frClosed';
+  | 'frFilesContract' | 'frCvUsd' | 'frLbpRate' | 'frTapDetails' | 'frClosed'
+  // Phase 8: more missed strings
+  | 'enableNotifications' | 'enableNotificationsDesc' | 'notificationTypes'
+  | 'commentsNotes' | 'commentsNotesDesc'
+  | 'statusChanges' | 'statusChangesDesc'
+  | 'newFilesNotif' | 'newFilesNotifDesc'
+  | 'receiveFrom' | 'receiveFromDesc' | 'noOtherMembers'
+  | 'reportBugTitle' | 'reportBugDesc2' | 'bugTitleLabel' | 'bugDescLabel' | 'submitBug'
+  | 'contactUsTitle' | 'contactUsDesc' | 'yourName' | 'yourEmail' | 'subjectLabel' | 'messageLabel' | 'sendMsg'
+  | 'inviteCodesTitle' | 'inviteCodesDesc' | 'newInvite'
+  | 'roleOwnerBadge' | 'roleAdminBadge' | 'roleMemberBadge' | 'roleViewerBadge'
+  | 'usesCount' | 'createdLabel'
+  // TaskDetail header section
+  | 'viewProfile' | 'removeAssignment' | 'tapToSet'
+  | 'whatsappShare' | 'duplicateFile';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -710,6 +724,45 @@ const ar: Translations = {
   frBalance: 'الرصيد', frResult: 'الصافي',
   frFilesContract: 'ملف · العقد', frCvUsd: 'ما يعادل بالدولار',
   frLbpRate: 'ل.ل / $1', frTapDetails: 'اضغط للتفاصيل ›', frClosed: 'مغلق',
+  // ── Phase 8 ────
+  enableNotifications: 'تفعيل الإشعارات',
+  enableNotificationsDesc: 'استلام إشعارات على هذا الجهاز',
+  notificationTypes: 'أنواع الإشعارات',
+  commentsNotes: 'التعليقات والملاحظات',
+  commentsNotesDesc: 'عند إضافة أعضاء الفريق تعليقات على الملفات',
+  statusChanges: 'تغييرات الحالة',
+  statusChangesDesc: 'عند تحديث حالة ملف أو مرحلة',
+  newFilesNotif: 'الملفات الجديدة',
+  newFilesNotifDesc: 'عند إنشاء ملف عميل جديد',
+  receiveFrom: 'استلام من',
+  receiveFromDesc: 'الأعضاء غير المُحدَّدين لن يُطلقوا إشعارات لك — حتى عند إضافة تعليقات أو تحديث الحالة.',
+  noOtherMembers: 'لا يوجد أعضاء آخرون بعد',
+  reportBugTitle: '🐛 الإبلاغ عن خطأ',
+  reportBugDesc2: 'صف ما حدث وكيف يمكن إعادة إنتاجه. سنُصلحه في أقرب وقت.',
+  bugTitleLabel: 'عنوان الخطأ',
+  bugDescLabel: 'الوصف',
+  submitBug: 'إرسال البلاغ',
+  contactUsTitle: '✉️ تواصل معنا',
+  contactUsDesc: 'سيرد فريقنا في management@kts-lb.com في أقرب وقت ممكن.',
+  yourName: 'اسمك',
+  yourEmail: 'بريدك الإلكتروني',
+  subjectLabel: 'الموضوع',
+  messageLabel: 'الرسالة',
+  sendMsg: 'إرسال الرسالة',
+  inviteCodesTitle: '🔑 رموز الدعوة',
+  inviteCodesDesc: 'يمنح كل رمز شخصاً واحداً صلاحية الوصول حسب الدور.',
+  newInvite: '+ جديد',
+  roleOwnerBadge: '👑 مالك',
+  roleAdminBadge: '🔑 مسؤول',
+  roleMemberBadge: '👤 عضو',
+  roleViewerBadge: '👁 مشاهد',
+  usesCount: 'استخدام',
+  createdLabel: 'أُنشئ',
+  viewProfile: 'عرض الملف الشخصي ←',
+  removeAssignment: '✕ إزالة التعيين',
+  tapToSet: 'اضغط للتحديد',
+  whatsappShare: '📤 واتساب',
+  duplicateFile: '📋 تكرار',
 };
 
 const en: Translations = {
@@ -1176,6 +1229,45 @@ const en: Translations = {
   frBalance: 'BALANCE', frResult: 'RESULT',
   frFilesContract: 'FILES · CONTRACT', frCvUsd: 'C/V USD',
   frLbpRate: 'LBP / $1', frTapDetails: 'Tap for details ›', frClosed: 'Closed',
+  // ── Phase 8 ────
+  enableNotifications: 'Enable Notifications',
+  enableNotificationsDesc: 'Receive push notifications on this device',
+  notificationTypes: 'NOTIFICATION TYPES',
+  commentsNotes: 'Comments & Notes',
+  commentsNotesDesc: 'When team members add comments to files',
+  statusChanges: 'Status Changes',
+  statusChangesDesc: 'When file or stage statuses are updated',
+  newFilesNotif: 'New Files',
+  newFilesNotifDesc: 'When a new client file is created',
+  receiveFrom: 'RECEIVE FROM',
+  receiveFromDesc: "Unchecked members won't trigger notifications for you — even when they post comments or update statuses.",
+  noOtherMembers: 'No other team members yet',
+  reportBugTitle: '🐛 Report a Bug',
+  reportBugDesc2: "Describe what happened and how to reproduce it. We'll fix it ASAP.",
+  bugTitleLabel: 'BUG TITLE',
+  bugDescLabel: 'DESCRIPTION',
+  submitBug: 'Submit Bug Report',
+  contactUsTitle: '✉️ Contact Us',
+  contactUsDesc: 'Our team at management@kts-lb.com will respond as soon as possible.',
+  yourName: 'YOUR NAME',
+  yourEmail: 'YOUR EMAIL',
+  subjectLabel: 'SUBJECT',
+  messageLabel: 'MESSAGE',
+  sendMsg: 'Send Message',
+  inviteCodesTitle: '🔑 Invite Codes',
+  inviteCodesDesc: 'Each code gives one person access with a specific role',
+  newInvite: '+ New',
+  roleOwnerBadge: '👑 Owner',
+  roleAdminBadge: '🔑 Admin',
+  roleMemberBadge: '👤 Member',
+  roleViewerBadge: '👁 Viewer',
+  usesCount: 'use',
+  createdLabel: 'Created',
+  viewProfile: 'View profile →',
+  removeAssignment: '✕ Remove assignment',
+  tapToSet: 'Tap to set',
+  whatsappShare: '📤 WhatsApp',
+  duplicateFile: '📋 Duplicate',
 };
 
 const fr: Translations = {
@@ -1647,6 +1739,45 @@ const fr: Translations = {
   frBalance: 'SOLDE', frResult: 'RÉSULTAT',
   frFilesContract: 'DOSSIERS · CONTRAT', frCvUsd: 'C/V USD',
   frLbpRate: 'LBP / $1', frTapDetails: 'Toucher pour détails ›', frClosed: 'Clos',
+  // ── Phase 8 ────
+  enableNotifications: 'Activer les notifications',
+  enableNotificationsDesc: 'Recevoir des notifications push sur cet appareil',
+  notificationTypes: 'TYPES DE NOTIFICATION',
+  commentsNotes: 'Commentaires et notes',
+  commentsNotesDesc: "Quand des membres ajoutent des commentaires aux dossiers",
+  statusChanges: 'Changements de statut',
+  statusChangesDesc: "Quand le statut d'un dossier ou d'une étape est mis à jour",
+  newFilesNotif: 'Nouveaux dossiers',
+  newFilesNotifDesc: 'Quand un nouveau dossier client est créé',
+  receiveFrom: 'RECEVOIR DE',
+  receiveFromDesc: "Les membres non cochés ne déclenchent pas de notifications pour vous — même quand ils commentent ou mettent à jour les statuts.",
+  noOtherMembers: "Aucun autre membre d'équipe pour l'instant",
+  reportBugTitle: '🐛 Signaler un bug',
+  reportBugDesc2: "Décrivez ce qui s'est passé et comment le reproduire. Nous le corrigerons rapidement.",
+  bugTitleLabel: 'TITRE DU BUG',
+  bugDescLabel: 'DESCRIPTION',
+  submitBug: 'Soumettre le rapport',
+  contactUsTitle: '✉️ Nous contacter',
+  contactUsDesc: 'Notre équipe à management@kts-lb.com vous répondra dès que possible.',
+  yourName: 'VOTRE NOM',
+  yourEmail: 'VOTRE E-MAIL',
+  subjectLabel: 'SUJET',
+  messageLabel: 'MESSAGE',
+  sendMsg: 'Envoyer le message',
+  inviteCodesTitle: "🔑 Codes d'invitation",
+  inviteCodesDesc: "Chaque code donne accès à une personne avec un rôle spécifique",
+  newInvite: '+ Nouveau',
+  roleOwnerBadge: '👑 Propriétaire',
+  roleAdminBadge: '🔑 Admin',
+  roleMemberBadge: '👤 Membre',
+  roleViewerBadge: '👁 Observateur',
+  usesCount: 'utilisation',
+  createdLabel: 'Créé',
+  viewProfile: 'Voir le profil →',
+  removeAssignment: "✕ Retirer l'attribution",
+  tapToSet: 'Toucher pour définir',
+  whatsappShare: '📤 WhatsApp',
+  duplicateFile: '📋 Dupliquer',
 };
 
 // Fallback: use English for all other languages
