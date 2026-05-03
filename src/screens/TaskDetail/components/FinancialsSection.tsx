@@ -161,11 +161,13 @@ export function FinancialsSection(props: Props) {
 
   // ─── Currency cell helper ──────────────────────────────────────────
   // Renders a fixed-width cell with the currency symbol left-anchored and
-  // the number right-anchored, with whitespace between them. Optional sign
-  // sits to the left of the symbol.
-  //   width=80, currency='USD', value=750     → "$        750"
-  //   width=120, currency='LBP', value=2000   → "LBP    2,000"
-  //   sign='-', currency='USD', value=50      → "- $       50"
+  // the (optional sign +) number right-anchored, with whitespace between.
+  // The sign sits BETWEEN the symbol and the amount — i.e. it moves with
+  // the right-aligned number, not pinned to the symbol on the left.
+  //   width=80, currency='USD', value=750               → "$         750"
+  //   width=80, currency='USD', value=50, sign='-'      → "$        - 50"
+  //   width=80, currency='USD', value=750, sign='+'     → "$       + 750"
+  //   width=120, currency='LBP', value=2000, sign='-'   → "LBP    - 2,000"
   // The textStyle prop gets applied to BOTH the symbol and the number so
   // they share color, fontSize, fontWeight (matches the row's existing style).
   const AmountCell: React.FC<{
@@ -183,11 +185,9 @@ export function FinancialsSection(props: Props) {
     });
     return (
       <View style={[{ width, flexDirection: 'row', alignItems: 'baseline' }]}>
-        <Text style={textStyle}>
-          {sign ? `${sign} ` : ''}{symbol}
-        </Text>
+        <Text style={textStyle}>{symbol}</Text>
         <Text style={[textStyle, { flex: 1, textAlign: 'right', marginLeft: 4 }]}>
-          {number}
+          {sign ? `${sign} ` : ''}{number}
         </Text>
       </View>
     );
