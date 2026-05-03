@@ -72,6 +72,7 @@ import { StagesSection } from './TaskDetail/components/StagesSection';
 import { TaskHeader } from './TaskDetail/components/TaskHeader';
 import { fetchTaskData } from './TaskDetail/fetchTaskData';
 import { useTaskActions } from './TaskDetail/hooks/useTaskActions';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type DetailRoute = RouteProp<DashboardStackParamList, 'TaskDetail'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -370,30 +371,55 @@ export default function TaskDetailScreen() {
     setSoundObj, setPlayingCommentId, setPlaybackPosition, setPlaybackDuration,
   });
 
-  const fetchTask = useCallback(async () => {
-    const data = await fetchTaskData(supabase, taskId, teamMember?.org_id ?? '');
-    setAllCities(data.allCities);
-    setExtAssignees(data.extAssignees);
-    if (data.task) {
-      setTask(data.task);
-      setContractPriceUSD(data.task.price_usd ?? 0);
-      setContractPriceLBP(data.task.price_lbp ?? 0);
-    }
-    setComments(data.comments);
-    setStatusLabels(data.statusLabels);
-    setAllMembers(data.allMembers);
-    setStopHistories(data.stopHistories);
-    setTransactions(data.transactions as FileTransaction[]);
-    setPriceHistory(data.priceHistory as any[]);
-    setDocuments(data.documents);
-    setAllStages(data.allStages);
-    setAllServices(data.allServices);
-    setLoading(false);
-  }, [taskId, teamMember?.org_id]);
+  // ─── Phase 6a: TanStack Query migration (read path) ───────────────────
+  // The single fetch is now backed by useQuery. Benefits over the previous
+  // useEffect+useState approach:
+  //   • Cache: revisiting the same task within staleTime returns instantly
+  //   • Refetch on screen focus (mobile-tuned in queryClient defaults)
+  //   • Automatic retry on transient failure
+  //   • Realtime events trigger query invalidation instead of manual fetch
+  // The local state setters below remain — they copy the query's data into
+  // the existing useStates so all the JSX/handler code works unchanged.
+  // Phase 6b will remove the local copies and read from `data` directly.
+  const queryClient = useQueryClient();
+  const taskQueryKey = ['task', taskId, teamMember?.org_id ?? ''];
+  const { data: queryData } = useQuery({
+    queryKey: taskQueryKey,
+    queryFn:  () => fetchTaskData(supabase, taskId, teamMember?.org_id ?? ''),
+    enabled:  !!taskId && !!teamMember?.org_id,
+  });
 
+  // Copy the query result into local state so the rest of the file (large
+  // JSX tree + handlers) still sees the same shape.
   useEffect(() => {
-    fetchTask();
-  }, [fetchTask]);
+    if (!queryData) return;
+    setAllCities(queryData.allCities);
+    setExtAssignees(queryData.extAssignees);
+    if (queryData.task) {
+      setTask(queryData.task);
+      setContractPriceUSD(queryData.task.price_usd ?? 0);
+      setContractPriceLBP(queryData.task.price_lbp ?? 0);
+    }
+    setComments(queryData.comments);
+    setStatusLabels(queryData.statusLabels);
+    setAllMembers(queryData.allMembers);
+    setStopHistories(queryData.stopHistories);
+    setTransactions(queryData.transactions as FileTransaction[]);
+    setPriceHistory(queryData.priceHistory as any[]);
+    setDocuments(queryData.documents);
+    setAllStages(queryData.allStages);
+    setAllServices(queryData.allServices);
+    setLoading(false);
+  }, [queryData]);
+
+  // `fetchTask` is kept around as the call site that all 34 handlers expect.
+  // Under the hood it now invalidates the query, which causes useQuery to
+  // refetch — same effect, but with TanStack's caching, dedup, and retry
+  // semantics. Returns a Promise<void> so existing `await fetchTask()` calls
+  // continue to work (none currently use the await but defensible to keep).
+  const fetchTask = useCallback(async (): Promise<void> => {
+    await queryClient.invalidateQueries({ queryKey: taskQueryKey });
+  }, [queryClient, taskId, teamMember?.org_id]);
 
   useRealtime(
     useCallback(

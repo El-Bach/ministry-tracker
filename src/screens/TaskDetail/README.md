@@ -30,7 +30,9 @@ section per session — without breaking the working monolith.
 | Action handlers — status update cascade | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5d, session 52) |
 | Action handlers — stage CRUD | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5e, session 52) |
 | Action handlers — comments + voice notes | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5f, session 52) |
-| Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Phase 6+ (TanStack Query) |
+| Read path → useQuery | TaskDetailScreen.tsx (Phase 6a, session 52) | ✅ Wrapped — local state mirrors query data |
+| Mutations → useMutation | TBD (Phase 6b) | ⏸ Per-handler conversion |
+| Drop local state mirrors | TBD (Phase 6c) | ⏸ Read from `data` directly |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
 **Phase 5 (in progress)** — `useTaskActions.ts` now owns:
@@ -83,27 +85,49 @@ each group right than rush.
 
 ### Phase 6: TanStack Query migration
 
-With Phase 5 complete the data flow is now cleanly separated from UI:
+#### 6a — Read path wrapped in useQuery (session 52, ✅ DONE)
 
-- `fetchTaskData.ts` — read path
-- `useTaskActions.ts` — all 34 mutation handlers
-- `TaskDetailScreen.tsx` — JSX + local state + setter orchestration only
+The single `fetchTaskData(...)` call is now backed by `useQuery` with the
+key `['task', taskId, orgId]`. Behavior preserved exactly:
 
-Phase 6 wraps the read path in `useQuery` and converts the mutation
-handlers in `useTaskActions` to `useMutation` calls. The benefits:
+- `fetchTask()` (called by every handler) is now a thin wrapper around
+  `queryClient.invalidateQueries({ queryKey: ['task', taskId, orgId] })`
+- A `useEffect` copies `query.data` into the existing local `useState`
+  setters so the rest of the JSX/handler code works unchanged
+- Realtime events still call `fetchTask()`, which now triggers
+  invalidation (TanStack dedups concurrent invalidations automatically)
 
-1. **Cache + automatic refetch** — replaces the manual `fetchTask()`
-   calls scattered through every handler. Mutations invalidate the
-   query and TanStack handles the refetch automatically.
-2. **Optimistic updates** — comment posting / status changes / etc.
-   can render instantly and roll back on error, instead of waiting for
-   the server round-trip.
-3. **Refetch on focus / reconnect** — TanStack Query's defaults
-   already match what users expect for a mobile app (refetch when the
-   screen regains focus or the device reconnects).
-4. **Realtime subscription dance goes away** — invalidating queries
-   from realtime callbacks is more reliable than the current
-   `useRealtime` + manual setter dance.
+What we now get for free:
+
+- **Cache** — revisiting the same task within `staleTime` returns
+  instantly (then refetches in background)
+- **Refetch on screen focus** — defaults from `queryClient.ts`
+- **Retry on transient failure** — 1 retry per query, configurable
+- **Dedup** — concurrent invalidations from realtime + a handler
+  collapse into a single network call
+
+#### 6b — Mutations → useMutation (TBD)
+
+Convert each handler in `useTaskActions.ts` from a raw async function
+to a `useMutation` call. The `mutation.mutate()` API gives:
+
+- **Optimistic updates** — comment posting / status changes can render
+  instantly and roll back on error
+- **Loading state per mutation** — replaces the current
+  `setSaving…(true/false)` dance for each handler
+- **Auto query invalidation on success** — drops the explicit
+  `fetchTask()` calls inside handlers
+
+Best done one handler-group at a time, starting with the lowest-risk
+slices (comments → documents → transactions → status / stages last).
+
+#### 6c — Drop local state mirrors (TBD)
+
+After 6b, the local `useState`s for `task`, `comments`, `transactions`,
+`documents`, etc. become redundant — every reader can use
+`query.data.task`, `query.data.comments`, etc. directly. Removing the
+mirrors finishes the migration and shrinks `TaskDetailScreen.tsx`
+further.
 
 `@tanstack/react-query` is already installed (session 49 added it +
 `src/lib/queryClient.ts`); the App is already wrapped in
