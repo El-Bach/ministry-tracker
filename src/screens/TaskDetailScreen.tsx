@@ -69,6 +69,8 @@ import { DocumentsSection } from './TaskDetail/components/DocumentsSection';
 import { CommentsSection } from './TaskDetail/components/CommentsSection';
 import { FinancialsSection } from './TaskDetail/components/FinancialsSection';
 import { StagesSection } from './TaskDetail/components/StagesSection';
+import { TaskHeader } from './TaskDetail/components/TaskHeader';
+import { fetchTaskData } from './TaskDetail/fetchTaskData';
 
 type DetailRoute = RouteProp<DashboardStackParamList, 'TaskDetail'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -275,99 +277,25 @@ export default function TaskDetailScreen() {
   const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
 
   const fetchTask = useCallback(async () => {
-    const [taskRes, commentsRes, labelsRes, membersRes, citiesRes, assigneesRes] = await Promise.all([
-      supabase
-        .from('tasks')
-        .select(
-          `*, client:clients(*), service:services(*), assignee:team_members!assigned_to(id,name,role,push_token),
-           route_stops:task_route_stops(*, ministry:ministries(*, city:cities(id,name)), updater:team_members!updated_by(*), city:cities(id,name), assignee:team_members!assigned_to(id,name,role,push_token), ext_assignee:assignees!ext_assignee_id(id,name,phone))`
-        )
-        .eq('id', taskId)
-        .single(),
-      supabase
-        .from('task_comments')
-        .select('*, author:team_members(*)')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: true }),
-      supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? '').order('sort_order'),
-      supabase.from('team_members').select('*').eq('org_id', teamMember?.org_id ?? '').is('deleted_at', null).order('name'),
-      supabase.from('cities').select('*').eq('org_id', teamMember?.org_id ?? '').order('name'),
-      supabase.from('assignees').select('*, creator:team_members!created_by(name), city:cities(id,name)').eq('org_id', teamMember?.org_id ?? '').order('name'),
-    ]);
-
-    if (citiesRes.data) setAllCities(citiesRes.data as City[]);
-    if (assigneesRes.data) setExtAssignees(assigneesRes.data as any[]);
-    if (taskRes.data) {
-      const t = taskRes.data as Task;
-      if (t.route_stops) {
-        t.route_stops = [...t.route_stops].sort((a, b) => a.stop_order - b.stop_order);
-      }
-      setTask(t);
-      setContractPriceUSD(t.price_usd ?? 0);
-      setContractPriceLBP(t.price_lbp ?? 0);
+    const data = await fetchTaskData(supabase, taskId, teamMember?.org_id ?? '');
+    setAllCities(data.allCities);
+    setExtAssignees(data.extAssignees);
+    if (data.task) {
+      setTask(data.task);
+      setContractPriceUSD(data.task.price_usd ?? 0);
+      setContractPriceLBP(data.task.price_lbp ?? 0);
     }
-    if (commentsRes.data) setComments(commentsRes.data as TaskComment[]);
-    if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
-    if (membersRes.data) setAllMembers(membersRes.data as TeamMember[]);
-
-    // Fetch status update history per stop
-    const { data: statusHistData } = await supabase
-      .from('status_updates')
-      .select('*, updater:team_members!updated_by(*)')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: false });
-
-    if (statusHistData) {
-      const grouped: Record<string, any[]> = {};
-      for (const entry of statusHistData) {
-        const key = entry.stop_id ?? 'task';
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(entry);
-      }
-      setStopHistories(grouped);
-    }
-
-    // Fetch financial transactions
-    const { data: txData } = await supabase
-      .from('file_transactions')
-      .select('*, creator:team_members!created_by(name), stop:task_route_stops(id, ministry:ministries(name))')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: false });
-    if (txData) setTransactions(txData as FileTransaction[]);
-
-    // Fetch price history
-    const { data: phData } = await supabase
-      .from('task_price_history')
-      .select('*, changer:team_members!changed_by(name)')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: false });
-    if (phData) setPriceHistory(phData as any[]);
-
-    // Fetch task documents
-    const { data: docsData } = await supabase
-      .from('task_documents')
-      .select('*, uploader:team_members!uploaded_by(name), requirement:stop_requirements!requirement_id(title)')
-      .eq('task_id', taskId)
-      .order('created_at', { ascending: false });
-    if (docsData) setDocuments(docsData as TaskDocument[]);
-
-    // Load all available stages (with default city) — scoped to current org, parent type only
-    const { data: stagesData } = await supabase
-      .from('ministries')
-      .select('*, city:cities(id,name)')
-      .eq('org_id', teamMember?.org_id ?? '')
-      .eq('type', 'parent')
-      .order('name');
-    if (stagesData) setAllStages(stagesData as Ministry[]);
-
-    const { data: servicesData } = await supabase
-      .from('services')
-      .select('*')
-      .order('name');
-    if (servicesData) setAllServices(servicesData as Service[]);
-
+    setComments(data.comments);
+    setStatusLabels(data.statusLabels);
+    setAllMembers(data.allMembers);
+    setStopHistories(data.stopHistories);
+    setTransactions(data.transactions as FileTransaction[]);
+    setPriceHistory(data.priceHistory as any[]);
+    setDocuments(data.documents);
+    setAllStages(data.allStages);
+    setAllServices(data.allServices);
     setLoading(false);
-  }, [taskId]);
+  }, [taskId, teamMember?.org_id]);
 
   useEffect(() => {
     fetchTask();
@@ -1583,137 +1511,30 @@ export default function TaskDetailScreen() {
         extraHeight={80}
       >
 
-        {/* ── HEADER CARD ── */}
-        <View style={s.headerCard}>
-          <View style={s.headerTop}>
-            <View style={{ flex: 1 }}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('ClientProfile', { clientId: task.client_id })}
-                activeOpacity={0.7}
-              >
-                <Text style={s.clientName}>{task.client?.name}</Text>
-                <Text style={s.clientProfileHint}>{t('viewProfile')}</Text>
-              </TouchableOpacity>
-              {task.client?.phone && (
-                <TouchableOpacity onPress={() => handlePhonePress(task.client!.phone!, task.client?.name)}>
-                  <Text style={[s.clientSub, { color: theme.color.primary }]}>{formatPhoneDisplay(task.client.phone)}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <StatusBadge label={derivedStatus} color={derivedStatusColor} />
-          </View>
-
-          {/* ── ASSIGNED TO ── */}
-          <TouchableOpacity
-            style={s.assigneeRow}
-            onPress={() => { setShowAssigneePicker(v => !v); setAssigneeSearch(''); }}
-            activeOpacity={0.7}
-          >
-            <Text style={s.metaLabel}>{t('assignTo').toUpperCase()} ✎</Text>
-            {savingAssignee ? (
-              <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 2 }} />
-            ) : (
-              <Text style={[s.assigneeValue, !task.assignee && { color: theme.color.textMuted }]}>
-                {task.assignee ? `👤 ${task.assignee.name}` : `👤 ${t('assignTo')}`}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Inline assignee picker */}
-          {showAssigneePicker && (
-            <View style={s.assigneePickerPanel}>
-              <TextInput
-                style={s.assigneeSearchInput}
-                value={assigneeSearch}
-                onChangeText={setAssigneeSearch}
-                placeholder={t('searchMember')}
-                placeholderTextColor={theme.color.textMuted}
-                autoFocus
-              />
-              <View>
-                {task.assignee && (
-                  <TouchableOpacity style={s.assigneePickerItem} onPress={() => handleSetFileAssignee(null)}>
-                    <Text style={[s.assigneePickerItemText, { color: theme.color.danger }]}>{t('removeAssignment')}</Text>
-                  </TouchableOpacity>
-                )}
-                {allMembers
-                  .filter(m => !assigneeSearch.trim() || m.name.toLowerCase().includes(assigneeSearch.toLowerCase()))
-                  .slice(0, 15)
-                  .map(m => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[s.assigneePickerItem, task.assigned_to === m.id && s.assigneePickerItemActive]}
-                      onPress={() => handleSetFileAssignee(m.id)}
-                    >
-                      <Text style={[s.assigneePickerItemText, task.assigned_to === m.id && { color: theme.color.primary, fontWeight: '700' }]}>
-                        {task.assigned_to === m.id ? '✓ ' : ''}{m.name}
-                      </Text>
-                      {m.role ? <Text style={s.assigneePickerItemRole}>{m.role}</Text> : null}
-                    </TouchableOpacity>
-                  ))}
-              </View>
-            </View>
-          )}
-
-          {/* ROW 1: SERVICE (left) + DOCUMENTS (right) — equal width, same level */}
-          <View style={s.metaGrid}>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>{t('service').toUpperCase()}</Text>
-              <Text style={s.metaValue} numberOfLines={2}>{task.service?.name}</Text>
-            </View>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>{t('documents').toUpperCase()}</Text>
-              {task.service?.id ? (
-                <TouchableOpacity
-                  onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(task.service!.id); }}
-                  activeOpacity={0.75}
-                  style={ds.docSheetChip}
-                >
-                  <Text style={ds.docSheetChipText}>📋 {t('requiredDocs')}</Text>
-                </TouchableOpacity>
-              ) : (
-                <Text style={[s.metaValue, { color: theme.color.textMuted }]}>—</Text>
-              )}
-            </View>
-          </View>
-
-          {/* ROW 2: OPENED (left) + DUE DATE (right) — equal width, same level */}
-          <View style={s.metaGrid}>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>{t('opened').toUpperCase()}</Text>
-              <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
-            </View>
-            <TouchableOpacity style={s.metaCell} onPress={() => setShowDueDateCalendar(v => !v)} activeOpacity={0.7}>
-              <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
-              <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
-                {task.due_date ? formatDateOnly(task.due_date) : t('tapToSet')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {task.notes ? (
-            <View style={s.notesBlock}>
-              <Text style={s.metaLabel}>{t('notes').toUpperCase()}</Text>
-              <Text style={s.notesText}>{task.notes}</Text>
-            </View>
-          ) : null}
-
-          <View style={s.headerActionsRow}>
-            {permissions.can_edit_file_details && (
-              <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
-                <Text style={s.editTaskBtnText}>✎ {t('edit')}</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={s.shareWhatsAppBtn} onPress={handleShareWhatsApp}>
-              <Text style={s.shareWhatsAppBtnText}>{t('whatsappShare')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.duplicateBtn, duplicating && { opacity: 0.6 }]} onPress={handleDuplicateTask} disabled={duplicating}>
-              {duplicating
-                ? <ActivityIndicator size="small" color={theme.color.white} />
-                : <Text style={s.duplicateBtnText}>{t('duplicateFile')}</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* ── HEADER CARD ── (Phase 4 extracted module) */}
+        <TaskHeader
+          task={task}
+          derivedStatus={derivedStatus}
+          derivedStatusColor={derivedStatusColor}
+          allMembers={allMembers}
+          showAssigneePicker={showAssigneePicker}
+          setShowAssigneePicker={setShowAssigneePicker}
+          assigneeSearch={assigneeSearch}
+          setAssigneeSearch={setAssigneeSearch}
+          savingAssignee={savingAssignee}
+          duplicating={duplicating}
+          canEdit={permissions.can_edit_file_details}
+          onSetAssignee={handleSetFileAssignee}
+          onClientPress={() => navigation.navigate('ClientProfile', { clientId: task.client_id })}
+          onPhonePress={(phone, name) => handlePhonePress(phone, name)}
+          onOpenDocSheet={() => { setShowDocSheet(true); loadServiceDocsForSheet(task.service!.id); }}
+          onToggleDueDateCalendar={() => setShowDueDateCalendar(v => !v)}
+          onEdit={openEditTask}
+          onShareWhatsApp={handleShareWhatsApp}
+          onDuplicate={handleDuplicateTask}
+          formatDate={formatDate}
+          formatDateOnly={formatDateOnly}
+        />
 
         {/* ── INLINE DUE DATE CALENDAR ── */}
         {showDueDateCalendar && (

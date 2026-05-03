@@ -18,27 +18,33 @@ section per session — without breaking the working monolith.
 
 | Section | Module | Status |
 |---|---|---|
-| Header card | `components/TaskHeader.tsx` | ✅ Extracted (session 50); not yet wired |
+| Header card | `components/TaskHeader.tsx` | ✅ Extracted + wired (Phase 4) |
 | Stages section | `components/StagesSection.tsx` | ✅ Extracted + wired (Phase 3) |
 | Financials section | `components/FinancialsSection.tsx` | ✅ Extracted + wired (Phase 3) |
 | Documents section | `components/DocumentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
 | Comments section | `components/CommentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
-| WhatsApp/duplicate handlers | `hooks/useTaskActions.ts` | ⏸ Future session |
-| Data fetch | `hooks/useTaskDetail.ts` | ⏸ Future session |
+| Data fetch | `fetchTaskData.ts` | ✅ Extracted + wired (Phase 4) |
+| Action handlers | `hooks/useTaskActions.ts` | ⏸ Future session |
+| Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
-**Phase 3 complete** — all 4 visual sections are extracted AND wired into the
-monolith. `TaskDetailScreen.tsx` shrunk from 4,828 → 3,780 lines (-1,048,
--22%). All 28 unit tests pass; zero TypeScript errors.
+**Phases 3 + 4 complete** — all 5 visual sections are extracted AND wired,
+and the long Supabase-query soup has moved to its own pure-function module.
+`TaskDetailScreen.tsx` shrunk from 4,828 → 3,601 lines (-1,227, -25%).
+All 28 unit tests pass; zero TypeScript errors.
 
-`StagesSection.tsx` ended up with a fat Props interface (~30 props) because
-the inline pickers reference a lot of cross-stop state. Future refactors
-should lift state DOWN into the component instead of passing it via props —
-but for now, the JSX is out of the monolith, which was the goal.
+The monolith now plays the role of an "orchestrator" — owns state setters
+and dispatches them to extracted modules. Action handlers (~50 of them)
+remain inline because each one touches 5–10 pieces of state and would
+require a fat hook or a state lift to extract cleanly. That's the next
+refactor wave.
 
-Phase 4 (next session) will:
-- Wire `TaskHeader.tsx` (currently extracted but not wired)
-- Lift handlers into `hooks/useTaskActions.ts`
-- Lift data fetch into `hooks/useTaskDetail.ts` (or migrate to TanStack Query)
+Future phases:
+- Lift action handlers into `hooks/useTaskActions.ts` (~50 handlers)
+- Migrate to TanStack Query (`useQuery` for fetchTaskData, `useMutation`
+  for handlers) — this kills both the manual setters and the realtime
+  subscription dance in one pass
+- Once handlers + data are in hooks, `TaskDetailScreen.tsx` should drop
+  to ~500 lines (just JSX wiring)
 
 ## Approach
 
