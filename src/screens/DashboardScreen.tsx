@@ -34,7 +34,7 @@ import { Task, StatusLabel, TeamMember, Ministry, Client, Service, City, Dashboa
 import TaskCard from '../components/TaskCard';
 import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
-import { checkAndNotifyOverdue } from '../lib/notifications';
+import { checkAndNotifyOverdue, sendActivityNotificationToAll, sendPushNotification } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation, formatNumber } from '../lib/i18n';
 import { useFontSize } from '../contexts/FontSizeContext';
@@ -402,24 +402,116 @@ export default function DashboardScreen() {
 
   const openQuickStatus = (task: Task) => setQuickStatusTask(task);
 
+  // Status urgency — keep in sync with TaskCard's URGENCY_ORDER. Lower number = more urgent.
+  // Used to pick which stop to update when the user quick-changes status from the dashboard.
+  const QS_URGENCY: Record<string, number> = {
+    'Rejected':          1,
+    'Pending Signature': 2,
+    'In Review':         3,
+    'Submitted':         4,
+    'Pending':           5,
+    'Done':              99,
+    'Closed':            100,
+  };
+  const QS_TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
+
+  // Find the most urgent non-terminal stop on the task — that's the one
+  // the quick status update applies to. If everything is terminal, fall back
+  // to the last stop (lets the user reopen a closed file by setting an active status).
+  const pickStopForQuickStatus = (task: Task) => {
+    const stops = task.route_stops ?? [];
+    if (stops.length === 0) return null;
+    const nonTerminal = stops.filter(s => !QS_TERMINAL.includes(s.status));
+    const candidates = nonTerminal.length > 0 ? nonTerminal : stops;
+    return candidates.reduce((best, s) => {
+      const bestScore = QS_URGENCY[best.status] ?? 50;
+      const currScore = QS_URGENCY[s.status]    ?? 50;
+      return currScore < bestScore ? s : best;
+    });
+  };
+
+  // Compute which stop the modal will update — used to display the stage name in the modal subtitle
+  const quickStatusStop = quickStatusTask ? pickStopForQuickStatus(quickStatusTask) : null;
+
   const applyQuickStatus = async (newStatus: string) => {
-    if (!quickStatusTask || !teamMember) return;
+    if (!quickStatusTask || !teamMember || !quickStatusStop) return;
     setSavingQuickStatus(true);
-    const { error } = await supabase
-      .from('tasks')
-      .update({ current_status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', quickStatusTask.id);
-    if (!error) {
+    const now = new Date().toISOString();
+    const oldStatus = quickStatusStop.status;
+    const taskId   = quickStatusTask.id;
+
+    try {
+      // 1. Update the stop status (clear rejection_reason unless going TO Rejected)
+      const { error: stopErr } = await supabase
+        .from('task_route_stops')
+        .update({
+          status:           newStatus,
+          updated_at:       now,
+          updated_by:       teamMember.id,
+          rejection_reason: newStatus === 'Rejected' ? null : null, // dashboard quick-update doesn't capture a reason
+        })
+        .eq('id', quickStatusStop.id);
+      if (stopErr) throw stopErr;
+
+      // 2. Append to status_updates audit log
       await supabase.from('status_updates').insert({
-        task_id: quickStatusTask.id,
+        task_id:    taskId,
+        stop_id:    quickStatusStop.id,
         updated_by: teamMember.id,
-        old_status: quickStatusTask.current_status,
+        old_status: oldStatus,
         new_status: newStatus,
       });
+
+      // 3. Compute the task's new derived state — archive only if EVERY stop is terminal
+      const updatedStops = (quickStatusTask.route_stops ?? []).map(s =>
+        s.id === quickStatusStop.id ? { ...s, status: newStatus } : s
+      );
+      const allTerminal  = updatedStops.length > 0 && updatedStops.every(s => QS_TERMINAL.includes(s.status));
+      const newTaskStatus = allTerminal ? 'Done' : newStatus;
+      const todayStr     = now.slice(0, 10); // YYYY-MM-DD
+
+      await supabase
+        .from('tasks')
+        .update({
+          current_status: newTaskStatus,
+          updated_at:     now,
+          ...(allTerminal ? {
+            is_archived: true,
+            closed_at:   now,
+            ...(!quickStatusTask.due_date ? { due_date: todayStr } : {}),
+          } : {}),
+        })
+        .eq('id', taskId);
+
+      // 4. Push notifications (best-effort — never throws)
+      const actorName = teamMember.name ?? 'Someone';
+      const ministryName = quickStatusStop.ministry?.name ?? 'Stage';
+      const clientName   = quickStatusTask.client?.name ?? 'File';
+      // Direct push to the file's main assignee if it's not the actor
+      if (quickStatusTask.assignee?.push_token && quickStatusTask.assignee.id !== teamMember.id) {
+        sendPushNotification(
+          quickStatusTask.assignee.push_token,
+          'Stage Updated',
+          `${clientName} — ${ministryName}: ${newStatus}`,
+          { taskId },
+        );
+      }
+      // Broadcast to all org team members (respects each member's notification prefs)
+      sendActivityNotificationToAll(
+        supabase,
+        teamMember.id,
+        `🔄 ${actorName}`,
+        `${clientName} · ${ministryName} → ${newStatus}`,
+        'status',
+        { taskId },
+      );
+    } catch (e: unknown) {
+      Alert.alert(t('error'), (e as Error).message ?? t('somethingWrong'));
+    } finally {
+      setSavingQuickStatus(false);
+      setQuickStatusTask(null);
+      fetchData();
     }
-    setSavingQuickStatus(false);
-    setQuickStatusTask(null);
-    fetchData();
   };
 
   // Quick-add financial transaction (swipe right)
@@ -836,7 +928,7 @@ export default function DashboardScreen() {
           statusColor={getStatusColor(item.current_status)}
           allStatusColors={allStatusColorsMap}
           onPress={() => navigation.navigate('TaskDetail', { taskId: item.id })}
-          onLongPress={() => {}}
+          onLongPress={() => openQuickStatus(item)}
           onClientPress={() => navigation.navigate('ClientProfile', { clientId: item.client_id })}
           onCityPress={(cityId) => setFilters((f) => ({
             ...f,
@@ -1305,13 +1397,25 @@ export default function DashboardScreen() {
             <View style={styles.qsHandle} />
             <Text style={styles.qsTitle}>{t('updateStatus')}</Text>
             {quickStatusTask && (
-              <Text style={styles.qsSubtitle} numberOfLines={1}>
-                {quickStatusTask.client?.name} · {quickStatusTask.service?.name}
-              </Text>
+              <>
+                <Text style={styles.qsSubtitle} numberOfLines={1}>
+                  {quickStatusTask.client?.name} · {quickStatusTask.service?.name}
+                </Text>
+                {/* Show the user WHICH stage will be updated — the most urgent
+                    non-terminal stop, falling back to the last stop. */}
+                {quickStatusStop?.ministry?.name && (
+                  <Text style={[styles.qsSubtitle, { color: theme.color.primary, marginTop: 2 }]} numberOfLines={1}>
+                    📍 {quickStatusStop.ministry.name}
+                    {quickStatusStop.status ? ` · ${quickStatusStop.status}` : ''}
+                  </Text>
+                )}
+              </>
             )}
             <View style={styles.qsGrid}>
               {statusLabels.map((sl) => {
-                const isCurrent = sl.label === quickStatusTask?.current_status;
+                // Highlight the chip that matches the SPECIFIC STOP being updated,
+                // not the task's overall derived status — those can differ.
+                const isCurrent = sl.label === quickStatusStop?.status;
                 return (
                   <TouchableOpacity
                     key={sl.id}

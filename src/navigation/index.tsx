@@ -1,7 +1,7 @@
 // src/navigation/index.tsx
 // React Navigation v6: Root Stack → Auth or Main Tabs → Dashboard Stack
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -51,21 +51,38 @@ const DashStack = createNativeStackNavigator<DashboardStackParamList>();
 const SettStack = createNativeStackNavigator<SettingsStackParamList>();
 
 // ─── GovPilot logo header title ─────────────────────────────
+// Layout: [icon] [text-block]   — vertically centered together.
+// text-block (aligned center):
+//   "GovPilot"          20pt 800
+//   "Powered by KTS"    rendered naturally; font sizes are tuned so the
+//                       sentence is roughly the same width as "GovPilot"
+//                       and KTS is slightly larger than the rest.
+// The icon's width/height = the measured text-block height × 0.85 so it
+// reads as a unit but is a touch smaller than the full text block.
 function GovPilotLogo() {
+  const [blockHeight, setBlockHeight] = useState<number | null>(null);
+  const iconSize = blockHeight ? Math.round(blockHeight * 0.85) : 28;
+
   return (
-    <View style={styles.logoCol}>
-      <View style={styles.logoRow}>
-        <Image
-          source={require('../../assets/icon.png')}
-          style={styles.logoIcon}
-          resizeMode="contain"
-        />
+    <View style={styles.logoRow}>
+      <Image
+        source={require('../../assets/icon.png')}
+        style={[styles.logoIcon, { width: iconSize, height: iconSize }]}
+        resizeMode="contain"
+      />
+      <View
+        style={styles.logoTextBlock}
+        onLayout={(e) => setBlockHeight(e.nativeEvent.layout.height)}
+      >
         <Text style={styles.logoText}>
           <Text style={styles.logoGov}>Gov</Text>
           <Text style={styles.logoPilot}>Pilot</Text>
         </Text>
+        <Text style={styles.poweredBy} numberOfLines={1}>
+          <Text style={styles.poweredByPrefix}>Powered by </Text>
+          <Text style={styles.poweredByKts}>KTS</Text>
+        </Text>
       </View>
-      <Text style={styles.poweredBy}>Powered by KTS</Text>
     </View>
   );
 }
@@ -288,26 +305,51 @@ function MainTabs() {
   );
 }
 
+// ─── App loader (shown while auth resolves) ──────────────────
+// "GovPilot" text auto-scales to exactly match the icon's width above it:
+// we render the text once at a starting fontSize, measure its natural width
+// via onLayout, then scale the fontSize by (icon-width / measured-width) so
+// the text ends up the same width as the icon. Single-pass measurement (the
+// `measured` flag prevents loops). Cross-platform — no `adjustsFontSizeToFit`
+// needed, which is iOS-only.
+const LOADER_ICON_SIZE = 72;
+
+function AppLoader() {
+  const [textFontSize, setTextFontSize] = useState(26);
+  const [measured, setMeasured] = useState(false);
+
+  return (
+    <View style={styles.loader}>
+      <Image
+        source={require('../../assets/icon.png')}
+        style={styles.loaderIcon}
+        resizeMode="contain"
+      />
+      <Text
+        style={[styles.loaderText, { fontSize: textFontSize }]}
+        numberOfLines={1}
+        onLayout={(e) => {
+          if (measured) return;
+          const w = e.nativeEvent.layout.width;
+          if (w > 0) {
+            setTextFontSize(textFontSize * (LOADER_ICON_SIZE / w));
+            setMeasured(true);
+          }
+        }}
+      >
+        <Text style={{ color: theme.color.primary }}>Gov</Text>
+        <Text style={{ color: theme.color.textPrimary }}>Pilot</Text>
+      </Text>
+      <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 8 }} />
+    </View>
+  );
+}
+
 // ─── Root navigator ──────────────────────────────────────────
 export default function AppNavigator() {
   const { session, loading, teamMember, needsOnboarding } = useAuth();
 
-  if (loading) {
-    return (
-      <View style={styles.loader}>
-        <Image
-          source={require('../../assets/icon.png')}
-          style={styles.loaderIcon}
-          resizeMode="contain"
-        />
-        <Text style={styles.loaderText}>
-          <Text style={{ color: theme.color.primary }}>Gov</Text>
-          <Text style={{ color: theme.color.textPrimary }}>Pilot</Text>
-        </Text>
-        <ActivityIndicator size="small" color={theme.color.primary} style={{ marginTop: 8 }} />
-      </View>
-    );
-  }
+  if (loading) return <AppLoader />;
 
   // Determine which screen to show:
   // 1. Not logged in → Login / Register
@@ -378,23 +420,17 @@ const styles = StyleSheet.create({
   tabIconFocused: {
     color: theme.color.primary,
   },
-  logoCol: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-  },
   logoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center',  // icon + text block vertically centered together
     gap: 8,
   },
-  poweredBy: {
-    fontSize: 9,
-    color: theme.color.textMuted,
-    fontWeight: '500',
-    marginLeft: 38,
-    marginTop: -2,
+  logoTextBlock: {
+    flexDirection: 'column',
+    alignItems: 'center',  // center "Powered by KTS" under "GovPilot"
   },
   logoIcon: {
+    // width/height overridden inline to match the measured text-block height
     width: 30,
     height: 30,
     borderRadius: 8,
@@ -408,6 +444,22 @@ const styles = StyleSheet.create({
   },
   logoPilot: {
     color: theme.color.textPrimary,
+  },
+  // "Powered by KTS" — rendered naturally (no fixed width) so nothing clips
+  poweredBy: {
+    textAlign: 'center',
+    marginTop: 0,
+  },
+  poweredByPrefix: {
+    fontSize: 9,
+    color: theme.color.textMuted,
+    fontWeight: '500',
+  },
+  // KTS — slightly bigger than the prefix as requested
+  poweredByKts: {
+    fontSize: 11,
+    color: theme.color.primary,
+    fontWeight: '800',
   },
   tabActiveBar: {
     width: 20,

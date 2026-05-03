@@ -1,7 +1,8 @@
 // src/screens/auth/LoginScreen.tsx
-// Email + password login. Phone login was removed — accounts that were
-// originally registered via phone still authenticate through Supabase using
-// their internal @cleartrack.internal email; ask support to migrate them.
+// Single-input login: accepts EITHER a real email OR a phone number.
+// `normalizeToEmail()` converts phone → internal `p<digits>@cleartrack.internal`
+// before sending to Supabase, so phone-only users can still sign in after
+// signing out (no DB migration needed for existing phone-registered accounts).
 
 import React, { useState } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -22,6 +24,7 @@ import supabase from '../../lib/supabase';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../types';
 import { useTranslation } from '../../lib/i18n';
+import { normalizeIdentifier } from '../../lib/authHelpers';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -29,7 +32,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 function friendlyAuthError(raw: string): string {
   const r = raw.toLowerCase();
   if (r.includes('invalid login') || r.includes('invalid credentials') || r.includes('incorrect'))
-    return 'Incorrect email or password. Please try again.';
+    return 'Incorrect email/phone or password. Please try again.';
   if (r.includes('not confirmed') || r.includes('email not confirmed'))
     return 'Your email address has not been confirmed yet. Check your inbox for a confirmation link, or ask your administrator to disable email confirmation in Supabase.';
   if (r.includes('too many'))
@@ -44,10 +47,20 @@ export default function LoginScreen() {
   const navigation  = useNavigation<Nav>();
   const { t } = useTranslation();
 
+  // `identifier` is what the user types — either an email or a phone number.
+  // We keep the variable named `email` for minimal diff with the rest of the file.
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [loading,     setLoading]     = useState(false);
   const [showPass,    setShowPass]    = useState(false);
+
+  // Width of the "GovPilot" title (measured via onLayout) — used to size the
+  // logo image above so its width matches the title's width exactly.
+  const [titleWidth,  setTitleWidth]  = useState<number | null>(null);
+
+  // (No dynamic keyboard switching — phone numbers type fine on the
+  //  email-address keyboard, and switching mid-word would block letter input
+  //  before the user has a chance to type `@`.)
 
   // Forgot-password inline form
   const [showForgot,   setShowForgot]   = useState(false);
@@ -63,7 +76,14 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
-    const { error } = await signIn(email.trim().toLowerCase(), password);
+    // normalizeIdentifier handles BOTH email and any phone format:
+    //   "john@company.com"  → "john@company.com" (lowercased)
+    //   "+961 70 123 456"   → "p96170123456@cleartrack.internal"
+    //   "03653342"          → "p96103653342@cleartrack.internal"  (Lebanon assumed)
+    //   "0096103653342"     → "p96103653342@cleartrack.internal"
+    //   "961 03 653 342"    → "p96103653342@cleartrack.internal"
+    const supabaseEmail = normalizeIdentifier(email.trim());
+    const { error } = await signIn(supabaseEmail, password);
     setLoading(false);
     if (error) {
       Alert.alert(t('loginFailed'), friendlyAuthError(error));
@@ -108,11 +128,27 @@ export default function LoginScreen() {
         extraScrollHeight={40}
       >
         {/* Logo / Header */}
+        {/* Icon's width/height auto-fit to the "GovPilot" title width below it
+            (measured via onLayout, single-pass). */}
         <View style={styles.header}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoIcon}>⊞</Text>
-          </View>
-          <Text style={styles.title}>GovPilot</Text>
+          <Image
+            source={require('../../../assets/icon.png')}
+            style={[
+              styles.logoImage,
+              titleWidth ? { width: titleWidth, height: titleWidth } : null,
+            ]}
+            resizeMode="contain"
+          />
+          <Text
+            style={styles.title}
+            onLayout={(e) => {
+              if (titleWidth) return;
+              const w = e.nativeEvent.layout.width;
+              if (w > 0) setTitleWidth(w);
+            }}
+          >
+            GovPilot
+          </Text>
           <Text style={styles.subtitle}>Government File Tracking</Text>
           <Text style={styles.poweredBy}>
             Powered by <Text style={styles.poweredByKts}>KTS</Text>
@@ -122,13 +158,16 @@ export default function LoginScreen() {
         {/* Form */}
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>{t('email').toUpperCase()}</Text>
+            <Text style={styles.label}>{t('email').toUpperCase()} OR PHONE</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="your@email.com"
+              placeholder="your@email.com  or  +961 70 123 456"
               placeholderTextColor={theme.color.textMuted}
+              // email-address keyboard supports both formats: it has letters,
+              // digits, `+`, `@`, and `.` — so the user can type either an
+              // email or a phone number without the keyboard switching.
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -247,16 +286,12 @@ const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: theme.color.bgBase },
   container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 32, gap: 32 },
   header:    { alignItems: 'center', gap: 10 },
-  logoBox: {
-    width:           64,
-    height:          64,
-    borderRadius:    theme.radius.xl,
-    backgroundColor: theme.color.primary,
-    justifyContent:  'center',
-    alignItems:      'center',
-    marginBottom:    4,
+  logoImage: {
+    width:        72,
+    height:       72,
+    borderRadius: theme.radius.xl,
+    marginBottom: 4,
   },
-  logoIcon:     { fontSize: 32, color: theme.color.white },
   title:        { ...theme.typography.heading, fontSize: 26, fontWeight: '800' },
   subtitle:     { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500' },
   poweredBy:    { ...theme.typography.body, color: theme.color.textSecondary, fontWeight: '500', marginTop: 2 },

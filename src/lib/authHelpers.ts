@@ -48,6 +48,61 @@ export function normalizeToEmail(input: string): string {
 }
 
 /**
+ * Lebanon-aware phone normalizer for the LOGIN flow.
+ *
+ * Users typing their own phone number rarely type the canonical international
+ * form. This helper auto-prepends `+961` when the input looks Lebanese
+ * (no country code), and converts `00`-prefixed forms to `+`-prefixed.
+ *
+ * Examples (all map to the standard `+961…` form a user would have registered with):
+ *   "03653342"          → "+96103653342"
+ *   "+961 03 653 342"   → "+96103653342"
+ *   "00961 03 653 342"  → "+96103653342"
+ *   "961 03 653 342"    → "+96103653342"
+ *   "+1 555 123 4567"   → "+15551234567"   (international stays as-is)
+ *
+ * The function preserves whatever digits the user typed — including a leading
+ * zero — because users typically log in using the same digits they registered
+ * with (and the registered phone is stored in `team_members.phone`).
+ */
+export function normalizePhoneForLogin(phone: string): string {
+  const stripped = phone.trim().replace(/[\s\-().]/g, '');
+  if (!stripped) return stripped;
+
+  // Already canonical international format
+  if (stripped.startsWith('+')) return stripped;
+
+  // "00xxx" → "+xxx" (international dialing prefix used in some regions)
+  if (stripped.startsWith('00')) return '+' + stripped.slice(2);
+
+  // "961xxx" → "+961xxx" (country code without +)
+  if (stripped.startsWith('961')) return '+' + stripped;
+
+  // Pure-digit input without country code → assume Lebanon (+961)
+  if (/^\d+$/.test(stripped)) return '+961' + stripped;
+
+  // Anything else — best-effort, just add +
+  return '+' + stripped;
+}
+
+/**
+ * One-stop helper for the LOGIN flow: takes whatever the user typed and
+ * returns the Supabase-auth-compatible email to use for sign-in.
+ *
+ * - If input contains `@` → treated as email, trimmed + lowercased.
+ * - Otherwise → treated as a phone, normalized to international format
+ *   (Lebanon defaults), then converted to the internal `p<digits>@cleartrack.internal`
+ *   address that Supabase Auth was registered with.
+ */
+export function normalizeIdentifier(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes('@')) return trimmed.toLowerCase();
+  const intl = normalizePhoneForLogin(trimmed);
+  const digits = intl.replace(/^\+/, '');
+  return `p${digits}${INTERNAL_DOMAIN}`;
+}
+
+/**
  * Given a Supabase auth email, return the display identifier for the user.
  * "p96170123456@cleartrack.internal"  → "+96170123456"  (p-prefix → + prefix)
  * "+96170123456@cleartrack.internal"  → "+96170123456"  (legacy format, still handled)
