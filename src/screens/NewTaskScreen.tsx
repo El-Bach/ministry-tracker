@@ -2789,13 +2789,6 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     theme.color.border,
   },
-  inlineSaveBtn: {
-    backgroundColor: theme.color.primary,
-    borderRadius:    theme.radius.md,
-    paddingVertical: 10,
-    alignItems:      'center',
-  },
-  inlineSaveBtnText: { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
   selectedStages: { gap: 6 },
   stageRow: {
     flexDirection:   'row',
@@ -2911,14 +2904,15 @@ const s = StyleSheet.create({
   },
   inlineSaveBtn: {
     paddingHorizontal: theme.spacing.space4,
-    paddingVertical:   theme.spacing.space2,
-    borderRadius:      theme.radius.sm,
+    paddingVertical:   10,
+    borderRadius:      theme.radius.md,
     backgroundColor:   theme.color.primary,
+    alignItems:        'center' as const,
   },
   inlineSaveBtnText: {
     color:      theme.color.white,
     fontSize:   13,
-    fontWeight: '700',
+    fontWeight: '700' as const,
   },
   stageArrow:        { color: theme.color.primary, fontSize: 18, fontWeight: '700', padding: 2 },
   stageRemove:       { color: theme.color.danger, fontSize: 16, padding: 2 },

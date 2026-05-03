@@ -40,6 +40,7 @@ interface CodePreview {
   orgName:      string;
   role:         string;
   inviteeName:  string | null;
+  inviteePhone: string | null;
   hasPhoneLock: boolean;   // code requires a matching phone (phone not returned for security)
   orgId:        string;
 }
@@ -107,6 +108,7 @@ export default function RegisterScreen() {
         orgName:      data.org_name ?? 'the organization',
         role:         data.role ?? 'member',
         inviteeName:  data.invitee_name ?? null,
+        inviteePhone: data.invitee_phone ?? null,
         hasPhoneLock: data.has_phone_lock ?? false,
         orgId:        data.org_id,
       };
@@ -403,7 +405,7 @@ export default function RegisterScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     countryCode={countryCode}
-                    onCountryChange={setCountryCode}
+                    onCountryChange={(c) => setCountryCode(c.code)}
                     placeholder="70 123 456"
                   />
                 )}

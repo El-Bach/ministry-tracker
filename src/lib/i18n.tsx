@@ -710,7 +710,7 @@ const ar: Translations = {
   // ── Phase 7 fixes ────
   events: 'حدث', noActivity: 'لا يوجد نشاط بعد',
   noActivitySub: 'تظهر هنا تغييرات الحالة والتعليقات والحذف',
-  addField: '+ إضافة حقل', required: 'مطلوب',
+  addField: '+ إضافة حقل',
   fieldText: 'نص', fieldPhone: 'هاتف', fieldEmail: 'بريد إلكتروني',
   fieldDate: 'تاريخ', fieldNumber: 'رقم', fieldBoolean: 'نعم/لا',
   fieldSelect: 'قائمة منسدلة', fieldUrl: 'رابط',
@@ -1215,7 +1215,7 @@ const en: Translations = {
   // ── Phase 7 fixes ────
   events: 'events', noActivity: 'No activity yet',
   noActivitySub: 'Status changes, comments, and deletions will appear here',
-  addField: '+ Add Field', required: 'Required',
+  addField: '+ Add Field',
   fieldText: 'Text', fieldPhone: 'Phone', fieldEmail: 'Email',
   fieldDate: 'Date', fieldNumber: 'Number', fieldBoolean: 'Yes/No',
   fieldSelect: 'Dropdown', fieldUrl: 'URL',
@@ -1725,7 +1725,7 @@ const fr: Translations = {
   // ── Phase 7 fixes ────
   events: 'événements', noActivity: 'Aucune activité',
   noActivitySub: 'Changements de statut, commentaires et suppressions apparaîtront ici',
-  addField: '+ Ajouter un champ', required: 'Requis',
+  addField: '+ Ajouter un champ',
   fieldText: 'Texte', fieldPhone: 'Téléphone', fieldEmail: 'E-mail',
   fieldDate: 'Date', fieldNumber: 'Nombre', fieldBoolean: 'Oui/Non',
   fieldSelect: 'Liste déroulante', fieldUrl: 'URL',
