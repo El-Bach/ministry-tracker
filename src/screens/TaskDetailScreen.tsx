@@ -65,6 +65,9 @@ import {
 import StatusBadge from '../components/StatusBadge';
 import RouteStop from '../components/RouteStop';
 import DocumentScannerModal from '../components/DocumentScannerModal';
+import { DocumentsSection } from './TaskDetail/components/DocumentsSection';
+import { CommentsSection } from './TaskDetail/components/CommentsSection';
+import { FinancialsSection } from './TaskDetail/components/FinancialsSection';
 
 type DetailRoute = RouteProp<DashboardStackParamList, 'TaskDetail'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -1741,267 +1744,57 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
-        {/* ── COMMENTS ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>{t('commentsSection').toUpperCase()} & ACTIVITY</Text>
-          {comments.length === 0 && (
-            <Text style={s.emptyText}>No comments yet.</Text>
-          )}
-          {comments.map((c) => (
-            <View key={c.id} style={s.commentRow}>
-              <View style={s.commentAvatar}>
-                <Text style={s.commentAvatarText}>
-                  {(c.author?.name ?? '?').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1, gap: 3 }}>
-                <View style={s.commentHeader}>
-                  <Text style={s.commentAuthor}>{c.author?.name ?? 'Unknown'}</Text>
-                  <Text style={s.commentTime}>{formatDate(c.created_at)}</Text>
-                  {editingCommentId !== c.id && (
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {permissions.can_add_comments && (
-                        <TouchableOpacity onPress={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body); }}>
-                          <Text style={s.commentEditBtn}>✎</Text>
-                        </TouchableOpacity>
-                      )}
-                      {permissions.can_delete_comments && (
-                        <TouchableOpacity onPress={() => handleDeleteComment(c.id)}>
-                          <Text style={s.commentDeleteBtn}>🗑</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </View>
-                {editingCommentId === c.id ? (
-                  <View style={s.commentEditRow}>
-                    <TextInput
-                      style={s.commentEditInput}
-                      value={editingCommentBody}
-                      onChangeText={setEditingCommentBody}
-                      multiline
-                      autoFocus
-                      placeholderTextColor={theme.color.textMuted}
-                    />
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                      <TouchableOpacity style={s.commentSaveBtn} onPress={handleSaveEditComment} disabled={savingEditComment}>
-                        {savingEditComment
-                          ? <ActivityIndicator size="small" color={theme.color.white} />
-                          : <Text style={s.commentSaveBtnText}>{t('save')}</Text>}
-                      </TouchableOpacity>
-                      <TouchableOpacity style={s.commentCancelBtn} onPress={() => { setEditingCommentId(null); setEditingCommentBody(''); }}>
-                        <Text style={s.commentCancelBtnText}>{t('cancel')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : c.audio_url ? (
-                  /* Voice note player */
-                  <View style={s.voiceNotePlayer}>
-                    <TouchableOpacity
-                      style={s.voiceNotePlayBtn}
-                      onPress={() => handlePlayPause(c.id, c.audio_url!)}
-                    >
-                      <Text style={s.voiceNotePlayBtnText}>
-                        {playingCommentId === c.id ? '⏸' : '▶'}
-                      </Text>
-                    </TouchableOpacity>
-                    <View style={s.voiceNoteInfo}>
-                      <View style={s.voiceNoteBar}>
-                        {playingCommentId === c.id && playbackDuration > 0 ? (
-                          <View style={[s.voiceNoteProgress, { width: `${(playbackPosition / playbackDuration) * 100}%` as any }]} />
-                        ) : (
-                          <View style={[s.voiceNoteProgress, { width: '0%' }]} />
-                        )}
-                      </View>
-                      <Text style={s.voiceNoteDuration}>
-                        {playingCommentId === c.id && playbackDuration > 0
-                          ? `${fmtDuration(Math.floor(playbackPosition / 1000))} / ${fmtDuration(Math.floor(playbackDuration / 1000))}`
-                          : '🎤 Voice note'}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={s.commentBody}>{c.body}</Text>
-                )}
-              </View>
-            </View>
-          ))}
-          {/* Recording indicator */}
-          {isRecording && (
-            <View style={s.recordingBar}>
-              <View style={s.recordingDot} />
-              <Text style={s.recordingText}>Recording... {fmtDuration(recordingDuration)}</Text>
-              <TouchableOpacity style={s.recordingStopBtn} onPress={handleStopRecording}>
-                <Text style={s.recordingStopBtnText}>⏹ Stop</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        {/* ── COMMENTS ── (Phase 3 extracted module) */}
+        <CommentsSection
+          comments={comments}
+          permissions={permissions}
+          newComment={newComment}
+          setNewComment={setNewComment}
+          postingComment={postingComment}
+          onPostComment={handlePostComment}
+          editingCommentId={editingCommentId}
+          setEditingCommentId={setEditingCommentId}
+          editingCommentBody={editingCommentBody}
+          setEditingCommentBody={setEditingCommentBody}
+          savingEditComment={savingEditComment}
+          onSaveEditComment={handleSaveEditComment}
+          onDeleteComment={handleDeleteComment}
+          isRecording={isRecording}
+          recordingDuration={recordingDuration}
+          recordedUri={recordedUri}
+          uploadingVoice={uploadingVoice}
+          isListening={isListening}
+          voicePartial={voicePartial}
+          playingCommentId={playingCommentId}
+          playbackPosition={playbackPosition}
+          playbackDuration={playbackDuration}
+          onStartRecording={handleStartRecording}
+          onStopRecording={handleStopRecording}
+          onSendVoiceNote={handleSendVoiceNote}
+          onDiscardRecording={handleDiscardRecording}
+          onStopListening={handleStopListening}
+          onPlayPause={handlePlayPause}
+          formatDate={formatDate}
+          fmtDuration={fmtDuration}
+        />
 
-          {/* Recorded preview (before sending) */}
-          {!isRecording && !isListening && recordedUri && (
-            <View style={s.voicePreviewBar}>
-              <Text style={s.voicePreviewLabel}>🎤 {fmtDuration(recordingDuration)}</Text>
-
-              {/* Save — upload recording as voice note comment */}
-              <TouchableOpacity
-                style={[s.commentSendBtn, { backgroundColor: theme.color.success }]}
-                onPress={handleSendVoiceNote}
-                disabled={uploadingVoice}
-              >
-                {uploadingVoice
-                  ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.commentSendBtnText}>{t('save')}</Text>}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={s.voiceDiscardBtn}
-                onPress={handleDiscardRecording}
-                disabled={uploadingVoice}
-              >
-                <Text style={s.voiceDiscardBtnText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Listening state — live speech recognition active */}
-          {isListening && (
-            <View style={s.voicePreviewBar}>
-              <ActivityIndicator color={theme.color.primary} size="small" />
-              <Text style={[s.voicePreviewLabel, { flex: 1 }]}>
-                {voicePartial || '🎤 Listening...'}
-              </Text>
-              <TouchableOpacity style={s.voiceDiscardBtn} onPress={handleStopListening}>
-                <Text style={s.voiceDiscardBtnText}>⏹</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Normal comment input (hidden while recording/preview/listening, gated by permission) */}
-          {!isRecording && !recordedUri && !isListening && permissions.can_add_comments && (
-            <View style={s.commentInput}>
-              <TextInput
-                style={s.commentTextInput}
-                value={newComment}
-                onChangeText={setNewComment}
-                placeholder={t('addComment')}
-                placeholderTextColor={theme.color.textMuted}
-                multiline
-              />
-              {/* Mic button — record voice note */}
-              <TouchableOpacity style={s.micBtn} onPress={handleStartRecording}>
-                <Text style={s.micBtnText}>🎙</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.commentSendBtn, postingComment && s.disabledBtn]}
-                onPress={handlePostComment}
-                disabled={postingComment}
-              >
-                {postingComment ? (
-                  <ActivityIndicator color={theme.color.white} size="small" />
-                ) : (
-                  <Text style={s.commentSendBtnText}>Post</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* ── DOCUMENTS ── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>{t('documentsSection').toUpperCase()} ({documents.length})</Text>
-            {permissions.can_upload_documents && (
-              <View style={s.docBtnRow}>
-                <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
-                  <Text style={s.scanDocBtnText}>📷 Scan</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                  <Text style={s.addDocBtnText}>🖼 Image</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.pdfDocBtn} onPress={handlePickPdf} disabled={uploadingPdf}>
-                  {uploadingPdf
-                    ? <ActivityIndicator size="small" color={theme.color.white} />
-                    : <Text style={s.pdfDocBtnText}>📄 PDF</Text>}
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          {documents.length === 0 ? (
-            <View style={s.docEmpty}>
-              <Text style={s.docEmptyIcon}>📄</Text>
-              <Text style={s.docEmptyText}>No documents yet</Text>
-              {permissions.can_upload_documents && (
-                <View style={s.docEmptyBtnRow}>
-                  <TouchableOpacity style={s.scanDocBtn} onPress={() => setScanMode('camera')}>
-                    <Text style={s.scanDocBtnText}>📷 Scan</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.addDocBtn} onPress={() => setScanMode('library')}>
-                    <Text style={s.addDocBtnText}>🖼 Image</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.pdfDocBtn} onPress={handlePickPdf} disabled={uploadingPdf}>
-                    {uploadingPdf
-                      ? <ActivityIndicator size="small" color={theme.color.white} />
-                      : <Text style={s.pdfDocBtnText}>📄 PDF</Text>}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ) : (
-            documents.map((doc) => {
-              const isPDF  = /application\/pdf/i.test(doc.file_type) || /\.pdf$/i.test(doc.file_url);
-              const isImage = /image\//i.test(doc.file_type) || /\.(jpg|jpeg|png)$/i.test(doc.file_url);
-              const label  = doc.display_name || doc.file_name;
-              return (
-                <View key={doc.id} style={s.docRow}>
-                  {/* Icon */}
-                  <View style={s.docRowIcon}>
-                    <Text style={s.docRowIconText}>{isPDF ? '📄' : '🖼'}</Text>
-                  </View>
-
-                  {/* Info — tap name to view */}
-                  <TouchableOpacity style={{ flex: 1, gap: 3 }} onPress={() => handleOpenDoc(doc)} activeOpacity={0.7}>
-                    <Text style={[s.docRowName, s.docRowNameTappable]} numberOfLines={1}>{label}</Text>
-                    {doc.requirement?.title && (
-                      <View style={s.docReqTag}>
-                        <Text style={s.docReqTagText}>📋 {doc.requirement.title}</Text>
-                      </View>
-                    )}
-                    <Text style={s.docRowMeta}>
-                      {isPDF ? 'PDF' : isImage ? 'Image' : 'File'}
-                      {doc.uploader?.name ? `  ·  ${doc.uploader.name}` : ''}
-                      {`  ·  ${formatDate(doc.created_at)}`}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Rename + Delete buttons */}
-                  <View style={s.docActionBtns}>
-                    {permissions.can_upload_documents && (
-                      <TouchableOpacity
-                        onPress={() => { setRenamingDoc(doc); setRenameText(doc.display_name || doc.file_name || ''); }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={s.docRenameBtn}
-                      >
-                        <Text style={s.docRenameBtnText}>✎</Text>
-                      </TouchableOpacity>
-                    )}
-                    {permissions.can_delete_documents && (deletingDocId === doc.id ? (
-                      <ActivityIndicator size="small" color={theme.color.danger} />
-                    ) : (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteDocument(doc)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={s.docDeleteBtn}
-                      >
-                        <Text style={s.docDeleteBtnText}>🗑</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </View>
+        {/* ── DOCUMENTS ── (Phase 3 extracted module) */}
+        <DocumentsSection
+          documents={documents as any}
+          permissions={permissions}
+          uploadingPdf={uploadingPdf}
+          deletingDocId={deletingDocId}
+          onScanCamera={() => setScanMode('camera')}
+          onScanLibrary={() => setScanMode('library')}
+          onPickPdf={handlePickPdf}
+          onOpenDoc={(doc) => handleOpenDoc(doc as any)}
+          onRenameDoc={(doc) => {
+            setRenamingDoc(doc as any);
+            setRenameText(doc.display_name || doc.file_name || '');
+          }}
+          onDeleteDoc={(doc) => handleDeleteDocument(doc as any)}
+          formatDate={formatDate}
+        />
 
         {/* ── STAGES ROUTE ── */}
         <View style={s.section}>
@@ -2429,548 +2222,75 @@ export default function TaskDetailScreen() {
           </View>
         </View>
 
-        {/* ── FINANCIALS ── */}
-        {(permissions.can_see_file_financials || permissions.can_see_contract_price ||
-          permissions.can_add_expenses || permissions.can_add_revenue) && (
-        <View style={s.section}>
-          {/* Title row */}
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>{t('financialsSection').toUpperCase()}</Text>
-          </View>
-
-          {/* Contract price row — only if permitted */}
-          {permissions.can_see_contract_price && (
-          <View style={s.contractPriceRow}>
-            {/* Header row: CONTRACT PRICE label (left) + Edit button (right, aligned with label) */}
-            <View style={s.contractPriceHeaderRow}>
-              <TouchableOpacity onPress={() => setShowPriceHistory(v => !v)} activeOpacity={0.7} style={{ flex: 1 }}>
-                <Text style={s.balanceLabel}>{t('contractPrice').toUpperCase()} {showPriceHistory ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-              {permissions.can_edit_contract_price && (
-                <TouchableOpacity
-                  style={s.editPriceBtn}
-                  onPress={() => {
-                    setEditPriceUSD(contractPriceUSD > 0 ? String(contractPriceUSD) : '');
-                    setEditPriceLBP(contractPriceLBP > 0 ? contractPriceLBP.toLocaleString('en-US') : '');
-                    setEditPriceNote('');
-                    setShowEditPrice(true);
-                  }}
-                >
-                  <Text style={s.editPriceBtnText}>✎ {t('edit')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {/* Contract price USD/LBP values */}
-            <View style={s.balanceAmounts}>
-              <Text style={s.contractPriceVal}>{fmtUSD(contractPriceUSD)}</Text>
-              <Text style={s.contractPriceValLBP}>{fmtLBP(contractPriceLBP)}</Text>
-            </View>
-            {/* BALANCE row — full width so USD/LBP cols align with P&L section below */}
-            {contractPriceUSD > 0 && (
-              <View style={[s.balanceRow, { marginTop: theme.spacing.space2 }]}>
-                <Text style={s.balanceLabel}>{t('balance').toUpperCase()}</Text>
-                <Text style={[s.balanceCol, outstandingUSD > 0 ? s.negative : s.positive]}>
-                  {fmtUSD(outstandingUSD)}
-                </Text>
-                <Text style={[
-                  s.balanceColLBP,
-                  contractPriceLBP > 0
-                    ? (outstandingLBP > 0 ? s.negative : s.positive)
-                    : s.balanceRevenueLBP,
-                ]}>
-                  {fmtLBP(outstandingLBP)}
-                </Text>
-              </View>
-            )}
-          </View>
-          )}
-
-          {/* Contract price change history — collapsible */}
-          {showPriceHistory && <View style={s.priceHistoryBlock}>
-            <Text style={s.priceHistoryLabel}>CONTRACT PRICE CHANGES</Text>
-            {priceHistory.length === 0 ? (
-              <Text style={s.priceHistoryEmpty}>No changes recorded yet</Text>
-            ) : (
-              priceHistory.map((h) => (
-                <View key={h.id} style={s.priceHistoryRow}>
-                  <View style={s.stopHistoryDot} />
-                  <View style={{ flex: 1 }}>
-                    <View style={s.stopHistoryTextRow}>
-                      <Text style={s.stopHistoryOld}>{fmtUSD(h.old_price_usd)}</Text>
-                      <Text style={s.stopHistoryArrow}> → </Text>
-                      <Text style={s.stopHistoryNew}>{fmtUSD(h.new_price_usd)}</Text>
-                      {h.old_price_lbp > 0 && (
-                        <Text style={[s.stopHistoryOld, { marginStart: 8 }]}>{fmtLBP(h.old_price_lbp)}</Text>
-                      )}
-                      {h.old_price_lbp > 0 && (
-                        <Text style={s.stopHistoryArrow}> → </Text>
-                      )}
-                      {h.new_price_lbp > 0 && (
-                        <Text style={s.stopHistoryNew}>{fmtLBP(h.new_price_lbp)}</Text>
-                      )}
-                    </View>
-                    <Text style={s.stopHistoryMeta}>
-                      Changed by <Text style={{ color: theme.color.primaryText }}>{h.changer?.name ?? 'Unknown'}</Text>
-                      {' · '}{formatDate(h.created_at)}
-                      {h.note ? `\n"${h.note}"` : ''}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>}
-
-          {/* P&L summary — only visible when can_see_file_financials is on */}
-          {permissions.can_see_file_financials && (
-          <View style={s.balanceSummary}>
-            <View style={s.balanceRow}>
-              <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
-              <Text style={[s.balanceCol, s.balanceRevenue]}>{fmtUSD(totalRevenueUSD)}</Text>
-              <Text style={[s.balanceColLBP, s.balanceRevenueLBP]}>{fmtLBP(totalRevenueLBP)}</Text>
-            </View>
-            <View style={s.balanceRow}>
-              <Text style={s.balanceLabel}>{t('expense').toUpperCase()}S</Text>
-              <Text style={[s.balanceCol, s.balanceExpense]}>- {fmtUSD(totalExpenseUSD)}</Text>
-              <Text style={[s.balanceColLBP, s.balanceExpenseLBP]}>- {fmtLBP(totalExpenseLBP)}</Text>
-            </View>
-            <View style={s.balanceDivider} />
-            <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>{t('netBalance')}</Text>
-              <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
-                {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
-              </Text>
-              <Text style={[s.balanceColLBP, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}>
-                {balanceLBP >= 0 ? '+' : '-'} {fmtLBP(balanceLBP)}
-              </Text>
-            </View>
-            <View style={s.balanceDivider} />
-            {/* TOTAL USD = USD P&L + (LBP P&L / rate) */}
-            <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>{t('cvUSD')}</Text>
-              <Text style={[s.balanceCol, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}>
-                {totalCombinedUSD >= 0 ? '+' : '-'} ${Math.abs(totalCombinedUSD).toLocaleString('en-US', { maximumFractionDigits: 2 })}
-              </Text>
-              <View style={{ width: 120, alignItems: 'flex-end' }}>
-                {editingRate ? (
-                  <TextInput
-                    style={s.rateInput}
-                    value={rateInput}
-                    onChangeText={setRateInput}
-                    keyboardType="number-pad"
-                    autoFocus
-                    onBlur={() => {
-                      const v = parseInt(rateInput.replace(/,/g, ''), 10);
-                      if (!isNaN(v) && v > 0) { setExchangeRate(v); setRateInput(v.toLocaleString('en-US')); }
-                      setEditingRate(false);
-                    }}
-                    onSubmitEditing={() => {
-                      const v = parseInt(rateInput.replace(/,/g, ''), 10);
-                      if (!isNaN(v) && v > 0) { setExchangeRate(v); setRateInput(v.toLocaleString('en-US')); }
-                      setEditingRate(false);
-                    }}
-                  />
-                ) : (
-                  <TouchableOpacity onPress={() => { setRateInput(exchangeRate.toLocaleString('en-US')); setEditingRate(true); }}>
-                    <Text style={s.rateDisplay}>÷ {exchangeRate.toLocaleString('en-US')} ✎</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          </View>
-          )}
-
-          {/* ── C/V USD Conversion Table ── */}
-          {permissions.can_see_file_financials && transactions.length > 0 && (() => {
-            const cvFmt = (n: number) =>
-              `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            // C/V = USD + (LBP ÷ locked rate) — both currencies included, per-tx rate used
-            const cvOf = (tx: FileTransaction) => {
-              const r = tx.rate_usd_lbp ?? exchangeRate;
-              return tx.amount_usd + tx.amount_lbp / r;
-            };
-            const totalCvReceived = transactions
-              .filter((tx) => tx.type === 'revenue')
-              .reduce((s, tx) => s + cvOf(tx), 0);
-            const totalCvExpense = transactions
-              .filter((tx) => tx.type === 'expense')
-              .reduce((s, tx) => s + cvOf(tx), 0);
-            const totalCvUSD = transactions.reduce((s, tx) =>
-              s + (tx.type === 'revenue' ? cvOf(tx) : -cvOf(tx)), 0);
-            const totalTxUSD = transactions.reduce((s, tx) =>
-              s + (tx.type === 'revenue' ? tx.amount_usd : -tx.amount_usd), 0);
-            const totalTxLBP = transactions.reduce((s, tx) =>
-              s + (tx.type === 'revenue' ? tx.amount_lbp : -tx.amount_lbp), 0);
-
-            return (
-              <View style={s.cvTable}>
-                {/* Header */}
-                <View style={[s.cvRow, s.cvHeader]}>
-                  <Text style={[s.cvCell, s.cvCellDesc, s.cvHeaderText]}>DESCRIPTION</Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>USD</Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>LBP</Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>C/V USD</Text>
-                </View>
-                {/* Rows */}
-                {transactions.map((tx) => {
-                  const cv = cvOf(tx);
-                  const sign = tx.type === 'revenue' ? '+' : '-';
-                  const col = tx.type === 'revenue' ? theme.color.success : theme.color.danger;
-                  return (
-                    <View key={tx.id} style={s.cvRow}>
-                      <View style={[s.cvCell, s.cvCellDesc]}>
-                        <Text style={[s.cvDescText, { color: col }]}>{sign} {tx.description || '—'}</Text>
-                        {tx.stop?.ministry?.name && (
-                          <Text style={s.cvStagePill}>📌 {tx.stop.ministry.name}</Text>
-                        )}
-                      </View>
-                      <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_usd > 0 ? col : theme.color.textMuted }]}>
-                        {tx.amount_usd > 0 ? `${sign}${fmtUSD(tx.amount_usd)}` : '—'}
-                      </Text>
-                      <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_lbp > 0 ? col : theme.color.textMuted }]}>
-                        {tx.amount_lbp > 0 ? `${sign}${fmtLBP(tx.amount_lbp)}` : '—'}
-                      </Text>
-                      <Text style={[s.cvCell, s.cvCellNum, { color: col, fontWeight: '700' }]}>
-                        {sign}{cvFmt(cv)}
-                      </Text>
-                    </View>
-                  );
-                })}
-                {/* Totals */}
-                <View style={[s.cvRow, s.cvTotalRow]}>
-                  <Text style={[s.cvCell, s.cvCellDesc, s.cvTotalText]}>TOTAL</Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxUSD >= 0 ? s.positive : s.negative]}>
-                    {totalTxUSD >= 0 ? '+' : '-'}{fmtUSD(Math.abs(totalTxUSD))}
-                  </Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxLBP >= 0 ? s.positive : s.negative]}>
-                    {totalTxLBP >= 0 ? '+' : '-'}{fmtLBP(Math.abs(totalTxLBP))}
-                  </Text>
-                  <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalCvUSD >= 0 ? s.positive : s.negative]}>
-                    {totalCvUSD >= 0 ? '+' : '-'}{cvFmt(Math.abs(totalCvUSD))}
-                  </Text>
-                </View>
-                <Text style={s.cvRateNote}>
-                  * C/V calculated using each transaction's locked rate
-                  {transactions.some(tx => !tx.rate_usd_lbp)
-                    ? ` (legacy rows use current rate: ${exchangeRate.toLocaleString('en-US')} LBP/$1)`
-                    : ''}
-                </Text>
-              </View>
-            );
-          })()}
-
-          {/* + Add button — sits between summary table and transaction list */}
-          {(permissions.can_add_expenses || permissions.can_add_revenue) && (
-            <TouchableOpacity
-              style={s.addTxBtn}
-              onPress={() => setShowAddTransaction((v) => !v)}
-            >
-              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('transaction')}`}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Add transaction form */}
-          {showAddTransaction && (
-            <View style={s.txForm}>
-              {/* Type toggle — only show types the user is permitted to add */}
-              <View style={s.txTypeRow}>
-                {permissions.can_add_expenses && (
-                  <TouchableOpacity
-                    style={[s.txTypeBtn, txType === 'expense' && s.txTypeBtnExpense]}
-                    onPress={() => setTxType('expense')}
-                  >
-                    <Text style={[s.txTypeBtnText, txType === 'expense' && s.txTypeBtnTextExpense]}>
-                      ↑ {t('expense')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                {permissions.can_add_revenue && (
-                  <TouchableOpacity
-                    style={[s.txTypeBtn, txType === 'revenue' && s.txTypeBtnRevenue]}
-                    onPress={() => setTxType('revenue')}
-                  >
-                    <Text style={[s.txTypeBtnText, txType === 'revenue' && s.txTypeBtnTextRevenue]}>
-                      ↓ {t('revenue')}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Description */}
-              <TextInput
-                style={s.txInput}
-                value={txDescription}
-                onChangeText={setTxDescription}
-                placeholder={`${t('description')} *`}
-                placeholderTextColor={theme.color.textMuted}
-              />
-
-              {/* Amounts */}
-              <View style={s.txAmountsRow}>
-                <View style={s.txAmountField}>
-                  <Text style={s.txAmountLabel}>USD ($)</Text>
-                  <TextInput
-                    style={s.txInput}
-                    value={txAmountUSD}
-                    onChangeText={setTxAmountUSD}
-                    placeholder="0.00"
-                    placeholderTextColor={theme.color.textMuted}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-                <View style={s.txAmountField}>
-                  <Text style={s.txAmountLabel}>LBP (ل.ل)</Text>
-                  <TextInput
-                    style={s.txInput}
-                    value={txAmountLBP}
-                    onChangeText={(v) => {
-                      const digits = v.replace(/,/g, '');
-                      if (digits === '' || /^\d*$/.test(digits)) {
-                        setTxAmountLBP(digits === '' ? '' : parseInt(digits, 10).toLocaleString('en-US'));
-                      }
-                    }}
-                    placeholder="0"
-                    placeholderTextColor={theme.color.textMuted}
-                    keyboardType="number-pad"
-                  />
-                </View>
-              </View>
-
-              {/* Stage link (expenses only) */}
-              {txType === 'expense' && task?.route_stops && task.route_stops.length > 0 && (
-                <View style={s.txStageSection}>
-                  <TouchableOpacity
-                    style={s.txStageTrigger}
-                    onPress={() => setShowTxStagePicker(v => !v)}
-                  >
-                    <Text style={s.txStageTriggerText}>
-                      {txStopId
-                        ? `📌 ${task.route_stops.find(rs => rs.id === txStopId)?.ministry?.name ?? 'Stage'}`
-                        : '📌 Link to stage (optional)'}
-                    </Text>
-                    {txStopId && (
-                      <TouchableOpacity onPress={() => { setTxStopId(null); setShowTxStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                        <Text style={s.txStageRemove}>✕</Text>
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                  {showTxStagePicker && (
-                    <View style={s.txStageDropdown}>
-                      {task.route_stops.map(rs => (
-                        <TouchableOpacity key={rs.id} style={[s.txStageItem, txStopId === rs.id && s.txStageItemActive]}
-                          onPress={() => { setTxStopId(rs.id); setShowTxStagePicker(false); }}>
-                          <Text style={[s.txStageItemText, txStopId === rs.id && { color: theme.color.primary, fontWeight: '700' }]}>
-                            {rs.stop_order}. {rs.ministry?.name}
-                          </Text>
-                          {txStopId === rs.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[s.txSaveBtn, txType === 'expense' ? s.txSaveBtnExpense : s.txSaveBtnRevenue, savingTx && s.disabledBtn]}
-                onPress={handleAddTransaction}
-                disabled={savingTx}
-              >
-                {savingTx ? (
-                  <ActivityIndicator color={theme.color.white} size="small" />
-                ) : (
-                  <Text style={s.txSaveBtnText}>
-                    {t('save')} {txType === 'expense' ? t('expense') : t('revenue')}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Transaction list — only visible when can_see_file_financials is on */}
-          {permissions.can_see_file_financials && (transactions.length === 0 ? (
-            <Text style={s.emptyText}>No transactions yet</Text>
-          ) : (
-            transactions.map((tx) => {
-              // ── Inline edit form ──
-              if (editingTx?.id === tx.id) {
-                return (
-                  <View key={tx.id} style={s.txEditForm}>
-                    {/* Type toggle */}
-                    <View style={s.txTypeRow}>
-                      <TouchableOpacity
-                        style={[s.txTypeBtn, editTxType === 'expense' && s.txTypeBtnExpense]}
-                        onPress={() => setEditTxType('expense')}
-                      >
-                        <Text style={[s.txTypeBtnText, editTxType === 'expense' && s.txTypeBtnTextExpense]}>
-                          ↑ {t('expense')}
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.txTypeBtn, editTxType === 'revenue' && s.txTypeBtnRevenue]}
-                        onPress={() => setEditTxType('revenue')}
-                      >
-                        <Text style={[s.txTypeBtnText, editTxType === 'revenue' && s.txTypeBtnTextRevenue]}>
-                          ↓ {t('revenue')}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    {/* Description */}
-                    <TextInput
-                      style={s.txInput}
-                      value={editTxDescription}
-                      onChangeText={setEditTxDescription}
-                      placeholder={t('description')}
-                      placeholderTextColor={theme.color.textMuted}
-                      returnKeyType="done"
-                    />
-                    {/* Amounts */}
-                    <View style={s.txAmountsRow}>
-                      <View style={s.txAmountField}>
-                        <Text style={s.txAmountLabel}>USD</Text>
-                        <TextInput
-                          style={s.txInput}
-                          value={editTxAmountUSD}
-                          onChangeText={setEditTxAmountUSD}
-                          placeholder="0.00"
-                          placeholderTextColor={theme.color.textMuted}
-                          keyboardType="decimal-pad"
-                        />
-                      </View>
-                      <View style={s.txAmountField}>
-                        <Text style={s.txAmountLabel}>LBP</Text>
-                        <TextInput
-                          style={s.txInput}
-                          value={editTxAmountLBP}
-                          onChangeText={(v) => {
-                            const raw = v.replace(/,/g, '');
-                            const n   = parseInt(raw, 10);
-                            setEditTxAmountLBP(isNaN(n) ? '' : n.toLocaleString('en-US'));
-                          }}
-                          placeholder="0"
-                          placeholderTextColor={theme.color.textMuted}
-                          keyboardType="number-pad"
-                        />
-                      </View>
-                    </View>
-                    {/* Stage link (expenses only) */}
-                    {editTxType === 'expense' && task?.route_stops && task.route_stops.length > 0 && (
-                      <View style={s.txStageSection}>
-                        <TouchableOpacity
-                          style={s.txStageTrigger}
-                          onPress={() => setShowEditTxStagePicker(v => !v)}
-                        >
-                          <Text style={s.txStageTriggerText}>
-                            {editTxStopId
-                              ? `📌 ${task.route_stops.find(rs => rs.id === editTxStopId)?.ministry?.name ?? 'Stage'}`
-                              : '📌 Link to stage (optional)'}
-                          </Text>
-                          {editTxStopId && (
-                            <TouchableOpacity onPress={() => { setEditTxStopId(null); setShowEditTxStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                              <Text style={s.txStageRemove}>✕</Text>
-                            </TouchableOpacity>
-                          )}
-                        </TouchableOpacity>
-                        {showEditTxStagePicker && (
-                          <View style={s.txStageDropdown}>
-                            {task.route_stops.map(rs => (
-                              <TouchableOpacity key={rs.id} style={[s.txStageItem, editTxStopId === rs.id && s.txStageItemActive]}
-                                onPress={() => { setEditTxStopId(rs.id); setShowEditTxStagePicker(false); }}>
-                                <Text style={[s.txStageItemText, editTxStopId === rs.id && { color: theme.color.primary, fontWeight: '700' }]}>
-                                  {rs.stop_order}. {rs.ministry?.name}
-                                </Text>
-                                {editTxStopId === rs.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    )}
-                    {/* Save / Cancel */}
-                    <View style={s.txEditActions}>
-                      <TouchableOpacity
-                        style={s.txCancelBtn}
-                        onPress={() => setEditingTx(null)}
-                      >
-                        <Text style={s.txCancelBtnText}>{t('cancel')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.txSaveBtn, editTxType === 'expense' ? s.txSaveBtnExpense : s.txSaveBtnRevenue, savingEditTx && s.disabledBtn, { flex: 1 }]}
-                        onPress={handleEditTransaction}
-                        disabled={savingEditTx}
-                      >
-                        {savingEditTx ? (
-                          <ActivityIndicator color={theme.color.white} size="small" />
-                        ) : (
-                          <Text style={s.txSaveBtnText}>
-                            {t('save')} {editTxType === 'expense' ? t('expense') : t('revenue')}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              }
-
-              // ── Normal display row ──
-              return (
-                <View key={tx.id} style={[s.txRow, tx.type === 'expense' ? s.txRowExpense : s.txRowRevenue]}>
-                  <View style={[s.txTypeDot, tx.type === 'expense' ? s.txDotExpense : s.txDotRevenue]} />
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <Text style={s.txDesc}>{tx.description}</Text>
-                    {tx.stop?.ministry?.name && (
-                      <Text style={s.txStageTag}>📌 {tx.stop.ministry.name}</Text>
-                    )}
-                    <View style={s.txAmountDisplay}>
-                      {tx.amount_usd > 0 && (
-                        <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
-                          {tx.type === 'expense' ? '- ' : '+ '}{fmtUSD(tx.amount_usd)}
-                        </Text>
-                      )}
-                      {tx.amount_lbp > 0 && (
-                        <Text style={[s.txAmt, tx.type === 'expense' ? s.txAmtExpense : s.txAmtRevenue]}>
-                          {tx.type === 'expense' ? '- ' : '+ '}{fmtLBP(tx.amount_lbp)}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={s.txMeta}>
-                      Added by <Text style={s.txMetaName}>{tx.creator?.name ?? 'Unknown'}</Text>
-                      {' · '}{formatDate(tx.created_at)}
-                    </Text>
-                  </View>
-                  <View style={s.txRowActions}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setEditingTx(tx);
-                        setEditTxType(tx.type);
-                        setEditTxDescription(tx.description);
-                        setEditTxAmountUSD(tx.amount_usd > 0 ? tx.amount_usd.toString() : '');
-                        setEditTxAmountLBP(tx.amount_lbp > 0 ? tx.amount_lbp.toLocaleString('en-US') : '');
-                        setEditTxStopId(tx.stop_id ?? null);
-                        setShowEditTxStagePicker(false);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={s.txEdit}>✎</Text>
-                    </TouchableOpacity>
-                    {permissions.can_delete_transactions && (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteTransaction(tx)}
-                        disabled={deletingTxId === tx.id}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        {deletingTxId === tx.id ? (
-                          <ActivityIndicator size="small" color={theme.color.danger} />
-                        ) : (
-                          <Text style={s.txDelete}>✕</Text>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })
-          ))}
-        </View>
-        )}
+        {/* ── FINANCIALS ── (Phase 3 extracted module) */}
+        <FinancialsSection
+          task={task}
+          permissions={permissions}
+          contractPriceUSD={contractPriceUSD}
+          contractPriceLBP={contractPriceLBP}
+          outstandingUSD={outstandingUSD}
+          outstandingLBP={outstandingLBP}
+          showPriceHistory={showPriceHistory}
+          setShowPriceHistory={setShowPriceHistory}
+          priceHistory={priceHistory}
+          onOpenEditPrice={() => {
+            setEditPriceUSD(contractPriceUSD > 0 ? String(contractPriceUSD) : '');
+            setEditPriceLBP(contractPriceLBP > 0 ? contractPriceLBP.toLocaleString('en-US') : '');
+            setEditPriceNote('');
+            setShowEditPrice(true);
+          }}
+          totalRevenueUSD={totalRevenueUSD}
+          totalRevenueLBP={totalRevenueLBP}
+          totalExpenseUSD={totalExpenseUSD}
+          totalExpenseLBP={totalExpenseLBP}
+          balanceUSD={balanceUSD}
+          balanceLBP={balanceLBP}
+          totalCombinedUSD={totalCombinedUSD}
+          exchangeRate={exchangeRate}
+          setExchangeRate={setExchangeRate}
+          editingRate={editingRate}
+          setEditingRate={setEditingRate}
+          rateInput={rateInput}
+          setRateInput={setRateInput}
+          transactions={transactions as any}
+          showAddTransaction={showAddTransaction}
+          setShowAddTransaction={setShowAddTransaction}
+          txType={txType}
+          setTxType={setTxType}
+          txDescription={txDescription}
+          setTxDescription={setTxDescription}
+          txAmountUSD={txAmountUSD}
+          setTxAmountUSD={setTxAmountUSD}
+          txAmountLBP={txAmountLBP}
+          setTxAmountLBP={setTxAmountLBP}
+          txStopId={txStopId}
+          setTxStopId={setTxStopId}
+          showTxStagePicker={showTxStagePicker}
+          setShowTxStagePicker={setShowTxStagePicker}
+          savingTx={savingTx}
+          onAddTransaction={handleAddTransaction}
+          editingTx={editingTx as any}
+          setEditingTx={setEditingTx as any}
+          editTxType={editTxType}
+          setEditTxType={setEditTxType}
+          editTxDescription={editTxDescription}
+          setEditTxDescription={setEditTxDescription}
+          editTxAmountUSD={editTxAmountUSD}
+          setEditTxAmountUSD={setEditTxAmountUSD}
+          editTxAmountLBP={editTxAmountLBP}
+          setEditTxAmountLBP={setEditTxAmountLBP}
+          editTxStopId={editTxStopId}
+          setEditTxStopId={setEditTxStopId}
+          showEditTxStagePicker={showEditTxStagePicker}
+          setShowEditTxStagePicker={setShowEditTxStagePicker}
+          savingEditTx={savingEditTx}
+          onSaveEditTransaction={handleEditTransaction}
+          deletingTxId={deletingTxId}
+          onDeleteTransaction={(tx) => handleDeleteTransaction(tx as any)}
+          fmtUSD={fmtUSD}
+          fmtLBP={fmtLBP}
+          formatDate={formatDate}
+        />
 
       </KeyboardAwareScrollView>
 
