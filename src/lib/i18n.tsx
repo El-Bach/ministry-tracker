@@ -166,7 +166,25 @@ export type TranslationKey =
   | 'all' | 'none' | 'others' | 'count' | 'total' | 'subtotal' | 'summary'
   | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'assignedTo'
   | 'pleaseSignIn' | 'noPermission' | 'accessRestricted'
-  | 'close2' | 'minimize' | 'maximize' | 'options';
+  | 'close2' | 'minimize' | 'maximize' | 'options'
+  // ── Phase 3: Welcome wizard (Dashboard) ────────────────────────────────────
+  | 'welcomeStep1Title' | 'welcomeStep1Body'
+  | 'welcomeStep2Title' | 'welcomeStep2Body'
+  | 'welcomeStep3Title' | 'welcomeStep3Body'
+  | 'welcomeStep4Title' | 'welcomeStep4Body'
+  | 'welcomeStep5Title' | 'welcomeStep5Body'
+  | 'welcomeReady' | 'welcomeNeverShow' | 'welcomeIntro'
+  // ── Phase 3: Plan taglines + descriptions (AccountScreen) ──────────────────
+  | 'planFreeTagline' | 'planStarterTagline' | 'planBusinessTagline'
+  | 'planMonthly' | 'planYearly' | 'planSavePercent' | 'planMostPopular'
+  | 'planChoosePlan' | 'planContactSales' | 'planCurrentPlanLabel'
+  // ── Phase 3: FAQ (SettingsScreen) — top 8 most-asked ────────────────────────
+  | 'faqTitle'
+  | 'faqQ1' | 'faqA1' | 'faqQ2' | 'faqA2' | 'faqQ3' | 'faqA3' | 'faqQ4' | 'faqA4'
+  | 'faqQ5' | 'faqA5' | 'faqQ6' | 'faqA6' | 'faqQ7' | 'faqA7' | 'faqQ8' | 'faqA8'
+  // ── Phase 3: Misc descriptions ────────────────────────────────────────────
+  | 'helpGuideDesc' | 'faqDesc' | 'reportBugDesc' | 'contactSupportDesc'
+  | 'permissionsDesc' | 'visibilityDesc' | 'languageDesc' | 'rtlDesc';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -476,6 +494,58 @@ const ar: Translations = {
   pleaseSignIn: 'يرجى تسجيل الدخول', noPermission: 'لا تملك صلاحية',
   accessRestricted: 'الوصول مقيّد',
   close2: 'إغلاق', minimize: 'تصغير', maximize: 'تكبير', options: 'خيارات',
+  // ── Welcome wizard ────
+  welcomeStep1Title: 'افتح نافذة الإنشاء',
+  welcomeStep1Body: 'انقر على زر "إنشاء" في أسفل الصفحة لفتح لوحة الإعداد.',
+  welcomeStep2Title: 'أضف عملاءك',
+  welcomeStep2Body: 'أدخل العملاء الذين سيتم ربطهم بملفاتك وقضاياك.',
+  welcomeStep3Title: 'حدّد الخدمات',
+  welcomeStep3Body: 'أضف الخدمات المقدّمة. ستكون متاحة عند إنشاء الملفات على لوحة التحكم.',
+  welcomeStep4Title: 'إعداد المراحل والإدخالات الأخرى',
+  welcomeStep4Body: 'قم بإعداد مراحل سير العمل وأي إدخالات إضافية مطلوبة لمنظمتك.',
+  welcomeStep5Title: 'العودة إلى لوحة التحكم',
+  welcomeStep5Body: 'بمجرد اكتمال الإعداد، عُد إلى لوحة التحكم لبدء إنشاء وتعبئة ملفاتك.',
+  welcomeReady: '✅ كل شيء جاهز!',
+  welcomeNeverShow: 'لا تظهر مرة أخرى',
+  welcomeIntro: 'مرحباً بك في GovPilot. اتبع هذه الخطوات للبدء:',
+  // ── Plans ────
+  planFreeTagline: 'ابدأ مجاناً',
+  planStarterTagline: 'للفرق المتنامية',
+  planBusinessTagline: 'للعمليات الكبيرة',
+  planMonthly: 'شهرياً',
+  planYearly: 'سنوياً',
+  planSavePercent: 'وفر %',
+  planMostPopular: 'الأكثر شعبية',
+  planChoosePlan: 'اختر هذه الباقة',
+  planContactSales: 'تواصل مع المبيعات',
+  planCurrentPlanLabel: 'باقتك الحالية',
+  // ── FAQ ────
+  faqTitle: '💬 الأسئلة الشائعة',
+  faqQ1: 'كيف أُنشئ ملفاً جديداً؟',
+  faqA1: 'من لوحة التحكم، اضغط على زر "+ ملف جديد". اختر عميلاً، ثم خدمة (تحمّل المراحل تلقائياً)، حدّد السعر وتاريخ الاستحقاق، ثم اضغط إنشاء.',
+  faqQ2: 'كيف أُغيّر حالة ملف؟',
+  faqA2: 'افتح الملف، ابحث عن المرحلة التي تريد تحديثها، واضغط على شارة الحالة. ستظهر قائمة بجميع الحالات المتاحة. حالة الملف الإجمالية هي دائماً أكثر مرحلة نشطة إلحاحاً.',
+  faqQ3: 'ما الفرق بين المراحل والحالة؟',
+  faqA3: 'المراحل هي الخطوات التي يمر بها الملف (مثلاً: تقديم الوثائق ← مراجعة الوزارة ← التوقيع). كل مرحلة لها حالتها الخاصة. الحالة الإجمالية للملف تعكس أكثر مرحلة عاجلة.',
+  faqQ4: 'هل يمكنني إسناد ملف لعدة أشخاص؟',
+  faqA4: 'كل ملف له شخص مُعيّن رئيسي واحد. ومع ذلك، يمكن أن يكون لكل مرحلة شخص مُعيّن خاص بها — لذا يمكن لأعضاء فريق مختلفين أو جهات اتصال خارجية معالجة مراحل مختلفة من نفس الملف.',
+  faqQ5: 'ما الفرق بين أعضاء الفريق والشبكة؟',
+  faqA5: 'أعضاء الفريق هم زملاؤك الذين يسجلون الدخول إلى GovPilot. الشبكة (الأشخاص الخارجيون) هم جهات اتصال خارجية كالمحامين والوسطاء — ليس لديهم حسابات في التطبيق ولكن يمكن إسنادهم للمراحل لأغراض المتابعة.',
+  faqQ6: 'كيف أتتبّع المدفوعات؟',
+  faqA6: 'افتح ملفاً، انتقل إلى قسم المالية. السعر التعاقدي هو الرسوم المتفق عليها. استخدم "+ إضافة" لتسجيل المصاريف أو المدفوعات المستلمة. يُظهر الرصيد (المدفوعات المستلمة − المصاريف).',
+  faqQ7: 'ماذا يحدث عند اكتمال جميع المراحل؟',
+  faqA7: 'يتم أرشفة الملف تلقائياً ووضع علامة "مغلق" عليه. ينتقل من قائمة النشطة إلى قائمة الأرشيف على لوحة التحكم. يمكنك مازال عرضه وسجله المالي.',
+  faqQ8: 'هل يمكنني استخدام التطبيق دون اتصال بالإنترنت؟',
+  faqA8: 'يتم وضع التعليقات وبعض الإجراءات في قائمة الانتظار وتُزامَن عند عودة الاتصال. لكن تحميل الملفات وتحديث المراحل ورفع المستندات تتطلب اتصالاً بالإنترنت.',
+  // ── Misc ────
+  helpGuideDesc: 'تعرف كيف يعمل GovPilot',
+  faqDesc: 'الأسئلة الشائعة',
+  reportBugDesc: 'الإبلاغ عن خطأ في التطبيق',
+  contactSupportDesc: 'تواصل مع فريق الدعم',
+  permissionsDesc: 'إدارة الصلاحيات حسب الدور',
+  visibilityDesc: 'إدارة ما يراه الأعضاء',
+  languageDesc: 'لغة واتجاه التطبيق',
+  rtlDesc: 'تخطيط من اليمين إلى اليسار للعربية',
 };
 
 const en: Translations = {
@@ -786,6 +856,58 @@ const en: Translations = {
   pleaseSignIn: 'Please sign in', noPermission: "You don't have permission",
   accessRestricted: 'Access restricted',
   close2: 'Close', minimize: 'Minimize', maximize: 'Maximize', options: 'Options',
+  // ── Welcome wizard ────
+  welcomeStep1Title: 'Open the Create window',
+  welcomeStep1Body: 'Click the Create button at the bottom of the page to open the setup panel.',
+  welcomeStep2Title: 'Add your clients',
+  welcomeStep2Body: 'Insert the clients that will be associated with your files and cases.',
+  welcomeStep3Title: 'Define services',
+  welcomeStep3Body: 'Add the services offered. These will be available when filling out files on the dashboard.',
+  welcomeStep4Title: 'Configure stages & other entries',
+  welcomeStep4Body: 'Set up workflow stages and any additional required entries for your organization.',
+  welcomeStep5Title: 'Return to the dashboard',
+  welcomeStep5Body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.',
+  welcomeReady: "✅ You're ready to go!",
+  welcomeNeverShow: "Don't show again",
+  welcomeIntro: 'Welcome to GovPilot. Follow these steps to get started:',
+  // ── Plans ────
+  planFreeTagline: 'Get started at no cost',
+  planStarterTagline: 'For growing teams',
+  planBusinessTagline: 'For large operations',
+  planMonthly: 'Monthly',
+  planYearly: 'Yearly',
+  planSavePercent: 'Save %',
+  planMostPopular: 'Most Popular',
+  planChoosePlan: 'Choose this plan',
+  planContactSales: 'Contact Sales',
+  planCurrentPlanLabel: 'Your current plan',
+  // ── FAQ ────
+  faqTitle: '💬 Frequently Asked Questions',
+  faqQ1: 'How do I create a new file?',
+  faqA1: 'From the Dashboard, tap the + New File button. Select a client, choose a service (which loads stages automatically), set a price and due date, then tap Create.',
+  faqQ2: "How do I change a file's status?",
+  faqA2: "Open the file, find the stage you want to update, and tap its status badge. You'll see a list of all available statuses. The file's overall status is always the most critical active stage.",
+  faqQ3: 'What is the difference between stages and status?',
+  faqA3: "Stages are the steps a file goes through (e.g. Submit Documents → Ministry Review → Signature). Each stage has its own status. The file's overall status reflects the most urgent stage status.",
+  faqQ4: 'Can I assign a file to multiple people?',
+  faqA4: 'Each file has one main assignee. However, every individual stage can have its own assigned person — so different team members or external contacts can handle different stages of the same file.',
+  faqQ5: 'What is the difference between Team Members and Network?',
+  faqA5: "Team Members are your colleagues who log in to GovPilot. Network (external assignees) are outside contacts like lawyers or agents — they don't have app accounts but can be assigned to stages for tracking.",
+  faqQ6: 'How do I track payments?',
+  faqA6: 'Open a file, scroll to FINANCIALS. The contract price is the agreed fee. Use + Add to record expenses or payments received. The balance shows (payments received − expenses).',
+  faqQ7: 'What happens when all stages are Done?',
+  faqA7: 'The file is automatically archived and marked as closed. It moves from the Active list to the Archive list on the Dashboard. You can still view it and its financial history.',
+  faqQ8: 'Can I use the app offline?',
+  faqA8: 'Comments and some actions are queued offline and sync when your connection returns. However, loading files, updating stages, and uploading documents require an internet connection.',
+  // ── Misc ────
+  helpGuideDesc: 'Learn how GovPilot works',
+  faqDesc: 'Frequently asked questions',
+  reportBugDesc: 'Report a bug in the app',
+  contactSupportDesc: 'Get in touch with our support team',
+  permissionsDesc: 'Manage permissions per role',
+  visibilityDesc: 'Manage what members can see',
+  languageDesc: 'App language and direction',
+  rtlDesc: 'Right-to-left layout for Arabic',
 };
 
 const fr: Translations = {
@@ -1101,6 +1223,58 @@ const fr: Translations = {
   noPermission: 'Vous n\'avez pas la permission',
   accessRestricted: 'Accès restreint',
   close2: 'Fermer', minimize: 'Réduire', maximize: 'Agrandir', options: 'Options',
+  // ── Welcome wizard ────
+  welcomeStep1Title: 'Ouvrez la fenêtre de création',
+  welcomeStep1Body: "Cliquez sur le bouton Créer en bas de la page pour ouvrir le panneau de configuration.",
+  welcomeStep2Title: 'Ajoutez vos clients',
+  welcomeStep2Body: 'Insérez les clients qui seront associés à vos dossiers et cas.',
+  welcomeStep3Title: 'Définissez les services',
+  welcomeStep3Body: "Ajoutez les services offerts. Ils seront disponibles lors de la création des dossiers sur le tableau de bord.",
+  welcomeStep4Title: 'Configurez les étapes et autres entrées',
+  welcomeStep4Body: "Configurez les étapes du flux de travail et toute entrée supplémentaire requise pour votre organisation.",
+  welcomeStep5Title: 'Retour au tableau de bord',
+  welcomeStep5Body: "Une fois la configuration terminée, retournez au tableau de bord pour commencer à créer et remplir vos dossiers.",
+  welcomeReady: '✅ Vous êtes prêt !',
+  welcomeNeverShow: 'Ne plus afficher',
+  welcomeIntro: 'Bienvenue sur GovPilot. Suivez ces étapes pour commencer :',
+  // ── Plans ────
+  planFreeTagline: 'Commencez sans frais',
+  planStarterTagline: 'Pour les équipes en croissance',
+  planBusinessTagline: 'Pour les grandes opérations',
+  planMonthly: 'Mensuel',
+  planYearly: 'Annuel',
+  planSavePercent: 'Économisez %',
+  planMostPopular: 'Le plus populaire',
+  planChoosePlan: 'Choisir ce forfait',
+  planContactSales: 'Contacter les ventes',
+  planCurrentPlanLabel: 'Votre forfait actuel',
+  // ── FAQ ────
+  faqTitle: '💬 Questions fréquentes',
+  faqQ1: 'Comment créer un nouveau dossier ?',
+  faqA1: "Depuis le tableau de bord, appuyez sur + Nouveau dossier. Sélectionnez un client, choisissez un service (qui charge automatiquement les étapes), définissez un prix et une échéance, puis appuyez sur Créer.",
+  faqQ2: "Comment changer le statut d'un dossier ?",
+  faqA2: "Ouvrez le dossier, trouvez l'étape à mettre à jour, et appuyez sur son badge de statut. Vous verrez la liste de tous les statuts disponibles. Le statut global du dossier est toujours l'étape active la plus critique.",
+  faqQ3: 'Quelle est la différence entre étapes et statut ?',
+  faqA3: "Les étapes sont les étapes d'un dossier (ex. Soumettre les documents → Examen ministériel → Signature). Chaque étape a son propre statut. Le statut global du dossier reflète l'étape la plus urgente.",
+  faqQ4: 'Puis-je assigner un dossier à plusieurs personnes ?',
+  faqA4: "Chaque dossier a un assigné principal. Cependant, chaque étape peut avoir son propre assigné — différents membres de l'équipe ou contacts externes peuvent gérer différentes étapes du même dossier.",
+  faqQ5: 'Quelle est la différence entre Membres de l\'équipe et Réseau ?',
+  faqA5: "Les Membres de l'équipe sont vos collègues qui se connectent à GovPilot. Le Réseau (assignés externes) sont des contacts externes comme avocats ou agents — ils n'ont pas de compte mais peuvent être assignés aux étapes pour le suivi.",
+  faqQ6: 'Comment suivre les paiements ?',
+  faqA6: 'Ouvrez un dossier, faites défiler jusqu\'à FINANCES. Le prix contractuel est le tarif convenu. Utilisez + Ajouter pour enregistrer les dépenses ou paiements reçus. Le solde affiche (paiements reçus − dépenses).',
+  faqQ7: 'Que se passe-t-il quand toutes les étapes sont terminées ?',
+  faqA7: "Le dossier est automatiquement archivé et marqué comme clôturé. Il passe de la liste Active à la liste Archive sur le tableau de bord. Vous pouvez toujours le consulter et son historique financier.",
+  faqQ8: "Puis-je utiliser l'application hors ligne ?",
+  faqA8: "Les commentaires et certaines actions sont mis en file d'attente hors ligne et synchronisés à la reconnexion. Cependant, charger les dossiers, mettre à jour les étapes et téléverser des documents nécessitent une connexion Internet.",
+  // ── Misc ────
+  helpGuideDesc: 'Apprenez comment GovPilot fonctionne',
+  faqDesc: 'Questions fréquentes',
+  reportBugDesc: "Signaler un bug dans l'application",
+  contactSupportDesc: "Contactez notre équipe de support",
+  permissionsDesc: 'Gérer les permissions par rôle',
+  visibilityDesc: 'Gérer ce que voient les membres',
+  languageDesc: "Langue et direction de l'application",
+  rtlDesc: "Mise en page de droite à gauche pour l'arabe",
 };
 
 // Fallback: use English for all other languages

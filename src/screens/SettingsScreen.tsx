@@ -719,7 +719,7 @@ export default function SettingsScreen() {
      <Text style={ss.navCardIcon}>💬</Text>
      <View>
        <Text style={ss.navCardTitle}>{t('faq')}</Text>
-       <Text style={ss.navCardSubtitle}>Frequently asked questions</Text>
+       <Text style={ss.navCardSubtitle}>{t('faqDesc')}</Text>
      </View>
    </View>
    <Text style={ss.navCardChevron}>›</Text>
@@ -885,69 +885,21 @@ export default function SettingsScreen() {
    <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
      <View style={ss.helpSheet}>
        <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>💬 Frequently Asked Questions</Text>
+         <Text style={ss.helpTitle}>{t('faqTitle')}</Text>
          <TouchableOpacity onPress={() => setShowFaq(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
            <Text style={ss.helpClose}>✕</Text>
          </TouchableOpacity>
        </View>
        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
-           {
-             q: 'How do I create a new file?',
-             a: 'From the Dashboard, tap the ＋ New File button. Select a client, choose a service (which loads stages automatically), set a price and due date, then tap Create.',
-           },
-           {
-             q: 'How do I change a file\'s status?',
-             a: 'Open the file, find the stage you want to update, and tap its status badge. You\'ll see a list of all available statuses. The file\'s overall status is always the most critical active stage.',
-           },
-           {
-             q: 'What is the difference between stages and status?',
-             a: 'Stages are the steps a file goes through (e.g. Submit Documents → Ministry Review → Signature). Each stage has its own status. The file\'s overall status reflects the most urgent stage status.',
-           },
-           {
-             q: 'Can I assign a file to multiple people?',
-             a: 'Each file has one main assignee. However, every individual stage can have its own assigned person — so different team members or external contacts can handle different stages of the same file.',
-           },
-           {
-             q: 'What is the difference between Team Members and Network?',
-             a: 'Team Members are your colleagues who log in to GovPilot. Network (external assignees) are outside contacts like lawyers or agents — they don\'t have app accounts but can be assigned to stages for tracking.',
-           },
-           {
-             q: 'How do I track payments?',
-             a: 'Open a file, scroll to FINANCIALS. The contract price is the agreed fee. Use ＋ Add to record expenses or payments received. The balance shows (payments received − expenses).',
-           },
-           {
-             q: 'What happens when all stages are Done?',
-             a: 'The file is automatically archived and marked as closed. It moves from the Active list to the Archive list on the Dashboard. You can still view it and its financial history.',
-           },
-           {
-             q: 'How do I delete a file?',
-             a: 'Swipe left on any file card on the Dashboard and tap ✕ Delete. You\'ll be asked to confirm. Alternatively, open the file and use the ⋯ menu in the header.',
-           },
-           {
-             q: 'Can I use the app offline?',
-             a: 'Comments and some actions are queued offline and sync when your connection returns. However, loading files, updating stages, and uploading documents require an internet connection.',
-           },
-           {
-             q: 'How do I import multiple clients or stages at once?',
-             a: 'In Create → Clients modal, tap 📥 Import and paste rows copied directly from Excel (columns: Name, Phone, Reference Name, Reference Phone). For stages, use the same import button in the Stages modal.',
-           },
-           {
-             q: 'How do I set a city for a stage?',
-             a: 'In a file, each stage row has a 📍 city chip. Tap it to select or search a city. You can also set a default city per stage type in Create → Stages — new files will auto-fill that city.',
-           },
-           {
-             q: 'How do I add requirements to a stage?',
-             a: 'Inside a file, each stage has a 📋 Requirements button. Tap it to add documents, tasks, or signature requirements. You can also define template requirements per stage type in Create → Stages → 📋 Req.',
-           },
-           {
-             q: 'How do I print or share a file summary?',
-             a: 'Open the file and tap the 🖨 print icon in the header. This generates a formatted PDF summary of the file, stages, and financials which you can share or print.',
-           },
-           {
-             q: 'How do I invite a team member?',
-             a: 'Go to Settings → Team Members → ✉️ Invite. Enter their email or phone number and choose their role. They register in the app with that same identifier and are automatically added to your organization.',
-           },
+           { q: t('faqQ1'), a: t('faqA1') },
+           { q: t('faqQ2'), a: t('faqA2') },
+           { q: t('faqQ3'), a: t('faqA3') },
+           { q: t('faqQ4'), a: t('faqA4') },
+           { q: t('faqQ5'), a: t('faqA5') },
+           { q: t('faqQ6'), a: t('faqA6') },
+           { q: t('faqQ7'), a: t('faqA7') },
+           { q: t('faqQ8'), a: t('faqA8') },
          ].map((item, i) => (
            <TouchableOpacity
              key={i}

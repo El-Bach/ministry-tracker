@@ -1349,16 +1349,16 @@ export default function DashboardScreen() {
               {/* Title */}
               <Text style={styles.welcomeTitle}>👋 {t('welcomeTo')} GovPilot</Text>
               <Text style={styles.welcomeSubtitle}>
-                Before you can work on cases in the dashboard, you'll need to set up your workspace. Follow the steps below to get started.
+                {t('welcomeIntro')}
               </Text>
 
               {/* Steps */}
               {([
-                { n: '1', icon: '➕', title: 'Open the Create window',        body: 'Click the Create button at the bottom of the page to open the setup panel.',             action: () => goToCreateSection() },
-                { n: '2', icon: '👤', title: 'Add your clients',               body: 'Insert the clients that will be associated with your files and cases.',                  action: () => goToCreateSection('clients') },
-                { n: '3', icon: '⚙️', title: 'Define services',                body: 'Add the services offered. These will be available when filling out files on the dashboard.', action: () => goToCreateSection('services') },
-                { n: '4', icon: '🗂️', title: 'Configure stages & other entries', body: 'Set up workflow stages and any additional required entries for your organization.',    action: () => goToCreateSection('stages') },
-                { n: '5', icon: '🏠', title: 'Return to the dashboard',        body: 'Once setup is complete, head back to the dashboard to begin creating and filling your files.', action: null },
+                { n: '1', icon: '➕', title: t('welcomeStep1Title'), body: t('welcomeStep1Body'), action: () => goToCreateSection() },
+                { n: '2', icon: '👤', title: t('welcomeStep2Title'), body: t('welcomeStep2Body'), action: () => goToCreateSection('clients') },
+                { n: '3', icon: '⚙️', title: t('welcomeStep3Title'), body: t('welcomeStep3Body'), action: () => goToCreateSection('services') },
+                { n: '4', icon: '🗂️', title: t('welcomeStep4Title'), body: t('welcomeStep4Body'), action: () => goToCreateSection('stages') },
+                { n: '5', icon: '🏠', title: t('welcomeStep5Title'), body: t('welcomeStep5Body'), action: null },
               ] as const).map((step) => (
                 <View key={step.n} style={styles.welcomeStep}>
                   <View style={styles.welcomeStepNum}>
@@ -1381,7 +1381,7 @@ export default function DashboardScreen() {
 
               {/* Ready banner */}
               <View style={styles.welcomeReady}>
-                <Text style={styles.welcomeReadyText}>✅  You're ready to go!</Text>
+                <Text style={styles.welcomeReadyText}>{t('welcomeReady')}</Text>
               </View>
 
               {/* Never show again */}
@@ -1394,7 +1394,7 @@ export default function DashboardScreen() {
                   {welcomeNeverShow && <Text style={styles.welcomeCheckMark}>✓</Text>}
                 </View>
                 <Text style={styles.welcomeCheckLabel}>
-                  Don't show this welcome screen again
+                  {t('welcomeNeverShow')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>

@@ -48,7 +48,7 @@ const PLANS = [
     key: 'free',
     name: 'Free',
     emoji: '🌱',
-    tagline: 'Get started at no cost',
+    tagline: 'planFreeTagline' as const,
     monthlyPrice: 0,
     annualPrice: 0,
     color: theme.color.textMuted,
@@ -69,7 +69,7 @@ const PLANS = [
     key: 'basic',
     name: 'Basic',
     emoji: '⚡',
-    tagline: 'For growing teams',
+    tagline: 'planStarterTagline' as const,
     monthlyPrice: 29,
     annualPrice: 19,
     color: theme.color.primary,
@@ -91,7 +91,7 @@ const PLANS = [
     key: 'premium',
     name: 'Premium',
     emoji: '👑',
-    tagline: 'For large operations',
+    tagline: 'planBusinessTagline' as const,
     monthlyPrice: 69,
     annualPrice: 49,
     color: '#F59E0B',
@@ -672,7 +672,7 @@ export default function AccountScreen() {
                       <Text style={s.planEmoji}>{plan.emoji}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={[s.planName, { color: plan.color }]}>{plan.name}</Text>
-                        <Text style={s.planTagline}>{plan.tagline}</Text>
+                        <Text style={s.planTagline}>{t(plan.tagline)}</Text>
                       </View>
                       <View style={s.priceBlock}>
                         {price === 0 ? (
