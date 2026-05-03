@@ -12,7 +12,7 @@
 //   • handleShareDocsWhatsApp — opens wa.me with the required-docs checklist
 //   • handleDuplicateTask    — clones the file (new file_id, all stages reset)
 //
-//   DOCUMENTS (session 52b — this commit)
+//   DOCUMENTS (session 52b)
 //   • handleOpenDoc          — opens the in-app document viewer modal
 //   • handlePrintDoc         — opens the OS print sheet for a document
 //   • handleShareDoc         — downloads + share-sheets a document file
@@ -20,8 +20,14 @@
 //   • handleDeleteDocument   — Alert + hard-delete from task_documents
 //   • handlePickPdf          — DocumentPicker → upload to storage → DB row
 //
-// Future slices (per ../README.md): transactions, stage CRUD, comments,
-// voice notes, status update cascade.
+//   TRANSACTIONS / CONTRACT PRICE (session 52c — this commit)
+//   • handleAddTransaction    — insert revenue/expense + clear form
+//   • handleEditTransaction   — update an existing transaction
+//   • handleDeleteTransaction — Alert + delete + audit comment
+//   • handleSavePrice         — update contract price + history insert
+//
+// Future slices (per ../README.md): stage CRUD, comments, voice notes,
+// status update cascade.
 //
 // Pattern: the hook gets context (auth, navigation, t) from React hooks
 // directly; everything else (the task itself, sheet state, setters) is
@@ -47,6 +53,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../lib/i18n';
 import { Task, DashboardStackParamList } from '../../../types';
 import { TaskDocumentLite } from '../components/DocumentsSection';
+import { FileTransaction } from '../components/FinancialsSection';
 
 // Local helper — identical to the one at the top of TaskDetailScreen.tsx.
 // Inlined here so the hook is self-contained; we'll deduplicate when more
@@ -85,6 +92,57 @@ export interface UseTaskActionsOptions {
   setDeletingDocId: (id: string | null) => void;
   /** Setter for the global PDF-upload spinner. */
   setUploadingPdf: (b: boolean) => void;
+
+  // ── Transactions slice ─────────────────────────────────────────────
+  // Add-transaction form state (read by handleAddTransaction)
+  txDescription:    string;
+  txAmountUSD:      string;
+  txAmountLBP:      string;
+  txType:           'expense' | 'revenue';
+  txStopId:         string | null;
+  /** The currently-active LBP/USD exchange rate, snapshotted onto each new tx. */
+  exchangeRate:     number;
+
+  // Add-transaction form setters (called by handleAddTransaction on success/clear)
+  setSavingTx:           (b: boolean) => void;
+  setTxDescription:      (s: string) => void;
+  setTxAmountUSD:        (s: string) => void;
+  setTxAmountLBP:        (s: string) => void;
+  setTxType:             (t: 'expense' | 'revenue') => void;
+  setTxStopId:           (id: string | null) => void;
+  setShowTxStagePicker:  (b: boolean) => void;
+  setShowAddTransaction: (b: boolean) => void;
+
+  // Edit-transaction form state (read by handleEditTransaction)
+  editingTx:           FileTransaction | null;
+  editTxDescription:   string;
+  editTxAmountUSD:     string;
+  editTxAmountLBP:     string;
+  editTxType:          'expense' | 'revenue';
+  editTxStopId:        string | null;
+
+  // Edit-transaction form setters
+  setSavingEditTx:         (b: boolean) => void;
+  setEditingTx:            (tx: FileTransaction | null) => void;
+  setEditTxStopId:         (id: string | null) => void;
+  setShowEditTxStagePicker:(b: boolean) => void;
+
+  // Delete-transaction setter (per-row spinner)
+  setDeletingTxId: (id: string | null) => void;
+
+  // Contract-price form state (read by handleSavePrice)
+  editPriceUSD:      string;
+  editPriceLBP:      string;
+  editPriceNote:     string;
+  contractPriceUSD:  number;
+  contractPriceLBP:  number;
+
+  // Contract-price setters
+  setSavingPrice:      (b: boolean) => void;
+  setContractPriceUSD: (n: number) => void;
+  setContractPriceLBP: (n: number) => void;
+  setShowEditPrice:    (b: boolean) => void;
+  setEditPriceNote:    (s: string) => void;
 }
 
 export interface UseTaskActionsReturn {
@@ -100,6 +158,11 @@ export interface UseTaskActionsReturn {
   handleRenameDoc:         (doc: TaskDocumentLite, newName: string) => Promise<void>;
   handleDeleteDocument:    (doc: TaskDocumentLite) => void;
   handlePickPdf:           () => Promise<void>;
+  // Transactions / contract price
+  handleAddTransaction:    () => Promise<void>;
+  handleEditTransaction:   () => Promise<void>;
+  handleDeleteTransaction: (tx: FileTransaction) => void;
+  handleSavePrice:         () => Promise<void>;
 }
 
 export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsReturn {
@@ -107,6 +170,18 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     task, sheetDocs, sheetDocReqs, setDuplicating,
     taskId, fetchTask,
     setViewingDoc, setPrintingDoc, setStatusMsg, setDeletingDocId, setUploadingPdf,
+    // transactions — add form
+    txDescription, txAmountUSD, txAmountLBP, txType, txStopId, exchangeRate,
+    setSavingTx, setTxDescription, setTxAmountUSD, setTxAmountLBP, setTxType,
+    setTxStopId, setShowTxStagePicker, setShowAddTransaction,
+    // transactions — edit form
+    editingTx, editTxDescription, editTxAmountUSD, editTxAmountLBP, editTxType, editTxStopId,
+    setSavingEditTx, setEditingTx, setEditTxStopId, setShowEditTxStagePicker,
+    // transactions — delete
+    setDeletingTxId,
+    // contract price
+    editPriceUSD, editPriceLBP, editPriceNote, contractPriceUSD, contractPriceLBP,
+    setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
   } = opts;
   const { teamMember } = useAuth();
   const { t } = useTranslation();
@@ -408,6 +483,156 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     }
   };
 
+  // ─── Transactions / Contract price ─────────────────────────────────────
+  // Insert a new file_transactions row (revenue or expense). Snapshots the
+  // current LBP/USD exchange rate onto the row (rate_usd_lbp) so historical
+  // C/V calculations stay correct even if the org rate changes later.
+  const handleAddTransaction = async () => {
+    if (!txDescription.trim()) {
+      Alert.alert(t('required'), t('fieldRequired'));
+      return;
+    }
+    const usd = parseFloat(txAmountUSD) || 0;
+    const lbp = parseFloat(txAmountLBP.replace(/,/g, '')) || 0;
+    if (usd === 0 && lbp === 0) {
+      Alert.alert(t('required'), t('fieldRequired'));
+      return;
+    }
+    setSavingTx(true);
+    const { error } = await supabase.from('file_transactions').insert({
+      task_id:      taskId,
+      type:         txType,
+      description:  txDescription.trim(),
+      amount_usd:   usd,
+      amount_lbp:   lbp,
+      rate_usd_lbp: exchangeRate, // snapshot rate at time of entry
+      stop_id:      txStopId ?? null,
+      created_by:   teamMember?.id,
+    });
+    setSavingTx(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    // Reset form + close modal
+    setTxDescription('');
+    setTxAmountUSD('');
+    setTxAmountLBP('');
+    setTxType('expense');
+    setTxStopId(null);
+    setShowTxStagePicker(false);
+    setShowAddTransaction(false);
+    fetchTask();
+  };
+
+  // Update an existing transaction's description/amounts/type/stop. Note: we
+  // intentionally do NOT update `rate_usd_lbp` on edit — the original rate
+  // stays locked so historical reports remain consistent.
+  const handleEditTransaction = async () => {
+    if (!editingTx) return;
+    if (!editTxDescription.trim()) {
+      Alert.alert(t('required'), t('fieldRequired'));
+      return;
+    }
+    const usd = parseFloat(editTxAmountUSD) || 0;
+    const lbp = parseFloat(editTxAmountLBP.replace(/,/g, '')) || 0;
+    if (usd === 0 && lbp === 0) {
+      Alert.alert(t('required'), t('fieldRequired'));
+      return;
+    }
+    setSavingEditTx(true);
+    const { error } = await supabase
+      .from('file_transactions')
+      .update({
+        type:        editTxType,
+        description: editTxDescription.trim(),
+        amount_usd:  usd,
+        amount_lbp:  lbp,
+        stop_id:     editTxStopId ?? null,
+      })
+      .eq('id', editingTx.id);
+    setSavingEditTx(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    setEditingTx(null);
+    setEditTxStopId(null);
+    setShowEditTxStagePicker(false);
+    fetchTask();
+  };
+
+  // Delete a transaction with confirmation. Inserts an audit comment first so
+  // the file's activity log preserves the deleted amount even though the
+  // transaction row itself is gone.
+  // Local fmt helpers — same shape as the ones in TaskDetailScreen, kept
+  // local so the hook doesn't depend on more imports.
+  const fmtUSDLocal = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const fmtLBPLocal = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+  const handleDeleteTransaction = (tx: FileTransaction) => {
+    const doDelete = async () => {
+      setDeletingTxId(tx.id);
+      // Audit comment so the deleted amount is preserved in activity history
+      await supabase.from('task_comments').insert({
+        task_id:   taskId,
+        author_id: teamMember?.id,
+        body: `🗑 Deleted ${tx.type}: "${tx.description}" (${
+          tx.amount_usd > 0 ? fmtUSDLocal(tx.amount_usd) : ''
+        }${tx.amount_usd > 0 && tx.amount_lbp > 0 ? ' / ' : ''}${
+          tx.amount_lbp > 0 ? fmtLBPLocal(tx.amount_lbp) : ''
+        })`,
+      });
+      await supabase.from('file_transactions').delete().eq('id', tx.id);
+      setDeletingTxId(null);
+      fetchTask();
+    };
+    // Web: native Alert.alert doesn't render a button bar in browsers — use
+    // confirm() directly. Native: regular Alert with destructive style.
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm(`Delete "${tx.description}"? This cannot be undone.`)) {
+        doDelete();
+      }
+      return;
+    }
+    Alert.alert(t('delete'), `${t('confirmDelete')} — "${tx.description}"`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: doDelete },
+    ]);
+  };
+
+  // Save a new contract price for the file. Updates `tasks.price_usd/lbp` and
+  // appends a row to `task_price_history` so the change shows up under the
+  // collapsible "CONTRACT PRICE CHANGES" panel.
+  const handleSavePrice = async () => {
+    const newUSD = parseFloat(editPriceUSD) || 0;
+    const newLBP = parseFloat(editPriceLBP.replace(/,/g, '')) || 0;
+    setSavingPrice(true);
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          price_usd:  newUSD,
+          price_lbp:  newLBP,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+      if (error) throw error;
+      await supabase.from('task_price_history').insert({
+        task_id:       taskId,
+        old_price_usd: contractPriceUSD,
+        old_price_lbp: contractPriceLBP,
+        new_price_usd: newUSD,
+        new_price_lbp: newLBP,
+        note:          editPriceNote.trim() || null,
+        changed_by:    teamMember?.id ?? null,
+      });
+      setContractPriceUSD(newUSD);
+      setContractPriceLBP(newLBP);
+      setShowEditPrice(false);
+      setEditPriceNote('');
+      fetchTask();
+    } catch (e: any) {
+      Alert.alert(t('error'), e.message);
+    } finally {
+      setSavingPrice(false);
+    }
+  };
+
   return {
     // File-level
     handlePhonePress,
@@ -421,5 +646,10 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     handleRenameDoc,
     handleDeleteDocument,
     handlePickPdf,
+    // Transactions / contract price
+    handleAddTransaction,
+    handleEditTransaction,
+    handleDeleteTransaction,
+    handleSavePrice,
   };
 }

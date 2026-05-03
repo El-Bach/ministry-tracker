@@ -278,10 +278,10 @@ export default function TaskDetailScreen() {
   const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
 
   // ─── Phase 5: handlers extracted into useTaskActions ──────────────────
-  // Currently extracted slices: file-level (Whatsapp / phone / duplicate)
-  // and documents (open / print / share / rename / delete / pick PDF).
-  // Remaining inline: comments, voice notes, transactions, stage CRUD,
-  // status update cascade.
+  // Currently extracted slices: file-level (Whatsapp / phone / duplicate),
+  // documents (open / print / share / rename / delete / pick PDF), and
+  // transactions + contract price. Remaining inline: comments, voice notes,
+  // stage CRUD, status update cascade.
   const {
     // file-level
     handlePhonePress,
@@ -295,6 +295,11 @@ export default function TaskDetailScreen() {
     handleRenameDoc,
     handleDeleteDocument,
     handlePickPdf,
+    // transactions / contract price
+    handleAddTransaction,
+    handleEditTransaction,
+    handleDeleteTransaction,
+    handleSavePrice,
   } = useTaskActions({
     task,
     sheetDocs,
@@ -307,6 +312,18 @@ export default function TaskDetailScreen() {
     setStatusMsg,
     setDeletingDocId,
     setUploadingPdf,
+    // transactions — add form
+    txDescription, txAmountUSD, txAmountLBP, txType, txStopId, exchangeRate,
+    setSavingTx, setTxDescription, setTxAmountUSD, setTxAmountLBP, setTxType,
+    setTxStopId, setShowTxStagePicker, setShowAddTransaction,
+    // transactions — edit form
+    editingTx, editTxDescription, editTxAmountUSD, editTxAmountLBP, editTxType, editTxStopId,
+    setSavingEditTx, setEditingTx, setEditTxStopId, setShowEditTxStagePicker,
+    // transactions — delete
+    setDeletingTxId,
+    // contract price
+    editPriceUSD, editPriceLBP, editPriceNote, contractPriceUSD, contractPriceLBP,
+    setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
   });
 
   const fetchTask = useCallback(async () => {
@@ -398,131 +415,9 @@ export default function TaskDetailScreen() {
   const getStatusColor = (label: string) =>
     statusLabels.find((s) => s.label === label)?.color ?? '#6366f1';
 
-  // ─── Add transaction ─────────────────────────────────────
-  const handleAddTransaction = async () => {
-    if (!txDescription.trim()) {
-      Alert.alert(t('required'), t('fieldRequired'));
-      return;
-    }
-    const usd = parseFloat(txAmountUSD) || 0;
-    const lbp = parseFloat(txAmountLBP.replace(/,/g, '')) || 0;
-    if (usd === 0 && lbp === 0) {
-      Alert.alert(t('required'), t('fieldRequired'));
-      return;
-    }
-    setSavingTx(true);
-    const { error } = await supabase.from('file_transactions').insert({
-      task_id:      taskId,
-      type:         txType,
-      description:  txDescription.trim(),
-      amount_usd:   usd,
-      amount_lbp:   lbp,
-      rate_usd_lbp: exchangeRate,   // snapshot rate at time of entry
-      stop_id:      txStopId ?? null,
-      created_by:   teamMember?.id,
-    });
-    setSavingTx(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setTxDescription('');
-    setTxAmountUSD('');
-    setTxAmountLBP('');
-    setTxType('expense');
-    setTxStopId(null);
-    setShowTxStagePicker(false);
-    setShowAddTransaction(false);
-    fetchTask();
-  };
-
-  // ─── Edit transaction ────────────────────────────────────
-  const handleEditTransaction = async () => {
-    if (!editingTx) return;
-    if (!editTxDescription.trim()) {
-      Alert.alert(t('required'), t('fieldRequired'));
-      return;
-    }
-    const usd = parseFloat(editTxAmountUSD) || 0;
-    const lbp = parseFloat(editTxAmountLBP.replace(/,/g, '')) || 0;
-    if (usd === 0 && lbp === 0) {
-      Alert.alert(t('required'), t('fieldRequired'));
-      return;
-    }
-    setSavingEditTx(true);
-    const { error } = await supabase.from('file_transactions')
-      .update({
-        type:        editTxType,
-        description: editTxDescription.trim(),
-        amount_usd:  usd,
-        amount_lbp:  lbp,
-        stop_id:     editTxStopId ?? null,
-      })
-      .eq('id', editingTx.id);
-    setSavingEditTx(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setEditingTx(null);
-    setEditTxStopId(null);
-    setShowEditTxStagePicker(false);
-    fetchTask();
-  };
-
-  const handleDeleteTransaction = (tx: FileTransaction) => {
-    const doDelete = async () => {
-      setDeletingTxId(tx.id);
-      await supabase.from('task_comments').insert({
-        task_id: taskId,
-        author_id: teamMember?.id,
-        body: `🗑 Deleted ${tx.type}: "${tx.description}" (${
-          tx.amount_usd > 0 ? fmtUSD(tx.amount_usd) : ''
-        }${tx.amount_usd > 0 && tx.amount_lbp > 0 ? ' / ' : ''}${
-          tx.amount_lbp > 0 ? fmtLBP(tx.amount_lbp) : ''
-        })`,
-      });
-      await supabase.from('file_transactions').delete().eq('id', tx.id);
-      setDeletingTxId(null);
-      fetchTask();
-    };
-    if (Platform.OS === 'web') {
-      if ((window as any).confirm(`Delete "${tx.description}"? This cannot be undone.`)) {
-        doDelete();
-      }
-      return;
-    }
-    Alert.alert(t('delete'), `${t('confirmDelete')} — "${tx.description}"`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: doDelete },
-    ]);
-  };
-
-  // ─── Save contract price ─────────────────────────────────
-  const handleSavePrice = async () => {
-    const newUSD = parseFloat(editPriceUSD) || 0;
-    const newLBP = parseFloat(editPriceLBP.replace(/,/g, '')) || 0;
-    setSavingPrice(true);
-    try {
-      const { error } = await supabase
-        .from('tasks')
-        .update({ price_usd: newUSD, price_lbp: newLBP, updated_at: new Date().toISOString() })
-        .eq('id', taskId);
-      if (error) throw error;
-      await supabase.from('task_price_history').insert({
-        task_id: taskId,
-        old_price_usd: contractPriceUSD,
-        old_price_lbp: contractPriceLBP,
-        new_price_usd: newUSD,
-        new_price_lbp: newLBP,
-        note: editPriceNote.trim() || null,
-        changed_by: teamMember?.id ?? null,
-      });
-      setContractPriceUSD(newUSD);
-      setContractPriceLBP(newLBP);
-      setShowEditPrice(false);
-      setEditPriceNote('');
-      fetchTask();
-    } catch (e: any) {
-      Alert.alert(t('error'), e.message);
-    } finally {
-      setSavingPrice(false);
-    }
-  };
+  // Transactions / contract price handlers (handleAddTransaction,
+  // handleEditTransaction, handleDeleteTransaction, handleSavePrice) are
+  // now provided by useTaskActions. See ./TaskDetail/hooks/useTaskActions.ts
 
   // ─── Open edit stages modal ──────────────────────────────
   const openEditStages = () => {

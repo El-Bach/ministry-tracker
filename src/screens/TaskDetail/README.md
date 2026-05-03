@@ -26,7 +26,8 @@ section per session — without breaking the working monolith.
 | Data fetch | `fetchTaskData.ts` | ✅ Extracted + wired (Phase 4) |
 | Action handlers — file-level slice | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5a, session 52) |
 | Action handlers — documents slice | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5b, session 52) |
-| Action handlers — comments / voice / stages / transactions / status | `hooks/useTaskActions.ts` | ⏸ Future sessions |
+| Action handlers — transactions + contract price | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5c, session 52) |
+| Action handlers — comments / voice / stages / status | `hooks/useTaskActions.ts` | ⏸ Future sessions |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
 **Phase 5 (in progress)** — `useTaskActions.ts` now owns:
@@ -36,14 +37,17 @@ section per session — without breaking the working monolith.
   `handleShareDoc`, `handleRenameDoc`, `handleDeleteDocument`,
   `handlePickPdf` (the latter handles the full DocumentPicker → cache →
   Supabase Storage upload → DB insert chain).
+- **Transactions / contract price** (5c): `handleAddTransaction`,
+  `handleEditTransaction`, `handleDeleteTransaction` (with delete-audit
+  comment), `handleSavePrice` (with price-history append).
 
-10 handlers total now in the hook. Each takes its required state via the
+14 handlers total now in the hook. Each takes its required state via the
 `UseTaskActionsOptions` interface; setters are passed in explicitly so
 ownership remains with the orchestrator (TaskDetailScreen).
 
-`TaskDetailScreen.tsx` now at 3,378 lines (was 3,601 after Phase 4).
-Cumulative shrink from the original monolith: 4,828 → 3,378 lines
-(-1,450, -30%). All 28 unit tests pass; zero TypeScript errors.
+`TaskDetailScreen.tsx` now at 3,273 lines (was 3,601 after Phase 4).
+Cumulative shrink from the original monolith: 4,828 → 3,273 lines
+(-1,555, -32%). All 28 unit tests pass; zero TypeScript errors.
 
 **Why incremental?** Each remaining handler group (comments / voice /
 stages / transactions) has 5–10 pieces of state coupled to the parent.
@@ -53,21 +57,19 @@ each group right than rush.
 
 ### Next slices to extract (in priority order)
 
-1. **Transactions (4 handlers)** — `handleAddTransaction`,
-   `handleEditTransaction`, `handleDeleteTransaction`, `handleSavePrice`.
-   State coupling: `transactions`, contract price + edit form state.
-2. **Stage CRUD (8 handlers)** — `handleSetStopDueDate`,
+1. **Stage CRUD (8 handlers)** — `handleSetStopDueDate`,
    `handleSetStopCity`, `handleSetStopAssignee`,
    `handleCreateExtAssigneeForStop`, `handleCreateCity`,
    `handleCreateCityInEditModal`, `handleRenameStopMinistry`,
-   `handleSaveStages`, `handleCreateStageInEdit`. Higher coupling.
-3. **Comments + voice notes (10 handlers)** — `handlePostComment`,
+   `handleSaveStages`, `handleCreateStageInEdit`. Higher coupling —
+   touches stops, ministries, cities, ext_assignees, edit-stages modal.
+2. **Comments + voice notes (10 handlers)** — `handlePostComment`,
    `handleSaveEditComment`, `handleDeleteComment`,
    `handleStartRecording`, `handleStopRecording`,
    `handleDiscardRecording`, `handleSendVoiceNote`, `handlePlayPause`,
    `handleStopListening`, `handleTextFromVoice`. Tangled with audio +
    recording state — extract last.
-4. **Status / archive cascade (1 handler)** — `handleUpdateStopStatus`.
+3. **Status / archive cascade (1 handler)** — `handleUpdateStopStatus`.
    Touches almost every part of state, but it's a single function so the
    options interface is bounded.
 
