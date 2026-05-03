@@ -17,7 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, formatNumber } from '../lib/i18n';
 import { Task, StatusLabel, DashboardStackParamList } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
@@ -246,7 +246,7 @@ export default function CalendarScreen() {
           )}
         </Text>
         <Text style={s.dateCount}>
-          {totalCount} {t('itemsCount')}
+          {formatNumber(totalCount, lang)} {t('itemsCount')}
         </Text>
       </View>
 

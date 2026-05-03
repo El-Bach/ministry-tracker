@@ -36,7 +36,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
 import { checkAndNotifyOverdue } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, formatNumber } from '../lib/i18n';
 import { useFontSize } from '../contexts/FontSizeContext';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
@@ -299,7 +299,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
   const { teamMember, permissions, organization, loading: authLoading } = useAuth();
   const { setOnline } = useOfflineQueue();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { fontScale } = useFontSize();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -1038,7 +1038,7 @@ export default function DashboardScreen() {
           onPress={() => setShowArchived(false)}
         >
           <Text style={[styles.archiveTabText, !showArchived && styles.archiveTabTextActive]}>
-            {t('activeTab')} ({activeTasks.length})
+            {t('activeTab')} ({formatNumber(activeTasks.length, lang)})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -1046,7 +1046,7 @@ export default function DashboardScreen() {
           onPress={() => setShowArchived(true)}
         >
           <Text style={[styles.archiveTabText, showArchived && styles.archiveTabTextActive]}>
-            {t('archiveTab')} ({archivedTasks.length})
+            {t('archiveTab')} ({formatNumber(archivedTasks.length, lang)})
           </Text>
         </TouchableOpacity>
       </View>
@@ -1054,16 +1054,16 @@ export default function DashboardScreen() {
       {/* Summary bar */}
       {!showArchived && summaryStats.active > 0 && (
         <View style={styles.summaryBar}>
-          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>{t('active')}: {summaryStats.active}</Text>
+          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>{t('active')}: {formatNumber(summaryStats.active, lang)}</Text>
           <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
           <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger, { fontSize: Math.round(11 * fontScale) }]}>
-            {t('overdue')}: {summaryStats.overdue}
+            {t('overdue')}: {formatNumber(summaryStats.overdue, lang)}
           </Text>
           {permissions.can_see_contract_price && (summaryStats.dueUSD > 0 || summaryStats.dueLBP > 0) && (
             <>
               <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
               <Text style={[styles.summaryItem, styles.summaryPrimary, { fontSize: Math.round(11 * fontScale) }]}>
-                {t('due')}{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
+                {t('due')}{summaryStats.dueUSD > 0 ? ` $${formatNumber(summaryStats.dueUSD, lang, { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${formatNumber(summaryStats.dueLBP, lang, { maximumFractionDigits: 0 })} LBP` : ''}
               </Text>
             </>
           )}

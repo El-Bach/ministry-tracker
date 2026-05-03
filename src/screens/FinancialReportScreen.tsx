@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, arabicizeDigits } from '../lib/i18n';
 import {
   View,
   Text,
@@ -79,12 +79,17 @@ interface ReportRow {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-const fmtUSD = (n: number) =>
+// PDF / HTML generator uses these raw English-formatted helpers.
+const fmtUSDRaw = (n: number) =>
   `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-const fmtLBP = (n: number) =>
+const fmtLBPRaw = (n: number) =>
   `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-const cvFmt = (n: number) =>
+const cvFmtRaw = (n: number) =>
   `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Aliases — JSX uses these (will be shadowed inside the component with lang-aware versions).
+const fmtUSD = fmtUSDRaw;
+const fmtLBP = fmtLBPRaw;
+const cvFmt  = cvFmtRaw;
 
 function formatDate(iso: string) {
   if (!iso) return '—';
@@ -105,7 +110,15 @@ const TODAY_YMD = new Date().toISOString().slice(0, 10);
 // ─── Main screen ─────────────────────────────────────────────
 export default function FinancialReportScreen() {
   const { teamMember, organization } = useAuth();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  // Arabic-aware number wrapper — takes a pre-formatted string ("$1,234") and
+  // converts the digits + separators to Arabic-Indic when language is Arabic.
+  const ar = (s: string) => arabicizeDigits(s, lang);
+  // Shadow the module helpers with lang-aware versions (used in JSX below).
+  // PDF generator still uses the *Raw versions.
+  const fmtUSD = (n: number) => ar(fmtUSDRaw(n));
+  const fmtLBP = (n: number) => ar(fmtLBPRaw(n));
+  const cvFmt  = (n: number) => ar(cvFmtRaw(n));
 
   // Exchange rate
   const orgRate = organization?.usd_to_lbp_rate ?? 89500;
@@ -494,27 +507,27 @@ export default function FinancialReportScreen() {
       {/* 4-column C/V grid */}
       <View style={s.rowFinRow}>
         <View style={s.rowFinCell}>
-          <Text style={s.rowFinLabel}>RECEIVED</Text>
+          <Text style={s.rowFinLabel}>{t('frReceived')}</Text>
           <Text style={[s.rowFinValue, s.positive]}>{fmtUSD(r.receivedUSD)}</Text>
           {r.receivedLBP > 0 && <Text style={[s.rowFinSub, s.positive]}>{fmtLBP(r.receivedLBP)}</Text>}
         </View>
         <View style={s.rowFinCell}>
-          <Text style={s.rowFinLabel}>C/V USD</Text>
+          <Text style={s.rowFinLabel}>{t('frCvUsd')}</Text>
           <Text style={[s.rowFinValue, s.positive]}>{cvFmt(r.cvReceivedUSD)}</Text>
         </View>
         <View style={s.rowFinCell}>
-          <Text style={s.rowFinLabel}>EXPENSES</Text>
+          <Text style={s.rowFinLabel}>{t('frExpenses')}</Text>
           <Text style={[s.rowFinValue, s.negative]}>{fmtUSD(r.expenseUSD)}</Text>
           {r.expenseLBP > 0 && <Text style={[s.rowFinSub, s.negative]}>{fmtLBP(r.expenseLBP)}</Text>}
         </View>
         <View style={s.rowFinCell}>
-          <Text style={s.rowFinLabel}>BALANCE</Text>
+          <Text style={s.rowFinLabel}>{t('frBalance')}</Text>
           <Text style={[s.rowFinValue, r.cvBalanceUSD >= 0 ? s.positive : s.negative]}>
             {r.cvBalanceUSD >= 0 ? '+' : '-'}{cvFmt(Math.abs(r.cvBalanceUSD))}
           </Text>
         </View>
       </View>
-      <Text style={s.rowTapHint}>Tap for details ›</Text>
+      <Text style={s.rowTapHint}>{t('frTapDetails')}</Text>
     </TouchableOpacity>
   );
 
@@ -537,7 +550,7 @@ export default function FinancialReportScreen() {
 
         {/* Row 1: Status group */}
         <View style={s.filterRow}>
-          <Text style={s.filterGroupLabel}>STATUS</Text>
+          <Text style={s.filterGroupLabel}>{t('frStatusLabel').toUpperCase()}</Text>
           {(['terminal', 'active', 'all'] as const).map((g) => (
             <TouchableOpacity
               key={g}
@@ -545,7 +558,7 @@ export default function FinancialReportScreen() {
               onPress={() => setFilterStatusGroup(g)}
             >
               <Text style={[s.filterChipText, filterStatusGroup === g && s.filterChipTextActive]}>
-                {g === 'terminal' ? '✓ Closed' : g === 'active' ? '⏳ Active' : '📋 All'}
+                {g === 'terminal' ? t('frClosedFilter') : g === 'active' ? t('frActiveFilter') : t('frAllFilter')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -558,7 +571,7 @@ export default function FinancialReportScreen() {
             onPress={() => setFilterScope((v) => v === 'all' ? 'mine' : 'all')}
           >
             <Text style={[s.filterChipText, filterScope === 'mine' && s.filterChipTextActive]}>
-              {filterScope === 'mine' ? '👤 My Files' : '👥 All Files'}
+              {filterScope === 'mine' ? `👤 ${t('myFiles')}` : `👥 ${t('frAllFiles')}`}
             </Text>
           </TouchableOpacity>
 
@@ -567,7 +580,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowServicePicker(true)}
           >
             <Text style={[s.filterChipText, !!filterService && s.filterChipTextActive]}>
-              {filterService || '🔧 Service'}
+              {filterService || `🔧 ${t('frServiceFilter')}`}
             </Text>
           </TouchableOpacity>
 
@@ -576,7 +589,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowStagePicker(true)}
           >
             <Text style={[s.filterChipText, !!filterStage && s.filterChipTextActive]}>
-              {filterStageName || '📋 Stage'}
+              {filterStageName || `📋 ${t('frStageFilter')}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -588,7 +601,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowDateFrom(true)}
           >
             <Text style={[s.filterChipText, !!dateFrom && s.filterChipTextActive]}>
-              📅 {dateFrom ? toDisplayDate(dateFrom) : 'From'}
+              📅 {dateFrom ? toDisplayDate(dateFrom) : t('frFrom')}
             </Text>
           </TouchableOpacity>
 
@@ -597,7 +610,7 @@ export default function FinancialReportScreen() {
             onPress={() => setShowDateTo(true)}
           >
             <Text style={[s.filterChipText, !!dateTo && s.filterChipTextActive]}>
-              📅 {dateTo ? toDisplayDate(dateTo) : 'To'}
+              📅 {dateTo ? toDisplayDate(dateTo) : t('frTo')}
             </Text>
           </TouchableOpacity>
 
@@ -610,7 +623,7 @@ export default function FinancialReportScreen() {
 
           {hasFilters && (
             <TouchableOpacity style={s.clearBtn} onPress={clearFilters}>
-              <Text style={s.clearBtnText}>✕ Clear</Text>
+              <Text style={s.clearBtnText}>✕ {t('clearFilters')}</Text>
             </TouchableOpacity>
           )}
 
@@ -630,21 +643,21 @@ export default function FinancialReportScreen() {
         {/* Row 1: RECEIVED · EXPENSES · BALANCE */}
         <View style={s.totalsRow}>
           <View style={s.totalCell}>
-            <Text style={s.totalLabel}>RECEIVED</Text>
+            <Text style={s.totalLabel}>{t('frReceived')}</Text>
             <Text style={[s.totalValue, s.positive]}>{fmtUSD(totals.receivedUSD)}</Text>
             {totals.receivedLBP > 0 && (
               <Text style={[s.totalValueSub, s.positive, s.lbpCentered]}>{fmtLBP(totals.receivedLBP)}</Text>
             )}
           </View>
           <View style={s.totalCell}>
-            <Text style={s.totalLabel}>EXPENSES</Text>
+            <Text style={s.totalLabel}>{t('frExpenses')}</Text>
             <Text style={[s.totalValue, totals.expenseUSD > 0 ? s.negative : s.positive]}>{fmtUSD(totals.expenseUSD)}</Text>
             {totals.expenseLBP > 0 && (
               <Text style={[s.totalValueSub, s.negative, s.lbpCentered]}>{fmtLBP(totals.expenseLBP)}</Text>
             )}
           </View>
           <View style={[s.totalCell, s.totalCellLast]}>
-            <Text style={s.totalLabel}>BALANCE</Text>
+            <Text style={s.totalLabel}>{t('frBalance')}</Text>
             {(() => {
               const balUSD = totals.receivedUSD - totals.expenseUSD;
               const balLBP = totals.receivedLBP - totals.expenseLBP;
@@ -673,14 +686,14 @@ export default function FinancialReportScreen() {
             )}
           </View>
           <View style={s.totalCell}>
-            <Text style={s.totalLabel}>C/V USD</Text>
+            <Text style={s.totalLabel}>{t('frCvUsd')}</Text>
             <Text style={[s.totalValue, { color: theme.color.primary }]}>
               {rate.toLocaleString('en-US')}
             </Text>
-            <Text style={[s.totalValueSubNeutral, s.lbpCentered]}>LBP / $1</Text>
+            <Text style={[s.totalValueSubNeutral, s.lbpCentered]}>{t('frLbpRate')}</Text>
           </View>
           <View style={[s.totalCell, s.totalCellLast]}>
-            <Text style={s.totalLabel}>RESULT</Text>
+            <Text style={s.totalLabel}>{t('frResult')}</Text>
             <Text style={[s.totalValue, totals.cvBalance >= 0 ? s.positive : s.negative]}>
               {totals.cvBalance >= 0 ? '+' : '-'}{cvFmt(Math.abs(totals.cvBalance))}
             </Text>

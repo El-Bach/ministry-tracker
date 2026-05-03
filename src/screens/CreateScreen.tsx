@@ -23,7 +23,7 @@ import { Calendar } from 'react-native-calendars';
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, formatNumber } from '../lib/i18n';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement, MainTabParamList } from '../types';
@@ -45,7 +45,7 @@ export default function CreateScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<MainTabParamList, 'Create'>>();
   const { teamMember, permissions } = useAuth();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const orgId = teamMember?.org_id ?? null;
 
   // Data
@@ -956,7 +956,7 @@ export default function CreateScreen() {
               <Text style={s.manageRowIcon}>{row.icon}</Text>
               <Text style={s.manageRowLabel}>{row.label}</Text>
               <View style={s.manageRowBadge}>
-                <Text style={s.manageRowCount}>{row.count}</Text>
+                <Text style={s.manageRowCount}>{formatNumber(row.count, lang)}</Text>
               </View>
               <Text style={s.manageRowArrow}>›</Text>
             </TouchableOpacity>

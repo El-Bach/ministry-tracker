@@ -211,9 +211,42 @@ export type TranslationKey =
   | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
   // Activity screen
   | 'unknown' | 'someone' | 'changedStatus' | 'fromStatus' | 'deletedThisFile'
-  | 'addTransaction' | 'allDay' | 'today2';
+  | 'addTransaction' | 'allDay' | 'today2'
+  // Phase 7: more missed strings
+  | 'events' | 'noActivity' | 'noActivitySub'
+  | 'addField' | 'required' | 'fieldText' | 'fieldPhone' | 'fieldEmail'
+  | 'fieldDate' | 'fieldNumber' | 'fieldBoolean' | 'fieldSelect' | 'fieldUrl'
+  | 'fieldLocation' | 'fieldImage' | 'fieldIdNumber' | 'fieldCurrency'
+  | 'fieldTextarea' | 'fieldMultiselect'
+  | 'frStatusLabel' | 'frClosedFilter' | 'frActiveFilter' | 'frAllFilter'
+  | 'frAllFiles' | 'frServiceFilter' | 'frStageFilter' | 'frFrom' | 'frTo'
+  | 'frPdf' | 'frReceived' | 'frExpenses' | 'frBalance' | 'frResult'
+  | 'frFilesContract' | 'frCvUsd' | 'frLbpRate' | 'frTapDetails' | 'frClosed';
 
 type Translations = Record<TranslationKey, string>;
+
+// ─── Number formatter ────────────────────────────────────────────────────────
+// Convert Western digits to Arabic-Indic digits when language is Arabic.
+// Use this for ANY user-visible numeric display.
+const ARABIC_DIGITS = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'] as const;
+
+export function formatNumber(value: number | string, lang: string, opts?: Intl.NumberFormatOptions): string {
+  const num = typeof value === 'number' ? value : parseFloat(value);
+  if (Number.isNaN(num)) return String(value);
+  if (lang === 'ar') {
+    // Use ar-LB locale for Arabic-Indic digits + Arabic thousands separator (٬)
+    return num.toLocaleString('ar-EG', opts);
+  }
+  if (lang === 'fr') return num.toLocaleString('fr-FR', opts);
+  return num.toLocaleString('en-US', opts);
+}
+
+// Convert any string with embedded Western digits to Arabic-Indic when lang === 'ar'.
+// Useful for already-formatted strings like "10,000,000 LBP".
+export function arabicizeDigits(s: string, lang: string): string {
+  if (lang !== 'ar') return s;
+  return s.replace(/\d/g, (d) => ARABIC_DIGITS[parseInt(d, 10)]);
+}
 
 const ar: Translations = {
   // ── existing ────────────────────────────────────────────────────────────────
@@ -660,6 +693,23 @@ const ar: Translations = {
   changedStatus: 'غيّر الحالة', fromStatus: 'من',
   deletedThisFile: 'حذف هذا الملف',
   addTransaction: 'إضافة معاملة', allDay: 'طوال اليوم', today2: 'اليوم',
+  // ── Phase 7 fixes ────
+  events: 'حدث', noActivity: 'لا يوجد نشاط بعد',
+  noActivitySub: 'تظهر هنا تغييرات الحالة والتعليقات والحذف',
+  addField: '+ إضافة حقل', required: 'مطلوب',
+  fieldText: 'نص', fieldPhone: 'هاتف', fieldEmail: 'بريد إلكتروني',
+  fieldDate: 'تاريخ', fieldNumber: 'رقم', fieldBoolean: 'نعم/لا',
+  fieldSelect: 'قائمة منسدلة', fieldUrl: 'رابط',
+  fieldLocation: 'موقع', fieldImage: 'صورة', fieldIdNumber: 'رقم هوية',
+  fieldCurrency: 'عملة', fieldTextarea: 'نص طويل', fieldMultiselect: 'اختيار متعدد',
+  frStatusLabel: 'الحالة',
+  frClosedFilter: 'مغلق', frActiveFilter: 'نشط', frAllFilter: 'الكل',
+  frAllFiles: 'كل الملفات', frServiceFilter: 'الخدمة', frStageFilter: 'المرحلة',
+  frFrom: 'من', frTo: 'إلى', frPdf: 'PDF',
+  frReceived: 'مستلم', frExpenses: 'مصاريف',
+  frBalance: 'الرصيد', frResult: 'الصافي',
+  frFilesContract: 'ملف · العقد', frCvUsd: 'ما يعادل بالدولار',
+  frLbpRate: 'ل.ل / $1', frTapDetails: 'اضغط للتفاصيل ›', frClosed: 'مغلق',
 };
 
 const en: Translations = {
@@ -1109,6 +1159,23 @@ const en: Translations = {
   changedStatus: 'changed status', fromStatus: 'from',
   deletedThisFile: 'deleted this file',
   addTransaction: 'Add Transaction', allDay: 'All day', today2: 'Today',
+  // ── Phase 7 fixes ────
+  events: 'events', noActivity: 'No activity yet',
+  noActivitySub: 'Status changes, comments, and deletions will appear here',
+  addField: '+ Add Field', required: 'Required',
+  fieldText: 'Text', fieldPhone: 'Phone', fieldEmail: 'Email',
+  fieldDate: 'Date', fieldNumber: 'Number', fieldBoolean: 'Yes/No',
+  fieldSelect: 'Dropdown', fieldUrl: 'URL',
+  fieldLocation: 'Location', fieldImage: 'Image', fieldIdNumber: 'ID Number',
+  fieldCurrency: 'Currency', fieldTextarea: 'Long Text', fieldMultiselect: 'Multi-select',
+  frStatusLabel: 'STATUS',
+  frClosedFilter: '✓ Closed', frActiveFilter: '⏳ Active', frAllFilter: '📋 All',
+  frAllFiles: 'All Files', frServiceFilter: 'Service', frStageFilter: 'Stage',
+  frFrom: 'From', frTo: 'To', frPdf: 'PDF',
+  frReceived: 'RECEIVED', frExpenses: 'EXPENSES',
+  frBalance: 'BALANCE', frResult: 'RESULT',
+  frFilesContract: 'FILES · CONTRACT', frCvUsd: 'C/V USD',
+  frLbpRate: 'LBP / $1', frTapDetails: 'Tap for details ›', frClosed: 'Closed',
 };
 
 const fr: Translations = {
@@ -1563,6 +1630,23 @@ const fr: Translations = {
   changedStatus: 'a changé le statut', fromStatus: 'de',
   deletedThisFile: 'a supprimé ce dossier',
   addTransaction: 'Ajouter une transaction', allDay: 'Toute la journée', today2: "Aujourd'hui",
+  // ── Phase 7 fixes ────
+  events: 'événements', noActivity: 'Aucune activité',
+  noActivitySub: 'Changements de statut, commentaires et suppressions apparaîtront ici',
+  addField: '+ Ajouter un champ', required: 'Requis',
+  fieldText: 'Texte', fieldPhone: 'Téléphone', fieldEmail: 'E-mail',
+  fieldDate: 'Date', fieldNumber: 'Nombre', fieldBoolean: 'Oui/Non',
+  fieldSelect: 'Liste déroulante', fieldUrl: 'URL',
+  fieldLocation: 'Lieu', fieldImage: 'Image', fieldIdNumber: 'Numéro ID',
+  fieldCurrency: 'Devise', fieldTextarea: 'Texte long', fieldMultiselect: 'Sélection multiple',
+  frStatusLabel: 'STATUT',
+  frClosedFilter: '✓ Clos', frActiveFilter: '⏳ Actif', frAllFilter: '📋 Tous',
+  frAllFiles: 'Tous les dossiers', frServiceFilter: 'Service', frStageFilter: 'Étape',
+  frFrom: 'Du', frTo: 'Au', frPdf: 'PDF',
+  frReceived: 'REÇU', frExpenses: 'DÉPENSES',
+  frBalance: 'SOLDE', frResult: 'RÉSULTAT',
+  frFilesContract: 'DOSSIERS · CONTRAT', frCvUsd: 'C/V USD',
+  frLbpRate: 'LBP / $1', frTapDetails: 'Toucher pour détails ›', frClosed: 'Clos',
 };
 
 // Fallback: use English for all other languages

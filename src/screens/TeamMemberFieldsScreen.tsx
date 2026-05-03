@@ -189,11 +189,11 @@ export default function TeamMemberFieldsScreen() {
   <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
    <View style={s.header}>
     <View>
-     <Text style={s.title}>Team Member Fields</Text>
-     <Text style={s.subtitle}>Custom fields for team member profiles</Text>
+     <Text style={s.title}>{t('screenTeamMemberFields')}</Text>
+     <Text style={s.subtitle}>{t('teamMemberFieldsSubtitle')}</Text>
     </View>
     <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-     <Text style={s.addBtnText}>+ Add Field</Text>
+     <Text style={s.addBtnText}>{t('addField')}</Text>
     </TouchableOpacity>
    </View>
 
@@ -222,9 +222,25 @@ export default function TeamMemberFieldsScreen() {
            <Text style={[s.fieldName, !field.is_active && s.fieldNameInactive]}>
             {field.label}
            </Text>
-           {field.is_required && <Text style={s.requiredTag}>Required</Text>}
+           {field.is_required && <Text style={s.requiredTag}>{t('required')}</Text>}
           </View>
-          <Text style={s.fieldTypeName}>{ti?.label ?? field.field_type}</Text>
+          <Text style={s.fieldTypeName}>{
+            field.field_type === 'text' ? t('fieldText') :
+            field.field_type === 'textarea' ? t('fieldTextarea') :
+            field.field_type === 'number' ? t('fieldNumber') :
+            field.field_type === 'currency' ? t('fieldCurrency') :
+            field.field_type === 'email' ? t('fieldEmail') :
+            field.field_type === 'phone' ? t('fieldPhone') :
+            field.field_type === 'url' ? t('fieldUrl') :
+            field.field_type === 'date' ? t('fieldDate') :
+            field.field_type === 'boolean' ? t('fieldBoolean') :
+            field.field_type === 'select' ? t('fieldSelect') :
+            field.field_type === 'multiselect' ? t('fieldMultiselect') :
+            field.field_type === 'image' ? t('fieldImage') :
+            field.field_type === 'location' ? t('fieldLocation') :
+            field.field_type === 'id_number' ? t('fieldIdNumber') :
+            (ti?.label ?? field.field_type)
+          }</Text>
           {field.options && (
            <Text style={s.fieldOptions} numberOfLines={1}>
             {(field.options as unknown as string[]).join(', ')}

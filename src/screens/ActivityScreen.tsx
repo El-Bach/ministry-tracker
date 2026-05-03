@@ -17,7 +17,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, formatNumber } from '../lib/i18n';
 import { DashboardStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -322,13 +322,13 @@ export default function ActivityScreen() {
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
         <Text style={s.title}>{t('activity')}</Text>
-        <Text style={s.subtitle}>{totalCount} events</Text>
+        <Text style={s.subtitle}>{formatNumber(totalCount, lang)} {t('events')}</Text>
       </View>
 
       {sections.length === 0 ? (
         <View style={s.center}>
-          <Text style={s.emptyText}>No activity yet</Text>
-          <Text style={s.emptySubtext}>Status changes, comments, and deletions will appear here</Text>
+          <Text style={s.emptyText}>{t('noActivity')}</Text>
+          <Text style={s.emptySubtext}>{t('noActivitySub')}</Text>
         </View>
       ) : (
         <SectionList
