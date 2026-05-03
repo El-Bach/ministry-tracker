@@ -1054,16 +1054,16 @@ export default function DashboardScreen() {
       {/* Summary bar */}
       {!showArchived && summaryStats.active > 0 && (
         <View style={styles.summaryBar}>
-          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>Active: {summaryStats.active}</Text>
+          <Text style={[styles.summaryItem, { fontSize: Math.round(11 * fontScale) }]}>{t('active')}: {summaryStats.active}</Text>
           <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
           <Text style={[styles.summaryItem, summaryStats.overdue > 0 && styles.summaryDanger, { fontSize: Math.round(11 * fontScale) }]}>
-            Overdue: {summaryStats.overdue}
+            {t('overdue')}: {summaryStats.overdue}
           </Text>
           {permissions.can_see_contract_price && (summaryStats.dueUSD > 0 || summaryStats.dueLBP > 0) && (
             <>
               <Text style={[styles.summaryDot, { fontSize: Math.round(11 * fontScale) }]}> · </Text>
               <Text style={[styles.summaryItem, styles.summaryPrimary, { fontSize: Math.round(11 * fontScale) }]}>
-                Due{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
+                {t('due')}{summaryStats.dueUSD > 0 ? ` $${summaryStats.dueUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : ''}{summaryStats.dueUSD > 0 && summaryStats.dueLBP > 0 ? ', ' : ''}{summaryStats.dueLBP > 0 ? `${summaryStats.dueLBP.toLocaleString('en-US', { maximumFractionDigits: 0 })} LBP` : ''}
               </Text>
             </>
           )}

@@ -76,6 +76,8 @@ interface FileTransaction {
   description: string;
   amount_usd: number;
   amount_lbp: number;
+  /** Exchange rate (LBP per $1) locked at the time this transaction was recorded. NULL on legacy rows. */
+  rate_usd_lbp?: number | null;
   stop_id?: string | null;
   stop?: { id: string; ministry?: { name: string } } | null;
   created_by?: string;
@@ -1694,7 +1696,7 @@ export default function TaskDetailScreen() {
           <View style={s.headerActionsRow}>
             {permissions.can_edit_file_details && (
               <TouchableOpacity style={s.editTaskBtn} onPress={openEditTask}>
-                <Text style={s.editTaskBtnText}>✎ Edit</Text>
+                <Text style={s.editTaskBtnText}>✎ {t('edit')}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={s.shareWhatsAppBtn} onPress={handleShareWhatsApp}>
@@ -2080,7 +2082,7 @@ export default function TaskDetailScreen() {
                           }}
                         >
                           <Text style={[s.stopMetaChipText, stopCityName ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
-                            {stopCityName ? `📍 ${stopCityName}` : '📍 Set city'}
+                            {stopCityName ? `📍 ${stopCityName}` : t('setCity')}
                           </Text>
                         </TouchableOpacity>
 
@@ -2113,7 +2115,7 @@ export default function TaskDetailScreen() {
                         <>
                           <Text style={s.stageChipIcon}>📍</Text>
                           <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
-                            {stopCityName ?? 'Set city'}
+                            {stopCityName ?? t('setCity')}
                           </Text>
                           <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>
                         </>
@@ -2134,7 +2136,7 @@ export default function TaskDetailScreen() {
                           <>
                             <Text style={s.stageChipIcon}>📅</Text>
                             <Text style={[s.stageChipLabel, { color: stop.due_date ? theme.color.warning : theme.color.textMuted }]} numberOfLines={1}>
-                              {stop.due_date ? formatDateOnly(stop.due_date) : 'Due date'}
+                              {stop.due_date ? formatDateOnly(stop.due_date) : t('dueDate')}
                             </Text>
                             <Text style={[s.stageChipArrow, { color: stop.due_date ? theme.color.warning + 'BB' : theme.color.border }]}>▾</Text>
                           </>
@@ -2186,7 +2188,7 @@ export default function TaskDetailScreen() {
                         <>
                           <Text style={s.stageChipIcon}>👤</Text>
                           <Text style={[s.stageChipLabel, { color: (stop.assignee || stop.ext_assignee) ? theme.color.success : theme.color.textMuted }]} numberOfLines={1}>
-                            {stop.assignee?.name ?? stop.ext_assignee?.name ?? 'Set assignee'}
+                            {stop.assignee?.name ?? stop.ext_assignee?.name ?? t('setAssignee')}
                           </Text>
                           <Text style={[s.stageChipArrow, { color: (stop.assignee || stop.ext_assignee) ? theme.color.success + 'BB' : theme.color.border }]}>▾</Text>
                         </>
@@ -2453,7 +2455,7 @@ export default function TaskDetailScreen() {
                     setShowEditPrice(true);
                   }}
                 >
-                  <Text style={s.editPriceBtnText}>✎ Edit</Text>
+                  <Text style={s.editPriceBtnText}>✎ {t('edit')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -2532,7 +2534,7 @@ export default function TaskDetailScreen() {
             </View>
             <View style={s.balanceDivider} />
             <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>RESULT (P&L)</Text>
+              <Text style={s.balanceTotalLabel}>{t('netBalance')}</Text>
               <Text style={[s.balanceCol, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}>
                 {balanceUSD >= 0 ? '+' : '-'} {fmtUSD(balanceUSD)}
               </Text>
@@ -2543,7 +2545,7 @@ export default function TaskDetailScreen() {
             <View style={s.balanceDivider} />
             {/* TOTAL USD = USD P&L + (LBP P&L / rate) */}
             <View style={s.balanceRow}>
-              <Text style={s.balanceTotalLabel}>TOTAL USD</Text>
+              <Text style={s.balanceTotalLabel}>{t('cvUSD')}</Text>
               <Text style={[s.balanceCol, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}>
                 {totalCombinedUSD >= 0 ? '+' : '-'} ${Math.abs(totalCombinedUSD).toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </Text>
@@ -2661,7 +2663,7 @@ export default function TaskDetailScreen() {
               style={s.addTxBtn}
               onPress={() => setShowAddTransaction((v) => !v)}
             >
-              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : '+ Add Transaction'}</Text>
+              <Text style={s.addTxBtnText}>{showAddTransaction ? `✕ ${t('cancel')}` : `+ ${t('transaction')}`}</Text>
             </TouchableOpacity>
           )}
 
@@ -3195,7 +3197,7 @@ export default function TaskDetailScreen() {
                     }}
                   >
                     <Text style={s.editStageCityChipText}>
-                      {editStageCities[stage.id]?.cityName ? `📍 ${editStageCities[stage.id]?.cityName}` : '📍 Set city'}
+                      {editStageCities[stage.id]?.cityName ? `📍 ${editStageCities[stage.id]?.cityName}` : t('setCity')}
                     </Text>
                   </TouchableOpacity>
                   {/* City picker dropdown for this stage */}
@@ -4243,7 +4245,7 @@ const s = StyleSheet.create({
   cvHeaderText: { color: theme.color.textMuted, fontWeight: '700', fontSize: 9 },
   cvTotalRow:   { backgroundColor: theme.color.bgBase, borderBottomWidth: 0 },
   cvTotalText:  { fontWeight: '700', fontSize: 12 },
-  cvCell:       { fontSize: 11 },
+  cvCell:       { flexDirection: 'row' as const },
   cvCellDesc:   { flex: 1.8, gap: 2 },
   cvCellNum:    { flex: 1, textAlign: 'right' },
   cvDescText:   { fontSize: 11, fontWeight: '600' },

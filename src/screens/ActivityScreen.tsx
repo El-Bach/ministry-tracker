@@ -63,19 +63,21 @@ const DAY_BORDER_COLORS = [
   '#14b8a644',
 ];
 
-function formatDay(iso: string): string {
+function formatDay(iso: string, lang: string, todayLabel: string, yesterdayLabel: string): string {
   const d = new Date(iso);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = Math.round((today.getTime() - itemDay.getTime()) / 86400000);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (diff === 0) return todayLabel;
+  if (diff === 1) return yesterdayLabel;
+  const locale = lang === 'ar' ? 'ar-LB' : lang === 'fr' ? 'fr-FR' : 'en-GB';
+  return d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+function formatTime(iso: string, lang: string): string {
+  const locale = lang === 'ar' ? 'ar-LB' : lang === 'fr' ? 'fr-FR' : 'en-GB';
+  return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 function dayKey(iso: string): string {
@@ -85,7 +87,7 @@ function dayKey(iso: string): string {
 
 export default function ActivityScreen() {
   const navigation = useNavigation<Nav>();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { teamMember, permissions } = useAuth();
   const [sections, setSections] = useState<DaySection[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -212,7 +214,7 @@ export default function ActivityScreen() {
       const sects: DaySection[] = [];
       for (const [, items] of dayMap) {
         sects.push({
-          title: formatDay(items[0].created_at),
+          title: formatDay(items[0].created_at, lang, t('today'), t('yesterday')),
           dayIndex: dayIndex % DAY_COLORS.length,
           data: items,
         });
@@ -259,7 +261,7 @@ export default function ActivityScreen() {
           {/* Client + service */}
           <View style={s.topRow}>
             <Text style={s.clientText} numberOfLines={1}>
-              {item.client_name ?? 'Unknown'}
+              {item.client_name ?? t('unknown')}
             </Text>
             {item.service_name ? (
               <Text style={s.serviceText} numberOfLines={1}> · {item.service_name}</Text>
@@ -269,28 +271,28 @@ export default function ActivityScreen() {
           {/* Event description */}
           {isStatus && (
             <Text style={s.desc}>
-              <Text style={s.actor}>{item.actor_name ?? 'Someone'}</Text>
-              {' changed status'}
-              {item.old_status ? ` from ${item.old_status}` : ''}
+              <Text style={s.actor}>{item.actor_name ?? t('someone')}</Text>
+              {' '}{t('changedStatus')}
+              {item.old_status ? ` ${t('fromStatus')} ${item.old_status}` : ''}
               {' → '}
               <Text style={[s.newStatus, { color }]}>{item.new_status}</Text>
             </Text>
           )}
           {isComment && (
             <Text style={s.desc} numberOfLines={2}>
-              <Text style={s.actor}>{item.actor_name ?? 'Someone'}</Text>
+              <Text style={s.actor}>{item.actor_name ?? t('someone')}</Text>
               {': '}
               {item.comment_body}
             </Text>
           )}
           {isDeleted && (
             <Text style={[s.desc, { color: theme.color.danger }]} numberOfLines={2}>
-              <Text style={[s.actor, { color: theme.color.danger }]}>{item.actor_name ?? 'Someone'}</Text>
-              {' deleted this file'}
+              <Text style={[s.actor, { color: theme.color.danger }]}>{item.actor_name ?? t('someone')}</Text>
+              {' '}{t('deletedThisFile')}
             </Text>
           )}
 
-          <Text style={s.time}>{formatTime(item.created_at)}</Text>
+          <Text style={s.time}>{formatTime(item.created_at, lang)}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -319,7 +321,7 @@ export default function ActivityScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
-        <Text style={s.title}>Activity</Text>
+        <Text style={s.title}>{t('activity')}</Text>
         <Text style={s.subtitle}>{totalCount} events</Text>
       </View>
 

@@ -208,7 +208,10 @@ export type TranslationKey =
   | 'planLimitReached' | 'planLimitBody' | 'planGraceBody' | 'planLimitChip'
   | 'planUpgradeNow' | 'planRemindLater'
   // Day names for calendar
-  | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+  | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+  // Activity screen
+  | 'unknown' | 'someone' | 'changedStatus' | 'fromStatus' | 'deletedThisFile'
+  | 'addTransaction' | 'allDay' | 'today2';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -653,6 +656,10 @@ const ar: Translations = {
   planRemindLater: 'ذكّرني لاحقاً',
   mon: 'الإثنين', tue: 'الثلاثاء', wed: 'الأربعاء', thu: 'الخميس',
   fri: 'الجمعة', sat: 'السبت', sun: 'الأحد',
+  unknown: 'غير معروف', someone: 'شخص ما',
+  changedStatus: 'غيّر الحالة', fromStatus: 'من',
+  deletedThisFile: 'حذف هذا الملف',
+  addTransaction: 'إضافة معاملة', allDay: 'طوال اليوم', today2: 'اليوم',
 };
 
 const en: Translations = {
@@ -1098,6 +1105,10 @@ const en: Translations = {
   planRemindLater: 'Remind Me Later',
   mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu',
   fri: 'Fri', sat: 'Sat', sun: 'Sun',
+  unknown: 'Unknown', someone: 'Someone',
+  changedStatus: 'changed status', fromStatus: 'from',
+  deletedThisFile: 'deleted this file',
+  addTransaction: 'Add Transaction', allDay: 'All day', today2: 'Today',
 };
 
 const fr: Translations = {
@@ -1548,6 +1559,10 @@ const fr: Translations = {
   planRemindLater: 'Me rappeler plus tard',
   mon: 'Lun', tue: 'Mar', wed: 'Mer', thu: 'Jeu',
   fri: 'Ven', sat: 'Sam', sun: 'Dim',
+  unknown: 'Inconnu', someone: 'Quelqu\'un',
+  changedStatus: 'a changé le statut', fromStatus: 'de',
+  deletedThisFile: 'a supprimé ce dossier',
+  addTransaction: 'Ajouter une transaction', allDay: 'Toute la journée', today2: "Aujourd'hui",
 };
 
 // Fallback: use English for all other languages

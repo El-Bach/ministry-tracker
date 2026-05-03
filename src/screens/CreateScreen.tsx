@@ -1145,7 +1145,7 @@ export default function CreateScreen() {
                   placeholder={t('phoneNumber')}
                   style={{ marginBottom: 10 }}
                 />
-                <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
+                <Text style={s.fieldsSectionLabel}>{t('referenceOpt').toUpperCase()}</Text>
                 <TextInput
                   style={s.modalInput}
                   value={newClientRefName}
@@ -1165,7 +1165,7 @@ export default function CreateScreen() {
                   <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 20 }} />
                 ) : clientFormFieldDefs.length > 0 ? (
                   <>
-                    <Text style={s.fieldsSectionLabel}>ADDITIONAL FIELDS</Text>
+                    <Text style={s.fieldsSectionLabel}>{t('preferences').toUpperCase()}</Text>
                     {clientFormFieldDefs.map((def) => (
                       <View key={def.id} style={{ marginBottom: 12 }}>
                         <Text style={s.fieldDefLabel}>{def.label}{def.is_required ? ' *' : ''}</Text>
@@ -1490,14 +1490,14 @@ export default function CreateScreen() {
               </View>
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                 <View style={s.mgmtAddBlock}>
-                  <Text style={s.mgmtAddSectionLabel}>NEW SERVICE</Text>
+                  <Text style={s.mgmtAddSectionLabel}>{t('newService').toUpperCase()}</Text>
                   <TextInput style={s.modalInput} value={newSvcName} onChangeText={setNewSvcName} placeholder={`${t('serviceName')} *`} placeholderTextColor={theme.color.textMuted} />
                   <View style={s.mgmtPriceRow}>
                     <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceUSD} onChangeText={setNewSvcPriceUSD} placeholder="Base price USD" placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
                     <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setNewSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder="Base price LBP" placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
                   </View>
                   <TouchableOpacity style={s.mgmtAddBtn} onPress={handleCreateService} disabled={savingNewSvc}>
-                    {savingNewSvc ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ Add Service</Text>}
+                    {savingNewSvc ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ {t('addService')}</Text>}
                   </TouchableOpacity>
                 </View>
                 {services.filter(sv =>
@@ -1682,10 +1682,10 @@ export default function CreateScreen() {
               </View>
               <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
                 <View style={[s.mgmtAddBlock, { flexDirection: 'row', alignItems: 'flex-end', gap: 8 }]}>
-                  <Text style={[s.mgmtAddSectionLabel, { position: 'absolute', top: 14, left: 14 }]}>NEW STAGE</Text>
+                  <Text style={[s.mgmtAddSectionLabel, { position: 'absolute', top: 14, left: 14 }]}>{t('newStage').toUpperCase()}</Text>
                   <TextInput style={[s.modalInput, { flex: 1, marginTop: 20 }]} value={newStageName} onChangeText={setNewStageName} placeholder={`${t('stageName')} *`} placeholderTextColor={theme.color.textMuted} />
                   <TouchableOpacity style={s.mgmtAddBtn} onPress={handleCreateStage} disabled={savingNewStage}>
-                    {savingNewStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ Add</Text>}
+                    {savingNewStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ {t('add')}</Text>}
                   </TouchableOpacity>
                 </View>
                 {ministries.filter(m =>
@@ -2047,7 +2047,7 @@ export default function CreateScreen() {
                     placeholder={t('fullNameRequired')} placeholderTextColor={theme.color.textMuted} autoFocus={!editNetworkId} />
                   <TextInput style={s.modalInput} value={netPhone} onChangeText={setNetPhone}
                     placeholder={t('phoneNumber')} placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
-                  <Text style={s.fieldsSectionLabel}>REFERENCE (OPTIONAL)</Text>
+                  <Text style={s.fieldsSectionLabel}>{t('referenceOpt').toUpperCase()}</Text>
                   <TextInput style={s.modalInput} value={netReference} onChangeText={setNetReference}
                     placeholder={t('referenceName')} placeholderTextColor={theme.color.textMuted} />
                   <TextInput style={s.modalInput} value={netRefPhone} onChangeText={setNetRefPhone}
@@ -2086,7 +2086,7 @@ export default function CreateScreen() {
 
                   {/* Additional fields */}
                   {netAddedFieldIds.length > 0 && (
-                    <Text style={[s.fieldsSectionLabel, { marginTop: theme.spacing.space2 }]}>ADDITIONAL INFO</Text>
+                    <Text style={[s.fieldsSectionLabel, { marginTop: theme.spacing.space2 }]}>{t('preferences').toUpperCase()}</Text>
                   )}
                   {netAddedFieldIds.map((fieldId) => {
                     const def = netFieldDefs.find(d => d.id === fieldId);
