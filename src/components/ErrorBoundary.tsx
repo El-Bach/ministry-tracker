@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 
 interface State {
   hasError: boolean;
@@ -22,7 +23,12 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary] Caught error:', error, info);
-    // TODO post-launch: forward to Sentry / Crashlytics here
+    // Forward to Sentry — best-effort, never throws even if Sentry isn't initialised
+    try {
+      Sentry.captureException(error, {
+        extra: { componentStack: info.componentStack },
+      });
+    } catch {/* ignore */}
   }
 
   render() {

@@ -381,7 +381,8 @@ export default function TaskDetailScreen() {
         }
       },
       [fetchTask]
-    )
+    ),
+    teamMember?.org_id ?? null,
   );
 
   // Cleanup sound when it changes

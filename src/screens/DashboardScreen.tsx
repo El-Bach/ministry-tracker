@@ -517,11 +517,12 @@ export default function DashboardScreen() {
     }
   }, [teamMember?.id]);
 
-  // Realtime refresh
+  // Realtime refresh — scoped to current org to prevent cross-tenant fanout
   useRealtime(
     useCallback(() => {
       fetchData();
-    }, [fetchData])
+    }, [fetchData]),
+    teamMember?.org_id ?? null,
   );
 
   const onRefresh = () => {

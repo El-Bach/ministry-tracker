@@ -121,7 +121,7 @@ export default function TeamScreen() {
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  useRealtime(useCallback(() => fetchData(), [fetchData]));
+  useRealtime(useCallback(() => fetchData(), [fetchData]), currentMember?.org_id ?? null);
 
   const onRefresh = () => {
     setRefreshing(true);

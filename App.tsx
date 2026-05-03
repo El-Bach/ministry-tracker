@@ -3,6 +3,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sentry from '@sentry/react-native';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './src/lib/queryClient';
 import AppNavigator from './src/navigation/index';
 import { useOfflineQueue } from './src/store/offlineQueue';
 import { loadLanguage, isFirstLaunchKey, LanguageProvider } from './src/lib/i18n';
@@ -14,6 +17,19 @@ import { PlanWarningModal } from './src/components/PlanWarningModal';
 import { PlanLockedScreen } from './src/components/PlanLockedScreen';
 import { checkPlanLimits, PlanStatus } from './src/lib/planEnforcement';
 import supabase from './src/lib/supabase';
+
+// ─── Sentry init ──────────────────────────────────────────────────────────────
+// DSN comes from EXPO_PUBLIC_SENTRY_DSN env var. If unset (e.g. local dev),
+// Sentry init is skipped — captureException calls become no-ops.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    enableAutoSessionTracking: true,
+    tracesSampleRate: __DEV__ ? 0 : 0.2,
+    debug: false,
+  });
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -126,32 +142,36 @@ export default function App() {
   if (needsLanguageSelect) {
     return (
       <ErrorBoundary>
-        <FontSizeProvider>
-          <LanguageProvider>
-            <SafeAreaProvider>
-              <AuthProvider>
-                <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
-              </AuthProvider>
-            </SafeAreaProvider>
-          </LanguageProvider>
-        </FontSizeProvider>
+        <QueryClientProvider client={queryClient}>
+          <FontSizeProvider>
+            <LanguageProvider>
+              <SafeAreaProvider>
+                <AuthProvider>
+                  <LanguageSelectScreen onDone={() => setNeedsLanguageSelect(false)} />
+                </AuthProvider>
+              </SafeAreaProvider>
+            </LanguageProvider>
+          </FontSizeProvider>
+        </QueryClientProvider>
       </ErrorBoundary>
     );
   }
 
   return (
     <ErrorBoundary>
-      <FontSizeProvider>
-        <LanguageProvider>
-          <SafeAreaProvider>
-            <AuthProvider>
-              <PlanEnforcementWrapper>
-                <AppNavigator />
-              </PlanEnforcementWrapper>
-            </AuthProvider>
-          </SafeAreaProvider>
-        </LanguageProvider>
-      </FontSizeProvider>
+      <QueryClientProvider client={queryClient}>
+        <FontSizeProvider>
+          <LanguageProvider>
+            <SafeAreaProvider>
+              <AuthProvider>
+                <PlanEnforcementWrapper>
+                  <AppNavigator />
+                </PlanEnforcementWrapper>
+              </AuthProvider>
+            </SafeAreaProvider>
+          </LanguageProvider>
+        </FontSizeProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
