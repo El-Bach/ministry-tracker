@@ -55,9 +55,16 @@ export default function NotificationSettingsScreen() {
           .select('*')
           .eq('team_member_id', teamMember.id)
           .maybeSingle(),
+        // Scope to the current org + active members only. Without these
+        // filters the picker would leak member names from other orgs (the
+        // RLS dependency on auth_org_id() with LIMIT 1 is non-deterministic
+        // when a user has multiple team_members rows — same bug pattern as
+        // session 37 fixes).
         supabase
           .from('team_members')
           .select('id, name, role, email')
+          .eq('org_id', teamMember.org_id ?? '')
+          .is('deleted_at', null)
           .order('name'),
       ]);
 
@@ -74,7 +81,7 @@ export default function NotificationSettingsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [teamMember?.id]);
+  }, [teamMember?.id, teamMember?.org_id]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
