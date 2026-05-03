@@ -16,21 +16,29 @@ section per session — without breaking the working monolith.
 
 ## Status (session 51)
 
-| Section | Lines (in monolith) | Module | Status |
-|---|---|---|---|
-| Header card | ~150 | `components/TaskHeader.tsx` | ✅ Extracted (session 50) |
-| Stages section | ~426 | `components/StagesSection.tsx` | ✅ Extracted (session 51) |
-| Financials section | ~545 | `components/FinancialsSection.tsx` | ✅ Extracted (session 51) |
-| Documents section | ~97 | `components/DocumentsSection.tsx` | ✅ Extracted (session 51) |
-| Comments section | ~165 | `components/CommentsSection.tsx` | ✅ Extracted (session 51) |
-| WhatsApp/duplicate handlers | ~150 | `hooks/useTaskActions.ts` | ⏸ Future session |
-| Data fetch | inline | `hooks/useTaskDetail.ts` | ⏸ Future session |
+| Section | Module | Status |
+|---|---|---|
+| Header card | `components/TaskHeader.tsx` | ✅ Extracted (session 50); not yet wired |
+| Stages section | `components/StagesSection.tsx` | ✅ Extracted + wired (Phase 3) |
+| Financials section | `components/FinancialsSection.tsx` | ✅ Extracted + wired (Phase 3) |
+| Documents section | `components/DocumentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
+| Comments section | `components/CommentsSection.tsx` | ✅ Extracted + wired (Phase 3) |
+| WhatsApp/duplicate handlers | `hooks/useTaskActions.ts` | ⏸ Future session |
+| Data fetch | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
-**Phase 2 complete** — all 4 visual sections plus the header are now available
-as parallel modules. The monolithic `TaskDetailScreen.tsx` is unchanged at
-4,825 lines and still serves the live screen. Phase 3 will swap the inline
-JSX in the monolith for these extracted components and lift handler/data-fetch
-logic into hooks.
+**Phase 3 complete** — all 4 visual sections are extracted AND wired into the
+monolith. `TaskDetailScreen.tsx` shrunk from 4,828 → 3,780 lines (-1,048,
+-22%). All 28 unit tests pass; zero TypeScript errors.
+
+`StagesSection.tsx` ended up with a fat Props interface (~30 props) because
+the inline pickers reference a lot of cross-stop state. Future refactors
+should lift state DOWN into the component instead of passing it via props —
+but for now, the JSX is out of the monolith, which was the goal.
+
+Phase 4 (next session) will:
+- Wire `TaskHeader.tsx` (currently extracted but not wired)
+- Lift handlers into `hooks/useTaskActions.ts`
+- Lift data fetch into `hooks/useTaskDetail.ts` (or migrate to TanStack Query)
 
 ## Approach
 

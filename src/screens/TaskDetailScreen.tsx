@@ -68,6 +68,7 @@ import DocumentScannerModal from '../components/DocumentScannerModal';
 import { DocumentsSection } from './TaskDetail/components/DocumentsSection';
 import { CommentsSection } from './TaskDetail/components/CommentsSection';
 import { FinancialsSection } from './TaskDetail/components/FinancialsSection';
+import { StagesSection } from './TaskDetail/components/StagesSection';
 
 type DetailRoute = RouteProp<DashboardStackParamList, 'TaskDetail'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -1796,431 +1797,62 @@ export default function TaskDetailScreen() {
           formatDate={formatDate}
         />
 
-        {/* ── STAGES ROUTE ── */}
-        <View style={s.section}>
-          <View style={s.sectionTitleRow}>
-            <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
-            {permissions.can_add_edit_stages && (
-              <>
-                <TouchableOpacity style={s.addStageBtn} onPress={openEditStages}>
-                  <Text style={s.addStageBtnText}>+ {t('addStage')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.editStagesBtn} onPress={openEditStages}>
-                  <Text style={s.editStagesBtnText}>✎ {t('edit')}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-          <View style={s.routeContainer}>
-            {task.route_stops?.map((stop, idx) => {
-              const stopHistory = stopHistories[stop.id] ?? [];
-              const isHistoryExpanded = expandedStopHistory === stop.id;
-              // Resolve city name: prefer joined data, fall back to allCities cache
-              // (newly created cities may not appear in the join on immediate refetch)
-              const stopCityName = stop.city?.name ?? allCities.find(c => c.id === stop.city_id)?.name ?? null;
-              const isLast = idx === (task.route_stops?.length ?? 0) - 1;
-              return (
-                <View key={stop.id} style={s.stageRow}>
-
-                  {/* ── Rail: dot + continuous line ── */}
-                  <View style={s.stageRail}>
-                    <View style={[s.stageDot, { backgroundColor: getStatusColor(stop.status) }]} />
-                    {!isLast && <View style={s.stageLine} />}
-                  </View>
-
-                  {/* ── All stage content (rail line spans this full height) ── */}
-                  <View style={s.stageContent}>
-
-                    {/* Ministry name + order — tap to edit name / city / requirements */}
-                    <TouchableOpacity
-                      style={s.stageHeader}
-                      onPress={() => {
-                        setOpenStageNameId(v => v === stop.id ? null : stop.id);
-                        setStageNameEdit(stop.ministry?.name ?? '');
-                        setOpenCityStopId(null);
-                        setOpenAssigneeStopId(null);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.stageMinistryName} numberOfLines={2}>
-                          {stop.ministry?.name ?? 'Unknown Ministry'}
-                        </Text>
-                        {/* City is already shown in the 📍 chip below — don't duplicate it under the stage name */}
-                      </View>
-                      <Text style={[s.stageOrder, { color: theme.color.primary }]}>
-                        {openStageNameId === stop.id ? '▲' : '✎'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {/* Inline name-edit + city + requirements panel */}
-                    {openStageNameId === stop.id && (
-                      <View style={s.stageNamePanel}>
-                        <TextInput
-                          style={s.stageNameInput}
-                          value={stageNameEdit}
-                          onChangeText={setStageNameEdit}
-                          placeholder={t('stageName')}
-                          placeholderTextColor={theme.color.textMuted}
-                          autoFocus
-                        />
-
-                        {/* City picker chip inside panel */}
-                        <TouchableOpacity
-                          style={[s.stopMetaChip, { marginTop: theme.spacing.space2, alignSelf: 'flex-start' }]}
-                          onPress={() => {
-                            setOpenCityStopId(v => v === stop.id ? null : stop.id);
-                            setStopCitySearch('');
-                            setShowCreateCityForm(false);
-                            setNewCityName('');
-                          }}
-                        >
-                          <Text style={[s.stopMetaChipText, stopCityName ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
-                            {stopCityName ? `📍 ${stopCityName}` : t('setCity')}
-                          </Text>
-                        </TouchableOpacity>
-
-                        <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
-                          <TouchableOpacity
-                            style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.primary }]}
-                            onPress={() => stop.ministry_id && handleRenameStopMinistry(stop.ministry_id, stageNameEdit)}
-                            disabled={savingStageNameId === stop.ministry_id}
-                          >
-                            {savingStageNameId === stop.ministry_id
-                              ? <ActivityIndicator size="small" color={theme.color.white} />
-                              : <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>💾 Save</Text>}
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    )}
-
-                    {/* ── 2×2 chip grid (City · Due Date / Status · Assignee) ── */}
-                    <View style={s.stageChipGrid}>
-                    <View style={s.stageChipRow}>
-                      {/* City chip */}
-                      <TouchableOpacity
-                        style={[s.stageChip, {
-                          borderColor: stop.city_id ? theme.color.primary + '70' : theme.color.border,
-                          backgroundColor: stop.city_id ? theme.color.primary + '18' : theme.color.bgBase,
-                        }]}
-                        onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
-                        activeOpacity={0.7}
-                      >
-                        <>
-                          <Text style={s.stageChipIcon}>📍</Text>
-                          <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
-                            {stopCityName ?? t('setCity')}
-                          </Text>
-                          <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>
-                        </>
-                      </TouchableOpacity>
-
-                      {/* Due date chip */}
-                      <TouchableOpacity
-                        style={[s.stageChip, {
-                          borderColor: stop.due_date ? theme.color.warning + '70' : theme.color.border,
-                          backgroundColor: stop.due_date ? theme.color.warning + '18' : theme.color.bgBase,
-                        }]}
-                        onPress={() => setStopDueDatePickerStopId(stop.id)}
-                        activeOpacity={0.7}
-                      >
-                        {savingStopDueDate === stop.id ? (
-                          <ActivityIndicator size="small" color={theme.color.warning} />
-                        ) : (
-                          <>
-                            <Text style={s.stageChipIcon}>📅</Text>
-                            <Text style={[s.stageChipLabel, { color: stop.due_date ? theme.color.warning : theme.color.textMuted }]} numberOfLines={1}>
-                              {stop.due_date ? formatDateOnly(stop.due_date) : t('dueDate')}
-                            </Text>
-                            <Text style={[s.stageChipArrow, { color: stop.due_date ? theme.color.warning + 'BB' : theme.color.border }]}>▾</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>{/* end Row 1 */}
-
-                    {/* Rejection reason — shown inline when status is Rejected */}
-                    {stop.status === 'Rejected' && stop.rejection_reason ? (
-                      <View style={s.rejectionReasonRow}>
-                        <Text style={s.rejectionReasonText}>⚠ {stop.rejection_reason}</Text>
-                      </View>
-                    ) : null}
-
-                    {/* ── Row 2: Status + Assignee ── */}
-                    <View style={s.stageChipRow}>
-                      {/* Status chip */}
-                      <TouchableOpacity
-                        style={[s.stageChip, {
-                          borderColor: getStatusColor(stop.status) + '70',
-                          backgroundColor: getStatusColor(stop.status) + '18',
-                        }]}
-                        onPress={() => { if (permissions.can_update_stage_status) { setSelectedStop(stop); setShowStatusPicker(true); } }}
-                        disabled={updatingStop === stop.id || !permissions.can_update_stage_status}
-                        activeOpacity={permissions.can_update_stage_status ? 0.7 : 1}
-                      >
-                        {updatingStop === stop.id ? (
-                          <ActivityIndicator size="small" color={getStatusColor(stop.status)} />
-                        ) : (
-                          <>
-                            <View style={[s.stageChipDot, { backgroundColor: getStatusColor(stop.status) }]} />
-                            <Text style={[s.stageChipLabel, { color: getStatusColor(stop.status) }]} numberOfLines={1}>
-                              {stop.status}
-                            </Text>
-                            <Text style={[s.stageChipArrow, { color: getStatusColor(stop.status) + 'BB' }]}>▾</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-
-                      {/* Assignee chip */}
-                      <TouchableOpacity
-                        style={[s.stageChip, {
-                          borderColor: (stop.assignee || stop.ext_assignee) ? theme.color.success + '70' : theme.color.border,
-                          backgroundColor: (stop.assignee || stop.ext_assignee) ? theme.color.success + '18' : theme.color.bgBase,
-                        }]}
-                        onPress={() => { setOpenAssigneeStopId(v => v === stop.id ? null : stop.id); setShowCreateExtForm(false); setNewExtName(''); setNewExtPhone(''); setNewExtReference(''); setStopAssigneeSearch(''); }}
-                        activeOpacity={0.7}
-                      >
-                        <>
-                          <Text style={s.stageChipIcon}>👤</Text>
-                          <Text style={[s.stageChipLabel, { color: (stop.assignee || stop.ext_assignee) ? theme.color.success : theme.color.textMuted }]} numberOfLines={1}>
-                            {stop.assignee?.name ?? stop.ext_assignee?.name ?? t('setAssignee')}
-                          </Text>
-                          <Text style={[s.stageChipArrow, { color: (stop.assignee || stop.ext_assignee) ? theme.color.success + 'BB' : theme.color.border }]}>▾</Text>
-                        </>
-                      </TouchableOpacity>
-                    </View>{/* end Row 2 */}
-                    </View>{/* end stageChipGrid */}
-
-                    {/* Saving indicator + History toggle */}
-                    {(savingStopField === stop.id || stopHistory.length > 0) && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        {savingStopField === stop.id && <ActivityIndicator size="small" color={theme.color.primary} />}
-                        {stopHistory.length > 0 && (
-                          <TouchableOpacity
-                            style={s.historyToggleBtn}
-                            onPress={() => setExpandedStopHistory(isHistoryExpanded ? null : stop.id)}
-                          >
-                            <Text style={s.historyToggleBtnText}>
-                              {isHistoryExpanded ? '▲ Hide' : `▼ History (${stopHistory.length})`}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-
-                  {/* City dropdown */}
-                  {openCityStopId === stop.id && (
-                    <View style={s.stopDropdown}>
-                      <TextInput style={s.citySearchInner} value={stopCitySearch}
-                        onChangeText={text => { setStopCitySearch(text); setShowCreateCityForm(false); setNewCityName(text); }}
-                        placeholder={t('searchCity')} placeholderTextColor={theme.color.textMuted} autoFocus autoCorrect={false} />
-                      {/* Create new city — always visible above the list */}
-                      <TouchableOpacity
-                        style={[s.cityDropdownItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
-                        onPress={() => { setShowCreateCityForm(v => !v); if (!newCityName) setNewCityName(stopCitySearch); }}
-                      >
-                        <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                          {showCreateCityForm ? '− Cancel' : '+ Create New City'}
-                        </Text>
-                      </TouchableOpacity>
-                      {showCreateCityForm && (
-                        <View style={{ padding: theme.spacing.space2, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-                          <TextInput style={s.newMemberInput} value={newCityName} onChangeText={setNewCityName}
-                            placeholder={`${t('city')} *`} placeholderTextColor={theme.color.textMuted} />
-                          <TouchableOpacity
-                            style={[s.newMemberSaveBtn, savingCity && s.disabledBtn]}
-                            onPress={() => handleCreateCity(stop.id)}
-                            disabled={savingCity}
-                          >
-                            {savingCity
-                              ? <ActivityIndicator color={theme.color.white} size="small" />
-                              : <Text style={s.newMemberSaveBtnText}>Save & Select</Text>}
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                      <View>
-                        {/* Remove current city */}
-                        {stop.city_id && (
-                          <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopCity(stop.id, null)}>
-                            <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove city</Text>
-                          </TouchableOpacity>
-                        )}
-                        {/* Pinned cities — always visible */}
-                        {pinnedCityIds.length > 0 && !stopCitySearch.trim() && (
-                          <View style={{ backgroundColor: theme.color.bgBase, paddingHorizontal: theme.spacing.space3, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-                            <Text style={{ ...theme.typography.caption, color: theme.color.textMuted, fontWeight: '700' }}>PINNED</Text>
-                          </View>
-                        )}
-                        {allCities.filter(c => pinnedCityIds.includes(c.id) && (!stopCitySearch.trim() || c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase()))).map(city => (
-                          <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
-                            <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                              onPress={() => handleSetStopCity(stop.id, city.id)}>
-                              <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
-                              {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => togglePinCity(city.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                              <Text style={{ fontSize: 14 }}>📌</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                        {/* Search results (non-pinned) */}
-                        {stopCitySearch.trim() ? (
-                          allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
-                          && pinnedCityIds.filter(id => allCities.find(c => c.id === id)?.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
-                            ? <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{stopCitySearch}"</Text>
-                            : allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).map(city => (
-                              <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
-                                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                                  onPress={() => handleSetStopCity(stop.id, city.id)}>
-                                  <Text style={[s.cityDropdownItemText, stop.city_id === city.id && { fontWeight: '600' }]}>{city.name}</Text>
-                                  {stop.city_id === city.id && <Text style={s.checkmark}>✓</Text>}
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => togglePinCity(city.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                  <Text style={{ fontSize: 14, opacity: 0.35 }}>📍</Text>
-                                </TouchableOpacity>
-                              </View>
-                            ))
-                        ) : (
-                          pinnedCityIds.length === 0 && !stop.city_id && (
-                            <Text style={{ color: theme.color.textMuted, fontSize: 12, padding: theme.spacing.space3 }}>
-                              Search for a city or pin one to show it here
-                            </Text>
-                          )
-                        )}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Assignee dropdown */}
-                  {openAssigneeStopId === stop.id && (
-                    <View style={s.stopDropdown}>
-                      {/* Search bar */}
-                      <TextInput
-                        style={s.stopAssigneeSearch}
-                        value={stopAssigneeSearch}
-                        onChangeText={setStopAssigneeSearch}
-                        placeholder={t('searchContact')}
-                        placeholderTextColor={theme.color.textMuted}
-                        autoCorrect={false}
-                        clearButtonMode="while-editing"
-                      />
-                      <View>
-                        {(stop.assigned_to || stop.ext_assignee_id) && !stopAssigneeSearch.trim() && (
-                          <TouchableOpacity style={s.cityDropdownItem} onPress={() => handleSetStopAssignee(stop.id, null, null)}>
-                            <Text style={{ color: theme.color.danger, fontSize: 13, padding: theme.spacing.space2 }}>✕ Remove assignee</Text>
-                          </TouchableOpacity>
-                        )}
-                        {/* Team members section */}
-                        {allMembers
-                          .filter(m => !stopAssigneeSearch.trim() || m.name.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || m.role?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()))
-                          .slice(0, 15)
-                          .map(m => (
-                            <TouchableOpacity key={m.id}
-                              style={[s.cityDropdownItem, stop.assigned_to === m.id && s.cityDropdownItemActive]}
-                              onPress={() => handleSetStopAssignee(stop.id, m.id, null)}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={s.cityDropdownItemText}>{m.name}</Text>
-                                {m.role ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>{m.role}</Text> : null}
-                              </View>
-                              {stop.assigned_to === m.id && <Text style={s.checkmark}>✓</Text>}
-                            </TouchableOpacity>
-                          ))}
-                        {/* Network contacts (ext assignees) */}
-                        {extAssignees
-                          .filter(a => {
-                            if (!stopAssigneeSearch.trim()) return true;
-                            const q = stopAssigneeSearch.toLowerCase();
-                            return (
-                              a.name?.toLowerCase().includes(q) ||
-                              a.phone?.toLowerCase().includes(q) ||
-                              a.reference?.toLowerCase().includes(q) ||
-                              a.reference_phone?.toLowerCase().includes(q) ||
-                              a.city?.name?.toLowerCase().includes(q)
-                            );
-                          })
-                          .slice(0, 15)
-                          .map((a: any) => (
-                            <TouchableOpacity key={a.id}
-                              style={[s.cityDropdownItem, stop.ext_assignee_id === a.id && s.cityDropdownItemActive]}
-                              onPress={() => handleSetStopAssignee(stop.id, null, a.id)}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={s.cityDropdownItemText}>{a.name}</Text>
-                                {a.phone ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📞 {formatPhoneDisplay(a.phone)}</Text> : null}
-                                {a.reference ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>عبر {a.reference}</Text> : null}
-                                {a.city?.name ? <Text style={{ fontSize: 11, color: theme.color.textMuted }}>📍 {a.city.name}</Text> : null}
-                              </View>
-                              {stop.ext_assignee_id === a.id && <Text style={s.checkmark}>✓</Text>}
-                            </TouchableOpacity>
-                          ))}
-                        {/* No results */}
-                        {stopAssigneeSearch.trim() &&
-                          allMembers.filter(m => m.name.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 &&
-                          extAssignees.filter(a => a.name?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.phone?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.reference?.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 && (
-                            <Text style={{ padding: theme.spacing.space3, color: theme.color.textMuted, fontSize: 13 }}>No contacts match "{stopAssigneeSearch}"</Text>
-                          )}
-                        {/* Create new external assignee — toggle button */}
-                        {!stopAssigneeSearch.trim() && (
-                          <TouchableOpacity style={s.cityDropdownItem}
-                            onPress={() => setShowCreateExtForm(v => !v)}>
-                            <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                              {showCreateExtForm ? '− Cancel' : '+ Create New Contact'}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {/* Create form rendered below — page now scrolls naturally to reveal it */}
-                      {showCreateExtForm && (
-                        <View style={{ padding: theme.spacing.space3, gap: 8, borderTopWidth: 1, borderTopColor: theme.color.border }}>
-                          <TextInput style={s.newMemberInput} value={newExtName} onChangeText={setNewExtName}
-                            placeholder={t('fullNameRequired')} placeholderTextColor={theme.color.textMuted} />
-                          <TextInput style={s.newMemberInput} value={newExtPhone} onChangeText={setNewExtPhone}
-                            placeholder={t('phone')} placeholderTextColor={theme.color.textMuted} keyboardType="phone-pad" />
-                          <TextInput style={s.newMemberInput} value={newExtReference} onChangeText={setNewExtReference}
-                            placeholder={t('reference')} placeholderTextColor={theme.color.textMuted} />
-                          <TouchableOpacity
-                            style={[s.newMemberSaveBtn, savingExtAssignee && s.disabledBtn]}
-                            onPress={() => handleCreateExtAssigneeForStop(stop.id)}
-                            disabled={savingExtAssignee}
-                          >
-                            {savingExtAssignee
-                              ? <ActivityIndicator color={theme.color.white} size="small" />
-                              : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Status history for this stop */}
-                  {isHistoryExpanded && stopHistory.length > 0 && (
-                    <View style={s.stopHistoryBlock}>
-                      {stopHistory.map((h) => (
-                        <View key={h.id} style={s.stopHistoryRow}>
-                          <View style={s.stopHistoryDot} />
-                          <View style={{ flex: 1 }}>
-                            <View style={s.stopHistoryTextRow}>
-                              {h.old_status && (
-                                <Text style={s.stopHistoryOld}>{h.old_status}</Text>
-                              )}
-                              {h.old_status && (
-                                <Text style={s.stopHistoryArrow}> → </Text>
-                              )}
-                              <Text style={s.stopHistoryNew}>{h.new_status}</Text>
-                            </View>
-                            <Text style={s.stopHistoryMeta}>
-                              {h.updater?.name ?? 'Unknown'} · {formatDate(h.created_at)}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
+        {/* ── STAGES ROUTE ── (Phase 3 extracted module) */}
+        <StagesSection
+          task={task}
+          permissions={permissions}
+          openStageNameId={openStageNameId}
+          setOpenStageNameId={setOpenStageNameId}
+          stageNameEdit={stageNameEdit}
+          setStageNameEdit={setStageNameEdit}
+          savingStageNameId={savingStageNameId}
+          onRenameStopMinistry={handleRenameStopMinistry}
+          openCityStopId={openCityStopId}
+          setOpenCityStopId={setOpenCityStopId}
+          stopCitySearch={stopCitySearch}
+          setStopCitySearch={setStopCitySearch}
+          showCreateCityForm={showCreateCityForm}
+          setShowCreateCityForm={setShowCreateCityForm}
+          newCityName={newCityName}
+          setNewCityName={setNewCityName}
+          savingCity={savingCity}
+          onCreateCity={handleCreateCity}
+          onSetStopCity={handleSetStopCity}
+          pinnedCityIds={pinnedCityIds}
+          togglePinCity={togglePinCity}
+          allCities={allCities}
+          openAssigneeStopId={openAssigneeStopId}
+          setOpenAssigneeStopId={setOpenAssigneeStopId}
+          stopAssigneeSearch={stopAssigneeSearch}
+          setStopAssigneeSearch={setStopAssigneeSearch}
+          showCreateExtForm={showCreateExtForm}
+          setShowCreateExtForm={setShowCreateExtForm}
+          newExtName={newExtName}
+          setNewExtName={setNewExtName}
+          newExtPhone={newExtPhone}
+          setNewExtPhone={setNewExtPhone}
+          newExtReference={newExtReference}
+          setNewExtReference={setNewExtReference}
+          savingExtAssignee={savingExtAssignee}
+          onCreateExtAssigneeForStop={handleCreateExtAssigneeForStop}
+          onSetStopAssignee={handleSetStopAssignee}
+          allMembers={allMembers}
+          extAssignees={extAssignees as any}
+          formatPhoneDisplay={formatPhoneDisplay}
+          setStopDueDatePickerStopId={setStopDueDatePickerStopId}
+          savingStopDueDate={savingStopDueDate}
+          setSelectedStop={setSelectedStop}
+          setShowStatusPicker={setShowStatusPicker}
+          updatingStop={updatingStop}
+          stopHistories={stopHistories}
+          expandedStopHistory={expandedStopHistory}
+          setExpandedStopHistory={setExpandedStopHistory}
+          savingStopField={savingStopField}
+          onOpenEditStages={openEditStages}
+          formatDate={formatDate}
+          formatDateOnly={formatDateOnly}
+          getStatusColor={getStatusColor}
+        />
 
         {/* ── FINANCIALS ── (Phase 3 extracted module) */}
         <FinancialsSection
