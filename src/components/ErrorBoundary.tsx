@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import * as Sentry from '../lib/sentry';
+import * as Sentry from '@sentry/react-native';
 
 interface State {
   hasError: boolean;

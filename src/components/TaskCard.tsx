@@ -369,6 +369,23 @@ function TaskCard({
         )}
       </View>
 
+      {/* PROGRESS BAR — N of X stages Done, hidden when file is fully done
+           (the archive row below shows that state more usefully). */}
+      {stopsTotal > 0 && !allDone && (
+        <View
+          style={styles.progressTrack}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 0, max: stopsTotal, now: stopsDone }}
+        >
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.round((stopsDone / stopsTotal) * 100)}%` },
+            ]}
+          />
+        </View>
+      )}
+
       {/* COMPLETION INFO — archived cards: start → end • Xd */}
       {allDone && (() => {
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -570,6 +587,21 @@ const styles = StyleSheet.create({
   },
   stagesText: {
     ...theme.typography.caption,
+  },
+  // Thin horizontal progress bar — height 3 keeps it visible without
+  // taking real estate; track uses the existing border token so it
+  // matches the card's other dividers; fill uses primary indigo.
+  progressTrack: {
+    height:          3,
+    backgroundColor: theme.color.border,
+    borderRadius:    2,
+    overflow:        'hidden',
+    marginTop:       2,
+  },
+  progressFill: {
+    height:          '100%',
+    backgroundColor: theme.color.primary,
+    borderRadius:    2,
   },
   dueText: {
     ...theme.typography.caption,
