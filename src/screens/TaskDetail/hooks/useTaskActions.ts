@@ -26,11 +26,23 @@
 //   • handleDeleteTransaction — Alert + delete + audit comment
 //   • handleSavePrice         — update contract price + history insert
 //
-//   STATUS UPDATE CASCADE (session 52d — this commit)
+//   STATUS UPDATE CASCADE (session 52d)
 //   • handleUpdateStopStatus  — full per-stop status change with archive
 //                                cascade, push fan-out, and offline queue
 //
-// Future slices (per ../README.md): stage CRUD, comments, voice notes.
+//   STAGE CRUD (session 52e — this commit)
+//   • handleCreateStageInEdit       — insert a new ministry from edit modal
+//   • handleSaveStages              — full route_stops rewrite + final stage
+//   • handleSetStopDueDate          — patch stop's due_date
+//   • handleRenameStopMinistry      — rename a stage (ministry)
+//   • handleSetStopCity             — patch stop's city_id
+//   • handleSetStopAssignee         — patch stop's assigned_to / ext_assignee_id
+//                                      (auto-fills city from Network contact)
+//   • handleCreateExtAssigneeForStop — insert assignee + auto-assign to stop
+//   • handleCreateCity              — insert city + auto-assign to stop
+//   • handleCreateCityInEditModal   — insert city + select for edit-modal
+//
+// Future slices (per ../README.md): comments + voice notes.
 //
 // Pattern: the hook gets context (auth, navigation, t) from React hooks
 // directly; everything else (the task itself, sheet state, setters) is
@@ -43,6 +55,7 @@
 //      setter args (setX) on the same options object
 //   4. Drop the inline copy and destructure the new handler from the hook
 
+import type { Dispatch, SetStateAction } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -56,7 +69,12 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../lib/i18n';
 import { useOfflineQueue } from '../../../store/offlineQueue';
 import { sendPushNotification, sendActivityNotificationToAll } from '../../../lib/notifications';
-import { Task, TaskRouteStop, DashboardStackParamList } from '../../../types';
+import { Task, TaskRouteStop, Ministry, City, DashboardStackParamList } from '../../../types';
+
+// The single closure stage that's always the last stop on every file —
+// duplicated here so the hook is self-contained. Same Arabic string used
+// by TaskDetailScreen and the database.
+const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 import { TaskDocumentLite } from '../components/DocumentsSection';
 import { FileTransaction } from '../components/FinancialsSection';
 
@@ -156,6 +174,60 @@ export interface UseTaskActionsOptions {
   setShowStatusPicker: (b: boolean) => void;
   /** Setter for which stop the status picker is targeting. */
   setSelectedStop:     (stop: TaskRouteStop | null) => void;
+
+  // ── Stage CRUD ─────────────────────────────────────────────────────
+  // Read state — the edit modal's working set (ordered list + per-stage city map)
+  newStageName:       string;
+  allStages:          Ministry[];
+  editingStops:       Ministry[];
+  editStageCities:    Record<string, { cityId: string | null; cityName: string | null }>;
+  extAssignees:       any[];
+  newExtName:         string;
+  newExtPhone:        string;
+  newExtReference:    string;
+  newCityName:        string;
+
+  // Setters used by handleCreateStageInEdit
+  setSavingNewStage:    (b: boolean) => void;
+  setAllStages:         Dispatch<SetStateAction<Ministry[]>>;
+  setEditingStops:      Dispatch<SetStateAction<Ministry[]>>;
+  setNewStageName:      (s: string) => void;
+  setShowNewStageInEdit:(b: boolean) => void;
+
+  // Setters used by handleSaveStages
+  setSavingStages:    (b: boolean) => void;
+  setShowEditStages:  (b: boolean) => void;
+
+  // Setters used by handleSetStopDueDate
+  setSavingStopDueDate:        (id: string | null) => void;
+  setStopDueDatePickerStopId:  (id: string | null) => void;
+
+  // Setters used by handleRenameStopMinistry
+  setSavingStageNameId: (id: string | null) => void;
+  setOpenStageNameId:   (id: string | null) => void;
+
+  // Setters used by handleSetStopCity / handleSetStopAssignee
+  setSavingStopField:  (id: string | null) => void;
+  setOpenCityStopId:   (id: string | null) => void;
+  setStopCitySearch:   (s: string) => void;
+  setOpenAssigneeStopId: (id: string | null) => void;
+
+  // Setters used by handleCreateExtAssigneeForStop
+  setSavingExtAssignee: (b: boolean) => void;
+  setExtAssignees:      Dispatch<SetStateAction<any[]>>;
+  setNewExtName:        (s: string) => void;
+  setNewExtPhone:       (s: string) => void;
+  setNewExtReference:   (s: string) => void;
+  setShowCreateExtForm: (b: boolean) => void;
+
+  // Setters used by handleCreateCity / handleCreateCityInEditModal
+  setSavingCity:           (b: boolean) => void;
+  setNewCityName:          (s: string) => void;
+  setShowCreateCityForm:   (b: boolean) => void;
+  setAllCities:            Dispatch<SetStateAction<City[]>>;
+  setEditStageCities:      Dispatch<SetStateAction<Record<string, { cityId: string | null; cityName: string | null }>>>;
+  setEditCreateCityOpen:   (b: boolean) => void;
+  setEditCityPickerMiniId: (id: string | null) => void;
 }
 
 export interface UseTaskActionsReturn {
@@ -178,6 +250,16 @@ export interface UseTaskActionsReturn {
   handleSavePrice:         () => Promise<void>;
   // Status update cascade
   handleUpdateStopStatus:  (stop: TaskRouteStop, newStatus: string, reason?: string) => Promise<void>;
+  // Stage CRUD
+  handleCreateStageInEdit:        () => Promise<void>;
+  handleSaveStages:               () => Promise<void>;
+  handleSetStopDueDate:           (stopId: string, date: string | null) => Promise<void>;
+  handleRenameStopMinistry:       (ministryId: string, newName: string) => Promise<void>;
+  handleSetStopCity:              (stopId: string, cityId: string | null) => Promise<void>;
+  handleSetStopAssignee:          (stopId: string, memberId: string | null, extId: string | null) => Promise<void>;
+  handleCreateExtAssigneeForStop: (stopId: string) => Promise<void>;
+  handleCreateCity:               (stopId: string) => Promise<void>;
+  handleCreateCityInEditModal:    (stageId: string) => Promise<void>;
 }
 
 export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsReturn {
@@ -199,6 +281,18 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
     // status update cascade
     setUpdatingStop, setShowStatusPicker, setSelectedStop,
+    // stage CRUD
+    newStageName, allStages, editingStops, editStageCities,
+    extAssignees, newExtName, newExtPhone, newExtReference, newCityName,
+    setSavingNewStage, setAllStages, setEditingStops, setNewStageName, setShowNewStageInEdit,
+    setSavingStages, setShowEditStages,
+    setSavingStopDueDate, setStopDueDatePickerStopId,
+    setSavingStageNameId, setOpenStageNameId,
+    setSavingStopField, setOpenCityStopId, setStopCitySearch, setOpenAssigneeStopId,
+    setSavingExtAssignee, setExtAssignees, setNewExtName, setNewExtPhone, setNewExtReference,
+    setShowCreateExtForm,
+    setSavingCity, setNewCityName, setShowCreateCityForm,
+    setAllCities, setEditStageCities, setEditCreateCityOpen, setEditCityPickerMiniId,
   } = opts;
   const { teamMember } = useAuth();
   const { t } = useTranslation();
@@ -791,6 +885,233 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     setSelectedStop(null);
   };
 
+  // ─── Stage CRUD ────────────────────────────────────────────────────────
+  // Insert a new ministry from inside the Edit Stages modal. Includes a
+  // duplicate-name guard (case-insensitive) using the local allStages cache;
+  // on success, adds to allStages + editingStops so the UI updates without a
+  // refetch.
+  const handleCreateStageInEdit = async () => {
+    if (!newStageName.trim()) {
+      Alert.alert(t('required'), t('fieldRequired'));
+      return;
+    }
+    const duplicate = allStages.find(
+      (m) => m.name.trim().toLowerCase() === newStageName.trim().toLowerCase(),
+    );
+    if (duplicate) {
+      Alert.alert(t('warning'), `"${duplicate.name}" — ${t('duplicateClient')}`);
+      return;
+    }
+    setSavingNewStage(true);
+    const { data, error } = await supabase
+      .from('ministries')
+      .insert({ name: newStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
+      .select()
+      .single();
+    setSavingNewStage(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    const stage = data as Ministry;
+    setAllStages((prev) => [...prev, stage].sort((a, b) => a.name.localeCompare(b.name)));
+    setEditingStops((prev) => [...prev, stage]);
+    setNewStageName('');
+    setShowNewStageInEdit(false);
+  };
+
+  // Persist the user's edited stage list. The implementation rewrites the
+  // task's route_stops entirely:
+  //   1. Find or create the FINAL_STAGE ministry for this org (always last)
+  //   2. Delete all existing task_route_stops for this task
+  //   3. Insert the new ordered list (preserving statuses and city_ids
+  //      where possible, using editStageCities for newly added stages)
+  // We rewrite rather than diff because the diff logic (insert/delete/
+  // reorder/update) gets gnarly with reordering — clean replacement is
+  // simpler and safe for a list this size.
+  const handleSaveStages = async () => {
+    setSavingStages(true);
+    try {
+      const existingFinal = task?.route_stops?.find(s => s.ministry?.name === FINAL_STAGE_NAME);
+
+      // 1. Ensure the FINAL_STAGE ministry exists in this org
+      let finalMinistryId = existingFinal?.ministry_id ?? null;
+      if (!finalMinistryId) {
+        const { data: existingMin } = await supabase
+          .from('ministries')
+          .select('id')
+          .eq('name', FINAL_STAGE_NAME)
+          .eq('org_id', teamMember?.org_id ?? '')
+          .maybeSingle();
+        if (existingMin) {
+          finalMinistryId = existingMin.id;
+        } else {
+          const { data: newMin, error: minErr } = await supabase
+            .from('ministries')
+            .insert({ name: FINAL_STAGE_NAME, type: 'parent', org_id: teamMember?.org_id ?? null })
+            .select()
+            .single();
+          if (minErr) throw minErr;
+          finalMinistryId = newMin.id;
+        }
+      }
+
+      // 2. Wipe + 3. Re-insert in new order with final stage pinned to last
+      const { error: delErr } = await supabase
+        .from('task_route_stops')
+        .delete()
+        .eq('task_id', taskId);
+      if (delErr) throw delErr;
+
+      const newStops = [
+        ...editingStops.map((s, idx) => ({
+          task_id:     taskId,
+          ministry_id: s.id,
+          stop_order:  idx + 1,
+          status:      task?.route_stops?.find(r => r.ministry_id === s.id)?.status ?? 'Pending',
+          // Preference order for city: explicit override → ministry default → null
+          city_id:     editStageCities[s.id]?.cityId ?? s.city_id ?? null,
+        })),
+        {
+          task_id:     taskId,
+          ministry_id: finalMinistryId,
+          stop_order:  editingStops.length + 1,
+          status:      existingFinal?.status ?? 'Pending',
+          city_id:     existingFinal?.city_id ?? null,
+        },
+      ];
+
+      const { error: insErr } = await supabase.from('task_route_stops').insert(newStops);
+      if (insErr) throw insErr;
+
+      setShowEditStages(false);
+      fetchTask();
+    } catch (e: unknown) {
+      Alert.alert(t('error'), (e as Error).message);
+    } finally {
+      setSavingStages(false);
+    }
+  };
+
+  // Patch a single stop's due_date.
+  const handleSetStopDueDate = async (stopId: string, date: string | null) => {
+    setSavingStopDueDate(stopId);
+    const { error } = await supabase
+      .from('task_route_stops')
+      .update({ due_date: date })
+      .eq('id', stopId);
+    setSavingStopDueDate(null);
+    if (error) {
+      Alert.alert(t('error'), error.message);
+      return;
+    }
+    setStopDueDatePickerStopId(null);
+    fetchTask();
+  };
+
+  // Rename the underlying ministry. The change propagates to every file
+  // that references this ministry — by design, since stages are shared
+  // org-wide.
+  const handleRenameStopMinistry = async (ministryId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setSavingStageNameId(ministryId);
+    await supabase.from('ministries').update({ name: newName.trim() }).eq('id', ministryId);
+    setSavingStageNameId(null);
+    setOpenStageNameId(null);
+    fetchTask();
+  };
+
+  // Patch a single stop's city_id (the stop, not the ministry default).
+  const handleSetStopCity = async (stopId: string, cityId: string | null) => {
+    setSavingStopField(stopId);
+    await supabase.from('task_route_stops').update({ city_id: cityId }).eq('id', stopId);
+    setSavingStopField(null);
+    setOpenCityStopId(null);
+    setStopCitySearch('');
+    fetchTask();
+  };
+
+  // Patch a single stop's assignee (team member OR external Network contact).
+  // If assigning a Network contact AND the stop has no city yet, also auto-fill
+  // the city from the contact's saved city — saves the user a tap.
+  const handleSetStopAssignee = async (stopId: string, memberId: string | null, extId: string | null) => {
+    setSavingStopField(stopId);
+    const updates: Record<string, any> = { assigned_to: memberId, ext_assignee_id: extId };
+    if (extId) {
+      const ext = extAssignees.find((a: any) => a.id === extId);
+      const currentStop = task?.route_stops?.find(rs => rs.id === stopId);
+      if (ext?.city_id && !currentStop?.city_id) {
+        updates.city_id = ext.city_id;
+      }
+    }
+    await supabase.from('task_route_stops').update(updates).eq('id', stopId);
+    setSavingStopField(null);
+    setOpenAssigneeStopId(null);
+    fetchTask();
+  };
+
+  // Create a Network contact (assignees row) AND immediately assign them to
+  // the given stop. Used by the inline "+ Create new contact" form in the
+  // assignee picker.
+  const handleCreateExtAssigneeForStop = async (stopId: string) => {
+    if (!newExtName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
+    setSavingExtAssignee(true);
+    const { data, error } = await supabase
+      .from('assignees')
+      .insert({
+        name:       newExtName.trim(),
+        phone:      newExtPhone.trim()      || null,
+        reference:  newExtReference.trim()  || null,
+        created_by: teamMember?.id,
+        org_id:     teamMember?.org_id ?? null,
+      })
+      .select('*, creator:team_members!created_by(name)')
+      .single();
+    setSavingExtAssignee(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    setExtAssignees((prev) => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
+    setShowCreateExtForm(false);
+    await handleSetStopAssignee(stopId, null, (data as any).id);
+  };
+
+  // Create a city + auto-assign to the given stop. Used by the inline
+  // "+ Create new city" form in the per-stop city picker.
+  const handleCreateCity = async (stopId: string) => {
+    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
+    setSavingCity(true);
+    const { data, error } = await supabase
+      .from('cities')
+      .insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null })
+      .select()
+      .single();
+    setSavingCity(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    const created = data as City;
+    setAllCities((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setNewCityName('');
+    setShowCreateCityForm(false);
+    await handleSetStopCity(stopId, created.id);
+  };
+
+  // Same as above but used inside the Edit Stages modal — instead of
+  // patching the live stop, it writes to editStageCities so the change
+  // takes effect when the user clicks Save Stages.
+  const handleCreateCityInEditModal = async (stageId: string) => {
+    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
+    setSavingCity(true);
+    const { data, error } = await supabase
+      .from('cities')
+      .insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null })
+      .select()
+      .single();
+    setSavingCity(false);
+    if (error) { Alert.alert(t('error'), error.message); return; }
+    const created = data as City;
+    setAllCities((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setEditStageCities((prev) => ({ ...prev, [stageId]: { cityId: created.id, cityName: created.name } }));
+    setNewCityName('');
+    setEditCreateCityOpen(false);
+    setEditCityPickerMiniId(null);
+  };
+
   return {
     // File-level
     handlePhonePress,
@@ -811,5 +1132,15 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     handleSavePrice,
     // Status update cascade
     handleUpdateStopStatus,
+    // Stage CRUD
+    handleCreateStageInEdit,
+    handleSaveStages,
+    handleSetStopDueDate,
+    handleRenameStopMinistry,
+    handleSetStopCity,
+    handleSetStopAssignee,
+    handleCreateExtAssigneeForStop,
+    handleCreateCity,
+    handleCreateCityInEditModal,
   };
 }

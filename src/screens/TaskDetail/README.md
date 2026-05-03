@@ -28,7 +28,8 @@ section per session — without breaking the working monolith.
 | Action handlers — documents slice | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5b, session 52) |
 | Action handlers — transactions + contract price | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5c, session 52) |
 | Action handlers — status update cascade | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5d, session 52) |
-| Action handlers — comments / voice / stage CRUD | `hooks/useTaskActions.ts` | ⏸ Future sessions |
+| Action handlers — stage CRUD | `hooks/useTaskActions.ts` | ✅ Extracted (Phase 5e, session 52) |
+| Action handlers — comments + voice notes | `hooks/useTaskActions.ts` | ⏸ Last future slice |
 | Realtime + state mgmt | `hooks/useTaskDetail.ts` | ⏸ Future session |
 
 **Phase 5 (in progress)** — `useTaskActions.ts` now owns:
@@ -45,19 +46,27 @@ section per session — without breaking the working monolith.
   stop, audits the change, re-reads all stops, archives the file when
   every stop is terminal (with `closed_at` + auto `due_date`), broadcasts
   push notifications, and routes through the offline queue when offline.
+- **Stage CRUD** (5e): 9 handlers covering everything related to the
+  edit-stages modal and per-stop city/assignee/due-date pickers —
+  `handleCreateStageInEdit`, `handleSaveStages` (full route_stops rewrite
+  with FINAL_STAGE pinning), `handleSetStopDueDate`,
+  `handleRenameStopMinistry`, `handleSetStopCity`, `handleSetStopAssignee`
+  (with auto-fill city from Network contact), `handleCreateExtAssigneeForStop`,
+  `handleCreateCity`, `handleCreateCityInEditModal`.
 
-15 handlers total now in the hook. Each takes its required state via the
+24 handlers total now in the hook. Each takes its required state via the
 `UseTaskActionsOptions` interface; setters are passed in explicitly so
 ownership remains with the orchestrator (TaskDetailScreen).
 
-After 5d, `TaskDetailScreen.tsx` no longer owns ANY status-mutation
-logic — the file's archive cascade lives entirely in the hook now. This
-is a meaningful architectural boundary: the orchestrator's only role for
-status changes is wiring the modal's `onSelect` to the hook's handler.
+After 5e, the only handlers still inline in TaskDetailScreen are the
+**comments + voice notes** group (`handlePostComment`, `handleSaveEditComment`,
+`handleDeleteComment`, voice-recording lifecycle, audio playback). These
+are the most coupled — they touch `Audio.Sound` instances, recording
+timer refs, and a partially-removed speech-to-text package. Saved for last.
 
-`TaskDetailScreen.tsx` now at 3,166 lines (was 3,601 after Phase 4).
-Cumulative shrink from the original monolith: 4,828 → 3,166 lines
-(-1,662, -34%). All 28 unit tests pass; zero TypeScript errors.
+`TaskDetailScreen.tsx` now at 3,007 lines (was 3,601 after Phase 4).
+Cumulative shrink from the original monolith: 4,828 → 3,007 lines
+(-1,821, -38%). All 28 unit tests pass; zero TypeScript errors.
 
 **Why incremental?** Each remaining handler group (comments / voice /
 stages / transactions) has 5–10 pieces of state coupled to the parent.
@@ -65,20 +74,16 @@ Extracting them needs either a fat options object on the hook or a state
 lift first. Doing it in one session would be high-risk; we'd rather get
 each group right than rush.
 
-### Next slices to extract (in priority order)
+### Next slices to extract
 
-1. **Stage CRUD (8 handlers)** — `handleSetStopDueDate`,
-   `handleSetStopCity`, `handleSetStopAssignee`,
-   `handleCreateExtAssigneeForStop`, `handleCreateCity`,
-   `handleCreateCityInEditModal`, `handleRenameStopMinistry`,
-   `handleSaveStages`, `handleCreateStageInEdit`. Higher coupling —
-   touches stops, ministries, cities, ext_assignees, edit-stages modal.
-2. **Comments + voice notes (10 handlers)** — `handlePostComment`,
+1. **Comments + voice notes (10 handlers)** — `handlePostComment`,
    `handleSaveEditComment`, `handleDeleteComment`,
    `handleStartRecording`, `handleStopRecording`,
    `handleDiscardRecording`, `handleSendVoiceNote`, `handlePlayPause`,
    `handleStopListening`, `handleTextFromVoice`. Tangled with audio +
-   recording state — extract last.
+   recording state. After this last slice, **all** action handlers will
+   live in `useTaskActions.ts` and TaskDetailScreen becomes a pure JSX
+   wiring layer ready for Phase 6 (TanStack Query migration).
 
 Future phases:
 - Lift action handlers into `hooks/useTaskActions.ts` (~50 handlers)

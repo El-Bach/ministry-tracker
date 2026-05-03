@@ -278,10 +278,9 @@ export default function TaskDetailScreen() {
   const [loadingSheetDocs, setLoadingSheetDocs] = useState(false);
 
   // ─── Phase 5: handlers extracted into useTaskActions ──────────────────
-  // Currently extracted slices: file-level (Whatsapp / phone / duplicate),
-  // documents (open / print / share / rename / delete / pick PDF),
-  // transactions + contract price, and the status update cascade.
-  // Remaining inline: comments, voice notes, stage CRUD.
+  // Extracted slices: file-level, documents, transactions + contract price,
+  // status update cascade, and stage CRUD. Remaining inline: comments and
+  // voice notes (they're tangled with audio state).
   const {
     // file-level
     handlePhonePress,
@@ -302,6 +301,16 @@ export default function TaskDetailScreen() {
     handleSavePrice,
     // status update cascade
     handleUpdateStopStatus,
+    // stage CRUD
+    handleCreateStageInEdit,
+    handleSaveStages,
+    handleSetStopDueDate,
+    handleRenameStopMinistry,
+    handleSetStopCity,
+    handleSetStopAssignee,
+    handleCreateExtAssigneeForStop,
+    handleCreateCity,
+    handleCreateCityInEditModal,
   } = useTaskActions({
     task,
     sheetDocs,
@@ -328,6 +337,18 @@ export default function TaskDetailScreen() {
     setSavingPrice, setContractPriceUSD, setContractPriceLBP, setShowEditPrice, setEditPriceNote,
     // status update cascade
     setUpdatingStop, setShowStatusPicker, setSelectedStop,
+    // stage CRUD
+    newStageName, allStages, editingStops, editStageCities,
+    extAssignees, newExtName, newExtPhone, newExtReference, newCityName,
+    setSavingNewStage, setAllStages, setEditingStops, setNewStageName, setShowNewStageInEdit,
+    setSavingStages, setShowEditStages,
+    setSavingStopDueDate, setStopDueDatePickerStopId,
+    setSavingStageNameId, setOpenStageNameId,
+    setSavingStopField, setOpenCityStopId, setStopCitySearch, setOpenAssigneeStopId,
+    setSavingExtAssignee, setExtAssignees, setNewExtName, setNewExtPhone, setNewExtReference,
+    setShowCreateExtForm,
+    setSavingCity, setNewCityName, setShowCreateCityForm,
+    setAllCities, setEditStageCities, setEditCreateCityOpen, setEditCityPickerMiniId,
   });
 
   const fetchTask = useCallback(async () => {
@@ -473,100 +494,7 @@ export default function TaskDetailScreen() {
     setEditingStops(arr);
   };
 
-  const handleCreateStageInEdit = async () => {
-    if (!newStageName.trim()) {
-      Alert.alert(t('required'), t('fieldRequired'));
-      return;
-    }
-    const duplicate = allStages.find(
-      (m) => m.name.trim().toLowerCase() === newStageName.trim().toLowerCase()
-    );
-    if (duplicate) {
-      Alert.alert(t('warning'), `"${duplicate.name}" — ${t('duplicateClient')}`);
-      return;
-    }
-    setSavingNewStage(true);
-    const { data, error } = await supabase
-      .from('ministries')
-      .insert({ name: newStageName.trim(), type: 'parent', org_id: teamMember?.org_id ?? null })
-      .select()
-      .single();
-    setSavingNewStage(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    const stage = data as Ministry;
-    setAllStages((prev) => [...prev, stage].sort((a, b) => a.name.localeCompare(b.name)));
-    setEditingStops((prev) => [...prev, stage]);
-    setNewStageName('');
-    setShowNewStageInEdit(false);
-  };
-
-  const handleSaveStages = async () => {
-    setSavingStages(true);
-    try {
-      // Preserve the existing final stage stop (to keep its status/city)
-      const existingFinal = task?.route_stops?.find(s => s.ministry?.name === FINAL_STAGE_NAME);
-
-      // Get or create the final stage ministry — scoped to current org
-      let finalMinistryId = existingFinal?.ministry_id ?? null;
-      if (!finalMinistryId) {
-        const { data: existingMin } = await supabase
-          .from('ministries')
-          .select('id')
-          .eq('name', FINAL_STAGE_NAME)
-          .eq('org_id', teamMember?.org_id ?? '')
-          .maybeSingle();
-        if (existingMin) {
-          finalMinistryId = existingMin.id;
-        } else {
-          const { data: newMin, error: minErr } = await supabase
-            .from('ministries')
-            .insert({ name: FINAL_STAGE_NAME, type: 'parent', org_id: teamMember?.org_id ?? null })
-            .select()
-            .single();
-          if (minErr) throw minErr;
-          finalMinistryId = newMin.id;
-        }
-      }
-
-      // Delete all existing stops for this task
-      const { error: delErr } = await supabase
-        .from('task_route_stops')
-        .delete()
-        .eq('task_id', taskId);
-      if (delErr) throw delErr;
-
-      // Re-insert in new order + final stage always last
-      const newStops = [
-        ...editingStops.map((s, idx) => ({
-          task_id: taskId,
-          ministry_id: s.id,
-          stop_order: idx + 1,
-          status: task?.route_stops?.find(r => r.ministry_id === s.id)?.status ?? 'Pending',
-          // Use the mapped city; fall back to ministry's default city for newly added stages
-          city_id: editStageCities[s.id]?.cityId ?? s.city_id ?? null,
-        })),
-        {
-          task_id: taskId,
-          ministry_id: finalMinistryId,
-          stop_order: editingStops.length + 1,
-          status: existingFinal?.status ?? 'Pending',
-          city_id: existingFinal?.city_id ?? null,
-        },
-      ];
-
-      const { error: insErr } = await supabase
-        .from('task_route_stops')
-        .insert(newStops);
-      if (insErr) throw insErr;
-
-      setShowEditStages(false);
-      fetchTask();
-    } catch (e: unknown) {
-      Alert.alert(t('error'), (e as Error).message);
-    } finally {
-      setSavingStages(false);
-    }
-  };
+  // handleCreateStageInEdit + handleSaveStages now provided by useTaskActions
 
   // ─── Edit task ───────────────────────────────────────────────
   const isoToDisplay = (iso: string) => {
@@ -869,71 +797,9 @@ export default function TaskDetailScreen() {
   };
 
   // ─── Per-stage city / assignee handlers ─────────────────
-  const handleSetStopDueDate = async (stopId: string, date: string | null) => {
-    setSavingStopDueDate(stopId);
-    const { error } = await supabase
-      .from('task_route_stops')
-      .update({ due_date: date })
-      .eq('id', stopId);
-    setSavingStopDueDate(null);
-    if (error) {
-      Alert.alert(t('error'), error.message);
-      return;
-    }
-    setStopDueDatePickerStopId(null);
-    fetchTask();
-  };
-
-  const handleRenameStopMinistry = async (ministryId: string, newName: string) => {
-    if (!newName.trim()) return;
-    setSavingStageNameId(ministryId);
-    await supabase.from('ministries').update({ name: newName.trim() }).eq('id', ministryId);
-    setSavingStageNameId(null);
-    setOpenStageNameId(null);
-    fetchTask();
-  };
-
-  const handleSetStopCity = async (stopId: string, cityId: string | null) => {
-    setSavingStopField(stopId);
-    await supabase.from('task_route_stops').update({ city_id: cityId }).eq('id', stopId);
-    setSavingStopField(null);
-    setOpenCityStopId(null);
-    setStopCitySearch('');
-    fetchTask();
-  };
-
-  const handleSetStopAssignee = async (stopId: string, memberId: string | null, extId: string | null) => {
-    setSavingStopField(stopId);
-    const updates: Record<string, any> = { assigned_to: memberId, ext_assignee_id: extId };
-    // Auto-fill city from Network contact's city if stop has no city yet
-    if (extId) {
-      const ext = extAssignees.find((a: any) => a.id === extId);
-      const currentStop = task?.route_stops?.find(rs => rs.id === stopId);
-      if (ext?.city_id && !currentStop?.city_id) {
-        updates.city_id = ext.city_id;
-      }
-    }
-    await supabase.from('task_route_stops').update(updates).eq('id', stopId);
-    setSavingStopField(null);
-    setOpenAssigneeStopId(null);
-    fetchTask();
-  };
-
-  const handleCreateExtAssigneeForStop = async (stopId: string) => {
-    if (!newExtName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingExtAssignee(true);
-    const { data, error } = await supabase
-      .from('assignees')
-      .insert({ name: newExtName.trim(), phone: newExtPhone.trim() || null, reference: newExtReference.trim() || null, created_by: teamMember?.id, org_id: teamMember?.org_id ?? null })
-      .select('*, creator:team_members!created_by(name)')
-      .single();
-    setSavingExtAssignee(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setExtAssignees(prev => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
-    setShowCreateExtForm(false);
-    await handleSetStopAssignee(stopId, null, (data as any).id);
-  };
+  // handleSetStopDueDate / handleRenameStopMinistry / handleSetStopCity /
+  // handleSetStopAssignee / handleCreateExtAssigneeForStop are now provided
+  // by useTaskActions. See ./TaskDetail/hooks/useTaskActions.ts
 
   const PINNED_KEY = '@pinned_city_ids';
 
@@ -949,32 +815,7 @@ export default function TaskDetailScreen() {
     await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
   };
 
-  const handleCreateCity = async (stopId: string) => {
-    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingCity(true);
-    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
-    setSavingCity(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    const created = data as City;
-    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewCityName('');
-    setShowCreateCityForm(false);
-    await handleSetStopCity(stopId, created.id);
-  };
-
-  const handleCreateCityInEditModal = async (stageId: string) => {
-    if (!newCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingCity(true);
-    const { data, error } = await supabase.from('cities').insert({ name: newCityName.trim(), org_id: teamMember?.org_id ?? null }).select().single();
-    setSavingCity(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    const created = data as City;
-    setAllCities(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-    setEditStageCities(prev => ({ ...prev, [stageId]: { cityId: created.id, cityName: created.name } }));
-    setNewCityName('');
-    setEditCreateCityOpen(false);
-    setEditCityPickerMiniId(null);
-  };
+  // handleCreateCity + handleCreateCityInEditModal now provided by useTaskActions
 
   const handleDeleteComment = (commentId: string) => {
     Alert.alert(t('deleteComment'), t('confirmDelete'), [
