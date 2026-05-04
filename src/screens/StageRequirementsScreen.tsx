@@ -23,6 +23,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 
 import supabase from '../lib/supabase';
+import SignedImage from '../components/SignedImage';
 import { theme } from '../theme';
 import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
@@ -488,8 +489,8 @@ export default function StageRequirementsScreen() {
               {!!req.attachment_url && (
                 <View style={s.attachPreview}>
                   {/\.(jpg|jpeg|png|gif|webp)$/i.test(req.attachment_url) ? (
-                    <Image
-                      source={{ uri: req.attachment_url }}
+                    <SignedImage
+                      source={req.attachment_url}
                       style={s.attachImage}
                       resizeMode="cover"
                     />
