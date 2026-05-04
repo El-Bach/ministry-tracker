@@ -69,6 +69,7 @@ import { DocumentsSection } from './TaskDetail/components/DocumentsSection';
 import { CommentsSection } from './TaskDetail/components/CommentsSection';
 import { FinancialsSection } from './TaskDetail/components/FinancialsSection';
 import { StagesSection } from './TaskDetail/components/StagesSection';
+import { MinistryContactsSheet } from '../components/MinistryContactsSheet';
 import { TaskHeader } from './TaskDetail/components/TaskHeader';
 import { fetchTaskData } from './TaskDetail/fetchTaskData';
 import { useTaskActions } from './TaskDetail/hooks/useTaskActions';
@@ -147,6 +148,11 @@ export default function TaskDetailScreen() {
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   // stopHistories now comes from queryData (read-only mirror dropped, Phase 6c)
   const [expandedStopHistory, setExpandedStopHistory] = useState<string | null>(null);
+  // Ministry contacts sheet (per-stage 👥 button) — opens in pick mode so the
+  // user can tick which contacts to display under that stage's name.
+  const [contactsStopId, setContactsStopId] = useState<string | null>(null);
+  const [contactsMinistryId, setContactsMinistryId] = useState<string | null>(null);
+  const [contactsMinistryName, setContactsMinistryName] = useState('');
   const [updatingStop, setUpdatingStop] = useState<string | null>(null);
   // Rejection reason
   const [showRejectionInput, setShowRejectionInput] = useState(false);
@@ -893,6 +899,11 @@ export default function TaskDetailScreen() {
           setExpandedStopHistory={setExpandedStopHistory}
           savingStopField={savingStopField}
           onOpenEditStages={openEditStages}
+          onOpenContacts={(stopId, mid, mname) => {
+            setContactsStopId(stopId);
+            setContactsMinistryId(mid);
+            setContactsMinistryName(mname);
+          }}
           formatDate={formatDate}
           formatDateOnly={formatDateOnly}
           getStatusColor={getStatusColor}
@@ -1731,6 +1742,40 @@ export default function TaskDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Ministry contacts sheet — pick mode: tick which contacts to display
+          inline under the stage name on TaskDetail. Selection persisted to
+          stop_ministry_contacts junction table; refetched on Done. */}
+      <MinistryContactsSheet
+        visible={!!contactsStopId && !!contactsMinistryId}
+        ministryId={contactsMinistryId}
+        ministryName={contactsMinistryName}
+        mode="pick"
+        initialSelected={
+          task?.route_stops?.find(s => s.id === contactsStopId)?.selected_contacts?.map(c => c.id) ?? []
+        }
+        onSavePick={async (selectedIds) => {
+          if (!contactsStopId) return;
+          // Replace strategy: nuke existing rows for this stop, insert the new set.
+          // Cheap because the set is tiny (typically <10 contacts per stage).
+          const { error: delErr } = await supabase
+            .from('stop_ministry_contacts')
+            .delete()
+            .eq('stop_id', contactsStopId);
+          if (delErr) throw delErr;
+          if (selectedIds.length > 0) {
+            const { error: insErr } = await supabase
+              .from('stop_ministry_contacts')
+              .insert(selectedIds.map(id => ({
+                stop_id: contactsStopId,
+                ministry_contact_id: id,
+              })));
+            if (insErr) throw insErr;
+          }
+          await fetchTask();
+        }}
+        onClose={() => { setContactsStopId(null); setContactsMinistryId(null); }}
+      />
 
     </SafeAreaView>
   );

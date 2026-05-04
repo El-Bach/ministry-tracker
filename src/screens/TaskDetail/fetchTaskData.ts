@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   Task, TaskComment, StatusLabel, TeamMember, City, Ministry, Service,
+  MinistryContact,
 } from '../../types';
 
 export interface FetchedTransaction {
@@ -94,6 +95,28 @@ export async function fetchTaskData(
     const t = taskRes.data as Task;
     if (t.route_stops) {
       t.route_stops = [...t.route_stops].sort((a, b) => a.stop_order - b.stop_order);
+
+      // Per-stage selected ministry contacts. Done as a separate query (rather
+      // than nested in the tasks select above) because Supabase's PostgREST
+      // join syntax for many-to-many through a junction table is awkward; a
+      // simple .in() query keeps things readable and is cheap (one round-trip).
+      const stopIds = t.route_stops.map(s => s.id);
+      if (stopIds.length > 0) {
+        const { data: linkRows } = await supabase
+          .from('stop_ministry_contacts')
+          .select('stop_id, contact:ministry_contacts(*)')
+          .in('stop_id', stopIds);
+        if (linkRows) {
+          const grouped: Record<string, MinistryContact[]> = {};
+          for (const row of linkRows as any[]) {
+            if (!row.contact) continue;
+            (grouped[row.stop_id] ||= []).push(row.contact as MinistryContact);
+          }
+          for (const stop of t.route_stops) {
+            stop.selected_contacts = grouped[stop.id] ?? [];
+          }
+        }
+      }
     }
     task = t;
   }

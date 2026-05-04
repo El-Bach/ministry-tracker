@@ -29,6 +29,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement, MainTabParamList } from '../types';
 import { formatPhoneDisplay } from '../lib/phone';
 import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
+import { MinistryContactsSheet } from '../components/MinistryContactsSheet';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -85,6 +86,8 @@ export default function CreateScreen() {
   const [editStageId, setEditStageId] = useState<string | null>(null);
   const [editStageName, setEditStageName] = useState('');
   const [savingEditStage, setSavingEditStage] = useState(false);
+  // Per-stage contacts sheet — null = closed, ministry id = open for that stage
+  const [contactsMinistryId, setContactsMinistryId] = useState<string | null>(null);
   // Stage city picker
   const [stageCityPickerId, setStageCityPickerId] = useState<string | null>(null);
   const [stageCitySearch, setStageCitySearch] = useState('');
@@ -1730,6 +1733,9 @@ export default function CreateScreen() {
                           <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setStageCityPickerId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
                             <Text style={s.mgmtEditBtnText}>✎</Text>
                           </TouchableOpacity>
+                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setStageCityPickerId(null); setContactsMinistryId(m.id); }}>
+                            <Text style={s.mgmtEditBtnText}>👥</Text>
+                          </TouchableOpacity>
                           <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
                             <Text style={s.mgmtDelBtnText}>✕</Text>
                           </TouchableOpacity>
@@ -2495,6 +2501,14 @@ export default function CreateScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Per-stage ministry contacts sheet (👥 button on each stage row) */}
+      <MinistryContactsSheet
+        visible={!!contactsMinistryId}
+        ministryId={contactsMinistryId}
+        ministryName={ministries.find(m => m.id === contactsMinistryId)?.name ?? ''}
+        onClose={() => setContactsMinistryId(null)}
+      />
 
     </SafeAreaView>
   );

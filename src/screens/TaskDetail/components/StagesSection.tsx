@@ -11,6 +11,7 @@
 import React from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
+  Alert, Linking,
 } from 'react-native';
 import { theme } from '../../../theme';
 import { useTranslation } from '../../../lib/i18n';
@@ -101,6 +102,11 @@ interface Props {
   // Edit stages modal trigger
   onOpenEditStages: () => void;
 
+  // Open ministry contacts picker for this stage. Parent decides whether the
+  // sheet opens in pick or browse mode; this callback just signals "open it
+  // for THIS stop / ministry".
+  onOpenContacts: (stopId: string, ministryId: string, ministryName: string) => void;
+
   // Display helpers
   formatDate: (iso: string) => string;
   formatDateOnly: (iso: string) => string;
@@ -125,7 +131,7 @@ export function StagesSection(props: Props) {
     setStopDueDatePickerStopId, savingStopDueDate,
     setSelectedStop, setShowStatusPicker, updatingStop,
     stopHistories, expandedStopHistory, setExpandedStopHistory, savingStopField,
-    onOpenEditStages,
+    onOpenEditStages, onOpenContacts,
     formatDate, formatDateOnly, getStatusColor,
   } = props;
 
@@ -178,10 +184,54 @@ export function StagesSection(props: Props) {
                       {stop.ministry?.name ?? 'Unknown Ministry'}
                     </Text>
                   </View>
+                  {stop.ministry_id && (
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        onOpenContacts(stop.id, stop.ministry_id!, stop.ministry?.name ?? '');
+                      }}
+                      style={s.contactsBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={s.contactsBtnText}>👥</Text>
+                    </TouchableOpacity>
+                  )}
                   <Text style={[s.stageOrder, { color: theme.color.primary }]}>
                     {openStageNameId === stop.id ? '▲' : '✎'}
                   </Text>
                 </TouchableOpacity>
+
+                {/* Selected ministry contacts — one line each, tap phone → call/WhatsApp */}
+                {stop.selected_contacts && stop.selected_contacts.length > 0 && (
+                  <View style={s.selectedContactsList}>
+                    {stop.selected_contacts.map(c => {
+                      const onPress = c.phone
+                        ? () => {
+                            const clean = c.phone!.replace(/[^0-9+]/g, '');
+                            Alert.alert(c.name, c.phone!, [
+                              { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
+                              { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+                              { text: t('cancel'), style: 'cancel' },
+                            ]);
+                          }
+                        : undefined;
+                      return (
+                        <TouchableOpacity
+                          key={c.id}
+                          activeOpacity={onPress ? 0.6 : 1}
+                          onPress={onPress}
+                          style={s.selectedContactRow}
+                        >
+                          <Text style={s.selectedContactText} numberOfLines={1}>
+                            <Text style={s.selectedContactName}>{c.name}</Text>
+                            {c.position ? <Text style={s.selectedContactMeta}> · {c.position}</Text> : null}
+                            {c.phone ? <Text style={s.selectedContactPhone}>  📞 {c.phone}</Text> : null}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
 
                 {/* Inline name-edit panel */}
                 {openStageNameId === stop.id && (
@@ -549,6 +599,14 @@ const s = StyleSheet.create({
   stageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stageMinistryName: { ...theme.typography.body, fontWeight: '700', flex: 1 },
   stageOrder: { ...theme.typography.caption, fontWeight: '600' },
+  contactsBtn: { paddingHorizontal: 6, paddingVertical: 2 },
+  contactsBtnText: { fontSize: 16 },
+  selectedContactsList: { marginTop: theme.spacing.space2, gap: 4, paddingStart: 2 },
+  selectedContactRow:   { paddingVertical: 2 },
+  selectedContactText:  { fontSize: 12 },
+  selectedContactName:  { color: theme.color.textPrimary, fontWeight: '600' },
+  selectedContactMeta:  { color: theme.color.textSecondary },
+  selectedContactPhone: { color: theme.color.primary, fontWeight: '600' },
 
   stageNamePanel: { backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space3, borderWidth: 1, borderColor: theme.color.border },
   stageNameInput: { ...theme.typography.body, color: theme.color.textPrimary, backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 8, borderWidth: 1, borderColor: theme.color.border },

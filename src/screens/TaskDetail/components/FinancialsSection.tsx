@@ -154,6 +154,10 @@ export function FinancialsSection(props: Props) {
 
   const cvFmt = (n: number) =>
     `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Plain number formatters for the cvTable rows (no symbol prefix — the
+  // column header already says USD / LBP, so we don't repeat).
+  const numFmt = (n: number) =>
+    Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
   const cvOf = (tx: FileTransaction) => {
     const r = tx.rate_usd_lbp ?? exchangeRate;
     return tx.amount_usd + tx.amount_lbp / r;
@@ -171,24 +175,29 @@ export function FinancialsSection(props: Props) {
   // The textStyle prop gets applied to BOTH the symbol and the number so
   // they share color, fontSize, fontWeight (matches the row's existing style).
   const AmountCell: React.FC<{
-    width:      number;
-    currency:   'USD' | 'LBP';
-    value:      number;
-    sign?:      '' | '+' | '-';
-    decimals?:  number;
-    textStyle?: any;
-  }> = ({ width, currency, value, sign = '', decimals = 0, textStyle }) => {
+    width:         number;
+    marginStart?:  number;
+    leftDivider?:  boolean;
+    currency:      'USD' | 'LBP';
+    value:         number;
+    sign?:         '' | '+' | '-';
+    decimals?:     number;
+    textStyle?:    any;
+  }> = ({ width, marginStart = 0, leftDivider, currency, value, sign = '', decimals = 0, textStyle }) => {
     const symbol = currency === 'USD' ? '$' : 'LBP';
     const number = Math.abs(value).toLocaleString('en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
     return (
-      <View style={[{ width, flexDirection: 'row', alignItems: 'baseline' }]}>
-        <Text style={textStyle}>{symbol}</Text>
-        <Text style={[textStyle, { flex: 1, textAlign: 'right', marginLeft: 4 }]}>
+      <View style={[
+        { width, marginStart, flexDirection: 'row', alignItems: 'baseline', paddingLeft: leftDivider ? 10 : 0 },
+        leftDivider && { borderLeftWidth: 1, borderLeftColor: theme.color.border },
+      ]}>
+        <Text style={[textStyle, { flex: 1, textAlign: 'right', marginRight: 4 }]} numberOfLines={1}>
           {sign ? `${sign} ` : ''}{number}
         </Text>
+        <Text style={textStyle}>{symbol}</Text>
       </View>
     );
   };
@@ -216,20 +225,21 @@ export function FinancialsSection(props: Props) {
               rows below so $/LBP align vertically across all rows. */}
           <View style={[s.balanceRow, { marginTop: theme.spacing.space1 }]}>
             <View style={{ flex: 1 }} />
-            <AmountCell width={80}  currency="USD" value={contractPriceUSD} textStyle={s.contractPriceVal} />
-            <AmountCell width={120} currency="LBP" value={contractPriceLBP} textStyle={s.contractPriceValLBP} />
+            <AmountCell width={100} currency="USD" value={contractPriceUSD} textStyle={s.contractPriceVal} />
+            <AmountCell width={180} leftDivider currency="LBP" value={contractPriceLBP} textStyle={s.contractPriceValLBP} />
           </View>
           {contractPriceUSD > 0 && (
             <View style={[s.balanceRow, { marginTop: theme.spacing.space2 }]}>
               <Text style={s.balanceLabel}>{t('balance').toUpperCase()}</Text>
               <AmountCell
-                width={80}
+                width={100}
                 currency="USD"
                 value={outstandingUSD}
                 textStyle={[s.balanceColTxt, outstandingUSD > 0 ? s.negative : s.positive]}
               />
               <AmountCell
-                width={120}
+                width={180}
+                leftDivider
                 currency="LBP"
                 value={outstandingLBP}
                 textStyle={[
@@ -282,26 +292,27 @@ export function FinancialsSection(props: Props) {
         <View style={s.balanceSummary}>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
-            <AmountCell width={80}  currency="USD" value={totalRevenueUSD} textStyle={[s.balanceColTxt, s.balanceRevenue]} />
-            <AmountCell width={120} currency="LBP" value={totalRevenueLBP} textStyle={[s.balanceColLBPTxt, s.balanceRevenueLBP]} />
+            <AmountCell width={100} currency="USD" value={totalRevenueUSD} textStyle={[s.balanceColTxt, s.balanceRevenue]} />
+            <AmountCell width={180} leftDivider currency="LBP" value={totalRevenueLBP} textStyle={[s.balanceColLBPTxt, s.balanceRevenueLBP]} />
           </View>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('expense').toUpperCase()}S</Text>
-            <AmountCell width={80}  currency="USD" value={totalExpenseUSD} sign="-" textStyle={[s.balanceColTxt, s.balanceExpense]} />
-            <AmountCell width={120} currency="LBP" value={totalExpenseLBP} sign="-" textStyle={[s.balanceColLBPTxt, s.balanceExpenseLBP]} />
+            <AmountCell width={100} currency="USD" value={totalExpenseUSD} sign="-" textStyle={[s.balanceColTxt, s.balanceExpense]} />
+            <AmountCell width={180} leftDivider currency="LBP" value={totalExpenseLBP} sign="-" textStyle={[s.balanceColLBPTxt, s.balanceExpenseLBP]} />
           </View>
           <View style={s.balanceDivider} />
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('netBalance')}</Text>
             <AmountCell
-              width={80}
+              width={100}
               currency="USD"
               value={balanceUSD}
               sign={balanceUSD >= 0 ? '+' : '-'}
               textStyle={[s.balanceColTxt, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}
             />
             <AmountCell
-              width={120}
+              width={180}
+              leftDivider
               currency="LBP"
               value={balanceLBP}
               sign={balanceLBP >= 0 ? '+' : '-'}
@@ -312,14 +323,14 @@ export function FinancialsSection(props: Props) {
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('cvUSD')}</Text>
             <AmountCell
-              width={80}
+              width={100}
               currency="USD"
               value={totalCombinedUSD}
               sign={totalCombinedUSD >= 0 ? '+' : '-'}
               decimals={2}
               textStyle={[s.balanceColTxt, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}
             />
-            <View style={{ width: 120, alignItems: 'flex-end' }}>
+            <View style={{ width: 180, alignItems: 'flex-end', paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.color.border }}>
               {editingRate ? (
                 <TextInput
                   style={s.rateInput}
@@ -362,8 +373,8 @@ export function FinancialsSection(props: Props) {
             <View style={[s.cvRow, s.cvHeader]}>
               <Text style={[s.cvCell, s.cvCellDesc, s.cvHeaderText]}>DESCRIPTION</Text>
               <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>USD</Text>
-              <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>LBP</Text>
-              <Text style={[s.cvCell, s.cvCellNum, s.cvHeaderText]}>C/V USD</Text>
+              <Text style={[s.cvCell, s.cvCellNumLBP, s.cvHeaderText]}>LBP</Text>
+              <Text style={[s.cvCell, s.cvCellNumCV, s.cvHeaderText]}>C/V USD</Text>
             </View>
             {transactions.map((tx) => {
               const cv = cvOf(tx);
@@ -378,12 +389,12 @@ export function FinancialsSection(props: Props) {
                     )}
                   </View>
                   <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_usd > 0 ? col : theme.color.textMuted }]}>
-                    {tx.amount_usd > 0 ? `${sign}${fmtUSD(tx.amount_usd)}` : '—'}
+                    {tx.amount_usd > 0 ? `${sign}${numFmt(tx.amount_usd)}` : '—'}
                   </Text>
-                  <Text style={[s.cvCell, s.cvCellNum, { color: tx.amount_lbp > 0 ? col : theme.color.textMuted }]}>
-                    {tx.amount_lbp > 0 ? `${sign}${fmtLBP(tx.amount_lbp)}` : '—'}
+                  <Text style={[s.cvCell, s.cvCellNumLBP, { color: tx.amount_lbp > 0 ? col : theme.color.textMuted }]}>
+                    {tx.amount_lbp > 0 ? `${sign}${numFmt(tx.amount_lbp)}` : '—'}
                   </Text>
-                  <Text style={[s.cvCell, s.cvCellNum, { color: col, fontWeight: '700' }]}>
+                  <Text style={[s.cvCell, s.cvCellNumCV, { color: col, fontWeight: '700' }]}>
                     {sign}{cvFmt(cv)}
                   </Text>
                 </View>
@@ -392,12 +403,12 @@ export function FinancialsSection(props: Props) {
             <View style={[s.cvRow, s.cvTotalRow]}>
               <Text style={[s.cvCell, s.cvCellDesc, s.cvTotalText]}>TOTAL</Text>
               <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxUSD >= 0 ? s.positive : s.negative]}>
-                {totalTxUSD >= 0 ? '+' : '-'}{fmtUSD(Math.abs(totalTxUSD))}
+                {totalTxUSD >= 0 ? '+' : '-'}{numFmt(totalTxUSD)}
               </Text>
-              <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalTxLBP >= 0 ? s.positive : s.negative]}>
-                {totalTxLBP >= 0 ? '+' : '-'}{fmtLBP(Math.abs(totalTxLBP))}
+              <Text style={[s.cvCell, s.cvCellNumLBP, s.cvTotalText, totalTxLBP >= 0 ? s.positive : s.negative]}>
+                {totalTxLBP >= 0 ? '+' : '-'}{numFmt(totalTxLBP)}
               </Text>
-              <Text style={[s.cvCell, s.cvCellNum, s.cvTotalText, totalCvUSD >= 0 ? s.positive : s.negative]}>
+              <Text style={[s.cvCell, s.cvCellNumCV, s.cvTotalText, totalCvUSD >= 0 ? s.positive : s.negative]}>
                 {totalCvUSD >= 0 ? '+' : '-'}{cvFmt(Math.abs(totalCvUSD))}
               </Text>
             </View>
@@ -725,16 +736,16 @@ const s = StyleSheet.create({
   // Contract price card
   contractPriceRow: { backgroundColor: theme.color.bgBase, padding: 14, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, gap: 6 },
   contractPriceHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  balanceLabel: { fontSize: 11, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5 },
+  balanceLabel: { fontSize: 11, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5, flex: 1 },
   editPriceBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: theme.color.primary + '22', borderRadius: theme.radius.sm },
   editPriceBtnText: { color: theme.color.primary, fontSize: 12, fontWeight: '700' },
   balanceAmounts: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  contractPriceVal: { fontSize: 15, fontWeight: '700', color: theme.color.primary, minWidth: 80, textAlign: 'right' },
-  contractPriceValLBP: { fontSize: 15, fontWeight: '700', color: theme.color.primary, minWidth: 120, textAlign: 'right' },
+  contractPriceVal: { fontSize: 15, fontWeight: '700', color: theme.color.primary },
+  contractPriceValLBP: { fontSize: 15, fontWeight: '700', color: theme.color.primary },
 
   // P&L summary
   balanceSummary: { backgroundColor: theme.color.bgBase, padding: 14, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, gap: 6 },
-  balanceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  balanceRow: { flexDirection: 'row', alignItems: 'center' },
   balanceCol: { fontSize: 14, fontWeight: '700', minWidth: 80, textAlign: 'right' },
   balanceColLBP: { fontSize: 13, color: theme.color.textSecondary, minWidth: 120, textAlign: 'right' },
   // Text-only variants for AmountCell — no width (the wrapper View owns
@@ -746,7 +757,7 @@ const s = StyleSheet.create({
   balanceExpense: { color: theme.color.danger },
   balanceExpenseLBP: { color: theme.color.danger },
   balanceDivider: { height: 1, backgroundColor: theme.color.border, marginVertical: 4 },
-  balanceTotalLabel: { fontSize: 13, fontWeight: '700', color: theme.color.textPrimary },
+  balanceTotalLabel: { fontSize: 13, fontWeight: '700', color: theme.color.textPrimary, flex: 1 },
   balanceTotal: { fontSize: 16 },
   balanceTotalLBP: { fontSize: 14, fontWeight: '700' },
   positive: { color: theme.color.success },
@@ -773,7 +784,9 @@ const s = StyleSheet.create({
   cvHeaderText: { fontSize: 10, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5 },
   cvCell: { paddingHorizontal: 4 },
   cvCellDesc: { flex: 2 },
-  cvCellNum: { flex: 1, fontSize: 11, textAlign: 'right' },
+  cvCellNum: { flex: 0.8, fontSize: 11, textAlign: 'right' },
+  cvCellNumLBP: { flex: 1.6, fontSize: 11, textAlign: 'right' },
+  cvCellNumCV: { flex: 1.4, fontSize: 11, textAlign: 'right' },
   cvDescText: { fontSize: 12, fontWeight: '600' },
   cvStagePill: { fontSize: 10, color: theme.color.primary, marginTop: 2 },
   cvTotalRow: { borderTopWidth: 2, borderTopColor: theme.color.border, paddingTop: 6, marginTop: 4 },

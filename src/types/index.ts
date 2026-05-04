@@ -89,6 +89,9 @@ export interface TaskRouteStop {
   ext_assignee?: { id: string; name: string; phone?: string } | null;
   due_date?: string | null;
   rejection_reason?: string | null;
+  // per-stage selected ministry contacts (migration_stop_ministry_contacts.sql)
+  // Populated client-side in fetchTaskData by joining stop_ministry_contacts.
+  selected_contacts?: MinistryContact[];
 }
 
 export interface TaskComment {
@@ -134,6 +137,51 @@ export interface Assignee {
   created_by?: string;
   creator?: { name: string };
   created_at: string;
+}
+
+// Ministry-side contact: a person who works AT the ministry (e.g. an officer,
+// clerk, department head we call to push files through). Distinct from the
+// Network/assignees pool which holds OUR internal staff.
+export interface MinistryContact {
+  id: string;
+  ministry_id: string;
+  org_id: string;
+  name: string;
+  phone?: string | null;
+  position?: string | null;
+  presence?: string | null;
+  notes?: string | null;
+  sort_order: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Custom field schema for ministries (org-wide definitions, per-ministry values)
+export interface MinistryFieldDefinition {
+  id: string;
+  org_id: string;
+  label: string;
+  field_key: string;
+  field_type: string;       // text, phone, email, url, number, date, boolean, select, ...
+  options?: string | null;  // comma-separated for select / multiselect
+  is_required: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface MinistryFieldValue {
+  id: string;
+  ministry_id: string;
+  field_id: string;
+  org_id: string;
+  value_text?: string | null;
+  value_number?: number | null;
+  value_boolean?: boolean | null;
+  value_json?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface FileTransaction {
