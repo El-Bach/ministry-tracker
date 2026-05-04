@@ -38,3 +38,17 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Generated graph output
+graphify-out/
+.graphify_detect.json
+.graphify_python
+
+# Obsidian editor config
+.obsidian/
+
+# Supabase CLI temp
+supabase/.temp/
+
+# Local diff dumps
+diff-stat.txt
