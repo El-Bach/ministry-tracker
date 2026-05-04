@@ -343,13 +343,12 @@ export default function DocumentScannerModal({
         }
       }
 
-      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
-
+      // Bucket is private — store just the storage path (not a public URL).
+      // Display sites use refreshSignedUrl() which handles either shape.
       const { error: dbError } = await supabase.from('task_documents').insert({
         task_id:        taskId,
         file_name:      docName,
-        file_url:       publicUrl,
+        file_url:       filePath,
         file_type:      'image/jpeg',
         uploaded_by:    uploadedBy ?? null,
         requirement_id: selectedReqId ?? null,
@@ -360,7 +359,7 @@ export default function DocumentScannerModal({
       if (selectedReqId) {
         await supabase.from('stop_requirements')
           .update({
-            attachment_url:  publicUrl,
+            attachment_url:  filePath,
             attachment_name: `${docName}.jpg`,
             updated_at:      new Date().toISOString(),
           })

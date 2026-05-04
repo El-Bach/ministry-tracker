@@ -285,14 +285,11 @@ export default function StageRequirementsScreen() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('task-attachments')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
+      // Bucket is private — store just the storage path (not a public URL).
+      // Display sites use refreshSignedUrl() / SignedImage which handle either.
       const displayName = asset.fileName ?? fileName;
 
-      setAttachmentUrl(publicUrl);
+      setAttachmentUrl(filePath);
       setAttachmentName(displayName);
 
       // Create task_documents record for audit trail (mirrors DocumentScannerModal)
@@ -300,7 +297,7 @@ export default function StageRequirementsScreen() {
         task_id: taskId,
         file_name: fileName,
         display_name: displayName,
-        file_url: publicUrl,
+        file_url: filePath,
         file_type: ext,
         uploaded_by: teamMember?.id ?? null,
         requirement_id: editingReq?.id ?? null,

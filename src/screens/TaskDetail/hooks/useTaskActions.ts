@@ -665,14 +665,13 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
         }
       }
 
-      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
-
+      // Bucket is private — store just the storage path (not a public URL).
+      // Display sites use refreshSignedUrl() which handles either shape.
       const { error: dbErr } = await supabase.from('task_documents').insert({
         task_id:      taskId,
         file_name:    displayName,
         display_name: displayName,
-        file_url:     publicUrl,
+        file_url:     filePath,
         file_type:    'application/pdf',
         uploaded_by:  teamMember?.id ?? null,
       });
@@ -1399,14 +1398,13 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
         .upload(storagePath, bytes.buffer as ArrayBuffer, { contentType, upsert: true });
       if (upErr) throw upErr;
 
-      const { data: urlData } = supabase.storage.from('task-attachments').getPublicUrl(storagePath);
-      const audioUrl = urlData?.publicUrl ?? '';
-
+      // Bucket is private — store just the storage path. handlePlayPause
+      // signs it on demand before passing to Audio.Sound.
       const { error } = await supabase.from('task_comments').insert({
         task_id:   taskId,
         author_id: teamMember?.id,
         body:      '🎤 Voice note',
-        audio_url: audioUrl,
+        audio_url: storagePath,
       });
       if (error) throw error;
       setRecordedUri(null);
@@ -1431,8 +1429,12 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
     if (soundObj) { await soundObj.unloadAsync(); setSoundObj(null); }
     setPlayingCommentId(commentId);
     try {
+      // audioUrl may be a storage path (new rows) or a legacy public URL —
+      // refreshSignedUrl handles either shape.
+      const signed = await refreshSignedUrl(audioUrl);
+      if (!signed) throw new Error('Could not generate signed URL');
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
+        { uri: signed },
         { shouldPlay: true },
         (status) => {
           if (status.isLoaded) {

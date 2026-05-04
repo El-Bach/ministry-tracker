@@ -23,6 +23,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import SignedImage from './SignedImage';
 
 export interface FieldDefinition {
   id: string;
@@ -286,11 +287,8 @@ function ImageField({
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
-        .from('client-images')
-        .getPublicUrl(data.path);
-
-      onChange(urlData.publicUrl);
+      // Store the storage path; SignedImage will sign it on display.
+      onChange(data.path);
     } catch (e: unknown) {
       Alert.alert('Upload failed', (e as Error).message);
     } finally {
@@ -325,11 +323,8 @@ function ImageField({
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
-        .from('client-images')
-        .getPublicUrl(data.path);
-
-      onChange(urlData.publicUrl);
+      // Store the storage path; SignedImage will sign it on display.
+      onChange(data.path);
     } catch (e: unknown) {
       Alert.alert('Upload failed', (e as Error).message);
     } finally {
@@ -340,7 +335,7 @@ function ImageField({
   return (
     <View style={s.imageContainer}>
       {value && (
-        <Image source={{ uri: value }} style={s.imagePreview} resizeMode="cover" />
+        <SignedImage source={value} bucket="client-images" style={s.imagePreview} resizeMode="cover" />
       )}
       <View style={s.imageButtons}>
         <TouchableOpacity style={s.imageBtn} onPress={pick} disabled={uploading}>

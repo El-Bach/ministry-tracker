@@ -19,11 +19,13 @@ import { refreshSignedUrl } from '../lib/storage';
 interface Props extends Omit<ImageProps, 'source'> {
   /** The stored URL or path. Pass `null`/`undefined`/`''` to render nothing. */
   source: string | null | undefined;
+  /** Bucket to sign against. Defaults to `task-attachments`. */
+  bucket?: string;
   /** Spinner color while the signed URL is being fetched. */
   loadingColor?: string;
 }
 
-export default function SignedImage({ source, loadingColor, style, ...rest }: Props) {
+export default function SignedImage({ source, bucket, loadingColor, style, ...rest }: Props) {
   const [signed, setSigned] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -32,7 +34,7 @@ export default function SignedImage({ source, loadingColor, style, ...rest }: Pr
     setSigned(null);
     setError(false);
     if (!source) return;
-    refreshSignedUrl(source)
+    refreshSignedUrl(source, undefined, bucket)
       .then((url) => {
         if (cancelled) return;
         if (!url) setError(true);
@@ -40,7 +42,7 @@ export default function SignedImage({ source, loadingColor, style, ...rest }: Pr
       })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
-  }, [source]);
+  }, [source, bucket]);
 
   if (!source) return null;
   if (error) return <View style={[style, s.placeholder]} />;
