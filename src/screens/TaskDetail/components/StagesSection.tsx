@@ -168,17 +168,9 @@ export function StagesSection(props: Props) {
 
               {/* Content */}
               <View style={s.stageContent}>
-                {/* Header */}
-                <TouchableOpacity
-                  style={s.stageHeader}
-                  onPress={() => {
-                    setOpenStageNameId(v => v === stop.id ? null : stop.id);
-                    setStageNameEdit(stop.ministry?.name ?? '');
-                    setOpenCityStopId(null);
-                    setOpenAssigneeStopId(null);
-                  }}
-                  activeOpacity={0.7}
-                >
+                {/* Header — read-only on TaskDetail. Stage name is edited from
+                    Manage > Stages, so no inline rename trigger here. */}
+                <View style={s.stageHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.stageMinistryName} numberOfLines={2}>
                       {stop.ministry?.name ?? 'Unknown Ministry'}
@@ -186,20 +178,14 @@ export function StagesSection(props: Props) {
                   </View>
                   {stop.ministry_id && (
                     <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        onOpenContacts(stop.id, stop.ministry_id!, stop.ministry?.name ?? '');
-                      }}
+                      onPress={() => onOpenContacts(stop.id, stop.ministry_id!, stop.ministry?.name ?? '')}
                       style={s.contactsBtn}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Text style={s.contactsBtnText}>👥</Text>
                     </TouchableOpacity>
                   )}
-                  <Text style={[s.stageOrder, { color: theme.color.primary }]}>
-                    {openStageNameId === stop.id ? '▲' : '✎'}
-                  </Text>
-                </TouchableOpacity>
+                </View>
 
                 {/* Selected ministry contacts — one line each, tap phone → call/WhatsApp */}
                 {stop.selected_contacts && stop.selected_contacts.length > 0 && (
@@ -230,44 +216,6 @@ export function StagesSection(props: Props) {
                         </TouchableOpacity>
                       );
                     })}
-                  </View>
-                )}
-
-                {/* Inline name-edit panel */}
-                {openStageNameId === stop.id && (
-                  <View style={s.stageNamePanel}>
-                    <TextInput
-                      style={s.stageNameInput}
-                      value={stageNameEdit}
-                      onChangeText={setStageNameEdit}
-                      placeholder={t('stageName')}
-                      placeholderTextColor={theme.color.textMuted}
-                      autoFocus
-                    />
-                    <TouchableOpacity
-                      style={[s.stopMetaChip, { marginTop: theme.spacing.space2, alignSelf: 'flex-start' }]}
-                      onPress={() => {
-                        setOpenCityStopId(v => v === stop.id ? null : stop.id);
-                        setStopCitySearch('');
-                        setShowCreateCityForm(false);
-                        setNewCityName('');
-                      }}
-                    >
-                      <Text style={[s.stopMetaChipText, stopCityName ? { color: theme.color.primary, fontWeight: '600' } : {}]}>
-                        {stopCityName ? `📍 ${stopCityName}` : t('setCity')}
-                      </Text>
-                    </TouchableOpacity>
-                    <View style={{ flexDirection: 'row', gap: theme.spacing.space2, marginTop: theme.spacing.space2 }}>
-                      <TouchableOpacity
-                        style={[s.stageNameBtn, { flex: 1, backgroundColor: theme.color.primary }]}
-                        onPress={() => stop.ministry_id && onRenameStopMinistry(stop.ministry_id, stageNameEdit)}
-                        disabled={savingStageNameId === stop.ministry_id}
-                      >
-                        {savingStageNameId === stop.ministry_id
-                          ? <ActivityIndicator size="small" color={theme.color.white} />
-                          : <Text style={[s.stageNameBtnText, { color: theme.color.white }]}>💾 Save</Text>}
-                      </TouchableOpacity>
-                    </View>
                   </View>
                 )}
 
