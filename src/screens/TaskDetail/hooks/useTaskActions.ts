@@ -88,6 +88,7 @@ import { Audio } from 'expo-av';
 const VoiceModule: any = null;
 
 import supabase from '../../../lib/supabase';
+import { refreshSignedUrl } from '../../../lib/storage';
 import { useAuth } from '../../../hooks/useAuth';
 import { useTranslation } from '../../../lib/i18n';
 import { useOfflineQueue } from '../../../store/offlineQueue';
@@ -295,7 +296,7 @@ export interface UseTaskActionsReturn {
   handleShareDocsWhatsApp: () => void;
   handleDuplicateTask:     () => void;
   // Documents
-  handleOpenDoc:           (doc: TaskDocumentLite) => void;
+  handleOpenDoc:           (doc: TaskDocumentLite) => Promise<void>;
   handlePrintDoc:          (doc: TaskDocumentLite) => Promise<void>;
   handleShareDoc:          (doc: TaskDocumentLite) => Promise<void>;
   handleRenameDoc:         (doc: TaskDocumentLite, newName: string) => Promise<void>;
@@ -523,15 +524,26 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
   // ─── Documents ─────────────────────────────────────────────────────────
   // Open a document in the in-app viewer modal. The viewer reads `viewingDoc`
   // state from the parent and renders an Image / WebView accordingly.
-  const handleOpenDoc = (doc: TaskDocumentLite) => {
-    setViewingDoc(doc);
+  const handleOpenDoc = async (doc: TaskDocumentLite) => {
+    // The bucket is private — we must mint a fresh signed URL before showing
+    // the document. extractStoragePath() inside refreshSignedUrl handles
+    // both legacy rows (full public URL) and any future rows that store
+    // just the storage path.
+    const signed = await refreshSignedUrl(doc.file_url);
+    if (!signed) {
+      Alert.alert(t('error'), t('somethingWrong'));
+      return;
+    }
+    setViewingDoc({ ...doc, file_url: signed });
   };
 
   // Print a document via the OS print sheet.
   const handlePrintDoc = async (doc: TaskDocumentLite) => {
     setPrintingDoc(true);
     try {
-      await Print.printAsync({ uri: doc.file_url });
+      const signed = await refreshSignedUrl(doc.file_url);
+      if (!signed) throw new Error('Could not generate signed URL');
+      await Print.printAsync({ uri: signed });
     } catch (e: any) {
       Alert.alert(t('error'), e.message ?? t('somethingWrong'));
     } finally {
@@ -549,7 +561,9 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
       const localUri = `${FileSystem.cacheDirectory}${label.replace(/[^a-z0-9]/gi, '_')}.${ext}`;
 
       setStatusMsg('Preparing file...');
-      const { uri } = await FileSystem.downloadAsync(doc.file_url, localUri);
+      const signed = await refreshSignedUrl(doc.file_url);
+      if (!signed) throw new Error('Could not generate signed URL');
+      const { uri } = await FileSystem.downloadAsync(signed, localUri);
       setStatusMsg('');
 
       const canShare = await Sharing.isAvailableAsync();
