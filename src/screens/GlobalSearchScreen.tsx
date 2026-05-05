@@ -20,7 +20,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 import { DashboardStackParamList } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -56,9 +56,9 @@ const EMPTY: AllResults = {
 function handlePhonePress(phone: string) {
   const clean = phone.replace(/\s/g, '');
   Alert.alert(phone, undefined, [
-    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp',   onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'),    onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 
@@ -349,7 +349,7 @@ export default function GlobalSearchScreen() {
       {/* Result summary pill */}
       {!loading && hasResults && (
         <View style={s.summaryRow}>
-          <Text style={s.summaryText}>{totalCount} result{totalCount !== 1 ? 's' : ''} for "{query.trim()}"</Text>
+          <Text style={s.summaryText}>{totalCount} · "{query.trim()}"</Text>
         </View>
       )}
 
@@ -357,23 +357,23 @@ export default function GlobalSearchScreen() {
         {query.trim().length < 2 ? (
           <View style={s.emptyState}>
             <Text style={s.emptyIcon}>🔍</Text>
-            <Text style={s.emptyTitle}>Search Everything</Text>
+            <Text style={s.emptyTitle}>{t('searchEverything')}</Text>
             <Text style={s.emptyText}>
-              Clients · Files · Documents · Comments{'\n'}
-              Requirements · Transactions · Contacts · Team
+              {t('clients')} · {t('files')} · {t('documents')} · {t('comments')}{'\n'}
+              {t('requirementsSection')} · {t('transactions')} · {t('contacts')} · {t('team')}
             </Text>
           </View>
         ) : !loading && !hasResults ? (
           <View style={s.emptyState}>
             <Text style={s.emptyIcon}>⊘</Text>
-            <Text style={s.emptyTitle}>No results</Text>
-            <Text style={s.emptyText}>Nothing matched "{query.trim()}"</Text>
+            <Text style={s.emptyTitle}>{t('nothingMatchedQuery')}</Text>
+            <Text style={s.emptyText}>{`"${query.trim()}"`}</Text>
           </View>
         ) : (
           <>
             {/* CLIENTS */}
             {results.clients.length > 0 && (
-              <Section label="CLIENTS" count={results.clients.length}>
+              <Section label={t('clients').toUpperCase()} count={results.clients.length}>
                 {results.clients.map((c) => (
                   <ResultRow
                     key={c.id}
@@ -389,13 +389,13 @@ export default function GlobalSearchScreen() {
 
             {/* FILES */}
             {results.tasks.length > 0 && (
-              <Section label="FILES" count={results.tasks.length}>
+              <Section label={t('files').toUpperCase()} count={results.tasks.length}>
                 {results.tasks.map((t) => (
                   <ResultRow
                     key={t.id}
                     icon="📄"
                     iconBg={theme.color.border}
-                    title={t.clientName || 'Unknown client'}
+                    title={t.clientName || t('unknown')}
                     sub={t.serviceName}
                     snippet={t.notes ? t.notes : undefined}
                     onPress={() => navigation.navigate('TaskDetail', { taskId: t.id })}
@@ -406,7 +406,7 @@ export default function GlobalSearchScreen() {
 
             {/* DOCUMENTS */}
             {results.documents.length > 0 && (
-              <Section label="DOCUMENTS" count={results.documents.length}>
+              <Section label={t('documents').toUpperCase()} count={results.documents.length}>
                 {results.documents.map((d) => (
                   <ResultRow
                     key={d.id}
@@ -422,13 +422,13 @@ export default function GlobalSearchScreen() {
 
             {/* COMMENTS */}
             {results.comments.length > 0 && (
-              <Section label="COMMENTS" count={results.comments.length}>
+              <Section label={t('comments').toUpperCase()} count={results.comments.length}>
                 {results.comments.map((c) => (
                   <ResultRow
                     key={c.id}
                     icon="💬"
                     iconBg={theme.color.primaryDim}
-                    title={c.clientName || 'Unknown file'}
+                    title={c.clientName || t('unknown')}
                     sub={c.actorName}
                     snippet={c.body}
                     onPress={() => navigation.navigate('TaskDetail', { taskId: c.task_id })}
@@ -439,7 +439,7 @@ export default function GlobalSearchScreen() {
 
             {/* REQUIREMENTS */}
             {results.requirements.length > 0 && (
-              <Section label="REQUIREMENTS" count={results.requirements.length}>
+              <Section label={t('requirementsSection').toUpperCase()} count={results.requirements.length}>
                 {results.requirements.map((r) => (
                   <ResultRow
                     key={r.id}
@@ -455,7 +455,7 @@ export default function GlobalSearchScreen() {
 
             {/* TRANSACTIONS */}
             {results.transactions.length > 0 && (
-              <Section label="TRANSACTIONS" count={results.transactions.length}>
+              <Section label={t('transactions').toUpperCase()} count={results.transactions.length}>
                 {results.transactions.map((t) => (
                   <ResultRow
                     key={t.id}
@@ -471,7 +471,7 @@ export default function GlobalSearchScreen() {
 
             {/* CONTACTS (external assignees) */}
             {results.contacts.length > 0 && (
-              <Section label="CONTACTS" count={results.contacts.length}>
+              <Section label={t('contacts').toUpperCase()} count={results.contacts.length}>
                 {results.contacts.map((c) => (
                   <ResultRow
                     key={c.id}
@@ -497,7 +497,7 @@ export default function GlobalSearchScreen() {
 
             {/* TEAM MEMBERS */}
             {results.members.length > 0 && (
-              <Section label="TEAM" count={results.members.length}>
+              <Section label={t('team').toUpperCase()} count={results.members.length}>
                 {results.members.map((m) => (
                   <ResultRow
                     key={m.id}

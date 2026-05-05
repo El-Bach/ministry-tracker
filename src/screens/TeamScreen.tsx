@@ -224,8 +224,8 @@ export default function TeamScreen() {
   return (
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <View style={s.header}>
-        <Text style={s.title}>Team</Text>
-        <Text style={s.subtitle}>{members.length} members</Text>
+        <Text style={s.title}>{t('team')}</Text>
+        <Text style={s.subtitle}>{members.length} {t('teamMembers').toLowerCase()}</Text>
       </View>
 
       <ScrollView
@@ -308,7 +308,7 @@ export default function TeamScreen() {
               {isExpanded && (
                 <View style={s.taskList}>
                   {member.tasks.length === 0 ? (
-                    <Text style={s.noTasks}>No tasks assigned</Text>
+                    <Text style={s.noTasks}>{t('noTasksAssigned')}</Text>
                   ) : (
                     member.tasks.map((task) => (
                       <TouchableOpacity
@@ -325,7 +325,7 @@ export default function TeamScreen() {
                             {task.service?.name ?? '—'}
                           </Text>
                           {task.due_date && (
-                            <Text style={s.taskDue}>Due: {task.due_date}</Text>
+                            <Text style={s.taskDue}>{t('dueLabel')} {task.due_date}</Text>
                           )}
                         </View>
                         <StatusBadge
@@ -340,7 +340,7 @@ export default function TeamScreen() {
                   {/* Custom fields */}
                   {fieldDefs.length > 0 && (
                     <View style={s.customFieldsSection}>
-                      <Text style={s.customFieldsSectionTitle}>ADDITIONAL INFO</Text>
+                      <Text style={s.customFieldsSectionTitle}>{t('clientInfo').toUpperCase()}</Text>
                       <View style={s.customFieldsGrid}>
                         {fieldDefs.map(def => (
                           <View key={def.id} style={s.customFieldItem}>
@@ -373,13 +373,13 @@ export default function TeamScreen() {
         >
           <View style={s.modalSheet}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Edit Member</Text>
+              <Text style={s.modalTitle}>{t('editMemberTitle')}</Text>
               <TouchableOpacity onPress={() => setEditingMember(null)}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
             <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
-              <Text style={s.fieldLabel}>NAME</Text>
+              <Text style={s.fieldLabel}>{t('name').toUpperCase()}</Text>
               <TextInput
                 style={s.modalInput}
                 value={editName}
@@ -389,7 +389,7 @@ export default function TeamScreen() {
                 autoCorrect={false}
                 autoCapitalize="words"
               />
-              <Text style={[s.fieldLabel, { marginTop: 12 }]}>POSITION / ROLE</Text>
+              <Text style={[s.fieldLabel, { marginTop: 12 }]}>{t('role').toUpperCase()}</Text>
               <TextInput
                 style={s.modalInput}
                 value={editRole}
@@ -399,7 +399,7 @@ export default function TeamScreen() {
                 autoCorrect={false}
                 autoCapitalize="words"
               />
-              <Text style={[s.fieldLabel, { marginTop: 12 }]}>PHONE NUMBER</Text>
+              <Text style={[s.fieldLabel, { marginTop: 12 }]}>{t('phone').toUpperCase()}</Text>
               <TextInput
                 style={s.modalInput}
                 value={editPhone}
@@ -420,13 +420,13 @@ export default function TeamScreen() {
                         style={[s.boolBtn, editFieldValues[def.id] === 'true' && s.boolBtnActive]}
                         onPress={() => setEditFieldValues(v => ({ ...v, [def.id]: 'true' }))}
                       >
-                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'true' && s.boolBtnTextActive]}>Yes</Text>
+                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'true' && s.boolBtnTextActive]}>{t('yes')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[s.boolBtn, editFieldValues[def.id] === 'false' && s.boolBtnActive]}
                         onPress={() => setEditFieldValues(v => ({ ...v, [def.id]: 'false' }))}
                       >
-                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'false' && s.boolBtnTextActive]}>No</Text>
+                        <Text style={[s.boolBtnText, editFieldValues[def.id] === 'false' && s.boolBtnTextActive]}>{t('no')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -456,7 +456,7 @@ export default function TeamScreen() {
               >
                 {savingEdit
                   ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.saveBtnText}>Save Changes</Text>}
+                  : <Text style={s.saveBtnText}>{t('saveChanges')}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </View>

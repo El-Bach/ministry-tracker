@@ -209,19 +209,19 @@ export default function ServiceStagesScreen() {
       >
         {/* Header */}
         <View style={s.headerCard}>
-          <Text style={s.headerLabel}>SERVICE</Text>
+          <Text style={s.headerLabel}>{t('service').toUpperCase()}</Text>
           <Text style={s.headerName}>{serviceName}</Text>
-          <Text style={s.headerSub}>{stages.length} stage{stages.length !== 1 ? 's' : ''} defined</Text>
+          <Text style={s.headerSub}>{stages.length} {t('stages').toLowerCase()}</Text>
         </View>
 
         {/* Stage list */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>STAGES</Text>
+          <Text style={s.sectionLabel}>{t('stages').toUpperCase()}</Text>
 
           {loading ? (
             <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 20 }} />
           ) : stages.length === 0 ? (
-            <Text style={s.emptyText}>No stages yet. Add the first one below.</Text>
+            <Text style={s.emptyText}>{t('noStagesYetAddBelow')}</Text>
           ) : (
             stages.map((stage, idx) => (
               <View key={stage.id} style={[s.stageRow, idx < stages.length - 1 && s.stageRowBorder]}>
@@ -277,7 +277,7 @@ export default function ServiceStagesScreen() {
 
         {/* Add stage button */}
         <TouchableOpacity style={s.addStageBtn} onPress={() => { setPickerQuery(''); setNewMiniName(''); setShowPicker(true); }}>
-          <Text style={s.addStageBtnText}>+ Add Stage</Text>
+          <Text style={s.addStageBtnText}>+ {t('addStageBtn')}</Text>
         </TouchableOpacity>
       </KeyboardAwareScrollView>
 
@@ -294,7 +294,7 @@ export default function ServiceStagesScreen() {
         >
           <View style={p.sheet}>
             <View style={p.header}>
-              <Text style={p.title}>Add Stage</Text>
+              <Text style={p.title}>{t('addStageBtn')}</Text>
               <TouchableOpacity onPress={() => setShowPicker(false)}>
                 <Text style={p.close}>✕</Text>
               </TouchableOpacity>
@@ -318,7 +318,7 @@ export default function ServiceStagesScreen() {
               style={{ maxHeight: 240 }}
               ListEmptyComponent={
                 <Text style={p.emptyText}>
-                  {pickerQuery ? 'No matching stages.' : 'All existing stages are already added.'}
+                  {pickerQuery ? t('noStagesMatch') : t('allStagesAlreadyAdded')}
                 </Text>
               }
               renderItem={({ item }) => (
@@ -344,7 +344,7 @@ export default function ServiceStagesScreen() {
 
             {/* Create new */}
             <View style={p.createSection}>
-              <Text style={p.createLabel}>CREATE NEW STAGE</Text>
+              <Text style={p.createLabel}>{t('createStage').toUpperCase()}</Text>
               <View style={p.createRow}>
                 <TextInput
                   style={p.createInput}

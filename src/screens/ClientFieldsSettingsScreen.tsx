@@ -237,8 +237,8 @@ export default function ClientFieldsSettingsScreen() {
  <View style={fm.field}>
  <View style={fm.switchRow}>
  <View>
- <Text style={fm.label}>REQUIRED</Text>
- <Text style={fm.switchDesc}>Must be filled when creating a client</Text>
+ <Text style={fm.label}>{t('required').toUpperCase()}</Text>
+ <Text style={fm.switchDesc}>{t('mustFillCreating')}</Text>
  </View>
  <Switch
  value={formRequired}
@@ -255,8 +255,8 @@ export default function ClientFieldsSettingsScreen() {
  <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
  <View style={s.header}>
  <View>
- <Text style={s.title}>Client Fields</Text>
- <Text style={s.subtitle}>Customize what info to collect per client</Text>
+ <Text style={s.title}>{t('clientFields')}</Text>
+ <Text style={s.subtitle}>{t('clientFieldsSubtitle')}</Text>
  </View>
  <TouchableOpacity style={s.addBtn} onPress={openAdd}>
  <Text style={s.addBtnText}>+ Add Field</Text>
@@ -271,8 +271,8 @@ export default function ClientFieldsSettingsScreen() {
  <ScrollView contentContainerStyle={s.list}>
  {fields.length === 0 && (
  <View style={s.empty}>
- <Text style={s.emptyText}>No custom fields yet</Text>
- <Text style={s.emptySubtext}>Tap "+ Add Field" to create your first field</Text>
+ <Text style={s.emptyText}>{t('noCustomFieldsYet')}</Text>
+ <Text style={s.emptySubtext}>{t('tapAddFieldHint')}</Text>
  </View>
  )}
  {fields.map((field, idx) => {
@@ -288,7 +288,7 @@ export default function ClientFieldsSettingsScreen() {
  <Text style={[s.fieldName, !field.is_active && s.fieldNameInactive]}>
  {field.label}
  </Text>
- {field.is_required && <Text style={s.requiredTag}>Required</Text>}
+ {field.is_required && <Text style={s.requiredTag}>{t('required')}</Text>}
  </View>
  <Text style={s.fieldTypeName}>{ti?.label ?? field.field_type}</Text>
  {field.options && (
@@ -340,7 +340,7 @@ export default function ClientFieldsSettingsScreen() {
  <View style={fm.overlay}>
  <View style={fm.sheet}>
  <View style={fm.header}>
- <Text style={fm.title}>New Field</Text>
+ <Text style={fm.title}>{t('createField')}</Text>
  <TouchableOpacity onPress={() => setShowAddModal(false)}>
  <Text style={fm.close}>✕</Text>
  </TouchableOpacity>
@@ -352,7 +352,7 @@ export default function ClientFieldsSettingsScreen() {
  onPress={handleAdd}
  disabled={saving}
  >
- {saving ? <ActivityIndicator color={theme.color.white} /> :<Text style={fm.saveBtnText}>Create Field</Text>}
+ {saving ? <ActivityIndicator color={theme.color.white} /> :<Text style={fm.saveBtnText}>{t('createField')}</Text>}
  </TouchableOpacity>
  </View>
  </View>
@@ -364,7 +364,7 @@ export default function ClientFieldsSettingsScreen() {
  <View style={fm.overlay}>
  <View style={fm.sheet}>
  <View style={fm.header}>
- <Text style={fm.title}>Edit Field</Text>
+ <Text style={fm.title}>{t('editFieldTitle')}</Text>
  <TouchableOpacity onPress={() => setShowEditModal(false)}>
  <Text style={fm.close}>✕</Text>
  </TouchableOpacity>
@@ -376,7 +376,7 @@ export default function ClientFieldsSettingsScreen() {
  onPress={handleEdit}
  disabled={saving}
  >
- {saving ? <ActivityIndicator color={theme.color.white} /> :<Text style={fm.saveBtnText}>Save Changes</Text>}
+ {saving ? <ActivityIndicator color={theme.color.white} /> :<Text style={fm.saveBtnText}>{t('saveChanges')}</Text>}
  </TouchableOpacity>
  </View>
  </View>
@@ -388,26 +388,26 @@ export default function ClientFieldsSettingsScreen() {
  <View style={fm.overlay}>
  <View style={fm.sheet}>
  <View style={fm.header}>
- <Text style={fm.title}>Field Type</Text>
+ <Text style={fm.title}>{t('fieldTypeLabel')}</Text>
  <TouchableOpacity onPress={() => setShowTypePicker(false)}>
  <Text style={fm.close}>✕</Text>
  </TouchableOpacity>
  </View>
  <ScrollView>
- {FIELD_TYPES.map((t) => (
+ {FIELD_TYPES.map((ft) => (
  <TouchableOpacity
- key={t.key}
- style={[fm.typeOption, formType === t.key && fm.typeOptionSelected]}
- onPress={() => { setFormType(t.key); setShowTypePicker(false); }}
+ key={ft.key}
+ style={[fm.typeOption, formType === ft.key && fm.typeOptionSelected]}
+ onPress={() => { setFormType(ft.key); setShowTypePicker(false); }}
  >
- <Text style={fm.typeOptionIcon}>{t.icon}</Text>
+ <Text style={fm.typeOptionIcon}>{ft.icon}</Text>
  <View style={{ flex: 1 }}>
- <Text style={[fm.typeOptionName, formType === t.key && fm.typeOptionNameSelected]}>
- {t.label}
+ <Text style={[fm.typeOptionName, formType === ft.key && fm.typeOptionNameSelected]}>
+ {ft.label}
  </Text>
- <Text style={fm.typeOptionDesc}>{t.desc}</Text>
+ <Text style={fm.typeOptionDesc}>{ft.desc}</Text>
  </View>
- {formType === t.key && <Text style={fm.typeOptionCheck}>✓</Text>}
+ {formType === ft.key && <Text style={fm.typeOptionCheck}>✓</Text>}
  </TouchableOpacity>
  ))}
  </ScrollView>

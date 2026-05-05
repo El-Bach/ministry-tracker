@@ -218,7 +218,7 @@ export default function VisibilitySettingsScreen() {
   if (!isOwner && !isAdmin) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: theme.color.textSecondary, fontSize: 15 }}>Access restricted to owners and admins.</Text>
+        <Text style={{ color: theme.color.textSecondary, fontSize: 15 }}>{t('accessRestrictedAdmins')}</Text>
       </SafeAreaView>
     );
   }
@@ -335,12 +335,12 @@ export default function VisibilitySettingsScreen() {
   // ── Reset to defaults ──────────────────────────────────────
   const handleReset = () => {
     Alert.alert(
-      'Reset to Defaults',
-      `Reset all ${activeRole} permissions to their default values?`,
+      t('areYouSure'),
+      `${t('confirmDelete')} — ${activeRole}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Reset', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             if (!teamMember?.org_id) return;
             const defaults = activeRole === 'admin' ? ADMIN_DEFAULTS : activeRole === 'member' ? MEMBER_DEFAULTS : VIEWER_DEFAULTS;
@@ -415,7 +415,7 @@ export default function VisibilitySettingsScreen() {
           </View>
           {members.length === 0 ? (
             <View style={s.permRow}>
-              <Text style={s.permDesc}>No members to manage</Text>
+              <Text style={s.permDesc}>{t('noMembersManage')}</Text>
             </View>
           ) : (
             members.map((m, idx) => {

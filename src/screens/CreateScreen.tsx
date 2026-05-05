@@ -23,7 +23,7 @@ import { Calendar } from 'react-native-calendars';
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
-import { useTranslation, formatNumber } from '../lib/i18n';
+import { useTranslation, formatNumber, t as tStatic } from '../lib/i18n';
 import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { Client, Service, Ministry, ServiceDocument, ServiceDocumentRequirement, MainTabParamList } from '../types';
@@ -36,9 +36,9 @@ type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents'
 function openPhone(phone: string, name?: string) {
   const clean = phone.replace(/[^0-9+]/g, '');
   Alert.alert(name ?? phone, phone, [
-    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 
@@ -269,7 +269,7 @@ export default function CreateScreen() {
   };
 
   const handleCreateClientWithFields = async () => {
-    if (!newClientName.trim()) { Alert.alert(t('required'), 'Client name is required.'); return; }
+    if (!newClientName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingClient(true);
 
     // ── Duplicate check ──────────────────────────────────────────────────────
@@ -352,7 +352,7 @@ export default function CreateScreen() {
   };
 
   const handleCreateService = async () => {
-    if (!newSvcName.trim()) { Alert.alert(t('required'), 'Service name is required.'); return; }
+    if (!newSvcName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingNewSvc(true);
     await supabase.from('services').insert({ name: newSvcName.trim(), estimated_duration_days: 0, base_price_usd: parseFloat(newSvcPriceUSD) || 0, base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0, org_id: orgId });
     setSavingNewSvc(false);
@@ -382,7 +382,7 @@ export default function CreateScreen() {
   };
 
   const handleCreateStage = async () => {
-    if (!newStageName.trim()) { Alert.alert(t('required'), 'Stage name is required.'); return; }
+    if (!newStageName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingNewStage(true);
     await supabase.from('ministries').insert({ name: newStageName.trim(), type: 'parent', org_id: orgId });
     setSavingNewStage(false);
@@ -572,7 +572,7 @@ export default function CreateScreen() {
   };
 
   const handleSaveNetworkContact = async () => {
-    if (!netName.trim()) { Alert.alert(t('required'), 'Name is required.'); return; }
+    if (!netName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingNetwork(true);
     const payload = {
       name: netName.trim(),
@@ -1070,7 +1070,7 @@ export default function CreateScreen() {
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-start', paddingTop: 60 }}>
             <View style={[s.modalSheet, { maxHeight: '92%' }]}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>New Client</Text>
+                <Text style={s.modalTitle}>{t('addNewClient')}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TouchableOpacity
                     style={s.scanIdBtn}
@@ -1100,7 +1100,7 @@ export default function CreateScreen() {
                 {/* ── Excel Import Panel ── */}
                 {showClientImport && (
                   <View style={s.docImportPanel}>
-                    <Text style={s.docImportLabel}>Paste from Excel: Name | Phone | Ref Name | Ref Phone</Text>
+                    <Text style={s.docImportLabel}>{t('pasteExcelClients')}</Text>
                     <TextInput
                       style={s.docImportTextArea}
                       value={clientImportRaw}
@@ -1121,12 +1121,12 @@ export default function CreateScreen() {
                             <View style={{ flex: 1, gap: 2 }}>
                               <Text style={[s.docImportPreviewTitle, { fontWeight: '700' }]}>{r.name}</Text>
                               {r.phone ? <Text style={s.docImportLabel}>📞 {r.phone}</Text> : null}
-                              {r.refName ? <Text style={s.docImportLabel}>Ref: {r.refName}{r.refPhone ? ` · ${r.refPhone}` : ''}</Text> : null}
+                              {r.refName ? <Text style={s.docImportLabel}>{t('refPrefix')}: {r.refName}{r.refPhone ? ` · ${r.refPhone}` : ''}</Text> : null}
                             </View>
                           </View>
                         ))}
                         <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportClients} disabled={importingClients}>
-                          {importingClients ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>Import {clientImportRows.length} client{clientImportRows.length !== 1 ? 's' : ''}</Text>}
+                          {importingClients ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>{t('importClientsBtn')} ({clientImportRows.length})</Text>}
                         </TouchableOpacity>
                       </>
                     )}
@@ -1174,7 +1174,7 @@ export default function CreateScreen() {
                         <Text style={s.fieldDefLabel}>{def.label}{def.is_required ? ' *' : ''}</Text>
                         {def.field_type === 'boolean' ? (
                           <View style={s.fieldBoolRow}>
-                            <Text style={s.fieldBoolText}>{clientFormFieldValues[def.id] === 'true' ? 'Yes' : 'No'}</Text>
+                            <Text style={s.fieldBoolText}>{clientFormFieldValues[def.id] === 'true' ? t('yes') : t('no')}</Text>
                             <Switch
                               value={clientFormFieldValues[def.id] === 'true'}
                               onValueChange={(v) => setClientFormFieldValues((p) => ({ ...p, [def.id]: v ? 'true' : 'false' }))}
@@ -1336,7 +1336,7 @@ export default function CreateScreen() {
                                       setCurrentDateField(null);
                                     }}
                                   >
-                                    <Text style={s.clearDateBtnText}>Clear Date</Text>
+                                    <Text style={s.clearDateBtnText}>{t('clearDateBtn')}</Text>
                                   </TouchableOpacity>
                                 ) : null}
                               </View>
@@ -1368,7 +1368,7 @@ export default function CreateScreen() {
                 >
                   {savingClient
                     ? <ActivityIndicator color={theme.color.white} size="small" />
-                    : <Text style={s.modalSaveBtnText}>Create Client</Text>}
+                    : <Text style={s.modalSaveBtnText}>{t('createClientBtn')}</Text>}
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -1394,7 +1394,7 @@ export default function CreateScreen() {
                     <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
                     <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
                   </TouchableOpacity>
-                  <Text style={s.modalTitle}>📥 Import Services</Text>
+                  <Text style={s.modalTitle}>📥 {t('importServicesBtn')}</Text>
                   <TouchableOpacity onPress={() => { setManageSection(null); setShowSvcImportModal(false); setServiceSearch(''); }}>
                     <Text style={s.modalClose}>✕</Text>
                   </TouchableOpacity>
@@ -1424,7 +1424,7 @@ export default function CreateScreen() {
                 /* ── IMPORT VIEW body ── */
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
                   <View style={s.importInstructions}>
-                    <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
+                    <Text style={s.importInstructionsTitle}>{t('howToImportExcel')}</Text>
                     <Text style={s.importInstructionsText}>
                       {'1. Make sure columns are: A = Service Name  |  B = Price USD  |  C = Price LBP\n2. Select all data rows (not the header)\n3. Press Ctrl+C (or Cmd+C on Mac)\n4. Long-press in the box below → Paste'}
                     </Text>
@@ -1496,8 +1496,8 @@ export default function CreateScreen() {
                   <Text style={s.mgmtAddSectionLabel}>{t('newService').toUpperCase()}</Text>
                   <TextInput style={s.modalInput} value={newSvcName} onChangeText={setNewSvcName} placeholder={`${t('serviceName')} *`} placeholderTextColor={theme.color.textMuted} />
                   <View style={s.mgmtPriceRow}>
-                    <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceUSD} onChangeText={setNewSvcPriceUSD} placeholder="Base price USD" placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
-                    <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setNewSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder="Base price LBP" placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
+                    <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceUSD} onChangeText={setNewSvcPriceUSD} placeholder={t('amountUSD')} placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
+                    <TextInput style={[s.modalInput, { flex: 1 }]} value={newSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setNewSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder={t('amountLBP')} placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
                   </View>
                   <TouchableOpacity style={s.mgmtAddBtn} onPress={handleCreateService} disabled={savingNewSvc}>
                     {savingNewSvc ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ {t('addService')}</Text>}
@@ -1510,10 +1510,10 @@ export default function CreateScreen() {
                   <View key={sv.id}>
                     {editSvcId === sv.id ? (
                       <View style={[s.mgmtEditRow, { flexDirection: 'column', gap: 8 }]}>
-                        <TextInput style={s.modalInput} value={editSvcName} onChangeText={setEditSvcName} placeholder="Name" placeholderTextColor={theme.color.textMuted} autoFocus />
+                        <TextInput style={s.modalInput} value={editSvcName} onChangeText={setEditSvcName} placeholder={t('name')} placeholderTextColor={theme.color.textMuted} autoFocus />
                         <View style={s.mgmtPriceRow}>
-                          <TextInput style={[s.modalInput, { flex: 1 }]} value={editSvcPriceUSD} onChangeText={setEditSvcPriceUSD} placeholder="Price USD" placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
-                          <TextInput style={[s.modalInput, { flex: 1 }]} value={editSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setEditSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder="Price LBP" placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
+                          <TextInput style={[s.modalInput, { flex: 1 }]} value={editSvcPriceUSD} onChangeText={setEditSvcPriceUSD} placeholder={t('amountUSD')} placeholderTextColor={theme.color.textMuted} keyboardType="decimal-pad" />
+                          <TextInput style={[s.modalInput, { flex: 1 }]} value={editSvcPriceLBP} onChangeText={(v) => { const d = v.replace(/,/g, ''); if (d === '' || /^\d*$/.test(d)) setEditSvcPriceLBP(d === '' ? '' : parseInt(d, 10).toLocaleString('en-US')); }} placeholder={t('amountLBP')} placeholderTextColor={theme.color.textMuted} keyboardType="number-pad" />
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TouchableOpacity style={[s.mgmtSaveBtn, { flex: 1 }]} onPress={handleSaveEditService} disabled={savingEditSvc}>
@@ -1554,7 +1554,7 @@ export default function CreateScreen() {
                               <>
                                 <Text style={s.inlinePanelLabel}>STAGES</Text>
                                 {(svcStages[sv.id] ?? []).length === 0 ? (
-                                  <Text style={s.inlinePanelEmpty}>No stages yet. Add one below.</Text>
+                                  <Text style={s.inlinePanelEmpty}>{t('noStagesYetAddBelow')}</Text>
                                 ) : (
                                   (svcStages[sv.id] ?? []).map((stage, idx) => (
                                     <View key={stage.id} style={s.inlineStageRow}>
@@ -1602,7 +1602,7 @@ export default function CreateScreen() {
                   </View>
                 ))}
                 {serviceSearch.trim() && services.filter(sv => sv.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 && (
-                  <Text style={s.mgmtEmpty}>No services match "{serviceSearch}"</Text>
+                  <Text style={s.mgmtEmpty}>{t('noServicesMatch')}: "{serviceSearch}"</Text>
                 )}
               </ScrollView>
                 </>
@@ -1644,7 +1644,7 @@ export default function CreateScreen() {
               {/* Stage import panel */}
               {showStageImport && (
                 <View style={[s.docImportPanel, { marginHorizontal: theme.spacing.space3, marginBottom: theme.spacing.space2 }]}>
-                  <Text style={s.docImportLabel}>Paste from Excel (one stage name per row):</Text>
+                  <Text style={s.docImportLabel}>{t('importBtn')} ({t('stageName')})</Text>
                   <TextInput
                     style={s.docImportTextArea}
                     value={stageImportRaw}
@@ -1698,7 +1698,7 @@ export default function CreateScreen() {
                   <View key={m.id}>
                     {editStageId === m.id ? (
                       <View style={s.mgmtEditRow}>
-                        <TextInput style={[s.modalInput, { flex: 1 }]} value={editStageName} onChangeText={setEditStageName} placeholder="Stage name" placeholderTextColor={theme.color.textMuted} autoFocus />
+                        <TextInput style={[s.modalInput, { flex: 1 }]} value={editStageName} onChangeText={setEditStageName} placeholder={t('stageName')} placeholderTextColor={theme.color.textMuted} autoFocus />
                         <TouchableOpacity style={s.mgmtSaveBtn} onPress={handleSaveEditStage} disabled={savingEditStage}>
                           {savingEditStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>{t('save')}</Text>}
                         </TouchableOpacity>
@@ -1724,7 +1724,7 @@ export default function CreateScreen() {
                               activeOpacity={0.7}
                             >
                               <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]}>
-                                📍 {cityName ?? 'Set city'}
+                                📍 {cityName ?? t('setCityOptional')}
                               </Text>
                             </TouchableOpacity>
                               );
@@ -1843,9 +1843,9 @@ export default function CreateScreen() {
                 if (!parsed.name && !parsed.phone) {
                   // Show raw data so user can inspect
                   Alert.alert(
-                    'Scanned Data',
+                    t('scanDoc'),
                     result.data.replace(/[\x00-\x1F\x7F]/g, ' ').trim().slice(0, 300),
-                    [{ text: 'OK' }]
+                    [{ text: t('ok') }]
                   );
                 }
               }}
@@ -1890,7 +1890,7 @@ export default function CreateScreen() {
                     <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
                     <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
                   </TouchableOpacity>
-                  <Text style={s.modalTitle}>📥 Import</Text>
+                  <Text style={s.modalTitle}>📥 {t('importBtn')}</Text>
                   <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); setShowImportModal(false); }}>
                     <Text style={s.modalClose}>✕</Text>
                   </TouchableOpacity>
@@ -1926,9 +1926,9 @@ export default function CreateScreen() {
                 <View style={s.modalHeader}>
                   <TouchableOpacity onPress={() => { setShowNetworkForm(false); setEditNetworkId(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
-                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                    <Text style={{ ...theme.typography.label, color: theme.color.primary }}>{t('back')}</Text>
                   </TouchableOpacity>
-                  <Text style={s.modalTitle}>{editNetworkId ? 'Edit Contact' : 'New Contact'}</Text>
+                  <Text style={s.modalTitle}>{editNetworkId ? t('editContact') : t('addContact')}</Text>
                   <TouchableOpacity onPress={() => { setManageSection(null); setShowNetworkForm(false); }}>
                     <Text style={s.modalClose}>✕</Text>
                   </TouchableOpacity>
@@ -1939,7 +1939,7 @@ export default function CreateScreen() {
                 /* ── IMPORT VIEW body ── */
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
                   <View style={s.importInstructions}>
-                    <Text style={s.importInstructionsTitle}>How to import from Excel:</Text>
+                    <Text style={s.importInstructionsTitle}>{t('howToImportExcel')}</Text>
                     <Text style={s.importInstructionsText}>
                       {'1. Make sure columns are: A = Name  |  B = Phone  |  C = Reference\n2. Select all data rows (not the header)\n3. Press Ctrl+C (or Cmd+C on Mac)\n4. Long-press in the box below → Paste'}
                     </Text>
@@ -1977,7 +1977,7 @@ export default function CreateScreen() {
                           <View style={{ flex: 1, gap: 2 }}>
                             <Text style={s.importRowName}>{r.name}</Text>
                             {r.phone ? <Text style={s.importRowSub}>📞 {formatPhoneDisplay(r.phone)}</Text> : null}
-                            {r.reference ? <Text style={s.importRowSub}>Ref: {r.reference}</Text> : null}
+                            {r.reference ? <Text style={s.importRowSub}>{t('refPrefix')}: {r.reference}</Text> : null}
                           </View>
                         </View>
                       ))}
@@ -2062,7 +2062,7 @@ export default function CreateScreen() {
                   {/* City picker */}
                   <TouchableOpacity style={s.netCityTrigger} onPress={() => { setShowNetCityPicker(v => !v); setShowNetFieldPicker(false); }}>
                     <Text style={[s.netCityTriggerText, netCityId && { color: theme.color.textPrimary }]}>
-                      📍 {netCityId ? (allCities.find(c => c.id === netCityId)?.name ?? 'City') : 'Set city (optional)'}
+                      📍 {netCityId ? (allCities.find(c => c.id === netCityId)?.name ?? t('city')) : t('setCityOptional')}
                     </Text>
                     {netCityId && (
                       <TouchableOpacity onPress={() => { setNetCityId(null); setShowNetCityPicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
@@ -2110,7 +2110,7 @@ export default function CreateScreen() {
                         </View>
                         {def.field_type === 'boolean' ? (
                           <View style={s.fieldBoolRow}>
-                            <Text style={s.fieldBoolText}>{netFieldValues[fieldId] === 'true' ? 'Yes' : 'No'}</Text>
+                            <Text style={s.fieldBoolText}>{netFieldValues[fieldId] === 'true' ? t('yes') : t('no')}</Text>
                             <Switch
                               value={netFieldValues[fieldId] === 'true'}
                               onValueChange={v => setNetFieldValues(p => ({ ...p, [fieldId]: v ? 'true' : 'false' }))}
@@ -2233,7 +2233,7 @@ export default function CreateScreen() {
                   {showNetFieldPicker && (
                     <View style={s.netCityDropdown}>
                       <TextInput style={s.netCitySearch} value={netFieldSearch} onChangeText={setNetFieldSearch}
-                        placeholder="Search fields..." placeholderTextColor={theme.color.textMuted} autoFocus />
+                        placeholder={t('searchInput')} placeholderTextColor={theme.color.textMuted} autoFocus />
                       <View>
                         {netFieldDefs
                           .filter(d => !netAddedFieldIds.includes(d.id) && (!netFieldSearch.trim() || d.label.toLowerCase().includes(netFieldSearch.toLowerCase())))
@@ -2278,7 +2278,7 @@ export default function CreateScreen() {
           <View style={[s.modalSheet, { flex: 1, marginTop: 60 }]}>
             <View style={s.modalHeader}>
               <View>
-                <Text style={s.modalTitle}>📋 Documents Required</Text>
+                <Text style={s.modalTitle}>📋 {t('requiredDocs')}</Text>
                 <Text style={s.modalSubtitle}>
                   {docSearch.trim()
                     ? `${services.filter(sv => sv.name.toLowerCase().includes(docSearch.toLowerCase())).length} of ${services.length} services`
@@ -2301,9 +2301,9 @@ export default function CreateScreen() {
               />
             </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: theme.spacing.space3 }} keyboardShouldPersistTaps="handled">
-              {services.length === 0 && <Text style={s.mgmtEmpty}>No services yet</Text>}
+              {services.length === 0 && <Text style={s.mgmtEmpty}>{t('noServices')}</Text>}
               {docSearch.trim() && services.filter(sv => sv.name.toLowerCase().includes(docSearch.toLowerCase())).length === 0 && (
-                <Text style={s.mgmtEmpty}>No services match "{docSearch}"</Text>
+                <Text style={s.mgmtEmpty}>{t('noServicesMatch')}: "{docSearch}"</Text>
               )}
               {services.filter(sv => !docSearch.trim() || sv.name.toLowerCase().includes(docSearch.toLowerCase())).map((svc) => {
                 const docs = serviceDocs[svc.id] ?? [];
@@ -2390,7 +2390,7 @@ export default function CreateScreen() {
                                           style={s.docAddInput}
                                           value={isReqOpen ? docReqNewTitle : ''}
                                           onChangeText={setDocReqNewTitle}
-                                          placeholder="Add required paper..."
+                                          placeholder={t('addRequirement')}
                                           placeholderTextColor={theme.color.textMuted}
                                           returnKeyType="done"
                                           onSubmitEditing={() => handleAddDocReq(doc.id)}
@@ -2418,7 +2418,7 @@ export default function CreateScreen() {
                             style={s.docAddInput}
                             value={expandedDocSvcId === svc.id ? newDocTitle : ''}
                             onChangeText={setNewDocTitle}
-                            placeholder="Add document..."
+                            placeholder={t('addDocument')}
                             placeholderTextColor={theme.color.textMuted}
                           />
                           <TouchableOpacity style={s.docAddBtn} onPress={() => handleAddDoc(svc.id)} disabled={savingDoc || !newDocTitle.trim()}>
@@ -2447,7 +2447,7 @@ export default function CreateScreen() {
                         {/* Excel import panel */}
                         {docImportSvcId === svc.id && (
                           <View style={s.docImportPanel}>
-                            <Text style={s.docImportLabel}>Paste from Excel (one title per row):</Text>
+                            <Text style={s.docImportLabel}>{t('importBtn')} ({t('documentName')})</Text>
                             <TextInput
                               style={s.docImportTextArea}
                               value={docImportRaw}

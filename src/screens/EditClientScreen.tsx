@@ -162,7 +162,7 @@ function FieldInput({
               })}
               {isMulti && (
                 <TouchableOpacity style={fi.selectDone} onPress={() => setSelectOpen(false)}>
-                  <Text style={fi.selectDoneText}>Done</Text>
+                  <Text style={fi.selectDoneText}>{t('done')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -242,13 +242,13 @@ export default function EditClientScreen() {
   const [showTypePicker, setShowTypePicker] = useState(false);
 
   const FIELD_TYPES_LIST = [
-    { key: 'text', label: 'Text' }, { key: 'textarea', label: 'Long Text' },
-    { key: 'number', label: 'Number' }, { key: 'currency', label: 'Currency' },
-    { key: 'email', label: 'Email' }, { key: 'phone', label: 'Phone' },
-    { key: 'url', label: 'URL' }, { key: 'date', label: 'Date' },
-    { key: 'boolean', label: 'Yes / No' }, { key: 'select', label: 'Dropdown' },
-    { key: 'multiselect', label: 'Multi-select' }, { key: 'image', label: 'Image' },
-    { key: 'location', label: 'Location' }, { key: 'id_number', label: 'ID Number' },
+    { key: 'text', label: t('fieldText') }, { key: 'textarea', label: t('fieldTextarea') },
+    { key: 'number', label: t('fieldNumber') }, { key: 'currency', label: t('fieldCurrency') },
+    { key: 'email', label: t('fieldEmail') }, { key: 'phone', label: t('fieldPhone') },
+    { key: 'url', label: t('fieldUrl') }, { key: 'date', label: t('fieldDate') },
+    { key: 'boolean', label: t('fieldBoolean') }, { key: 'select', label: t('fieldSelect') },
+    { key: 'multiselect', label: t('fieldMultiselect') }, { key: 'image', label: t('fieldImage') },
+    { key: 'location', label: t('fieldLocation') }, { key: 'id_number', label: t('fieldIdNumber') },
   ];
 
   const load = useCallback(async () => {
@@ -396,7 +396,7 @@ export default function EditClientScreen() {
       >
         {/* Client info */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>CLIENT INFO</Text>
+          <Text style={s.sectionLabel}>{t('clientInfo').toUpperCase()}</Text>
           <TextInput
             style={s.input}
             value={clientName}
@@ -412,7 +412,7 @@ export default function EditClientScreen() {
             placeholder={t('phoneNumber')}
             style={{ marginBottom: 10 }}
           />
-          <Text style={s.subsectionLabel}>REFERENCE</Text>
+          <Text style={s.subsectionLabel}>{t('reference').toUpperCase()}</Text>
           <TextInput
             style={s.input}
             value={referenceName}
@@ -432,10 +432,10 @@ export default function EditClientScreen() {
 
         {/* Custom fields */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>CUSTOM FIELDS</Text>
+          <Text style={s.sectionLabel}>{t('clientFields').toUpperCase()}</Text>
 
           {activeFieldIds.length === 0 && (
-            <Text style={s.emptyText}>No fields added yet.</Text>
+            <Text style={s.emptyText}>{t('noFieldsYet')}</Text>
           )}
 
           {activeFieldIds.map((fieldId) => {
@@ -466,7 +466,7 @@ export default function EditClientScreen() {
           })}
 
           <TouchableOpacity style={s.addFieldBtn} onPress={() => setShowFieldPicker(true)}>
-            <Text style={s.addFieldBtnText}>+ Add Field</Text>
+            <Text style={s.addFieldBtnText}>+ {t('addField')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -478,7 +478,7 @@ export default function EditClientScreen() {
         >
           {saving
             ? <ActivityIndicator color={theme.color.white} size="small" />
-            : <Text style={s.saveBtnText}>Save Changes</Text>}
+            : <Text style={s.saveBtnText}>{t('saveChanges')}</Text>}
         </TouchableOpacity>
       </KeyboardAwareScrollView>
 
@@ -495,7 +495,7 @@ export default function EditClientScreen() {
         >
           <View style={fp.sheet}>
             <View style={fp.header}>
-              <Text style={fp.title}>Add Field</Text>
+              <Text style={fp.title}>{t('addField')}</Text>
               <TouchableOpacity onPress={() => { setShowFieldPicker(false); setShowCreateField(false); }}>
                 <Text style={fp.close}>✕</Text>
               </TouchableOpacity>
@@ -508,7 +508,7 @@ export default function EditClientScreen() {
             >
               {allFieldDefs.filter((f) => f.is_active && !activeFieldIds.includes(f.id)).length > 0 && (
                 <>
-                  <Text style={fp.sectionLabel}>SAVED FIELDS</Text>
+                  <Text style={fp.sectionLabel}>{t('savedFieldsLabel')}</Text>
                   {allFieldDefs
                     .filter((f) => f.is_active && !activeFieldIds.includes(f.id))
                     .map((item) => (
@@ -527,26 +527,26 @@ export default function EditClientScreen() {
                           <Text style={fp.optionLabel}>{item.label}</Text>
                           <Text style={fp.optionType}>{item.field_type}</Text>
                         </View>
-                        {item.is_required && <Text style={fp.required}>Required</Text>}
+                        {item.is_required && <Text style={fp.required}>{t('required')}</Text>}
                         <Text style={fp.optionAdd}>+</Text>
                       </TouchableOpacity>
                     ))}
                 </>
               )}
 
-              <Text style={fp.sectionLabel}>CREATE NEW FIELD</Text>
+              <Text style={fp.sectionLabel}>{t('createField').toUpperCase()}</Text>
               <TouchableOpacity style={fp.createToggle} onPress={() => setShowCreateField((v) => !v)}>
                 <View style={fp.optionIcon}>
                   <Text style={fp.optionIconText}>✦</Text>
                 </View>
                 <Text style={fp.createToggleText}>
-                  {showCreateField ? '− Cancel' : '+ Create Custom Field'}
+                  {showCreateField ? '− ' + t('cancel') : '+ ' + t('createField')}
                 </Text>
               </TouchableOpacity>
 
               {showCreateField && (
                 <View style={fp.createForm}>
-                  <Text style={fp.createLabel}>FIELD NAME *</Text>
+                  <Text style={fp.createLabel}>{t('name').toUpperCase()} *</Text>
                   <TextInput
                     style={fp.createInput}
                     value={newFieldLabel}
@@ -554,7 +554,7 @@ export default function EditClientScreen() {
                     placeholderTextColor={theme.color.textMuted}
                   />
 
-                  <Text style={fp.createLabel}>FIELD TYPE *</Text>
+                  <Text style={fp.createLabel}>{t('fieldTypeLabel').toUpperCase()} *</Text>
                   <TouchableOpacity style={fp.typeBtn} onPress={() => setShowTypePicker(true)}>
                     <Text style={fp.typeIcon}>{FIELD_TYPE_ICONS[newFieldType] ?? '?'}</Text>
                     <Text style={fp.typeName}>{FIELD_TYPES_LIST.find((t) => t.key === newFieldType)?.label ?? newFieldType}</Text>
@@ -563,7 +563,7 @@ export default function EditClientScreen() {
 
                   {['select', 'multiselect'].includes(newFieldType) && (
                     <>
-                      <Text style={fp.createLabel}>OPTIONS (comma-separated) *</Text>
+                      <Text style={fp.createLabel}>{t('options').toUpperCase()} *</Text>
                       <TextInput
                         style={fp.createInput}
                         value={newFieldOptions}
@@ -575,7 +575,7 @@ export default function EditClientScreen() {
                   )}
 
                   <View style={fp.switchRow}>
-                    <Text style={fp.createLabel}>REQUIRED FIELD</Text>
+                    <Text style={fp.createLabel}>{t('requiredFieldLabel')}</Text>
                     <Switch
                       value={newFieldRequired}
                       onValueChange={setNewFieldRequired}
@@ -591,7 +591,7 @@ export default function EditClientScreen() {
                   >
                     {savingNewField
                       ? <ActivityIndicator color={theme.color.white} size="small" />
-                      : <Text style={fp.saveBtnText}>Save & Add Field</Text>}
+                      : <Text style={fp.saveBtnText}>{t('saveAndAddField')}</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -605,7 +605,7 @@ export default function EditClientScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={fp.overlay}>
           <View style={[fp.sheet, { maxHeight: '60%' }]}>
             <View style={fp.header}>
-              <Text style={fp.title}>Field Type</Text>
+              <Text style={fp.title}>{t('fieldTypeLabel')}</Text>
               <TouchableOpacity onPress={() => setShowTypePicker(false)}>
                 <Text style={fp.close}>✕</Text>
               </TouchableOpacity>

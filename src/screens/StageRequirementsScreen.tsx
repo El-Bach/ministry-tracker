@@ -412,7 +412,7 @@ export default function StageRequirementsScreen() {
               <Text style={s.waBtnText}>💬 WhatsApp</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.addBtn} onPress={openAdd}>
-              <Text style={s.addBtnText}>+ Add</Text>
+              <Text style={s.addBtnText}>+ {t('add')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -422,8 +422,8 @@ export default function StageRequirementsScreen() {
         ) : requirements.length === 0 ? (
           <View style={s.empty}>
             <Text style={s.emptyIcon}>📋</Text>
-            <Text style={s.emptyText}>No requirements yet</Text>
-            <Text style={s.emptyHint}>Tap + Add Requirement to get started</Text>
+            <Text style={s.emptyText}>{t('noRequirementsYet')}</Text>
+            <Text style={s.emptyHint}>{t('tapAddReqHint')}</Text>
           </View>
         ) : (
           requirements.map((req) => (
@@ -521,7 +521,7 @@ export default function StageRequirementsScreen() {
             {/* Modal header */}
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>
-                {editingReq ? 'Edit Requirement' : 'New Requirement'}
+                {editingReq ? t('edit') + ' ' + t('requirementsSection') : t('addRequirement')}
               </Text>
               <TouchableOpacity onPress={() => setShowModal(false)}>
                 <Text style={s.modalClose}>✕</Text>
@@ -536,7 +536,7 @@ export default function StageRequirementsScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {/* Title */}
-              <Text style={s.fieldLabel}>Title *</Text>
+              <Text style={s.fieldLabel}>{t('titleAsterisk')}</Text>
               <TextInput
                 style={s.input}
                 placeholder={t("title")}
@@ -546,7 +546,7 @@ export default function StageRequirementsScreen() {
               />
 
               {/* Type picker trigger */}
-              <Text style={s.fieldLabel}>Type</Text>
+              <Text style={s.fieldLabel}>{t('typeLabel')}</Text>
               <TouchableOpacity
                 style={s.typeTrigger}
                 onPress={() => setShowTypePicker(true)}
@@ -557,7 +557,7 @@ export default function StageRequirementsScreen() {
               </TouchableOpacity>
 
               {/* Notes */}
-              <Text style={s.fieldLabel}>Notes</Text>
+              <Text style={s.fieldLabel}>{t('notes')}</Text>
               <TextInput
                 style={[s.input, s.textArea]}
                 placeholder={t("notes")}
@@ -571,7 +571,7 @@ export default function StageRequirementsScreen() {
 
               {/* Completed toggle */}
               <View style={s.completedRow}>
-                <Text style={s.fieldLabel}>Mark as completed</Text>
+                <Text style={s.fieldLabel}>{t('markAsCompleted')}</Text>
                 <Switch
                   value={isCompleted}
                   onValueChange={setIsCompleted}
@@ -581,7 +581,7 @@ export default function StageRequirementsScreen() {
               </View>
 
               {/* Attachment */}
-              <Text style={s.fieldLabel}>Attachment</Text>
+              <Text style={s.fieldLabel}>{t('attachmentLabel')}</Text>
               {attachmentUrl ? (
                 <View style={s.attachPreviewModal}>
                   {/\.(jpg|jpeg|png|gif|webp)$/i.test(attachmentUrl) ? (
@@ -613,7 +613,7 @@ export default function StageRequirementsScreen() {
                   ) : (
                     <>
                       <Text style={s.attachBtnIcon}>📎</Text>
-                      <Text style={s.attachBtnText}>Attach / Scan Document</Text>
+                      <Text style={s.attachBtnText}>{t('attachScanDoc')}</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -629,7 +629,7 @@ export default function StageRequirementsScreen() {
                   <ActivityIndicator color={theme.color.white} size="small" />
                 ) : (
                   <Text style={s.saveBtnText}>
-                    {editingReq ? 'Save Changes' : 'Add Requirement'}
+                    {editingReq ? t('saveChanges') : t('addRequirement')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -653,7 +653,7 @@ export default function StageRequirementsScreen() {
           onPress={() => setShowTypePicker(false)}
         >
           <View style={s.typePickerSheet}>
-            <Text style={s.typePickerTitle}>Select Type</Text>
+            <Text style={s.typePickerTitle}>{t('selectTypeTitle')}</Text>
             {REQ_TYPES.map((t) => (
               <TouchableOpacity
                 key={t.value}

@@ -32,23 +32,7 @@ import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
 // ─── Final closure stage — always last, auto-created ────────────────
 const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 
-// ─── Field types list (for picker) ──────────────────────────────
-const FIELD_TYPES_LIST = [
- { key: 'text', label: 'Text', icon: 'Aa', desc: 'Free text' },
- { key: 'textarea', label: 'Long Text', icon: '¶', desc: 'Multi-line text' },
- { key: 'number', label: 'Number', icon: '123',desc: 'Numeric value' },
- { key: 'currency', label: 'Currency', icon: '$', desc: 'Money amount' },
- { key: 'email', label: 'Email', icon: '@', desc: 'Email address' },
- { key: 'phone', label: 'Phone', icon: '☏', desc: 'Phone number' },
- { key: 'url', label: 'URL', icon: '🔗', desc: 'Web address' },
- { key: 'date', label: 'Date', icon: '📅', desc: 'DD/MM/YYYY' },
- { key: 'boolean', label: 'Yes / No', icon: '✓', desc: 'Toggle switch' },
- { key: 'select', label: 'Dropdown', icon: '▾', desc: 'Single choice' },
- { key: 'multiselect', label: 'Multi-select', icon: '☑', desc: 'Multiple choices' },
- { key: 'image', label: 'Image/Photo', icon: '🖼', desc: 'Camera or library' },
- { key: 'location', label: 'Location', icon: '📍', desc: 'GPS coordinates' },
- { key: 'id_number', label: 'ID Number', icon: '#', desc: 'National ID, etc.' },
-];
+// ─── Field types list placeholder — defined inside component for i18n ──
 
 // ─── Field type icons map ─────────────────────────────────────
 const FIELD_TYPE_ICONS: Record<string, string> = {
@@ -148,7 +132,7 @@ function DynamicFieldInput({
  if (ft === 'boolean') {
  return (
  <View style={dfi.boolRow}>
- <Text style={dfi.boolLabel}>{boolVal ? 'Yes' : 'No'}</Text>
+ <Text style={dfi.boolLabel}>{boolVal ? t('yes') : t('no')}</Text>
  <Switch value={boolVal}
  onValueChange={(v) => onChange({ ...base, value_boolean: v })}
  trackColor={{ false: theme.color.border, true: theme.color.primary }} thumbColor={theme.color.white} />
@@ -161,7 +145,7 @@ function DynamicFieldInput({
  const selected: string[] = isMulti
  ? ((jsonVal?.selected as string[]) ?? [])
  : (textVal ? [textVal] : []);
- const display = selected.length > 0 ? selected.join(', ') : 'Select...';
+ const display = selected.length > 0 ? selected.join(', ') : t('select');
  return (
  <>
  <TouchableOpacity style={dfi.selectBtn} onPress={() => setSelectOpen(true)}>
@@ -201,7 +185,7 @@ function DynamicFieldInput({
  </ScrollView>
  {isMulti && (
  <TouchableOpacity style={dfi.doneBtn} onPress={() => setSelectOpen(false)}>
- <Text style={dfi.doneBtnText}>Done</Text>
+ <Text style={dfi.doneBtnText}>{t('done')}</Text>
  </TouchableOpacity>
  )}
  </View>
@@ -493,7 +477,7 @@ function PickerModal({
             </TouchableOpacity>
           </View>
           {multiSelect && (
-            <Text style={ms.multiHint}>Tap to add stages to the route</Text>
+            <Text style={ms.multiHint}>{t('tapToAddStagesToRoute')}</Text>
           )}
           {search && (
             <TextInput
@@ -572,12 +556,12 @@ function PickerModal({
               style={ms.addNewFooterBtn}
               onPress={() => { setQuery(''); onClose(); onAddNew(undefined); }}
             >
-              <Text style={ms.addNewFooterBtnText}>＋ {addNewLabel ?? 'Create New'}</Text>
+              <Text style={ms.addNewFooterBtnText}>＋ {addNewLabel ?? t('createBtn')}</Text>
             </TouchableOpacity>
           )}
           {multiSelect && (
             <TouchableOpacity style={ms.doneBtn} onPress={() => { setQuery(''); onClose(); }}>
-              <Text style={ms.doneBtnText}>Done</Text>
+              <Text style={ms.doneBtnText}>{t('done')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -692,6 +676,7 @@ function FieldRow({
  onPress: () => void;
  placeholder?: string;
 }) {
+ const { t } = useTranslation();
  if (value) {
    // Selected state: show selected value prominently, label becomes small hint
    return (
@@ -709,7 +694,7 @@ function FieldRow({
  <Text style={s.fieldLabel}>{label}</Text>
  <View style={s.fieldValue}>
  <Text style={s.fieldPlaceholder}>
- {placeholder || 'Select...'}
+ {placeholder || t('select')}
  </Text>
  <Text style={s.fieldChevron}>›</Text>
  </View>
@@ -856,6 +841,23 @@ export default function NewTaskScreen() {
  const route = useRoute<NewTaskRoute>();
  const { teamMember, permissions } = useAuth();
  const { t } = useTranslation();
+
+ const FIELD_TYPES_LIST = [
+   { key: 'text',        label: t('fieldText'),        icon: 'Aa',  desc: 'Free text' },
+   { key: 'textarea',    label: t('fieldTextarea'),    icon: '¶',   desc: 'Multi-line text' },
+   { key: 'number',      label: t('fieldNumber'),      icon: '123', desc: 'Numeric value' },
+   { key: 'currency',    label: t('fieldCurrency'),    icon: '$',   desc: 'Money amount' },
+   { key: 'email',       label: t('fieldEmail'),       icon: '@',   desc: 'Email address' },
+   { key: 'phone',       label: t('fieldPhone'),       icon: '☏',  desc: 'Phone number' },
+   { key: 'url',         label: t('fieldUrl'),         icon: '🔗',  desc: 'Web address' },
+   { key: 'date',        label: t('fieldDate'),        icon: '📅',  desc: 'DD/MM/YYYY' },
+   { key: 'boolean',     label: t('fieldBoolean'),     icon: '✓',   desc: 'Toggle switch' },
+   { key: 'select',      label: t('fieldSelect'),      icon: '▾',   desc: 'Single choice' },
+   { key: 'multiselect', label: t('fieldMultiselect'), icon: '☑',  desc: 'Multiple choices' },
+   { key: 'image',       label: t('fieldImage'),       icon: '🖼',  desc: 'Camera or library' },
+   { key: 'location',    label: t('fieldLocation'),    icon: '📍',  desc: 'GPS coordinates' },
+   { key: 'id_number',   label: t('fieldIdNumber'),    icon: '#',   desc: 'National ID, etc.' },
+ ];
 
  const [clients, setClients] = useState<Client[]>([]);
  const [services, setServices] = useState<Service[]>([]);
@@ -1175,9 +1177,9 @@ export default function NewTaskScreen() {
 
  const handleDeleteService = (item: PickerItem) => {
    Alert.alert(t('deleteService'), `${t('confirmDelete')} — "${item.label}"`, [
-     { text: 'Cancel', style: 'cancel' },
+     { text: t('cancel'), style: 'cancel' },
      {
-       text: 'Delete', style: 'destructive',
+       text: t('delete'), style: 'destructive',
        onPress: async () => {
          await supabase.from('services').delete().eq('id', item.id);
          setServices((prev) => prev.filter((sv) => sv.id !== item.id));
@@ -1192,9 +1194,9 @@ export default function NewTaskScreen() {
 
  const handleDeleteStage = (item: PickerItem) => {
    Alert.alert(t('deleteStage'), `${t('confirmDelete')} — "${item.label}"`, [
-     { text: 'Cancel', style: 'cancel' },
+     { text: t('cancel'), style: 'cancel' },
      {
-       text: 'Delete', style: 'destructive',
+       text: t('delete'), style: 'destructive',
        onPress: async () => {
          await supabase.from('ministries').delete().eq('id', item.id);
          setStages((prev) => prev.filter((m) => m.id !== item.id));
@@ -1207,12 +1209,12 @@ export default function NewTaskScreen() {
 
  const handleDeleteClient = (item: PickerItem) => {
    Alert.alert(
-     'Delete Client',
-     `Delete "${item.label}"? This cannot be undone.`,
+     t('delete') + ' ' + t('clients'),
+     `${t('confirmDelete')} — "${item.label}"? ${t('cannotUndo')}`,
      [
-       { text: 'Cancel', style: 'cancel' },
+       { text: t('cancel'), style: 'cancel' },
        {
-         text: 'Delete', style: 'destructive',
+         text: t('delete'), style: 'destructive',
          onPress: async () => {
            await supabase.from('clients').delete().eq('id', item.id);
            setClients((prev) => prev.filter((c) => c.id !== item.id));
@@ -1343,7 +1345,7 @@ export default function NewTaskScreen() {
      ? `name "${(existing as any).name}"`
      : `phone "${(existing as any).phone}"`;
    Alert.alert(
-     'Duplicate Client',
+     t('duplicateClient'),
      `A client already exists with this ${reason} (${(existing as any).client_id}).\n\nCreate anyway?`,
      [
        { text: t('cancel'), style: 'cancel' },
@@ -1413,11 +1415,11 @@ export default function NewTaskScreen() {
      .maybeSingle();
    if (dupSvc) {
      Alert.alert(
-       'Duplicate Service',
+       `${t('duplicate')} ${t('service')}`,
        `A service named "${(dupSvc as any).name}" already exists.\n\nCreate anyway?`,
        [
          { text: t('cancel'), style: 'cancel' },
-         { text: 'Create anyway', onPress: () => doCreateService() },
+         { text: t('createAnyway'), onPress: () => doCreateService() },
        ],
      );
      return;
@@ -1519,11 +1521,11 @@ export default function NewTaskScreen() {
    .maybeSingle();
  if (dupStage) {
    Alert.alert(
-     'Duplicate Stage',
+     `${t('duplicate')} ${t('stage')}`,
      `A stage named "${(dupStage as any).name}" already exists.\n\nCreate anyway?`,
      [
        { text: t('cancel'), style: 'cancel' },
-       { text: 'Create anyway', onPress: () => doCreateStage() },
+       { text: t('createAnyway'), onPress: () => doCreateStage() },
      ],
    );
    return;
@@ -1576,12 +1578,12 @@ export default function NewTaskScreen() {
  };
 
  const validate = (): string | null => {
- if (!selectedClient) return 'Select a client.';
- if (!selectedService) return 'Select a service.';
- if (routeStops.length === 0) return 'Add at least one stage.';
+ if (!selectedClient) return t('pickClient');
+ if (!selectedService) return t('pickService');
+ if (routeStops.length === 0) return t('noStagesAddFirst');
  if (dueDate.trim()) {
  const iso = toISO(dueDate);
- if (!iso) return 'Invalid date. Use DD/MM/YYYY format.';
+ if (!iso) return t('invalidPhone'); // reuse generic invalid msg
  }
  return null;
  };
@@ -1657,10 +1659,10 @@ export default function NewTaskScreen() {
  });
 
  Alert.alert(t('success'), t('savedSuccess'), [
- { text: 'OK', onPress: () => navigation.goBack() },
+ { text: t('ok'), onPress: () => navigation.goBack() },
  ]);
  } catch (e: unknown) {
- Alert.alert('Error', (e as Error).message ?? 'Failed to create file.');
+ Alert.alert(t('error'), (e as Error).message ?? t('failedToSave'));
  } finally {
  setSaving(false);
  }
@@ -1691,7 +1693,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewClientForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewClientForm ? `− ${t('cancel')}` : 'Create New Client'}
+ {showNewClientForm ? `− ${t('cancel')}` : t('createNewClient')}
  </Text>
  </TouchableOpacity>
  {showNewClientForm && (
@@ -1795,7 +1797,7 @@ export default function NewTaskScreen() {
      onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(selectedService.id); }}
      activeOpacity={0.75}
    >
-     <Text style={s.docsSheetBtnText}>📋 Required Documents</Text>
+     <Text style={s.docsSheetBtnText}>📋 {t('requiredDocs')}</Text>
    </TouchableOpacity>
  )}
  <TouchableOpacity
@@ -1803,7 +1805,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewServiceForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewServiceForm ? `− ${t('cancel')}` : 'Create New Service'}
+ {showNewServiceForm ? `− ${t('cancel')}` : `${t('add')} ${t('service')}`}
  </Text>
  </TouchableOpacity>
  {showNewServiceForm && (
@@ -1902,14 +1904,14 @@ export default function NewTaskScreen() {
                        style={s.inlineCancelBtn}
                        onPress={() => { setSvcStageCreateOpen(false); setSvcStageNewCityName(''); }}
                      >
-                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
                      </TouchableOpacity>
                      <TouchableOpacity
                        style={[s.inlineSaveBtn, svcStageSavingCity && { opacity: 0.6 }]}
                        disabled={svcStageSavingCity}
                        onPress={() => createCityForDraftStage(idx)}
                      >
-                       <Text style={s.inlineSaveBtnText}>{svcStageSavingCity ? 'Saving...' : 'Create & Add'}</Text>
+                       <Text style={s.inlineSaveBtnText}>{svcStageSavingCity ? t('pleaseWait') : t('save')}</Text>
                      </TouchableOpacity>
                    </View>
                  </View>
@@ -2081,7 +2083,7 @@ export default function NewTaskScreen() {
                style={s.stageDetailSearch}
                value={stageCitySearch}
                onChangeText={setStageCitySearch}
-               placeholder="Search city..."
+               placeholder={t('searchCity')}
                placeholderTextColor={theme.color.textMuted}
              />
              <View>
@@ -2133,14 +2135,14 @@ export default function NewTaskScreen() {
                        style={s.inlineCancelBtn}
                        onPress={() => { setShowCreateCityForm(false); setNewCityName(''); }}
                      >
-                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
                      </TouchableOpacity>
                      <TouchableOpacity
                        style={[s.inlineSaveBtn, savingNewCity && { opacity: 0.6 }]}
                        disabled={savingNewCity}
                        onPress={() => handleCreateCityForStage(stage.id)}
                      >
-                       <Text style={s.inlineSaveBtnText}>{savingNewCity ? 'Saving...' : 'Create & Add'}</Text>
+                       <Text style={s.inlineSaveBtnText}>{savingNewCity ? t('pleaseWait') : t('createAndAdd')}</Text>
                      </TouchableOpacity>
                    </View>
                  </View>
@@ -2161,10 +2163,10 @@ export default function NewTaskScreen() {
              <View>
                {stageAssigneeMap[stage.id] && (
                  <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
-                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove assignee</Text>
+                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>{t('removeAssignment')}</Text>
                  </TouchableOpacity>
                )}
-               <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 4, fontWeight: '700' }}>TEAM</Text>
+               <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 4, fontWeight: '700' }}>{t('teamSectionLabel')}</Text>
                {teamMembers
                  .filter(tm => !stageAssigneeSearch.trim() || tm.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
                  .slice(0, 15)
@@ -2179,7 +2181,7 @@ export default function NewTaskScreen() {
                    </TouchableOpacity>
                  ))}
                {allAssignees.length > 0 && (
-                 <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 8, fontWeight: '700' }}>EXTERNAL</Text>
+                 <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 8, fontWeight: '700' }}>{t('externalSectionLabel')}</Text>
                )}
                {allAssignees
                  .filter(a => !stageAssigneeSearch.trim() || a.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
@@ -2205,7 +2207,7 @@ export default function NewTaskScreen() {
                      setTimeout(() => newExtNameInputRef.current?.focus(), 300);
                    }}
                  >
-                   <Text style={s.inlineCreateBtnText}>＋ Create new contact</Text>
+                   <Text style={s.inlineCreateBtnText}>＋ {t('createNewContact')}</Text>
                  </TouchableOpacity>
                ) : (
                  <View style={s.inlineCreateForm}>
@@ -2240,14 +2242,14 @@ export default function NewTaskScreen() {
                          setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
                        }}
                      >
-                       <Text style={s.inlineCancelBtnText}>Cancel</Text>
+                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
                      </TouchableOpacity>
                      <TouchableOpacity
                        style={[s.inlineSaveBtn, savingNewExt && { opacity: 0.6 }]}
                        disabled={savingNewExt}
                        onPress={() => handleCreateExtAssigneeForStage(stage.id)}
                      >
-                       <Text style={s.inlineSaveBtnText}>{savingNewExt ? 'Saving...' : 'Create & Add'}</Text>
+                       <Text style={s.inlineSaveBtnText}>{savingNewExt ? t('pleaseWait') : t('createAndAdd')}</Text>
                      </TouchableOpacity>
                    </View>
                  </View>
@@ -2267,7 +2269,7 @@ export default function NewTaskScreen() {
              setShowCreateExtForm(false);
            }}
          >
-           <Text style={s.stageDetailSaveBtnText}>✓ Save</Text>
+           <Text style={s.stageDetailSaveBtnText}>✓ {t('save')}</Text>
          </TouchableOpacity>
        </View>
      )}
@@ -2278,7 +2280,7 @@ export default function NewTaskScreen() {
  )}
 
  <TouchableOpacity style={s.addStopBtn} onPress={() => setModal('stage')}>
- <Text style={s.addStopBtnText}>＋ Add Stage</Text>
+ <Text style={s.addStopBtnText}>{t('addStageBtn')}</Text>
  </TouchableOpacity>
 
  <TouchableOpacity
@@ -2286,7 +2288,7 @@ export default function NewTaskScreen() {
  onPress={() => setShowNewStageForm((v) => !v)}
  >
  <Text style={s.addInlineBtnText}>
- {showNewStageForm ? `− ${t('cancel')}` : 'Create New Stage'}
+ {showNewStageForm ? `− ${t('cancel')}` : t('createStage')}
  </Text>
  </TouchableOpacity>
  {showNewStageForm && (
@@ -2316,11 +2318,11 @@ export default function NewTaskScreen() {
 
  {/* ── SCHEDULE ── */}
  <View style={s.section}>
- <Text style={s.sectionTitle}>SCHEDULE</Text>{/* no i18n key for schedule */}
+ <Text style={s.sectionTitle}>{t('scheduleLabel').toUpperCase()}</Text>
 
  {/* Created time — auto from device */}
  <View style={s.createdRow}>
- <Text style={s.fieldLabel}>File Created</Text>
+ <Text style={s.fieldLabel}>{t('fileCreatedLabel')}</Text>
  <Text style={s.createdValue}>{createdDisplay}</Text>
  </View>
 
@@ -2352,7 +2354,7 @@ export default function NewTaskScreen() {
  {saving ? (
  <ActivityIndicator color={theme.color.white} />
  ) : (
- <Text style={s.submitBtnText}>Create File</Text>
+ <Text style={s.submitBtnText}>{t('createFileBtn')}</Text>
  )}
  </TouchableOpacity>
  </KeyboardAwareScrollView>
@@ -2360,7 +2362,7 @@ export default function NewTaskScreen() {
  {/* ── MODALS ── */}
  <PickerModal
  visible={modal === 'client'}
- title="Select Client"
+ title={t('pickClient')}
  items={clients.map((c) => ({ id: c.id, label: c.name, subtitle: c.phone ?? undefined }))}
  onSelect={(item) => setSelectedClient(clients.find((c) => c.id === item.id)!)}
  onItemAction={permissions.can_edit_delete_clients ? (item) => { navigation.navigate('EditClient', { clientId: item.id }); } : undefined}
@@ -2368,7 +2370,7 @@ export default function NewTaskScreen() {
  onItemDelete={permissions.can_edit_delete_clients ? handleDeleteClient : undefined}
  onClose={() => setModal(null)}
  search
- addNewLabel="Create New Client"
+ addNewLabel={t('createNewClient')}
  onAddNew={(initialName) => {
    setNewClientName(initialName ?? '');
    setNewClientPhone('');
@@ -2383,7 +2385,7 @@ export default function NewTaskScreen() {
  />
  <PickerModal
  visible={modal === 'service'}
- title="Select Service"
+ title={t('pickService')}
  items={services.map((sv) => ({
  id: sv.id,
  label: sv.name,
@@ -2402,7 +2404,7 @@ export default function NewTaskScreen() {
  />
  <PickerModal
  visible={modal === 'stage'}
- title="Select Stages"
+ title={t('pickStage')}
  items={stages.map((m) => ({ id: m.id, label: m.name }))}
  onSelect={(item) => {
  const stage = stages.find((m) => m.id === item.id);
@@ -2428,7 +2430,7 @@ export default function NewTaskScreen() {
         >
           <View style={fp.sheet}>
             <View style={fp.header}>
-              <Text style={fp.title}>Add Field</Text>
+              <Text style={fp.title}>{t('addField')}</Text>
               <TouchableOpacity onPress={() => { setShowFieldPicker(false); setShowCreateField(false); }}>
                 <Text style={fp.close}>✕</Text>
               </TouchableOpacity>
@@ -2442,7 +2444,7 @@ export default function NewTaskScreen() {
  {/* Existing fields */}
  {allFieldDefs.filter((f) => f.is_active && !activeFieldIds.includes(f.id)).length > 0 && (
  <>
- <Text style={fp.sectionLabel}>SAVED FIELDS</Text>
+ <Text style={fp.sectionLabel}>{t('savedFieldsLabel')}</Text>
  {allFieldDefs
  .filter((f) => f.is_active && !activeFieldIds.includes(f.id))
  .map((item) => (
@@ -2461,7 +2463,7 @@ export default function NewTaskScreen() {
  <Text style={fp.optionLabel}>{item.label}</Text>
  <Text style={fp.optionType}>{item.field_type}</Text>
  </View>
- {item.is_required && <Text style={fp.required}>Required</Text>}
+ {item.is_required && <Text style={fp.required}>{t('required')}</Text>}
  <Text style={fp.optionAdd}>+</Text>
  </TouchableOpacity>
  ))}
@@ -2469,7 +2471,7 @@ export default function NewTaskScreen() {
  )}
 
  {/* Create new custom field */}
- <Text style={fp.sectionLabel}>CREATE NEW FIELD</Text>
+ <Text style={fp.sectionLabel}>{t('createField').toUpperCase()}</Text>
  <TouchableOpacity
  style={fp.createToggle}
  onPress={() => setShowCreateField((v) => !v)}
@@ -2478,7 +2480,7 @@ export default function NewTaskScreen() {
  <Text style={fp.optionIconText}>✦</Text>
  </View>
  <Text style={fp.createToggleText}>
- {showCreateField ? '− Cancel' : '+ Create Custom Field'}
+ {showCreateField ? `− ${t('cancel')}` : `+ ${t('createField')}`}
  </Text>
  </TouchableOpacity>
 
@@ -2486,7 +2488,7 @@ export default function NewTaskScreen() {
  <View style={fp.createForm}>
  {/* Label */}
  <View style={fp.createField}>
- <Text style={fp.createLabel}>FIELD NAME *</Text>
+ <Text style={fp.createLabel}>{t('fieldNameLabel').toUpperCase()} *</Text>
  <TextInput
  style={fp.createInput}
  value={newFieldLabel}
@@ -2498,7 +2500,7 @@ export default function NewTaskScreen() {
 
  {/* Type picker */}
  <View style={fp.createField}>
- <Text style={fp.createLabel}>FIELD TYPE *</Text>
+ <Text style={fp.createLabel}>{t('fieldTypeLabel').toUpperCase()} *</Text>
  <TouchableOpacity
  style={fp.typeSelectBtn}
  onPress={() => setShowFieldTypePicker(true)}
@@ -2514,7 +2516,7 @@ export default function NewTaskScreen() {
  {/* Options — only for select/multiselect */}
  {['select', 'multiselect'].includes(newFieldType) && (
  <View style={fp.createField}>
- <Text style={fp.createLabel}>OPTIONS (comma-separated) *</Text>
+ <Text style={fp.createLabel}>{t('optionsSeparated').toUpperCase()} *</Text>
  <TextInput
  style={fp.createInput}
  value={newFieldOptions}
@@ -2528,7 +2530,7 @@ export default function NewTaskScreen() {
  {/* Required toggle */}
  <View style={fp.createField}>
  <View style={fp.createSwitchRow}>
- <Text style={fp.createLabel}>REQUIRED FIELD</Text>
+ <Text style={fp.createLabel}>{t('requiredFieldLabel')}</Text>
  <Switch
  value={newFieldRequired}
  onValueChange={setNewFieldRequired}
@@ -2546,7 +2548,7 @@ export default function NewTaskScreen() {
  {savingNewField ? (
  <ActivityIndicator color={theme.color.white} size="small" />
  ) : (
- <Text style={fp.createSaveBtnText}>Save & Add Field</Text>
+ <Text style={fp.createSaveBtnText}>{t('saveAndAddField')}</Text>
  )}
  </TouchableOpacity>
  </View>
@@ -2569,7 +2571,7 @@ export default function NewTaskScreen() {
         >
           <View style={fp.sheet}>
             <View style={fp.header}>
-              <Text style={fp.title}>Field Type</Text>
+              <Text style={fp.title}>{t('fieldTypeLabel')}</Text>
  <TouchableOpacity onPress={() => setShowFieldTypePicker(false)}>
  <Text style={fp.close}>✕</Text>
  </TouchableOpacity>
@@ -2610,7 +2612,7 @@ export default function NewTaskScreen() {
             {/* Header */}
             <View style={ds.header}>
               <View style={{ flex: 1 }}>
-                <Text style={ds.title}>📋 Required Documents</Text>
+                <Text style={ds.title}>📋 {t('requiredDocs')}</Text>
                 {selectedService && (
                   <Text style={ds.subtitle}>{selectedService.name}</Text>
                 )}
@@ -2629,7 +2631,7 @@ export default function NewTaskScreen() {
                 keyboardShouldPersistTaps="handled"
               >
                 {sheetDocs.length === 0 ? (
-                  <Text style={ds.empty}>No documents listed for this service.</Text>
+                  <Text style={ds.empty}>{t('noDocumentsForService')}</Text>
                 ) : (
                   sheetDocs.map((doc: any, idx: number) => {
                     const reqs = sheetDocReqs[doc.id] ?? [];
@@ -2673,7 +2675,7 @@ export default function NewTaskScreen() {
                     style={ds.addDocBtn}
                     onPress={() => setShowAddDocForm(true)}
                   >
-                    <Text style={ds.addDocBtnText}>＋ Add new document</Text>
+                    <Text style={ds.addDocBtnText}>＋ {t('addDocument')}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={ds.addDocForm}>
@@ -2690,7 +2692,7 @@ export default function NewTaskScreen() {
                         style={ds.addDocCancelBtn}
                         onPress={() => { setShowAddDocForm(false); setNewDocTitle(''); }}
                       >
-                        <Text style={ds.addDocCancelText}>Cancel</Text>
+                        <Text style={ds.addDocCancelText}>{t('cancel')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[ds.addDocSaveBtn, savingNewDoc && { opacity: 0.6 }]}
@@ -2698,7 +2700,7 @@ export default function NewTaskScreen() {
                         onPress={handleAddDocFromSheet}
                       >
                         <Text style={ds.addDocSaveText}>
-                          {savingNewDoc ? 'Saving...' : 'Save'}
+                          {savingNewDoc ? t('pleaseWait') : t('save')}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -2710,7 +2712,7 @@ export default function NewTaskScreen() {
             {/* WhatsApp share */}
             {sheetDocs.length > 0 && (
               <TouchableOpacity style={ds.waBtn} onPress={handleShareDocsWhatsApp}>
-                <Text style={ds.waBtnText}>💬 Share via WhatsApp</Text>
+                <Text style={ds.waBtnText}>{t('whatsappShare')}</Text>
               </TouchableOpacity>
             )}
           </View>

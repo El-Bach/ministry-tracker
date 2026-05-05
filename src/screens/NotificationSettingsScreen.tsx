@@ -252,7 +252,7 @@ export default function NotificationSettingsScreen() {
                           m.role === 'viewer' ? t('roleViewer') : m.role
                         }</Text>
                       </View>
-                      {isMuted && <Text style={s.mutedBadge}>Muted</Text>}
+                      {isMuted && <Text style={s.mutedBadge}>{t('mutedLabel')}</Text>}
                     </View>
                   </View>
                   <View style={[s.checkbox, !isMuted && s.checkboxActive]}>
@@ -272,13 +272,11 @@ export default function NotificationSettingsScreen() {
         >
           {saving
             ? <ActivityIndicator color={theme.color.white} />
-            : <Text style={s.saveBtnText}>Save Preferences</Text>
+            : <Text style={s.saveBtnText}>{t('savePrefsBtn')}</Text>
           }
         </TouchableOpacity>
 
-        <Text style={s.footnote}>
-          Preferences are stored in your account and apply across all devices you sign in to.
-        </Text>
+        <Text style={s.footnote}>{t('notifPrefsFootnote')}</Text>
       </ScrollView>
     </SafeAreaView>
   );

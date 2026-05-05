@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, t as tStatic, TranslationKey } from '../lib/i18n';
 import { MinistryRequirement, DashboardStackParamList } from '../types';
 
 type RouteType = RouteProp<DashboardStackParamList, 'MinistryRequirements'>;
@@ -36,11 +36,17 @@ const REQ_TYPES = [
   { key: 'other',       label: 'Other',       icon: '📌' },
 ];
 
+const REQ_TYPE_KEY_MAP: Record<string, TranslationKey> = {
+  document: 'reqTypeDocument', form: 'reqTypeForm', signature: 'reqTypeSignature',
+  approval: 'reqTypeApproval', payment: 'reqTypePayment', certificate: 'reqTypeCertificate', other: 'reqTypeOther',
+};
+
 function typeIcon(key: string) {
-  return REQ_TYPES.find((t) => t.key === key)?.icon ?? '📌';
+  return REQ_TYPES.find((r) => r.key === key)?.icon ?? '📌';
 }
 function typeLabel(key: string) {
-  return REQ_TYPES.find((t) => t.key === key)?.label ?? key;
+  const tk = REQ_TYPE_KEY_MAP[key];
+  return tk ? tStatic(tk) : key;
 }
 
 export default function MinistryRequirementsScreen() {
@@ -111,9 +117,9 @@ export default function MinistryRequirementsScreen() {
 
   const handleDelete = (req: MinistryRequirement) => {
     Alert.alert(t('delete'), `${t('confirmDelete')} — "${req.title}"`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           await supabase.from('ministry_requirements').delete().eq('id', req.id);
           fetchReqs();
@@ -153,8 +159,8 @@ export default function MinistryRequirementsScreen() {
           {reqs.length === 0 ? (
             <View style={s.empty}>
               <Text style={s.emptyIcon}>📋</Text>
-              <Text style={s.emptyText}>No requirements defined</Text>
-              <Text style={s.emptySub}>Add the documents and actions needed to complete this stage</Text>
+              <Text style={s.emptyText}>{t('noRequirementsDefined')}</Text>
+              <Text style={s.emptySub}>{t('addDocsActionsNeeded')}</Text>
             </View>
           ) : (
             reqs.map((req, index) => (
@@ -189,7 +195,7 @@ export default function MinistryRequirementsScreen() {
 
       {/* FAB */}
       <TouchableOpacity style={s.fab} onPress={openAdd} activeOpacity={0.85}>
-        <Text style={s.fabText}>+ Add Requirement</Text>
+        <Text style={s.fabText}>+ {t('addRequirement')}</Text>
       </TouchableOpacity>
 
       {/* Add / Edit Modal */}
@@ -201,7 +207,7 @@ export default function MinistryRequirementsScreen() {
           >
             <View style={s.modalSheet}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>{editingId ? 'Edit Requirement' : 'New Requirement'}</Text>
+                <Text style={s.modalTitle}>{editingId ? t('edit') + ' ' + t('requirementsSection') : t('addRequirement')}</Text>
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
@@ -244,7 +250,7 @@ export default function MinistryRequirementsScreen() {
                   {saving ? (
                     <ActivityIndicator color={theme.color.white} size="small" />
                   ) : (
-                    <Text style={s.saveBtnText}>{editingId ? 'Save Changes' : 'Add Requirement'}</Text>
+                    <Text style={s.saveBtnText}>{editingId ? t('saveChanges') : t('addRequirement')}</Text>
                   )}
                 </TouchableOpacity>
               </ScrollView>
@@ -257,16 +263,16 @@ export default function MinistryRequirementsScreen() {
       <Modal visible={showTypePicker} transparent animationType="fade" onRequestClose={() => setShowTypePicker(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowTypePicker(false)}>
           <View style={s.pickerSheet}>
-            <Text style={s.pickerTitle}>Requirement Type</Text>
-            {REQ_TYPES.map((t) => (
+            <Text style={s.pickerTitle}>{t('requirementTypeLabel')}</Text>
+            {REQ_TYPES.map((rt) => (
               <TouchableOpacity
-                key={t.key}
-                style={[s.pickerRow, formType === t.key && s.pickerRowActive]}
-                onPress={() => { setFormType(t.key); setShowTypePicker(false); }}
+                key={rt.key}
+                style={[s.pickerRow, formType === rt.key && s.pickerRowActive]}
+                onPress={() => { setFormType(rt.key); setShowTypePicker(false); }}
               >
-                <Text style={s.pickerIcon}>{t.icon}</Text>
-                <Text style={[s.pickerLabel, formType === t.key && s.pickerLabelActive]}>{t.label}</Text>
-                {formType === t.key && <Text style={s.pickerCheck}>✓</Text>}
+                <Text style={s.pickerIcon}>{rt.icon}</Text>
+                <Text style={[s.pickerLabel, formType === rt.key && s.pickerLabelActive]}>{typeLabel(rt.key)}</Text>
+                {formType === rt.key && <Text style={s.pickerCheck}>✓</Text>}
               </TouchableOpacity>
             ))}
           </View>

@@ -36,7 +36,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import { theme } from '../theme';
 import { checkAndNotifyOverdue, sendActivityNotificationToAll, sendPushNotification } from '../lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTranslation, formatNumber } from '../lib/i18n';
+import { useTranslation, formatNumber, t as tStatic } from '../lib/i18n';
 import { useFontSize } from '../contexts/FontSizeContext';
 
 // Estimated TaskCard row height for getItemLayout (card + spacing)
@@ -150,7 +150,7 @@ function SwipeableTaskRow({
             onPress={() => { close(); onFinance(); }}
           >
             <Text style={swipeStyles.financeIcon}>💰</Text>
-            <Text style={swipeStyles.financeBtnText}>Add</Text>
+            <Text style={swipeStyles.financeBtnText}>{t('add')}</Text>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -289,9 +289,9 @@ function isTaskArchived(task: Task): boolean {
 function openPhone(phone: string, name?: string) {
   const clean = phone.replace(/[^0-9+]/g, '');
   Alert.alert(name ?? phone, phone, [
-    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 
@@ -341,10 +341,10 @@ export default function DashboardScreen() {
       const ownerNeedsPhone = teamMember.role === 'owner' && !teamMember.phone;
       if (ownerNeedsPhone) {
         Alert.alert(
-          '📱 Add Your Phone Number',
-          'Please register your phone number so your team and clients can reach you. Tap OK to add it now.',
+          `📱 ${t('phoneLabel')}`,
+          t('phoneHintContact'),
           [{
-            text: 'OK',
+            text: t('ok'),
             onPress: () => navigation.navigate('Account', { highlightPhone: true }),
           }],
           { cancelable: false },
@@ -751,14 +751,14 @@ export default function DashboardScreen() {
       return;
     }
     Alert.alert(t('deleteFile'), `${t('cannotUndo')} — "${label}"`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
       { text: t('deleteFile'), style: 'destructive', onPress: doDelete },
     ]);
   };
 
   const handleArchiveTask = async (task: Task) => {
     Alert.alert(t('archiveFile'), `${t('archive')} — "${task.client?.name ?? t('file')}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
       {
         text: t('archiveFile'), style: 'destructive', onPress: async () => {
           await supabase
@@ -1064,13 +1064,13 @@ export default function DashboardScreen() {
                   style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
                   onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
                 >
-                  <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>All</Text>
+                  <Text style={[styles.chipText, !filters.overdueOnly && styles.chipTextActive]}>{t('all')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.chip, filters.overdueOnly && styles.chipOverdue]}
                   onPress={() => setFilters((f) => ({ ...f, overdueOnly: !f.overdueOnly }))}
                 >
-                  <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
+                  <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ {t('overdue')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -1078,14 +1078,14 @@ export default function DashboardScreen() {
 
           <View style={styles.filterRow}>
             <Text style={styles.filterRowLabel}>
-              SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
+              {t('services').toUpperCase()}{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRowInline}>
               <TouchableOpacity
                 style={[styles.chip, filters.serviceIds.length === 0 && styles.chipActive]}
                 onPress={() => setFilters((f) => ({ ...f, serviceIds: [] }))}
               >
-                <Text style={[styles.chipText, filters.serviceIds.length === 0 && styles.chipTextActive]}>All</Text>
+                <Text style={[styles.chipText, filters.serviceIds.length === 0 && styles.chipTextActive]}>{t('all')}</Text>
               </TouchableOpacity>
               {availableServices.map((sv) => {
                 const selected = filters.serviceIds.includes(sv.id);
@@ -1119,7 +1119,7 @@ export default function DashboardScreen() {
                   style={[styles.chip, filters.cityIds.length === 0 && styles.chipActive]}
                   onPress={() => setFilters((f) => ({ ...f, cityIds: [] }))}
                 >
-                  <Text style={[styles.chipText, filters.cityIds.length === 0 && styles.chipTextActive]}>All</Text>
+                  <Text style={[styles.chipText, filters.cityIds.length === 0 && styles.chipTextActive]}>{t('all')}</Text>
                 </TouchableOpacity>
                 {availableCities.map((c) => {
                   const selected = filters.cityIds.includes(c.id);
@@ -1342,8 +1342,8 @@ export default function DashboardScreen() {
                 >
                   <Text style={styles.qfStageTriggerText}>
                     {quickTxStopId
-                      ? `📌 ${quickFinanceTask.route_stops!.find(rs => rs.id === quickTxStopId)?.ministry?.name ?? 'Stage'}`
-                      : '📌 Link to stage (optional)'}
+                      ? `📌 ${quickFinanceTask.route_stops!.find(rs => rs.id === quickTxStopId)?.ministry?.name ?? t('stage')}`
+                      : `📌 ${t('linkToStage')} (${t('optional')})`}
                   </Text>
                   {quickTxStopId && (
                     <TouchableOpacity onPress={() => { setQuickTxStopId(null); setShowQuickStagePicker(false); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>

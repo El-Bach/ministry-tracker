@@ -143,6 +143,7 @@ function ModalForm({
  onClose,
  saving,
 }: ModalFormProps) {
+ const { t: tMF } = useTranslation();
  return (
  <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
  <View style={mf.overlay}>
@@ -210,7 +211,7 @@ function ModalForm({
  {saving ? (
  <ActivityIndicator color={theme.color.white} />
  ) : (
- <Text style={mf.submitText}>Save</Text>
+ <Text style={mf.submitText}>{tMF('save')}</Text>
  )}
  </TouchableOpacity>
  </ScrollView>
@@ -471,11 +472,11 @@ export default function SettingsScreen() {
  // ─── Delete helpers ───────────────────────────────────────
  const confirmDelete = (label: string, onConfirm: () => void) => {
  Alert.alert(
- 'Delete',
- `Delete "${label}"? This cannot be undone.`,
+ t('delete'),
+ `${t('confirmDelete')} "${label}"? ${t('cannotUndo')}`,
  [
- { text: 'Cancel', style: 'cancel' },
- { text: 'Delete', style: 'destructive', onPress: onConfirm },
+ { text: t('cancel'), style: 'cancel' },
+ { text: t('delete'), style: 'destructive', onPress: onConfirm },
  ]
  );
  };
@@ -513,16 +514,16 @@ export default function SettingsScreen() {
    setInviteRole('member');
    fetchData();
    Alert.alert(
-     '✉️ Invite Sent',
-     `Invitation created for ${trimEmail}.\n\nAsk them to download the app and register with this email — they will automatically join your organization.`,
-     [{ text: 'OK' }]
+     t('inviteSent'),
+     `${t('autoJoinOrgDesc')} (${trimEmail})`,
+     [{ text: t('ok') }]
    );
  };
 
  const revokeInvite = async (inviteId: string, email: string) => {
    Alert.alert(t('removeMember'), `${t('confirmDelete')} — ${email}`, [
-     { text: 'Cancel', style: 'cancel' },
-     { text: 'Revoke', style: 'destructive', onPress: async () => {
+     { text: t('cancel'), style: 'cancel' },
+     { text: t('revoke'), style: 'destructive', onPress: async () => {
        await supabase.from('invitations').delete().eq('id', inviteId);
        fetchData();
      }},
@@ -754,9 +755,9 @@ export default function SettingsScreen() {
  style={ss.signOutBtn}
  onPress={() => {
    if (Platform.OS === 'web') {
-     if ((window as any).confirm('Are you sure you want to sign out?')) signOut();
+     if ((window as any).confirm(t('areYouSure'))) signOut();
    } else {
-     Alert.alert(t('signOut'), 'Are you sure?', [
+     Alert.alert(t('signOut'), t('areYouSure'), [
        { text: t('cancel'), style: 'cancel' },
        { text: t('signOut'), style: 'destructive', onPress: signOut },
      ]);
@@ -865,10 +866,10 @@ export default function SettingsScreen() {
    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
      <View style={ss.inviteOverlay}>
        <View style={ss.inviteSheet}>
-         <Text style={ss.inviteTitle}>Edit {editMemberModal?.name}</Text>
-         <Text style={ss.inviteDesc}>Change this team member's role.</Text>
+         <Text style={ss.inviteTitle}>{t('edit')} {editMemberModal?.name}</Text>
+         <Text style={ss.inviteDesc}>{t('changeRoleDesc')}</Text>
          <View style={ss.field}>
-           <Text style={ss.fieldLabel}>ROLE</Text>
+           <Text style={ss.fieldLabel}>{t('roleLabel').toUpperCase()}</Text>
            <View style={ss.roleRow}>
              {(['admin', 'member', 'viewer'] as const).map((r) => (
                <TouchableOpacity
@@ -877,15 +878,15 @@ export default function SettingsScreen() {
                  onPress={() => setEditMemberRole(r)}
                >
                  <Text style={[ss.roleChipText, editMemberRole === r && ss.roleChipTextActive]}>
-                   {r === 'admin' ? '🔑 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+                   {r === 'admin' ? t('roleAdminBadge') : r === 'member' ? t('roleMemberBadge') : t('roleViewerBadge')}
                  </Text>
                </TouchableOpacity>
              ))}
            </View>
            <Text style={ss.roleDesc}>
-             {editMemberRole === 'admin'  ? 'Can manage settings, invite members, view all data' :
-              editMemberRole === 'member' ? 'Can create and edit files, add stages and documents' :
-              'Read-only access — cannot create or edit any records'}
+             {editMemberRole === 'admin'  ? t('adminRoleDesc') :
+              editMemberRole === 'member' ? t('memberRoleDesc') :
+              t('viewerRoleDesc')}
            </Text>
          </View>
          <TouchableOpacity style={ss.inviteBtn} onPress={handleSaveMemberRole}>
@@ -904,8 +905,8 @@ export default function SettingsScreen() {
    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
      <View style={ss.inviteOverlay}>
        <View style={ss.inviteSheet}>
-         <Text style={ss.inviteTitle}>✉️ Invite Team Member</Text>
-         <Text style={ss.inviteDesc}>They will automatically join your organization when they register.</Text>
+         <Text style={ss.inviteTitle}>{t('inviteTeamMemberTitle')}</Text>
+         <Text style={ss.inviteDesc}>{t('autoJoinOrgDesc')}</Text>
 
          {/* Email / Phone tabs */}
          <View style={ss.roleRow}>
@@ -913,20 +914,20 @@ export default function SettingsScreen() {
              style={[ss.roleChip, inviteInputType === 'email' && ss.roleChipActive]}
              onPress={() => setInviteInputType('email')}
            >
-             <Text style={[ss.roleChipText, inviteInputType === 'email' && ss.roleChipTextActive]}>✉️ Email</Text>
+             <Text style={[ss.roleChipText, inviteInputType === 'email' && ss.roleChipTextActive]}>✉️ {t('email')}</Text>
            </TouchableOpacity>
            <TouchableOpacity
              style={[ss.roleChip, inviteInputType === 'phone' && ss.roleChipActive]}
              onPress={() => setInviteInputType('phone')}
            >
-             <Text style={[ss.roleChipText, inviteInputType === 'phone' && ss.roleChipTextActive]}>📱 Phone</Text>
+             <Text style={[ss.roleChipText, inviteInputType === 'phone' && ss.roleChipTextActive]}>📱 {t('phone')}</Text>
            </TouchableOpacity>
          </View>
 
          <View style={ss.field}>
            {inviteInputType === 'email' ? (
              <>
-               <Text style={ss.fieldLabel}>EMAIL ADDRESS</Text>
+               <Text style={ss.fieldLabel}>{t('emailLabel').toUpperCase()}</Text>
                <TextInput
                  style={ss.fieldInput}
                  value={inviteEmail}
@@ -940,7 +941,7 @@ export default function SettingsScreen() {
              </>
            ) : (
              <>
-               <Text style={ss.fieldLabel}>PHONE NUMBER</Text>
+               <Text style={ss.fieldLabel}>{t('phoneLabel').toUpperCase()}</Text>
                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                  <TouchableOpacity
                    style={[ss.fieldInput, { flex: 0, minWidth: 100, flexDirection: 'row', alignItems: 'center', gap: 4 }]}
@@ -963,7 +964,7 @@ export default function SettingsScreen() {
          </View>
 
          <View style={ss.field}>
-           <Text style={ss.fieldLabel}>ROLE</Text>
+           <Text style={ss.fieldLabel}>{t('roleLabel').toUpperCase()}</Text>
            <View style={ss.roleRow}>
              {(['admin', 'member', 'viewer'] as const).map((r) => (
                <TouchableOpacity
@@ -972,15 +973,15 @@ export default function SettingsScreen() {
                  onPress={() => setInviteRole(r)}
                >
                  <Text style={[ss.roleChipText, inviteRole === r && ss.roleChipTextActive]}>
-                   {r === 'admin' ? '🔑 Admin' : r === 'member' ? '👤 Member' : '👁 Viewer'}
+                   {r === 'admin' ? t('roleAdminBadge') : r === 'member' ? t('roleMemberBadge') : t('roleViewerBadge')}
                  </Text>
                </TouchableOpacity>
              ))}
            </View>
            <Text style={ss.roleDesc}>
-             {inviteRole === 'admin'  ? 'Can manage settings, invite members, view all data' :
-              inviteRole === 'member' ? 'Can create and edit files, add stages and documents' :
-              'Read-only access — cannot create or edit any records'}
+             {inviteRole === 'admin'  ? t('adminRoleDesc') :
+              inviteRole === 'member' ? t('memberRoleDesc') :
+              t('viewerRoleDesc')}
            </Text>
          </View>
 
@@ -991,7 +992,7 @@ export default function SettingsScreen() {
          >
            {inviting
              ? <ActivityIndicator color={theme.color.white} />
-             : <Text style={ss.inviteBtnText}>Send Invite</Text>
+             : <Text style={ss.inviteBtnText}>{t('sendInviteBtn')}</Text>
            }
          </TouchableOpacity>
          <TouchableOpacity style={ss.inviteCancelBtn} onPress={() => setShowInviteModal(false)}>
@@ -1190,7 +1191,7 @@ export default function SettingsScreen() {
      <TouchableOpacity style={ss.pickerOverlay} activeOpacity={1} onPress={() => setShowRateModal(false)}>
        <TouchableOpacity activeOpacity={1} style={ss.rateModalSheet}>
          <Text style={ss.rateModalTitle}>💱 Exchange Rate</Text>
-         <Text style={ss.rateModalSub}>Set today's USD → LBP rate. Used for C/V calculations throughout the app.</Text>
+         <Text style={ss.rateModalSub}>{t('rateModalDesc')}</Text>
          <View style={ss.rateInputRow}>
            <Text style={ss.rateLabel}>1 USD =</Text>
            <TextInput
@@ -1211,7 +1212,7 @@ export default function SettingsScreen() {
          >
            {savingRate
              ? <ActivityIndicator color={theme.color.white} />
-             : <Text style={ss.inviteBtnText}>Save Rate</Text>
+             : <Text style={ss.inviteBtnText}>{t('saveRateBtn')}</Text>
            }
          </TouchableOpacity>
        </TouchableOpacity>

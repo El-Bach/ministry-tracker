@@ -351,7 +351,7 @@ export default function AccountScreen() {
 
         {/* Organization card */}
         <View style={[s.card, { borderColor: planInfo.color + '55' }]}>
-          <Text style={s.cardTitle}>🏢 My Company</Text>
+          <Text style={s.cardTitle}>{t('myCompanyTitle')}</Text>
 
           {/* Tap-to-edit company name */}
           {isOwner ? (
@@ -373,7 +373,7 @@ export default function AccountScreen() {
                 >
                   {savingOrg
                     ? <ActivityIndicator color={theme.color.white} size="small" />
-                    : <Text style={s.orgSaveBtnText}>Save</Text>}
+                    : <Text style={s.orgSaveBtnText}>{t('save')}</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.orgCancelBtn}
@@ -402,7 +402,7 @@ export default function AccountScreen() {
               <Text style={[s.planBadgeText, { color: planInfo.color }]}>{planInfo.label}</Text>
             </View>
             <Text style={[s.viewPlansLink, { color: planInfo.color }]}>
-              {currentPlanKey === 'free' ? '🚀 View Plans ›' : '⚙ Manage Plan ›'}
+              {currentPlanKey === 'free' ? t('viewPlansBtn') : t('managePlanBtn')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -411,12 +411,12 @@ export default function AccountScreen() {
         {teamMember?.role !== 'owner' && (
           <View style={s.card}>
             <View>
-              <Text style={s.cardTitle}>🏢 Join a Company</Text>
-              <Text style={s.joinDesc}>Enter the code your admin shared with you to join their company.</Text>
+              <Text style={s.cardTitle}>{t('joinCompanyTitle')}</Text>
+              <Text style={s.joinDesc}>{t('joinOrgDesc')}</Text>
             </View>
             {organization?.name ? (
               <View style={s.currentOrgRow}>
-                <Text style={s.currentOrgLabel}>Current company:</Text>
+                <Text style={s.currentOrgLabel}>{t('currentCompanyLabel')}</Text>
                 <Text style={s.currentOrgName}>{organization.name}</Text>
               </View>
             ) : null}
@@ -438,7 +438,7 @@ export default function AccountScreen() {
               >
                 {joiningCompany
                   ? <ActivityIndicator color={theme.color.white} size="small" />
-                  : <Text style={s.joinBtnText}>Join</Text>}
+                  : <Text style={s.joinBtnText}>{t('joinBtn')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -446,7 +446,7 @@ export default function AccountScreen() {
 
         {/* Edit profile */}
         <View style={s.card}>
-          <Text style={s.cardTitle}>👤 Edit Profile</Text>
+          <Text style={s.cardTitle}>{t('editProfileCardTitle')}</Text>
           <View style={s.field}>
             <Text style={s.label}>{t('fullName').toUpperCase()}</Text>
             <TextInput
@@ -460,7 +460,7 @@ export default function AccountScreen() {
           </View>
           <View style={s.field}>
             <Text style={[s.label, highlightPhone && { color: '#dc2626' }]}>
-              PHONE NUMBER {highlightPhone ? '←  Add it here' : ''}
+              {t('phoneLabel').toUpperCase()} {highlightPhone ? '← ' + t('tapToSet') : ''}
             </Text>
             <TextInput
               style={[s.input, highlightPhone && { backgroundColor: '#fee2e2', borderColor: '#dc2626' }]}
@@ -472,9 +472,7 @@ export default function AccountScreen() {
               autoFocus={highlightPhone}
             />
             <Text style={s.fieldHint}>
-              {identifierIsPhone
-                ? '📱 This is your registered login number'
-                : '📱 Your contact number as registered in the system'}
+              {identifierIsPhone ? t('phoneHintLogin') : t('phoneHintContact')}
             </Text>
           </View>
           <TouchableOpacity
@@ -484,15 +482,15 @@ export default function AccountScreen() {
           >
             {savingProfile
               ? <ActivityIndicator color={theme.color.white} size="small" />
-              : <Text style={s.saveBtnText}>Save Profile</Text>}
+              : <Text style={s.saveBtnText}>{t('saveProfileBtn')}</Text>}
           </TouchableOpacity>
         </View>
 
         {/* Security */}
         <View style={s.card}>
-          <Text style={s.cardTitle}>🔒 Security</Text>
+          <Text style={s.cardTitle}>{t('securityCardTitle')}</Text>
           <TouchableOpacity style={s.actionRow} onPress={() => setShowPwdModal(true)}>
-            <Text style={s.actionRowText}>Change Password</Text>
+            <Text style={s.actionRowText}>{t('changePassword')}</Text>
             <Text style={s.actionRowChevron}>›</Text>
           </TouchableOpacity>
           <View style={s.divider} />
@@ -503,7 +501,7 @@ export default function AccountScreen() {
           >
             {deletingAccount
               ? <ActivityIndicator color={theme.color.danger} size="small" />
-              : <Text style={[s.actionRowText, { color: theme.color.danger }]}>Delete Account</Text>}
+              : <Text style={[s.actionRowText, { color: theme.color.danger }]}>{t('deleteAccount')}</Text>}
           </TouchableOpacity>
         </View>
 
@@ -512,22 +510,22 @@ export default function AccountScreen() {
           style={s.signOutBtn}
           onPress={() =>
             Alert.alert(t('signOut'), t('areYouSure'), [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign Out', style: 'destructive', onPress: signOut },
+              { text: t('cancel'), style: 'cancel' },
+              { text: t('signOut'), style: 'destructive', onPress: signOut },
             ])
           }
         >
-          <Text style={s.signOutText}>Sign Out</Text>
+          <Text style={s.signOutText}>{t('signOut')}</Text>
         </TouchableOpacity>
 
         {/* Legal links */}
         <View style={s.legalRow}>
           <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
-            <Text style={s.legalLink}>Privacy Policy</Text>
+            <Text style={s.legalLink}>{t('privacyPolicy')}</Text>
           </TouchableOpacity>
           <Text style={s.legalDot}>·</Text>
           <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
-            <Text style={s.legalLink}>Terms of Service</Text>
+            <Text style={s.legalLink}>{t('termsOfService')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -539,7 +537,7 @@ export default function AccountScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={s.modalOverlay}>
             <View style={s.modalSheet}>
-              <Text style={s.modalTitle}>Change Password</Text>
+              <Text style={s.modalTitle}>{t('changePassword')}</Text>
               <View style={s.field}>
                 <Text style={s.label}>{t('password').toUpperCase()}</Text>
                 <TextInput style={s.input} value={currentPwd} onChangeText={setCurrentPwd} secureTextEntry placeholder={t('password')} placeholderTextColor={theme.color.textMuted} />
@@ -553,10 +551,10 @@ export default function AccountScreen() {
                 <TextInput style={s.input} value={confirmPwd} onChangeText={setConfirmPwd} secureTextEntry placeholder={t('confirmPassword')} placeholderTextColor={theme.color.textMuted} />
               </View>
               <TouchableOpacity style={[s.saveBtn, changingPwd && s.btnDisabled]} onPress={changePassword} disabled={changingPwd}>
-                {changingPwd ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.saveBtnText}>Update Password</Text>}
+                {changingPwd ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.saveBtnText}>{t('updatePasswordBtn')}</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={s.cancelBtn} onPress={() => setShowPwdModal(false)}>
-                <Text style={s.cancelText}>Cancel</Text>
+                <Text style={s.cancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -570,8 +568,8 @@ export default function AccountScreen() {
             {/* Header */}
             <View style={s.plansHeader}>
               <View>
-                <Text style={s.plansTitle}>Choose Your Plan</Text>
-                <Text style={s.plansSubtitle}>Scale as your team grows</Text>
+                <Text style={s.plansTitle}>{t('planChoosePlan')}</Text>
+                <Text style={s.plansSubtitle}>{t('planStarterTagline')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowPlansModal(false)} style={s.plansClose}>
                 <Text style={s.plansCloseText}>✕</Text>
@@ -584,14 +582,14 @@ export default function AccountScreen() {
                 style={[s.billingBtn, !billingAnnual && s.billingBtnActive]}
                 onPress={() => setBillingAnnual(false)}
               >
-                <Text style={[s.billingBtnText, !billingAnnual && s.billingBtnTextActive]}>Monthly</Text>
+                <Text style={[s.billingBtnText, !billingAnnual && s.billingBtnTextActive]}>{t('planMonthly')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[s.billingBtn, billingAnnual && s.billingBtnActive]}
                 onPress={() => setBillingAnnual(true)}
               >
-                <Text style={[s.billingBtnText, billingAnnual && s.billingBtnTextActive]}>Annual</Text>
-                <View style={s.savingBadge}><Text style={s.savingBadgeText}>Save 33%</Text></View>
+                <Text style={[s.billingBtnText, billingAnnual && s.billingBtnTextActive]}>{t('planYearly')}</Text>
+                <View style={s.savingBadge}><Text style={s.savingBadgeText}>{t('save33Label')}</Text></View>
               </TouchableOpacity>
             </View>
 
@@ -601,13 +599,13 @@ export default function AccountScreen() {
             ) : usage ? (() => {
               const limits  = PLAN_LIMITS[currentPlanKey] ?? { members: null, files: null };
               const items = [
-                { label: 'Team Members', current: usage.members, limit: limits.members },
-                { label: 'Active Files',  current: usage.files,   limit: limits.files   },
+                { label: t('teamMembersUsage'), current: usage.members, limit: limits.members },
+                { label: t('activeFilesUsage'),  current: usage.files,   limit: limits.files   },
               ];
               const anyOver = items.some(({ current, limit }) => limit !== null && current > limit);
               return (
                 <View style={s.usageCard}>
-                  <Text style={s.usageCardTitle}>YOUR CURRENT USAGE</Text>
+                  <Text style={s.usageCardTitle}>{t('currentUsageTitle')}</Text>
                   {items.map(({ label, current, limit }) => {
                     const over = limit !== null && current > limit;
                     const pct  = limit != null ? Math.min(current / limit, 1) : 0;
@@ -628,15 +626,13 @@ export default function AccountScreen() {
                           ]} />
                         </View>
                         {over && (
-                          <Text style={s.usageOverHint}>⚠️ Over plan limit — upgrade to add more</Text>
+                          <Text style={s.usageOverHint}>{t('overPlanLimitHint')}</Text>
                         )}
                       </View>
                     );
                   })}
                   {anyOver && (
-                    <Text style={s.usageOverBanner}>
-                      You are using more than your current plan allows. Please upgrade to keep using all features.
-                    </Text>
+                    <Text style={s.usageOverBanner}>{t('overPlanBannerMsg')}</Text>
                   )}
                 </View>
               );
@@ -647,7 +643,7 @@ export default function AccountScreen() {
               {PLANS.map((plan) => {
                 const isCurrent = currentPlanKey === plan.key;
                 const price = billingAnnual ? plan.annualPrice : plan.monthlyPrice;
-                const billingLabel = billingAnnual ? '/mo · billed annually' : '/month';
+                const billingLabel = billingAnnual ? t('billedAnnuallyLabel') : t('perMonthLabel');
                 return (
                   <View
                     key={plan.key}
@@ -662,7 +658,7 @@ export default function AccountScreen() {
                     {(isCurrent || ('badge' in plan && plan.badge && !isCurrent)) && (
                       <View style={s.badgeRow}>
                         <View style={[s.popularBadge, { backgroundColor: isCurrent ? plan.color + 'CC' : plan.color }]}>
-                          <Text style={s.popularBadgeText}>{isCurrent ? 'CURRENT PLAN' : (plan as any).badge}</Text>
+                          <Text style={s.popularBadgeText}>{isCurrent ? t('currentPlanBadge') : (plan as any).badge}</Text>
                         </View>
                       </View>
                     )}
@@ -676,7 +672,7 @@ export default function AccountScreen() {
                       </View>
                       <View style={s.priceBlock}>
                         {price === 0 ? (
-                          <Text style={[s.priceFree, { color: plan.color }]}>Free</Text>
+                          <Text style={[s.priceFree, { color: plan.color }]}>{t('freeLabel')}</Text>
                         ) : (
                           <>
                             <Text style={[s.priceAmount, { color: plan.color }]}>${price}</Text>
@@ -721,7 +717,7 @@ export default function AccountScreen() {
                       activeOpacity={isCurrent ? 1 : 0.8}
                     >
                       <Text style={[s.planCtaText, isCurrent && s.planCtaTextCurrent]}>
-                        {isCurrent ? 'Current Plan' : plan.key === 'free' ? 'Downgrade' : 'Upgrade Now'}
+                        {isCurrent ? t('ctaCurrentPlan') : plan.key === 'free' ? t('ctaDowngrade') : t('ctaUpgradeNow')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -729,15 +725,13 @@ export default function AccountScreen() {
               })}
 
               <Text style={s.planFootnote}>
-                All plans include a 7-day free trial. No credit card required to upgrade.{'\n'}
-                Contact us by email at{' '}
+                {t('planFootnoteText')}{'\n'}
                 <Text
                   style={{ color: theme.color.primary, fontWeight: '700' }}
                   onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Activate GovPilot Plan`)}
                 >
                   {SUPPORT_EMAIL}
                 </Text>
-                {' '}to activate your plan very soon.
               </Text>
             </ScrollView>
           </View>

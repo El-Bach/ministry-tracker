@@ -404,7 +404,7 @@ export default function ClientProfileScreen() {
           {/* Custom field values */}
           {visibleFields.length > 0 && (
             <View style={s.fieldsBlock}>
-              <Text style={s.sectionLabel}>CLIENT DETAILS</Text>
+              <Text style={s.sectionLabel}>{t('clientDetailsLabel')}</Text>
               <View style={s.fieldsGrid}>
                 {visibleFields.map((fv) => (
                   <View key={fv.id} style={s.fieldCell}>
@@ -420,7 +420,7 @@ export default function ClientProfileScreen() {
         {/* ── NEW FILE ── */}
         {permissions.can_create_files && (
           <TouchableOpacity style={s.newFileBtn} onPress={goNewFile} activeOpacity={0.8}>
-            <Text style={s.newFileBtnText}>+ New File for {client.name}</Text>
+            <Text style={s.newFileBtnText}>+ {t('newTask')} — {client.name}</Text>
           </TouchableOpacity>
         )}
 
@@ -429,24 +429,24 @@ export default function ClientProfileScreen() {
           {/* Total — full width on top */}
           <View style={[s.statBox, s.statBoxTotal]}>
             <Text style={[s.statNumber, s.statNumberTotal]}>{tasks.length}</Text>
-            <Text style={[s.statLabel, s.statLabelTotal]}>TOTAL FILES</Text>
+            <Text style={[s.statLabel, s.statLabelTotal]}>{t('totalFilesLabel')}</Text>
           </View>
           {/* Active / Completed / Rejected — equal thirds below */}
           <View style={s.statsRow}>
             <View style={s.statBox}>
               <Text style={[s.statNumber, { color: theme.color.primary }]}>{activeCount}</Text>
-              <Text style={s.statLabel}>Active</Text>
+              <Text style={s.statLabel}>{t('active')}</Text>
             </View>
             <View style={s.statBox}>
               <Text style={[s.statNumber, { color: theme.color.success }]}>{completedCount}</Text>
-              <Text style={s.statLabel}>Completed</Text>
+              <Text style={s.statLabel}>{t('completedStat')}</Text>
             </View>
             <View style={[s.statBox, { borderColor: rejectedCount > 0 ? theme.color.danger + '55' : theme.color.border }]}>
               <Text style={[s.statNumber, { color: rejectedCount > 0 ? theme.color.danger : theme.color.textMuted }]}>
                 {rejectedCount}
               </Text>
               <Text style={[s.statLabel, { color: rejectedCount > 0 ? theme.color.danger : theme.color.textMuted }]}>
-                Rejected
+                {t('statusRejected')}
               </Text>
             </View>
           </View>
@@ -454,9 +454,9 @@ export default function ClientProfileScreen() {
 
         {/* ── TASK HISTORY ── */}
         <View style={s.card}>
-          <Text style={s.sectionLabel}>FILE HISTORY</Text>
+          <Text style={s.sectionLabel}>{t('fileHistoryLabel')}</Text>
           {tasks.length === 0 ? (
-            <Text style={s.emptyText}>No files for this client</Text>
+            <Text style={s.emptyText}>{t('noFilesForClient')}</Text>
           ) : (
             tasks.map((task, idx) => {
               const totalStops = task.route_stops?.length ?? 0;
@@ -494,8 +494,8 @@ export default function ClientProfileScreen() {
                       <StatusBadge label={derivedStatus} color={statusColor} />
                     </View>
                     <View style={s.taskRowMeta}>
-                      <Text style={s.taskMetaText}>Opened {formatDate(task.created_at)}</Text>
-                      {task.due_date ? <Text style={s.taskMetaText}>Due {task.due_date}</Text> : null}
+                      <Text style={s.taskMetaText}>{t('openedLabel')} {formatDate(task.created_at)}</Text>
+                      {task.due_date ? <Text style={s.taskMetaText}>{t('dueLabel')} {task.due_date}</Text> : null}
                       {task.assignee ? <Text style={s.taskMetaText}>→ {task.assignee.name}</Text> : null}
                     </View>
                     {totalStops > 0 && (
@@ -503,7 +503,7 @@ export default function ClientProfileScreen() {
                         <View style={s.progressBar}>
                           <View style={[s.progressFill, { width: `${(doneStops / totalStops) * 100}%` as any, backgroundColor: derivedStatus === 'Done' ? theme.color.success : statusColor }]} />
                         </View>
-                        <Text style={s.progressText}>{doneStops}/{totalStops} stages</Text>
+                        <Text style={s.progressText}>{doneStops}/{totalStops} {t('stagesProgress')}</Text>
                       </View>
                     )}
                   </TouchableOpacity>

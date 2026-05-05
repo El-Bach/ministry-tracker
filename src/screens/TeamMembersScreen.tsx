@@ -638,7 +638,7 @@ export default function TeamMembersScreen() {
             {/* Revoked codes (grey) */}
             {filteredRevokedCodes.length > 0 && (
               <>
-                <Text style={s.revokedLabel}>REVOKED CODES</Text>
+                <Text style={s.revokedLabel}>{t('revokedCodesLabel')}</Text>
                 {filteredRevokedCodes.map((jc) => {
                   const meta = ROLE_META[jc.role as InviteRole] ?? ROLE_META.member;
                   return (
@@ -871,22 +871,22 @@ export default function TeamMembersScreen() {
                       onPress={() => handleSendEmail(generatedCode, modalRole)}
                       activeOpacity={0.8}
                     >
-                      <Text style={[s.shareFullBtnText, { color: theme.color.primary }]}>📧 Send Email to {inviteeEmail.trim()}</Text>
+                      <Text style={[s.shareFullBtnText, { color: theme.color.primary }]}>📧 {t('email')} → {inviteeEmail.trim()}</Text>
                     </TouchableOpacity>
                   ) : null}
                   <TouchableOpacity style={s.doneBtn} onPress={closeModal}>
-                    <Text style={s.doneBtnText}>Done</Text>
+                    <Text style={s.doneBtnText}>{t('done')}</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 /* ── Step 1: configure code ── */
                 <>
-                  <Text style={s.modalTitle}>New Invite Code</Text>
-                  <Text style={s.modalSub}>Fill in who this code is for and choose their role.</Text>
+                  <Text style={s.modalTitle}>{t('newInviteCodeTitle')}</Text>
+                  <Text style={s.modalSub}>{t('fillWhoCode')}</Text>
 
                   {/* Invitee name */}
                   <View style={s.formField}>
-                    <Text style={s.formLabel}>EMPLOYEE NAME</Text>
+                    <Text style={s.formLabel}>{t('name').toUpperCase()}</Text>
                     <TextInput
                       style={s.formInput}
                       value={inviteeName}
@@ -899,7 +899,7 @@ export default function TeamMembersScreen() {
 
                   {/* Invitee phone */}
                   <View style={s.formField}>
-                    <Text style={s.formLabel}>EMPLOYEE PHONE NUMBER</Text>
+                    <Text style={s.formLabel}>{t('phoneLabel').toUpperCase()}</Text>
                     <PhoneInput
                       value={inviteePhone}
                       onChangeText={setInviteePhone}
@@ -907,12 +907,12 @@ export default function TeamMembersScreen() {
                       onCountryChange={c => setInviteeCountry(c.code)}
                       placeholder="70 123 456"
                     />
-                    <Text style={s.formHint}>The invitee can only register with this phone number.</Text>
+                    <Text style={s.formHint}>{t('phoneLockedDesc')}</Text>
                   </View>
 
                   {/* Invitee email */}
                   <View style={s.formField}>
-                    <Text style={s.formLabel}>EMPLOYEE EMAIL (OPTIONAL)</Text>
+                    <Text style={s.formLabel}>{t('email').toUpperCase()}</Text>
                     <TextInput
                       style={s.formInput}
                       value={inviteeEmail}
@@ -923,12 +923,12 @@ export default function TeamMembersScreen() {
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
-                    <Text style={s.formHint}>Send the invite code directly to their inbox.</Text>
+                    <Text style={s.formHint}>{t('sendToInboxDesc')}</Text>
                   </View>
 
                   {/* Role picker */}
                   <View style={s.formField}>
-                    <Text style={s.formLabel}>ROLE</Text>
+                    <Text style={s.formLabel}>{t('roleLabel').toUpperCase()}</Text>
                     {(['admin', 'member', 'viewer'] as InviteRole[]).map((r) => {
                       const meta   = ROLE_META[r];
                       const active = modalRole === r;
@@ -961,10 +961,10 @@ export default function TeamMembersScreen() {
                   >
                     {generating
                       ? <ActivityIndicator color={theme.color.white} />
-                      : <Text style={s.generateBtnText}>Generate Code</Text>}
+                      : <Text style={s.generateBtnText}>{t('generateCodeBtn')}</Text>}
                   </TouchableOpacity>
                   <TouchableOpacity style={s.doneBtn} onPress={closeModal}>
-                    <Text style={s.doneBtnText}>Cancel</Text>
+                    <Text style={s.doneBtnText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -985,10 +985,10 @@ export default function TeamMembersScreen() {
             extraScrollHeight={40}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={s.editSheetTitle}>✎ Edit Member Info</Text>
+            <Text style={s.editSheetTitle}>✎ {t('editMemberTitle')}</Text>
 
             {/* ── Core fields ── */}
-            <Text style={s.editLabel}>Name</Text>
+            <Text style={s.editLabel}>{t('name')}</Text>
             <TextInput
               style={s.editInput}
               value={editName}
@@ -999,7 +999,7 @@ export default function TeamMembersScreen() {
               autoCorrect={false}
             />
 
-            <Text style={s.editLabel}>Phone</Text>
+            <Text style={s.editLabel}>{t('phone')}</Text>
             <TextInput
               style={s.editInput}
               value={editPhone}
@@ -1012,7 +1012,7 @@ export default function TeamMembersScreen() {
 
             {editModal?.type === 'code' && (
               <>
-                <Text style={s.editLabel}>Email</Text>
+                <Text style={s.editLabel}>{t('email')}</Text>
                 <TextInput
                   style={s.editInput}
                   value={editEmail}
@@ -1033,7 +1033,7 @@ export default function TeamMembersScreen() {
               ) : fieldDefs.length > 0 ? (
                 <>
                   <View style={s.editFieldsDivider}>
-                    <Text style={s.editFieldsDividerText}>ADDITIONAL INFO</Text>
+                    <Text style={s.editFieldsDividerText}>{t('clientInfo').toUpperCase()}</Text>
                   </View>
                   {fieldDefs.map((def) => {
                     const val = fieldValues[def.id];
@@ -1049,7 +1049,7 @@ export default function TeamMembersScreen() {
                         {isBoolean ? (
                           <View style={s.editBoolRow}>
                             <Text style={{ color: theme.color.textSecondary, fontSize: 14 }}>
-                              {val ? 'Yes' : 'No'}
+                              {val ? t('yes') : t('no')}
                             </Text>
                             <Switch
                               value={!!val}
@@ -1098,11 +1098,11 @@ export default function TeamMembersScreen() {
               disabled={editSaving}
               activeOpacity={0.8}
             >
-              <Text style={s.editSaveBtnText}>{editSaving ? 'Saving…' : 'Save'}</Text>
+              <Text style={s.editSaveBtnText}>{editSaving ? t('pleaseWait') : t('save')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={s.editCancelBtn} onPress={() => setEditModal(null)}>
-              <Text style={s.editCancelBtnText}>Cancel</Text>
+              <Text style={s.editCancelBtnText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </KeyboardAwareScrollView>
         </View>

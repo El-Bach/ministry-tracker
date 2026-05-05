@@ -205,8 +205,8 @@ export default function TeamMemberFieldsScreen() {
     <ScrollView contentContainerStyle={s.list}>
      {fields.length === 0 && (
       <View style={s.empty}>
-       <Text style={s.emptyText}>No custom fields yet</Text>
-       <Text style={s.emptySubtext}>Tap "+ Add Field" to create your first field</Text>
+       <Text style={s.emptyText}>{t('noCustomFieldsYet')}</Text>
+       <Text style={s.emptySubtext}>{t('tapAddFieldHint')}</Text>
       </View>
      )}
      {fields.map((field, idx) => {
@@ -291,14 +291,14 @@ export default function TeamMemberFieldsScreen() {
      <View style={fm.overlay}>
       <View style={fm.sheet}>
        <View style={fm.header}>
-        <Text style={fm.title}>New Field</Text>
+        <Text style={fm.title}>{t('createField')}</Text>
         <TouchableOpacity onPress={() => setShowAddModal(false)}>
          <Text style={fm.close}>✕</Text>
         </TouchableOpacity>
        </View>
        <ScrollView contentContainerStyle={fm.formScroll} keyboardShouldPersistTaps="handled">
         <View style={fm.field}>
-         <Text style={fm.label}>FIELD LABEL *</Text>
+         <Text style={fm.label}>{t('name').toUpperCase()} *</Text>
          <TextInput
           style={fm.input}
           value={formLabel}
@@ -309,7 +309,7 @@ export default function TeamMemberFieldsScreen() {
          />
         </View>
         <View style={fm.field}>
-         <Text style={fm.label}>FIELD TYPE *</Text>
+         <Text style={fm.label}>{t('fieldTypeLabel').toUpperCase()} *</Text>
          <TouchableOpacity style={fm.typeBtn} onPress={() => setShowTypePicker(true)}>
           <Text style={fm.typeIcon}>{typeInfo(formType)?.icon}</Text>
           <View style={{ flex: 1 }}>
@@ -321,7 +321,7 @@ export default function TeamMemberFieldsScreen() {
         </View>
         {needsOptions && (
          <View style={fm.field}>
-          <Text style={fm.label}>OPTIONS (comma-separated) *</Text>
+          <Text style={fm.label}>{t('options').toUpperCase()}</Text>
           <TextInput
            style={fm.input}
            value={formOptions}
@@ -335,8 +335,8 @@ export default function TeamMemberFieldsScreen() {
         <View style={fm.field}>
          <View style={fm.switchRow}>
           <View>
-           <Text style={fm.label}>REQUIRED</Text>
-           <Text style={fm.switchDesc}>Must be filled when adding a team member</Text>
+           <Text style={fm.label}>{t('required').toUpperCase()}</Text>
+           <Text style={fm.switchDesc}>{t('mustFillAdding')}</Text>
           </View>
           <Switch
            value={formRequired}
@@ -353,7 +353,7 @@ export default function TeamMemberFieldsScreen() {
          onPress={handleAdd}
          disabled={saving}
         >
-         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Create Field</Text>}
+         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>{t('createField')}</Text>}
         </TouchableOpacity>
        </View>
       </View>
@@ -367,14 +367,14 @@ export default function TeamMemberFieldsScreen() {
      <View style={fm.overlay}>
       <View style={fm.sheet}>
        <View style={fm.header}>
-        <Text style={fm.title}>Edit Field</Text>
+        <Text style={fm.title}>{t('editFieldTitle')}</Text>
         <TouchableOpacity onPress={() => setShowEditModal(false)}>
          <Text style={fm.close}>✕</Text>
         </TouchableOpacity>
        </View>
        <ScrollView contentContainerStyle={fm.formScroll} keyboardShouldPersistTaps="handled">
         <View style={fm.field}>
-         <Text style={fm.label}>FIELD LABEL *</Text>
+         <Text style={fm.label}>{t('name').toUpperCase()} *</Text>
          <TextInput
           style={fm.input}
           value={formLabel}
@@ -385,7 +385,7 @@ export default function TeamMemberFieldsScreen() {
          />
         </View>
         <View style={fm.field}>
-         <Text style={fm.label}>FIELD TYPE *</Text>
+         <Text style={fm.label}>{t('fieldTypeLabel').toUpperCase()} *</Text>
          <TouchableOpacity style={fm.typeBtn} onPress={() => setShowTypePicker(true)}>
           <Text style={fm.typeIcon}>{typeInfo(formType)?.icon}</Text>
           <View style={{ flex: 1 }}>
@@ -397,7 +397,7 @@ export default function TeamMemberFieldsScreen() {
         </View>
         {needsOptions && (
          <View style={fm.field}>
-          <Text style={fm.label}>OPTIONS (comma-separated) *</Text>
+          <Text style={fm.label}>{t('options').toUpperCase()}</Text>
           <TextInput
            style={fm.input}
            value={formOptions}
@@ -411,8 +411,8 @@ export default function TeamMemberFieldsScreen() {
         <View style={fm.field}>
          <View style={fm.switchRow}>
           <View>
-           <Text style={fm.label}>REQUIRED</Text>
-           <Text style={fm.switchDesc}>Must be filled when adding a team member</Text>
+           <Text style={fm.label}>{t('required').toUpperCase()}</Text>
+           <Text style={fm.switchDesc}>{t('mustFillAdding')}</Text>
           </View>
           <Switch
            value={formRequired}
@@ -429,7 +429,7 @@ export default function TeamMemberFieldsScreen() {
          onPress={handleEdit}
          disabled={saving}
         >
-         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>Save Changes</Text>}
+         {saving ? <ActivityIndicator color={theme.color.white} /> : <Text style={fm.saveBtnText}>{t('saveChanges')}</Text>}
         </TouchableOpacity>
        </View>
       </View>
@@ -442,26 +442,26 @@ export default function TeamMemberFieldsScreen() {
     <View style={fm.overlay}>
      <View style={fm.sheet}>
       <View style={fm.header}>
-       <Text style={fm.title}>Field Type</Text>
+       <Text style={fm.title}>{t('fieldTypeLabel')}</Text>
        <TouchableOpacity onPress={() => setShowTypePicker(false)}>
         <Text style={fm.close}>✕</Text>
        </TouchableOpacity>
       </View>
       <ScrollView>
-       {FIELD_TYPES.map((t) => (
+       {FIELD_TYPES.map((ft) => (
         <TouchableOpacity
-         key={t.key}
-         style={[fm.typeOption, formType === t.key && fm.typeOptionSelected]}
-         onPress={() => { setFormType(t.key); setShowTypePicker(false); }}
+         key={ft.key}
+         style={[fm.typeOption, formType === ft.key && fm.typeOptionSelected]}
+         onPress={() => { setFormType(ft.key); setShowTypePicker(false); }}
         >
-         <Text style={fm.typeOptionIcon}>{t.icon}</Text>
+         <Text style={fm.typeOptionIcon}>{ft.icon}</Text>
          <View style={{ flex: 1 }}>
-          <Text style={[fm.typeOptionName, formType === t.key && fm.typeOptionNameSelected]}>
-           {t.label}
+          <Text style={[fm.typeOptionName, formType === ft.key && fm.typeOptionNameSelected]}>
+           {ft.label}
           </Text>
-          <Text style={fm.typeOptionDesc}>{t.desc}</Text>
+          <Text style={fm.typeOptionDesc}>{ft.desc}</Text>
          </View>
-         {formType === t.key && <Text style={fm.typeOptionCheck}>✓</Text>}
+         {formType === ft.key && <Text style={fm.typeOptionCheck}>✓</Text>}
         </TouchableOpacity>
        ))}
       </ScrollView>
