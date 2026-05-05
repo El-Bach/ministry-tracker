@@ -31,118 +31,13 @@ import { PickerModal, PickerItem } from './NewTask/components/PickerModal';
 import { DynamicFieldInput } from './NewTask/components/DynamicFieldInput';
 import { DatePickerField } from './NewTask/components/DatePickerField';
 import { RequiredDocsSheet } from './NewTask/components/RequiredDocsSheet';
+import { FieldTypePickerModal } from './NewTask/components/FieldTypePickerModal';
+import { FieldPickerModal } from './NewTask/components/FieldPickerModal';
 import { toISO } from './NewTask/utils/dateHelpers';
 
 // ─── Final closure stage — always last, auto-created ────────────────
 const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 
-// ─── Field types list placeholder — defined inside component for i18n ──
-
-// ─── Field type icons map ─────────────────────────────────────
-const FIELD_TYPE_ICONS: Record<string, string> = {
- text: 'Aa',
- textarea: '¶',
- number: '123',
- currency: '$',
- email: '@',
- phone: '☏',
- url: '🔗',
- date: '📅',
- boolean: '✓',
- select: '▾',
- multiselect: '☑',
- image: '🖼',
- location: '📍',
- id_number: '#',
-};
-
-
-// ─── Field picker modal styles ────────────────────────────────
-const fp = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: theme.color.overlayDark, justifyContent: 'flex-start', paddingTop: 60 },
-  sheet: {
-    backgroundColor: theme.color.bgSurface, borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20, maxHeight: '75%', paddingBottom: 32,
-    ...theme.shadow.modal, zIndex: theme.zIndex.modal,
-  },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: theme.spacing.space4, borderBottomWidth: 1, borderBottomColor: theme.color.border,
-  },
-  title:  { ...theme.typography.body, color: theme.color.textPrimary, fontSize: 16, fontWeight: '700' },
-  close:  { color: theme.color.textSecondary, fontSize: 20 },
-  hint: {
-    ...theme.typography.label, color: theme.color.textMuted,
-    paddingHorizontal: theme.spacing.space4, paddingTop: 10, paddingBottom: 4,
-  },
-  option: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space3,
-    paddingHorizontal: theme.spacing.space4, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: theme.color.bgBase,
-  },
-  optionIcon: {
-    width: 36, height: 36, borderRadius: theme.radius.md,
-    backgroundColor: theme.color.primary + '22',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: theme.color.primary + '33',
-  },
-  optionIconText:      { fontSize: 15 },
-  optionLabel:         { ...theme.typography.body, color: theme.color.textPrimary, fontWeight: '600' },
-  optionType:          { ...theme.typography.caption, color: theme.color.textMuted, marginTop: 1 },
-  required: {
-    color: theme.color.danger, fontSize: theme.typography.sectionDivider.fontSize, fontWeight: '700',
-    backgroundColor: theme.color.danger + '22', paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: theme.radius.sm - 2,
-  },
-  optionAdd:    { color: theme.color.primary, fontSize: 22, fontWeight: '700' },
-  empty:        { ...theme.typography.body, color: theme.color.textMuted, textAlign: 'center', padding: 24 },
-  sectionLabel: {
-    ...theme.typography.sectionDivider, color: theme.color.border,
-    paddingHorizontal: theme.spacing.space4, paddingTop: 14, paddingBottom: 4,
-  },
-  createToggle: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.space3,
-    paddingHorizontal: theme.spacing.space4, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: theme.color.bgBase,
-  },
-  createToggleText: { ...theme.typography.body, color: theme.color.primary, fontWeight: '700', flex: 1 },
-  createForm: {
-    margin: theme.spacing.space3, backgroundColor: theme.color.bgBase,
-    borderRadius: theme.radius.lg, padding: 14, gap: theme.spacing.space3,
-    borderWidth: 1, borderColor: theme.color.border,
-  },
-  createField: { gap: 6 },
-  createLabel: { ...theme.typography.sectionDivider, color: theme.color.textSecondary, letterSpacing: 1 },
-  createInput: {
-    backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.space3, paddingVertical: 11,
-    color: theme.color.textPrimary, fontSize: theme.typography.body.fontSize,
-    borderWidth: 1, borderColor: theme.color.border,
-  },
-  typeSelectBtn: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.color.bgSurface,
-    borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.space3, paddingVertical: 11,
-    borderWidth: 1, borderColor: theme.color.border, gap: 10,
-  },
-  typeSelectIcon:    { fontSize: 16, width: 22, textAlign: 'center' },
-  typeSelectName:    { flex: 1, color: theme.color.textPrimary, fontSize: theme.typography.body.fontSize, fontWeight: '600' },
-  typeSelectChevron: { color: theme.color.textMuted, fontSize: 20 },
-  createSwitchRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: theme.color.bgSurface, borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.space3, paddingVertical: 11,
-    borderWidth: 1, borderColor: theme.color.border,
-  },
-  createSaveBtn: {
-    backgroundColor: theme.color.primary, borderRadius: theme.radius.md,
-    paddingVertical: 13, alignItems: 'center',
-  },
-  createSaveBtnDisabled:  { opacity: 0.6 },
-  createSaveBtnText:      { ...theme.typography.body, color: theme.color.white, fontWeight: '700' },
-  optionSelected:         { backgroundColor: theme.color.primary + '11' },
-  optionLabelSelected:    { color: theme.color.primaryText },
-  optionCheck:            { color: theme.color.success, fontSize: 18 },
-});
 
 // ─── Field Row ────────────────────────────────────────────────
 function FieldRow({
@@ -1763,189 +1658,39 @@ export default function NewTaskScreen() {
  multiSelect
  selectedIds={routeStops.map((r) => r.id)}
  />
-      {/* Field picker modal */}
-      {/* Field picker modal */}
-      <Modal
+
+      {/* Field picker modal — extracted to ./NewTask/components/FieldPickerModal.tsx */}
+      <FieldPickerModal
         visible={showFieldPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setShowFieldPicker(false); setShowCreateField(false); }}
-      >
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={fp.overlay}
-        >
-          <View style={fp.sheet}>
-            <View style={fp.header}>
-              <Text style={fp.title}>{t('addField')}</Text>
-              <TouchableOpacity onPress={() => { setShowFieldPicker(false); setShowCreateField(false); }}>
-                <Text style={fp.close}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <KeyboardAwareScrollView
-              keyboardShouldPersistTaps="handled"
-              enableOnAndroid={true}
-              enableAutomaticScroll={true}
-              extraScrollHeight={60}
-            >
- {/* Existing fields */}
- {allFieldDefs.filter((f) => f.is_active && !activeFieldIds.includes(f.id)).length > 0 && (
- <>
- <Text style={fp.sectionLabel}>{t('savedFieldsLabel')}</Text>
- {allFieldDefs
- .filter((f) => f.is_active && !activeFieldIds.includes(f.id))
- .map((item) => (
- <TouchableOpacity
- key={item.id}
- style={fp.option}
- onPress={() => {
- setActiveFieldIds((prev) => [...prev, item.id]);
- setShowFieldPicker(false);
- }}
- >
- <View style={fp.optionIcon}>
- <Text style={fp.optionIconText}>{FIELD_TYPE_ICONS[item.field_type] ?? '?'}</Text>
- </View>
- <View style={{ flex: 1 }}>
- <Text style={fp.optionLabel}>{item.label}</Text>
- <Text style={fp.optionType}>{item.field_type}</Text>
- </View>
- {item.is_required && <Text style={fp.required}>{t('required')}</Text>}
- <Text style={fp.optionAdd}>+</Text>
- </TouchableOpacity>
- ))}
- </>
- )}
+        onClose={() => setShowFieldPicker(false)}
+        t={t}
+        allFieldDefs={allFieldDefs}
+        activeFieldIds={activeFieldIds}
+        setActiveFieldIds={setActiveFieldIds}
+        showCreateField={showCreateField}
+        setShowCreateField={setShowCreateField}
+        newFieldLabel={newFieldLabel}
+        setNewFieldLabel={setNewFieldLabel}
+        newFieldType={newFieldType}
+        newFieldOptions={newFieldOptions}
+        setNewFieldOptions={setNewFieldOptions}
+        newFieldRequired={newFieldRequired}
+        setNewFieldRequired={setNewFieldRequired}
+        savingNewField={savingNewField}
+        handleCreateCustomField={handleCreateCustomField}
+        fieldTypes={FIELD_TYPES_LIST}
+        onOpenTypePicker={() => setShowFieldTypePicker(true)}
+      />
 
- {/* Create new custom field */}
- <Text style={fp.sectionLabel}>{t('createField').toUpperCase()}</Text>
- <TouchableOpacity
- style={fp.createToggle}
- onPress={() => setShowCreateField((v) => !v)}
- >
- <View style={fp.optionIcon}>
- <Text style={fp.optionIconText}>✦</Text>
- </View>
- <Text style={fp.createToggleText}>
- {showCreateField ? `− ${t('cancel')}` : `+ ${t('createField')}`}
- </Text>
- </TouchableOpacity>
-
- {showCreateField && (
- <View style={fp.createForm}>
- {/* Label */}
- <View style={fp.createField}>
- <Text style={fp.createLabel}>{t('fieldNameLabel').toUpperCase()} *</Text>
- <TextInput
- style={fp.createInput}
- value={newFieldLabel}
- onChangeText={setNewFieldLabel}
- placeholder=""
- placeholderTextColor={theme.color.textMuted}
- />
- </View>
-
- {/* Type picker */}
- <View style={fp.createField}>
- <Text style={fp.createLabel}>{t('fieldTypeLabel').toUpperCase()} *</Text>
- <TouchableOpacity
- style={fp.typeSelectBtn}
- onPress={() => setShowFieldTypePicker(true)}
- >
- <Text style={fp.typeSelectIcon}>{FIELD_TYPE_ICONS[newFieldType] ?? '?'}</Text>
- <Text style={fp.typeSelectName}>
- {FIELD_TYPES_LIST.find((t) => t.key === newFieldType)?.label ?? newFieldType}
- </Text>
- <Text style={fp.typeSelectChevron}>›</Text>
- </TouchableOpacity>
- </View>
-
- {/* Options — only for select/multiselect */}
- {['select', 'multiselect'].includes(newFieldType) && (
- <View style={fp.createField}>
- <Text style={fp.createLabel}>{t('optionsSeparated').toUpperCase()} *</Text>
- <TextInput
- style={fp.createInput}
- value={newFieldOptions}
- onChangeText={setNewFieldOptions}
- placeholder="Option A, Option B, Option C"
- placeholderTextColor={theme.color.textMuted}
- />
- </View>
- )}
-
- {/* Required toggle */}
- <View style={fp.createField}>
- <View style={fp.createSwitchRow}>
- <Text style={fp.createLabel}>{t('requiredFieldLabel')}</Text>
- <Switch
- value={newFieldRequired}
- onValueChange={setNewFieldRequired}
- trackColor={{ false: theme.color.border, true: theme.color.primary }}
- thumbColor={theme.color.white}
- />
- </View>
- </View>
-
- <TouchableOpacity
- style={[fp.createSaveBtn, savingNewField && fp.createSaveBtnDisabled]}
- onPress={handleCreateCustomField}
- disabled={savingNewField}
- >
- {savingNewField ? (
- <ActivityIndicator color={theme.color.white} size="small" />
- ) : (
- <Text style={fp.createSaveBtnText}>{t('saveAndAddField')}</Text>
- )}
- </TouchableOpacity>
- </View>
- )}
-            </KeyboardAwareScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Field type picker sub-modal */}
- <Modal
- visible={showFieldTypePicker}
- transparent
- animationType="fade"
- onRequestClose={() => setShowFieldTypePicker(false)}
- >
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={fp.overlay}
-        >
-          <View style={fp.sheet}>
-            <View style={fp.header}>
-              <Text style={fp.title}>{t('fieldTypeLabel')}</Text>
- <TouchableOpacity onPress={() => setShowFieldTypePicker(false)}>
- <Text style={fp.close}>✕</Text>
- </TouchableOpacity>
- </View>
- <ScrollView>
- {FIELD_TYPES_LIST.map((t) => (
- <TouchableOpacity
- key={t.key}
- style={[fp.option, newFieldType === t.key && fp.optionSelected]}
- onPress={() => { setNewFieldType(t.key); setShowFieldTypePicker(false); }}
- >
- <View style={fp.optionIcon}>
- <Text style={fp.optionIconText}>{t.icon}</Text>
- </View>
- <View style={{ flex: 1 }}>
- <Text style={[fp.optionLabel, newFieldType === t.key && fp.optionLabelSelected]}>
- {t.label}
- </Text>
- <Text style={fp.optionType}>{t.desc}</Text>
- </View>
- {newFieldType === t.key && <Text style={fp.optionCheck}>✓</Text>}
- </TouchableOpacity>
- ))}
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      {/* Field type picker sub-modal — extracted to ./NewTask/components/FieldTypePickerModal.tsx */}
+      <FieldTypePickerModal
+        visible={showFieldTypePicker}
+        onClose={() => setShowFieldTypePicker(false)}
+        t={t}
+        fieldTypes={FIELD_TYPES_LIST}
+        selectedKey={newFieldType}
+        onSelect={setNewFieldType}
+      />
 
       {/* ── REQUIRED DOCS SHEET ── (extracted to ./NewTask/components/RequiredDocsSheet.tsx) */}
       <RequiredDocsSheet
