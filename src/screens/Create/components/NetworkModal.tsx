@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import { formatPhoneDisplay } from '../../../lib/phone';
 
 // Local copy of the call/WhatsApp Alert helper. Duplicated rather than
@@ -106,8 +107,6 @@ interface Props {
   handleDeleteNetworkContact: (contact: any) => void;
   handleImportContacts: () => void;
 
-  // Shared styles object — passed in until Phase 6 dedup
-  s: any;
 }
 
 export function NetworkModal(props: Props) {
@@ -127,7 +126,6 @@ export function NetworkModal(props: Props) {
     showImportModal, setShowImportModal, importRaw, setImportRaw,
     importRows, setImportRows, importingContacts, parseImportText,
     openNetworkForm, handleSaveNetworkContact, handleDeleteNetworkContact, handleImportContacts,
-    s,
   } = props;
 
   return (

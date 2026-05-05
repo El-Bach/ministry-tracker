@@ -11,6 +11,7 @@ import {
   Modal, ScrollView,
 } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import { Service, ServiceDocument } from '../../../types';
 
 interface Props {
@@ -63,8 +64,6 @@ interface Props {
   parseDocImport: (raw: string) => string[];
   handleImportDocs: () => void;
 
-  // Shared styles
-  s: any;
 }
 
 export function DocumentsRequiredModal(props: Props) {
@@ -83,7 +82,6 @@ export function DocumentsRequiredModal(props: Props) {
     docImportRaw, setDocImportRaw,
     docImportTitles, setDocImportTitles,
     importingDocs, parseDocImport, handleImportDocs,
-    s,
   } = props;
 
   const visibleServices = services.filter((sv) =>

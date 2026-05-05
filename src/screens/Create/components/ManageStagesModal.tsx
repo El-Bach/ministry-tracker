@@ -10,6 +10,7 @@ import {
   Modal, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import { Ministry } from '../../../types';
 
 interface Props {
@@ -67,8 +68,6 @@ interface Props {
   parseStageImport: (raw: string) => string[];
   handleImportStages: () => void;
 
-  // Shared styles
-  s: any;
 }
 
 export function ManageStagesModal(props: Props) {
@@ -89,7 +88,6 @@ export function ManageStagesModal(props: Props) {
     stageImportRaw, setStageImportRaw,
     stageImportNames, setStageImportNames,
     importingStages, parseStageImport, handleImportStages,
-    s,
   } = props;
 
   const filtered = ministries.filter((m) =>

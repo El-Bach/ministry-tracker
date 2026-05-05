@@ -9,6 +9,7 @@ import {
   Modal, ScrollView, KeyboardAvoidingView, Alert,
 } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import { Service, Ministry } from '../../../types';
 
 interface SvcImportRow { name: string; priceUSD: string; priceLBP: string }
@@ -74,8 +75,6 @@ interface Props {
   parseSvcImportText: (raw: string) => SvcImportRow[];
   handleImportServices: () => void;
 
-  // Shared styles
-  s: any;
 }
 
 export function ManageServicesModal(props: Props) {
@@ -93,7 +92,6 @@ export function ManageServicesModal(props: Props) {
     showSvcImportModal, setShowSvcImportModal,
     svcImportRaw, setSvcImportRaw, svcImportRows, setSvcImportRows,
     importingServices, parseSvcImportText, handleImportServices,
-    s,
   } = props;
 
   // setExpandedSvcId is referenced for symmetry via prop wiring even though

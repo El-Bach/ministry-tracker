@@ -9,6 +9,7 @@ import {
   Alert, Linking,
 } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import { formatPhoneDisplay } from '../../../lib/phone';
 import { Client } from '../../../types';
 
@@ -39,8 +40,6 @@ interface Props {
   /** Tap ✎ on a row → navigate to EditClient with the client id. */
   onEditClient: (clientId: string) => void;
 
-  /** Shared styles object — passed in until Phase 6 dedup. */
-  s: any;
 }
 
 export function ManageClientsModal(props: Props) {
@@ -48,7 +47,6 @@ export function ManageClientsModal(props: Props) {
     visible, onClose, t,
     clients, clientSearch, setClientSearch,
     permissions, openNewClientForm, handleDeleteClient, onEditClient,
-    s,
   } = props;
 
   const filterFn = (c: Client) =>

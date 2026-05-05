@@ -17,6 +17,7 @@ import {
 import { Calendar } from 'react-native-calendars';
 import type { PermissionResponse } from 'expo-camera';
 import { theme } from '../../../theme';
+import { s } from '../styles/createStyles';
 import PhoneInput from '../../../components/PhoneInput';
 
 interface ImportRow { name: string; phone: string; refName: string; refPhone: string }
@@ -68,8 +69,6 @@ interface Props {
   requestScannerPerm: () => Promise<PermissionResponse>;
   setShowIdScanner: (v: boolean) => void;
 
-  // Shared styles object — passed in until Phase 6 dedup
-  s: any;
 }
 
 export function NewClientForm(props: Props) {
@@ -86,7 +85,6 @@ export function NewClientForm(props: Props) {
     clientImportRows, setClientImportRows,
     importingClients, parseClientImport, handleImportClients,
     scannerPerm, requestScannerPerm, setShowIdScanner,
-    s,
   } = props;
 
   // Date-picker sub-state — only used inside this form, kept private here.
