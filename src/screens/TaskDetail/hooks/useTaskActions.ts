@@ -1039,20 +1039,29 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
       if (delErr) throw delErr;
 
       const newStops = [
-        ...editingStops.map((s, idx) => ({
-          task_id:     taskId,
-          ministry_id: s.id,
-          stop_order:  idx + 1,
-          status:      task?.route_stops?.find(r => r.ministry_id === s.id)?.status ?? 'Pending',
-          // Preference order for city: explicit override → ministry default → null
-          city_id:     editStageCities[s.id]?.cityId ?? s.city_id ?? null,
-        })),
+        ...editingStops.map((s, idx) => {
+          const existing = task?.route_stops?.find(r => r.ministry_id === s.id);
+          return {
+            task_id:          taskId,
+            ministry_id:      s.id,
+            stop_order:       idx + 1,
+            status:           existing?.status ?? 'Pending',
+            // Preference order for city: explicit override → ministry default → null
+            city_id:          editStageCities[s.id]?.cityId ?? s.city_id ?? null,
+            due_date:         existing?.due_date ?? null,
+            assigned_to:      existing?.assigned_to ?? null,
+            rejection_reason: existing?.rejection_reason ?? null,
+          };
+        }),
         {
-          task_id:     taskId,
-          ministry_id: finalMinistryId,
-          stop_order:  editingStops.length + 1,
-          status:      existingFinal?.status ?? 'Pending',
-          city_id:     existingFinal?.city_id ?? null,
+          task_id:          taskId,
+          ministry_id:      finalMinistryId,
+          stop_order:       editingStops.length + 1,
+          status:           existingFinal?.status ?? 'Pending',
+          city_id:          existingFinal?.city_id ?? null,
+          due_date:         existingFinal?.due_date ?? null,
+          assigned_to:      existingFinal?.assigned_to ?? null,
+          rejection_reason: existingFinal?.rejection_reason ?? null,
         },
       ];
 
