@@ -33,6 +33,7 @@ import { MinistryContactsSheet } from '../components/MinistryContactsSheet';
 import { NetworkModal } from './Create/components/NetworkModal';
 import { IdScannerModal } from './Create/components/IdScannerModal';
 import { ManageClientsModal } from './Create/components/ManageClientsModal';
+import { NewClientForm } from './Create/components/NewClientForm';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -141,12 +142,7 @@ export default function CreateScreen() {
   const [showIdScanner, setShowIdScanner]   = useState(false);
   const [scannerPerm, requestScannerPerm]   = useCameraPermissions();
 
-  // Inline calendar for date fields
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [currentDateField, setCurrentDateField] = useState<string | null>(null);
-  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
-  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
-  const [calCurrentDate, setCalCurrentDate] = useState<string | undefined>(undefined);
+  // (date-picker state moved to NewClientForm — only used inside that form)
 
   // ── Network (people directory) ────────────────────────────
   const [network, setNetwork] = useState<any[]>([]);
@@ -966,321 +962,43 @@ export default function CreateScreen() {
         s={s}
       />
 
-      {/* ── NEW CLIENT FORM ── */}
-      <Modal
+      {/* ── NEW CLIENT FORM ── (extracted to ./Create/components/NewClientForm.tsx) */}
+      <NewClientForm
         visible={showClientForm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowClientForm(false)}
-      >
-        <View style={s.modalOverlay}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-start', paddingTop: 60 }}>
-            <View style={[s.modalSheet, { maxHeight: '92%' }]}>
-              <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>{t('addNewClient')}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity
-                    style={s.scanIdBtn}
-                    onPress={async () => {
-                      if (!scannerPerm?.granted) {
-                        const { granted } = await requestScannerPerm();
-                        if (!granted) { Alert.alert(t('warning'), t('fieldRequired')); return; }
-                      }
-                      setShowIdScanner(true);
-                    }}
-                  >
-                    <Text style={s.scanIdBtnText}>📷 Scan</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.docImportToggleBtn}
-                    onPress={() => { setShowClientImport(v => !v); setClientImportRaw(''); setClientImportRows([]); }}
-                  >
-                    <Text style={s.docImportToggleBtnText}>📥</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setShowClientForm(false); setShowClientImport(false); }}>
-                    <Text style={s.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-                {/* ── Excel Import Panel ── */}
-                {showClientImport && (
-                  <View style={s.docImportPanel}>
-                    <Text style={s.docImportLabel}>{t('pasteExcelClients')}</Text>
-                    <TextInput
-                      style={s.docImportTextArea}
-                      value={clientImportRaw}
-                      onChangeText={(t) => { setClientImportRaw(t); setClientImportRows([]); }}
-                      placeholder={'Paste Excel rows here...\n\nExample:\nAhmad Khalil\t+961 70 111\tSara\t+961 71 222'}
-                      placeholderTextColor={theme.color.textMuted}
-                      multiline
-                      textAlignVertical="top"
-                    />
-                    {clientImportRows.length === 0 ? (
-                      <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setClientImportRows(parseClientImport(clientImportRaw))} disabled={!clientImportRaw.trim()}>
-                        <Text style={s.docImportPreviewBtnText}>{t('preview')}</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <>
-                        {clientImportRows.map((r, i) => (
-                          <View key={i} style={s.docImportPreviewRow}>
-                            <View style={{ flex: 1, gap: 2 }}>
-                              <Text style={[s.docImportPreviewTitle, { fontWeight: '700' }]}>{r.name}</Text>
-                              {r.phone ? <Text style={s.docImportLabel}>📞 {r.phone}</Text> : null}
-                              {r.refName ? <Text style={s.docImportLabel}>{t('refPrefix')}: {r.refName}{r.refPhone ? ` · ${r.refPhone}` : ''}</Text> : null}
-                            </View>
-                          </View>
-                        ))}
-                        <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportClients} disabled={importingClients}>
-                          {importingClients ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>{t('importClientsBtn')} ({clientImportRows.length})</Text>}
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                )}
-                <TextInput
-                  style={s.modalInput}
-                  value={newClientName}
-                  onChangeText={setNewClientName}
-                  placeholder={t('fullNameRequired')}
-                  placeholderTextColor={theme.color.textMuted}
-                  autoFocus
-                />
-                <PhoneInput
-                  value={newClientPhone}
-                  onChangeText={setNewClientPhone}
-                  countryCode={newClientPhoneCountry}
-                  onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
-                  placeholder={t('phoneNumber')}
-                  style={{ marginBottom: 10 }}
-                />
-                <Text style={s.fieldsSectionLabel}>{t('referenceOpt').toUpperCase()}</Text>
-                <TextInput
-                  style={s.modalInput}
-                  value={newClientRefName}
-                  onChangeText={setNewClientRefName}
-                  placeholder={t('referenceName')}
-                  placeholderTextColor={theme.color.textMuted}
-                />
-                <PhoneInput
-                  value={newClientRefPhone}
-                  onChangeText={setNewClientRefPhone}
-                  countryCode={newClientRefPhoneCountry}
-                  onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
-                  placeholder={t('referencePhone')}
-                  style={{ marginBottom: 10 }}
-                />
-                {loadingClientFields ? (
-                  <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 20 }} />
-                ) : clientFormFieldDefs.length > 0 ? (
-                  <>
-                    <Text style={s.fieldsSectionLabel}>{t('preferences').toUpperCase()}</Text>
-                    {clientFormFieldDefs.map((def) => (
-                      <View key={def.id} style={{ marginBottom: 12 }}>
-                        <Text style={s.fieldDefLabel}>{def.label}{def.is_required ? ' *' : ''}</Text>
-                        {def.field_type === 'boolean' ? (
-                          <View style={s.fieldBoolRow}>
-                            <Text style={s.fieldBoolText}>{clientFormFieldValues[def.id] === 'true' ? t('yes') : t('no')}</Text>
-                            <Switch
-                              value={clientFormFieldValues[def.id] === 'true'}
-                              onValueChange={(v) => setClientFormFieldValues((p) => ({ ...p, [def.id]: v ? 'true' : 'false' }))}
-                              trackColor={{ false: theme.color.border, true: theme.color.primary }}
-                              thumbColor={theme.color.white}
-                            />
-                          </View>
-                        ) : def.field_type === 'select' && def.options?.length > 0 ? (
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                            {(def.options as string[]).map((opt) => (
-                              <TouchableOpacity
-                                key={opt}
-                                style={[s.selectOption, clientFormFieldValues[def.id] === opt && s.selectOptionActive]}
-                                onPress={() => setClientFormFieldValues((p) => ({ ...p, [def.id]: opt }))}
-                              >
-                                <Text style={[s.selectOptionText, clientFormFieldValues[def.id] === opt && s.selectOptionTextActive]}>{opt}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        ) : def.field_type === 'date' ? (
-                          <View>
-                            <TouchableOpacity
-                              style={s.dateBtn}
-                              onPress={() => {
-                                if (currentDateField === def.id && showDatePicker) {
-                                  setShowDatePicker(false);
-                                  setCurrentDateField(null);
-                                  setShowMonthYearPicker(false);
-                                  setCalCurrentDate(undefined);
-                                } else {
-                                  setCurrentDateField(def.id);
-                                  setShowMonthYearPicker(false);
-                                  setCalCurrentDate(undefined);
-                                  setShowDatePicker(true);
-                                }
-                              }}
-                            >
-                              <Text style={clientFormFieldValues[def.id] ? s.dateBtnText : s.dateBtnPlaceholder}>
-                                {clientFormFieldValues[def.id] || `Select ${def.label}`}
-                              </Text>
-                              <Text style={s.dateBtnIcon}>{currentDateField === def.id && showDatePicker ? '▲' : '📅'}</Text>
-                            </TouchableOpacity>
-                            {currentDateField === def.id && showDatePicker && (
-                              <View style={s.inlineCalendarContainer}>
-                                {showMonthYearPicker ? (
-                                  <View style={s.monthYearPicker}>
-                                    <View style={s.monthYearPickerHeader}>
-                                      <TouchableOpacity onPress={() => setPickerYear((y) => y - 1)} style={s.monthYearArrow}>
-                                        <Text style={s.monthYearArrowText}>‹</Text>
-                                      </TouchableOpacity>
-                                      <TextInput
-                                        style={s.monthYearPickerYearInput}
-                                        value={String(pickerYear)}
-                                        onChangeText={(v) => {
-                                          const n = parseInt(v.replace(/[^0-9]/g, ''), 10);
-                                          if (!isNaN(n)) setPickerYear(n);
-                                          else if (v === '') setPickerYear(0);
-                                        }}
-                                        keyboardType="number-pad"
-                                        maxLength={4}
-                                        selectTextOnFocus
-                                        placeholderTextColor={theme.color.textMuted}
-                                      />
-                                      <TouchableOpacity onPress={() => setPickerYear((y) => y + 1)} style={s.monthYearArrow}>
-                                        <Text style={s.monthYearArrowText}>›</Text>
-                                      </TouchableOpacity>
-                                    </View>
-                                    <View style={s.monthGrid}>
-                                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((mon, idx) => (
-                                        <TouchableOpacity
-                                          key={mon}
-                                          style={s.monthGridItem}
-                                          onPress={() => {
-                                            const isoDate = `${pickerYear}-${String(idx + 1).padStart(2, '0')}-01`;
-                                            setCalCurrentDate(isoDate);
-                                            setShowMonthYearPicker(false);
-                                          }}
-                                        >
-                                          <Text style={s.monthGridItemText}>{mon}</Text>
-                                        </TouchableOpacity>
-                                      ))}
-                                    </View>
-                                  </View>
-                                ) : (
-                                  <Calendar
-                                    current={calCurrentDate ?? (
-                                      clientFormFieldValues[def.id]
-                                        ? (() => {
-                                            const val = clientFormFieldValues[def.id];
-                                            if (val?.includes('/')) {
-                                              const [d, m, y] = val.split('/');
-                                              return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-                                            }
-                                            return val || undefined;
-                                          })()
-                                        : undefined
-                                    )}
-                                    onDayPress={(day) => {
-                                      const [y, m, d] = day.dateString.split('-');
-                                      setClientFormFieldValues((p) => ({ ...p, [def.id]: `${d}/${m}/${y}` }));
-                                      setShowDatePicker(false);
-                                      setCurrentDateField(null);
-                                      setCalCurrentDate(undefined);
-                                      setShowMonthYearPicker(false);
-                                    }}
-                                    onMonthChange={(date) => setCalCurrentDate(date.dateString)}
-                                    renderHeader={(date) => {
-                                      const d = typeof date === 'string' ? new Date(date) : date as any;
-                                      const label = d?.toString ? d.toString('MMMM yyyy') : '';
-                                      return (
-                                        <TouchableOpacity
-                                          onPress={() => {
-                                            const year = typeof d?.getFullYear === 'function' ? d.getFullYear() : new Date().getFullYear();
-                                            setPickerYear(year);
-                                            setShowMonthYearPicker(true);
-                                          }}
-                                          style={s.calHeaderBtn}
-                                        >
-                                          <Text style={s.calHeaderText}>{label} ▾</Text>
-                                        </TouchableOpacity>
-                                      );
-                                    }}
-                                    markedDates={clientFormFieldValues[def.id] ? {
-                                      [(() => {
-                                        const val = clientFormFieldValues[def.id];
-                                        if (val?.includes('/')) {
-                                          const [d, m, y] = val.split('/');
-                                          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-                                        }
-                                        return val || '';
-                                      })()]: { selected: true, selectedColor: theme.color.primary },
-                                    } : {}}
-                                    theme={{
-                                      backgroundColor: theme.color.bgBase,
-                                      calendarBackground: theme.color.bgBase,
-                                      textSectionTitleColor: theme.color.textMuted,
-                                      selectedDayBackgroundColor: theme.color.primary,
-                                      selectedDayTextColor: theme.color.white,
-                                      todayTextColor: theme.color.primary,
-                                      dayTextColor: theme.color.textPrimary,
-                                      textDisabledColor: theme.color.textMuted,
-                                      arrowColor: theme.color.primary,
-                                      monthTextColor: theme.color.textPrimary,
-                                      textDayFontWeight: '500',
-                                      textMonthFontWeight: '700',
-                                      textDayHeaderFontWeight: '600',
-                                      textDayFontSize: 14,
-                                      textMonthFontSize: 15,
-                                      textDayHeaderFontSize: 12,
-                                    }}
-                                  />
-                                )}
-                                {clientFormFieldValues[def.id] ? (
-                                  <TouchableOpacity
-                                    style={s.clearDateBtn}
-                                    onPress={() => {
-                                      setClientFormFieldValues((p) => ({ ...p, [def.id]: '' }));
-                                      setShowDatePicker(false);
-                                      setCurrentDateField(null);
-                                    }}
-                                  >
-                                    <Text style={s.clearDateBtnText}>{t('clearDateBtn')}</Text>
-                                  </TouchableOpacity>
-                                ) : null}
-                              </View>
-                            )}
-                          </View>
-                        ) : (
-                          <TextInput
-                            style={[s.modalInput, def.field_type === 'textarea' && { height: 80, textAlignVertical: 'top' }]}
-                            value={clientFormFieldValues[def.id] ?? ''}
-                            onChangeText={(v) => setClientFormFieldValues((p) => ({ ...p, [def.id]: v }))}
-                            placeholder={def.label}
-                            placeholderTextColor={theme.color.textMuted}
-                            multiline={def.field_type === 'textarea'}
-                            keyboardType={
-                              def.field_type === 'number' || def.field_type === 'currency' ? 'decimal-pad' :
-                              def.field_type === 'phone' ? 'phone-pad' :
-                              def.field_type === 'email' ? 'email-address' : 'default'
-                            }
-                          />
-                        )}
-                      </View>
-                    ))}
-                  </>
-                ) : null}
-                <TouchableOpacity
-                  style={[s.modalSaveBtn, savingClient && s.modalSaveBtnDisabled]}
-                  onPress={handleCreateClientWithFields}
-                  disabled={savingClient}
-                >
-                  {savingClient
-                    ? <ActivityIndicator color={theme.color.white} size="small" />
-                    : <Text style={s.modalSaveBtnText}>{t('createClientBtn')}</Text>}
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        onClose={() => setShowClientForm(false)}
+        t={t}
+        newClientName={newClientName}
+        setNewClientName={setNewClientName}
+        newClientPhone={newClientPhone}
+        setNewClientPhone={setNewClientPhone}
+        newClientPhoneCountry={newClientPhoneCountry}
+        setNewClientPhoneCountry={setNewClientPhoneCountry}
+        newClientRefName={newClientRefName}
+        setNewClientRefName={setNewClientRefName}
+        newClientRefPhone={newClientRefPhone}
+        setNewClientRefPhone={setNewClientRefPhone}
+        newClientRefPhoneCountry={newClientRefPhoneCountry}
+        setNewClientRefPhoneCountry={setNewClientRefPhoneCountry}
+        loadingClientFields={loadingClientFields}
+        clientFormFieldDefs={clientFormFieldDefs}
+        clientFormFieldValues={clientFormFieldValues}
+        setClientFormFieldValues={setClientFormFieldValues}
+        savingClient={savingClient}
+        handleCreateClientWithFields={handleCreateClientWithFields}
+        showClientImport={showClientImport}
+        setShowClientImport={setShowClientImport}
+        clientImportRaw={clientImportRaw}
+        setClientImportRaw={setClientImportRaw}
+        clientImportRows={clientImportRows}
+        setClientImportRows={setClientImportRows}
+        importingClients={importingClients}
+        parseClientImport={parseClientImport}
+        handleImportClients={handleImportClients}
+        scannerPerm={scannerPerm}
+        requestScannerPerm={requestScannerPerm}
+        setShowIdScanner={setShowIdScanner}
+        s={s}
+      />
 
       {/* ── MANAGE SERVICES MODAL ── */}
       <Modal
