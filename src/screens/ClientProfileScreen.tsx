@@ -420,7 +420,7 @@ export default function ClientProfileScreen() {
         {/* ── NEW FILE ── */}
         {permissions.can_create_files && (
           <TouchableOpacity style={s.newFileBtn} onPress={goNewFile} activeOpacity={0.8}>
-            <Text style={s.newFileBtnText}>+ {t('newTask')} — {client.name}</Text>
+            <Text style={s.newFileBtnText}>+ {t('newFile')} — {client.name}</Text>
           </TouchableOpacity>
         )}
 

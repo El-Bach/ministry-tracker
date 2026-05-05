@@ -390,15 +390,15 @@ export default function GlobalSearchScreen() {
             {/* FILES */}
             {results.tasks.length > 0 && (
               <Section label={t('files').toUpperCase()} count={results.tasks.length}>
-                {results.tasks.map((t) => (
+                {results.tasks.map((tk) => (
                   <ResultRow
-                    key={t.id}
+                    key={tk.id}
                     icon="📄"
                     iconBg={theme.color.border}
-                    title={t.clientName || t('unknown')}
-                    sub={t.serviceName}
-                    snippet={t.notes ? t.notes : undefined}
-                    onPress={() => navigation.navigate('TaskDetail', { taskId: t.id })}
+                    title={tk.clientName || t('unknown')}
+                    sub={tk.serviceName}
+                    snippet={tk.notes ? tk.notes : undefined}
+                    onPress={() => navigation.navigate('TaskDetail', { taskId: tk.id })}
                   />
                 ))}
               </Section>

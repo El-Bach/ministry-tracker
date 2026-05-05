@@ -49,6 +49,7 @@ function FieldInput({
   value?: FieldValue;
   onChange: (v: FieldValue) => void;
 }) {
+  const { t } = useTranslation();
   const [selectOpen, setSelectOpen] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
   const ft = definition.field_type;
