@@ -1,7 +1,7 @@
 // src/screens/CreateScreen.tsx
 // Create tab: quick-action cards + full manage section (clients / services / stages)
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { Calendar } from 'react-native-calendars';
 
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import supabase from '../lib/supabase';
 import { useTranslation, formatNumber, t as tStatic } from '../lib/i18n';
 import { theme } from '../theme';
@@ -31,6 +31,7 @@ import { formatPhoneDisplay } from '../lib/phone';
 import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
 import { MinistryContactsSheet } from '../components/MinistryContactsSheet';
 import { NetworkModal } from './Create/components/NetworkModal';
+import { IdScannerModal } from './Create/components/IdScannerModal';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -138,7 +139,6 @@ export default function CreateScreen() {
   // ID / QR scanner for new client form
   const [showIdScanner, setShowIdScanner]   = useState(false);
   const [scannerPerm, requestScannerPerm]   = useCameraPermissions();
-  const scannerCooldown                     = useRef(false);
 
   // Inline calendar for date fields
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -200,24 +200,6 @@ export default function CreateScreen() {
   const [loadingDocReqs, setLoadingDocReqs] = useState<string | null>(null);
   const [docReqNewTitle, setDocReqNewTitle] = useState('');
   const [savingDocReq, setSavingDocReq] = useState(false);
-
-  // ── Barcode parse helper ──────────────────────────────────
-  const parseBarcodeData = (data: string): { name: string; phone: string } => {
-    // Normalize: replace non-printable chars with space/newline
-    const normalized = data.replace(/\r/g, '\n').replace(/[\x00-\x08\x0B-\x1F\x7F]/g, ' ');
-    // Split by common delimiters used in ID barcodes
-    const parts = normalized.split(/[\n|;,]+/).map(p => p.trim()).filter(Boolean);
-    // Name candidates: 2+ words of letters (supports Arabic + Latin)
-    const nameCandidates = parts.filter(p =>
-      /^[\u0600-\u06FFa-zA-Z][\u0600-\u06FFa-zA-Z ]{3,}$/.test(p) && p.includes(' ')
-    );
-    // Phone candidates: 6–15 digits possibly starting with +
-    const phoneCandidates = parts.filter(p => /^[+]?[0-9 ()-]{6,16}$/.test(p));
-    return {
-      name:  nameCandidates[0] ?? '',
-      phone: phoneCandidates[0] ?? '',
-    };
-  };
 
   // ── Data fetching ─────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -1080,7 +1062,6 @@ export default function CreateScreen() {
                         const { granted } = await requestScannerPerm();
                         if (!granted) { Alert.alert(t('warning'), t('fieldRequired')); return; }
                       }
-                      scannerCooldown.current = false;
                       setShowIdScanner(true);
                     }}
                   >
@@ -1825,58 +1806,16 @@ export default function CreateScreen() {
         </View>
       </Modal>
 
-      {/* ── ID / QR SCANNER MODAL ── */}
-      <Modal visible={showIdScanner} transparent={false} animationType="slide" onRequestClose={() => setShowIdScanner(false)}>
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-          {showIdScanner && (
-            <CameraView
-              style={{ flex: 1 }}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['pdf417', 'qr', 'code128', 'code39', 'ean13', 'datamatrix'] }}
-              onBarcodeScanned={(result) => {
-                if (scannerCooldown.current) return;
-                scannerCooldown.current = true;
-                const parsed = parseBarcodeData(result.data);
-                setShowIdScanner(false);
-                // Pre-fill form fields with whatever we extracted
-                if (parsed.name)  setNewClientName(parsed.name);
-                if (parsed.phone) setNewClientPhone(parsed.phone);
-                if (!parsed.name && !parsed.phone) {
-                  // Show raw data so user can inspect
-                  Alert.alert(
-                    t('scanDoc'),
-                    result.data.replace(/[\x00-\x1F\x7F]/g, ' ').trim().slice(0, 300),
-                    [{ text: t('ok') }]
-                  );
-                }
-              }}
-            />
-          )}
-          {/* Overlay UI */}
-          <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-            {/* Top bar */}
-            <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: 50, paddingBottom: 16, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>📷 Scan ID / QR Code</Text>
-              <TouchableOpacity onPress={() => setShowIdScanner(false)}>
-                <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            {/* Center frame guide */}
-            <View pointerEvents="none" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ width: 280, height: 160, borderRadius: 12, borderWidth: 2, borderColor: '#6366f1', backgroundColor: 'transparent' }} />
-              <Text style={{ color: '#fff', marginTop: 16, fontSize: 13, opacity: 0.85, textAlign: 'center' }}>
-                Point at the PDF417 barcode or QR code{'\n'}on the ID document
-              </Text>
-            </View>
-            {/* Bottom info */}
-            <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 20 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, textAlign: 'center' }}>
-                Supports: PDF417 · QR · Code128 · EAN-13 · DataMatrix
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* ── ID / QR SCANNER MODAL ── (extracted to ./Create/components/IdScannerModal.tsx) */}
+      <IdScannerModal
+        visible={showIdScanner}
+        onClose={() => setShowIdScanner(false)}
+        t={t}
+        onScan={(parsed) => {
+          if (parsed.name)  setNewClientName(parsed.name);
+          if (parsed.phone) setNewClientPhone(parsed.phone);
+        }}
+      />
 
       {/* ── NETWORK MODAL ── (extracted to ./Create/components/NetworkModal.tsx) */}
       <NetworkModal
