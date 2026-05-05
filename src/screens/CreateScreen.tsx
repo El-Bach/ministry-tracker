@@ -40,6 +40,8 @@ import { DocumentsRequiredModal } from './Create/components/DocumentsRequiredMod
 import { useNetworkActions } from './Create/hooks/useNetworkActions';
 import { useDocsActions } from './Create/hooks/useDocsActions';
 import { useStageActions } from './Create/hooks/useStageActions';
+import { useClientActions } from './Create/hooks/useClientActions';
+import { useServiceActions } from './Create/hooks/useServiceActions';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -74,10 +76,6 @@ export default function CreateScreen() {
   const [stageSearch, setStageSearch] = useState('');
 
   // Manage clients
-  const [editClientId, setEditClientId] = useState<string | null>(null);
-  const [editClientName, setEditClientName] = useState('');
-  const [editClientPhone, setEditClientPhone] = useState('');
-  const [savingEditClient, setSavingEditClient] = useState(false);
 
   // Manage services
   const [newSvcName, setNewSvcName] = useState('');
@@ -285,288 +283,44 @@ export default function CreateScreen() {
     parseStageImport, handleImportStages,
   } = stageActions;
 
-  // ── Handlers ──────────────────────────────────────────────
-  const openNewClientForm = async () => {
-    setNewClientName('');
-    setNewClientPhone('');
-    setNewClientRefName('');
-    setNewClientRefPhone('');
-    setClientFormFieldValues({});
-    setLoadingClientFields(true);
-    setShowClientForm(true);
-    const { data } = await supabase
-      .from('client_field_definitions')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order');
-    setClientFormFieldDefs(data ?? []);
-    setLoadingClientFields(false);
-  };
+  // ── Client actions hook (Phase 5d) ───────────────────────────────────────
+  const clientActions = useClientActions({
+    orgId, t, fetchData,
+    newClientName, newClientPhone, newClientPhoneCountry,
+    newClientRefName, newClientRefPhone, newClientRefPhoneCountry,
+    setNewClientName, setNewClientPhone, setNewClientPhoneCountry,
+    setNewClientRefName, setNewClientRefPhone, setNewClientRefPhoneCountry,
+    clientFormFieldDefs, clientFormFieldValues,
+    setClientFormFieldDefs, setClientFormFieldValues, setLoadingClientFields,
+    setShowClientForm, setSavingClient,
+    clientImportRows, setClientImportRaw, setClientImportRows,
+    setShowClientImport, setImportingClients, setClients,
+  });
+  const {
+    openNewClientForm, handleCreateClientWithFields, handleDeleteClient,
+    parseClientImport, handleImportClients,
+  } = clientActions;
 
-  const handleCreateClientWithFields = async () => {
-    if (!newClientName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingClient(true);
-
-    // ── Duplicate check ──────────────────────────────────────────────────────
-    const fullPhone = newClientPhone.trim() ? `${newClientPhoneCountry}${newClientPhone.trim()}` : '';
-    const orFilters: string[] = [`name.ilike.${newClientName.trim()}`];
-    if (fullPhone) orFilters.push(`phone.eq.${fullPhone}`);
-    const { data: existing } = await supabase
-      .from('clients')
-      .select('id, name, phone, client_id')
-      .eq('org_id', orgId)
-      .or(orFilters.join(','))
-      .limit(1)
-      .maybeSingle();
-
-    if (existing) {
-      const reason = (existing as any).name?.toLowerCase() === newClientName.trim().toLowerCase()
-        ? `name "${(existing as any).name}"`
-        : `phone "${(existing as any).phone}"`;
-      setSavingClient(false);
-      Alert.alert(
-        t('duplicateClient'),
-        `A client already exists with this ${reason} (${(existing as any).client_id}).\n\nCreate anyway?`,
-        [
-          { text: t('cancel'), style: 'cancel' },
-          { text: t('createAnyway'), onPress: () => doInsertClient() },
-        ]
-      );
-      return;
-    }
-
-    doInsertClient();
-  };
-
-  const doInsertClient = async () => {
-    setSavingClient(true);
-    const autoId = `CLT-${Date.now()}`;
-    const fullPhone    = newClientPhone.trim()    ? `${newClientPhoneCountry}${newClientPhone.trim()}`       : null;
-    const fullRefPhone = newClientRefPhone.trim() ? `${newClientRefPhoneCountry}${newClientRefPhone.trim()}` : null;
-    const { data, error } = await supabase
-      .from('clients')
-      .insert({ name: newClientName.trim(), client_id: autoId, phone: fullPhone, reference_name: newClientRefName.trim() || null, reference_phone: fullRefPhone, org_id: orgId })
-      .select()
-      .single();
-    if (error || !data) { setSavingClient(false); Alert.alert(t('error'), error?.message ?? t('failedToSave')); return; }
-    const inserts: any[] = [];
-    for (const def of clientFormFieldDefs) {
-      const val = clientFormFieldValues[def.id];
-      if (val !== undefined && val.trim() !== '') {
-        inserts.push({ client_id: (data as any).id, field_id: def.id, value_text: val });
-      }
-    }
-    if (inserts.length > 0) await supabase.from('client_field_values').insert(inserts);
-    setSavingClient(false);
-    setShowClientForm(false);
-    setNewClientName(''); setNewClientPhone(''); setNewClientPhoneCountry(DEFAULT_COUNTRY.code);
-    setNewClientRefName(''); setNewClientRefPhone(''); setNewClientRefPhoneCountry(DEFAULT_COUNTRY.code);
-    setClientFormFieldValues({});
-    fetchData();
-  };
-
-  const handleSaveEditClient = async () => {
-    if (!editClientId || !editClientName.trim()) return;
-    setSavingEditClient(true);
-    await supabase.from('clients').update({ name: editClientName.trim(), phone: editClientPhone.trim() || null }).eq('id', editClientId);
-    setSavingEditClient(false);
-    setEditClientId(null);
-    fetchData();
-  };
-
-  const handleDeleteClient = (c: Client) => {
-    const doDelete = async () => { await supabase.from('clients').delete().eq('id', c.id); fetchData(); };
-    if (Platform.OS === 'web') {
-      if ((window as any).confirm(`Delete "${c.name}"? This cannot be undone.`)) doDelete();
-    } else {
-      Alert.alert(`${t('delete')} ${t('clients')}`, `Delete "${c.name}"? This cannot be undone.`, [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete'), style: 'destructive', onPress: doDelete },
-      ]);
-    }
-  };
-
-  const handleCreateService = async () => {
-    if (!newSvcName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingNewSvc(true);
-    await supabase.from('services').insert({ name: newSvcName.trim(), estimated_duration_days: 0, base_price_usd: parseFloat(newSvcPriceUSD) || 0, base_price_lbp: parseFloat(newSvcPriceLBP.replace(/,/g, '')) || 0, org_id: orgId });
-    setSavingNewSvc(false);
-    setNewSvcName(''); setNewSvcPriceUSD(''); setNewSvcPriceLBP('');
-    fetchData();
-  };
-
-  const handleSaveEditService = async () => {
-    if (!editSvcId || !editSvcName.trim()) return;
-    setSavingEditSvc(true);
-    await supabase.from('services').update({ name: editSvcName.trim(), base_price_usd: parseFloat(editSvcPriceUSD) || 0, base_price_lbp: parseFloat(editSvcPriceLBP.replace(/,/g, '')) || 0 }).eq('id', editSvcId);
-    setSavingEditSvc(false);
-    setEditSvcId(null);
-    fetchData();
-  };
-
-  const handleDeleteService = (sv: Service) => {
-    const doDelete = async () => { await supabase.from('services').delete().eq('id', sv.id); fetchData(); };
-    if (Platform.OS === 'web') {
-      if ((window as any).confirm(`Delete "${sv.name}"?`)) doDelete();
-    } else {
-      Alert.alert(`${t('delete')} ${t('services')}`, `Delete "${sv.name}"?`, [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete'), style: 'destructive', onPress: doDelete },
-      ]);
-    }
-  };
-
-
-  // ── Inline Service Stages ─────────────────────────────────
-  const fetchSvcStages = async (svcId: string) => {
-    setLoadingSvcStages(svcId);
-    const { data } = await supabase
-      .from('service_default_stages')
-      .select('id, stop_order, ministry:ministries(id, name)')
-      .eq('service_id', svcId)
-      .order('stop_order');
-    setSvcStages((prev) => ({ ...prev, [svcId]: data ?? [] }));
-    setLoadingSvcStages(null);
-  };
-
-  const handleToggleSvcExpand = async (svcId: string) => {
-    if (expandedSvcId === svcId) { setExpandedSvcId(null); return; }
-    setExpandedSvcId(svcId);
-    await fetchSvcStages(svcId);
-  };
-
-  const handleAddSvcStage = async (svcId: string) => {
-    const name = svcStageNewName.trim();
-    if (!name) return;
-    setSavingNewSvcStage(true);
-    // Check if ministry with this name already exists
-    const existing = ministries.find((m) => m.name.toLowerCase() === name.toLowerCase());
-    let ministryId: string;
-    if (existing) {
-      ministryId = existing.id;
-    } else {
-      const { data: mData } = await supabase.from('ministries').insert({ name, type: 'parent', org_id: orgId }).select().single();
-      if (!mData) { setSavingNewSvcStage(false); return; }
-      ministryId = (mData as any).id;
-    }
-    const stages = svcStages[svcId] ?? [];
-    await supabase.from('service_default_stages').insert({ service_id: svcId, ministry_id: ministryId, stop_order: stages.length + 1 });
-    setSavingNewSvcStage(false);
-    setSvcStageNewName('');
-    await fetchSvcStages(svcId);
-    fetchData();
-  };
-
-  const handleAddExistingSvcStage = async (svcId: string, ministryId: string) => {
-    const stages = svcStages[svcId] ?? [];
-    await supabase.from('service_default_stages').insert({ service_id: svcId, ministry_id: ministryId, stop_order: stages.length + 1 });
-    setSvcStageNewName('');
-    await fetchSvcStages(svcId);
-  };
-
-  const handleRemoveSvcStage = async (svcId: string, stageId: string) => {
-    await supabase.from('service_default_stages').delete().eq('id', stageId);
-    await fetchSvcStages(svcId);
-  };
-
-  const handleMoveSvcStage = async (svcId: string, stageId: string, dir: 'up' | 'down') => {
-    const stages = [...(svcStages[svcId] ?? [])];
-    const idx = stages.findIndex((s) => s.id === stageId);
-    if (dir === 'up' && idx === 0) return;
-    if (dir === 'down' && idx === stages.length - 1) return;
-    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    await Promise.all([
-      supabase.from('service_default_stages').update({ stop_order: stages[swapIdx].stop_order }).eq('id', stages[idx].id),
-      supabase.from('service_default_stages').update({ stop_order: stages[idx].stop_order }).eq('id', stages[swapIdx].id),
-    ]);
-    await fetchSvcStages(svcId);
-  };
-
-
-
-  // ── Service import helpers ───────────────────────────────────
-  const parseSvcImportText = (raw: string) => {
-    const lines = raw.split(/\r?\n/).filter(l => l.trim());
-    return lines.map(l => {
-      const cols = l.split('\t');
-      return {
-        name:     (cols[0] ?? '').trim(),
-        priceUSD: (cols[1] ?? '').replace(/[^\d.]/g, '').trim(),
-        priceLBP: (cols[2] ?? '').replace(/[^\d]/g, '').trim(),
-      };
-    }).filter(r => r.name);
-  };
-
-  const handleImportServices = async () => {
-    if (!svcImportRows.length) return;
-    setImportingServices(true);
-    const inserts = svcImportRows.map(r => ({
-      name:                r.name,
-      base_price_usd:      parseFloat(r.priceUSD) || 0,
-      base_price_lbp:      parseInt(r.priceLBP, 10) || 0,
-      estimated_duration_days: 0,
-      org_id:              orgId,
-    }));
-    const { error } = await supabase.from('services').insert(inserts);
-    setImportingServices(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setShowSvcImportModal(false);
-    setSvcImportRaw('');
-    setSvcImportRows([]);
-    const { data } = await supabase.from('services').select('*').order('name');
-    if (data) setServices(data as Service[]);
-    Alert.alert(t('success'), `${inserts.length} ${t('services')}`);
-  };
-
-  // ── Client import helpers ─────────────────────────────────
-  const parseClientImport = (raw: string) =>
-    raw.split(/\r?\n/).map(l => {
-      const c = l.split('\t');
-      return { name:(c[0]??'').trim(), phone:(c[1]??'').trim(), refName:(c[2]??'').trim(), refPhone:(c[3]??'').trim() };
-    }).filter(r => r.name);
-
-  const handleImportClients = async () => {
-    if (!clientImportRows.length) return;
-    setImportingClients(true);
-
-    // ── Duplicate check ──────────────────────────────────────────────────────
-    const { data: existingClients } = await supabase
-      .from('clients').select('name, phone').eq('org_id', orgId);
-    const existingNames  = new Set((existingClients ?? []).map((c: any) => c.name?.toLowerCase()));
-    const existingPhones = new Set((existingClients ?? []).map((c: any) => c.phone).filter(Boolean));
-
-    const duplicates: string[] = [];
-    const uniqueRows = clientImportRows.filter(r => {
-      const isDup = existingNames.has(r.name.toLowerCase()) ||
-                    (r.phone && existingPhones.has(r.phone));
-      if (isDup) { duplicates.push(r.name); return false; }
-      return true;
-    });
-
-    if (uniqueRows.length === 0) {
-      setImportingClients(false);
-      Alert.alert(t('allDuplicates'), `All clients already exist:\n${duplicates.join(', ')}`);
-      return;
-    }
-
-    const inserts = uniqueRows.map((r, i) => ({
-      name: r.name,
-      client_id: `CLT-${Date.now()}-${i}`,
-      phone: r.phone || null,
-      reference_name: r.refName || null,
-      reference_phone: r.refPhone || null,
-      org_id: orgId,
-    }));
-    const { error } = await supabase.from('clients').insert(inserts);
-    setImportingClients(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    const { data } = await supabase.from('clients').select('*').order('name');
-    if (data) setClients(data as Client[]);
-    setShowClientImport(false); setClientImportRaw(''); setClientImportRows([]);
-    const skippedMsg = duplicates.length > 0 ? `\n${t('skippedDuplicates')}: ${duplicates.join(', ')}` : '';
-    Alert.alert(t('success'), `${inserts.length} ${t('clients')}${skippedMsg}`);
-  };
-
+  // ── Service actions hook (Phase 5d) ──────────────────────────────────────
+  const serviceActions = useServiceActions({
+    orgId, t, fetchData,
+    ministries, setServices,
+    newSvcName, newSvcPriceUSD, newSvcPriceLBP,
+    setNewSvcName, setNewSvcPriceUSD, setNewSvcPriceLBP, setSavingNewSvc,
+    editSvcId, editSvcName, editSvcPriceUSD, editSvcPriceLBP,
+    setEditSvcId, setSavingEditSvc,
+    expandedSvcId, setExpandedSvcId,
+    svcStages, setSvcStages, setLoadingSvcStages,
+    svcStageNewName, setSvcStageNewName, setSavingNewSvcStage,
+    svcImportRows, setSvcImportRaw, setSvcImportRows,
+    setShowSvcImportModal, setImportingServices,
+  });
+  const {
+    handleCreateService, handleSaveEditService, handleDeleteService,
+    handleToggleSvcExpand, handleAddSvcStage, handleAddExistingSvcStage,
+    handleRemoveSvcStage, handleMoveSvcStage,
+    parseSvcImportText, handleImportServices,
+  } = serviceActions;
 
   // ── UI ────────────────────────────────────────────────────
   const quickActions = [
