@@ -35,6 +35,7 @@ import { IdScannerModal } from './Create/components/IdScannerModal';
 import { ManageClientsModal } from './Create/components/ManageClientsModal';
 import { NewClientForm } from './Create/components/NewClientForm';
 import { ManageServicesModal } from './Create/components/ManageServicesModal';
+import { ManageStagesModal } from './Create/components/ManageStagesModal';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -1053,217 +1054,49 @@ export default function CreateScreen() {
         s={s}
       />
 
-      {/* ── MANAGE STAGES MODAL ── */}
-      <Modal
+      {/* ── MANAGE STAGES MODAL ── (extracted to ./Create/components/ManageStagesModal.tsx) */}
+      <ManageStagesModal
         visible={manageSection === 'stages'}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); setShowStageImport(false); }}
-      >
-        <View style={s.modalOverlay}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-start', paddingTop: 60 }}>
-            <View style={[s.modalSheet, { maxHeight: '90%' }]}>
-              <View style={s.modalHeader}>
-                <View>
-                  <Text style={s.modalTitle}>{t('stages')}</Text>
-                  <Text style={s.modalSubtitle}>
-                    {stageSearch ? `${ministries.filter(m => m.name.toLowerCase().includes(stageSearch.toLowerCase())).length} of ${ministries.length}` : `${ministries.length} total`}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity
-                    style={s.docImportToggleBtn}
-                    onPress={() => { setShowStageImport(v => !v); setStageImportRaw(''); setStageImportNames([]); }}
-                  >
-                    <Text style={s.docImportToggleBtnText}>📥</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setManageSection(null); setEditStageId(null); setStageSearch(''); setShowStageImport(false); }}>
-                    <Text style={s.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              {/* Stage import panel */}
-              {showStageImport && (
-                <View style={[s.docImportPanel, { marginHorizontal: theme.spacing.space3, marginBottom: theme.spacing.space2 }]}>
-                  <Text style={s.docImportLabel}>{t('importBtn')} ({t('stageName')})</Text>
-                  <TextInput
-                    style={s.docImportTextArea}
-                    value={stageImportRaw}
-                    onChangeText={(t) => { setStageImportRaw(t); setStageImportNames([]); }}
-                    placeholder={t('paste')}
-                    placeholderTextColor={theme.color.textMuted}
-                    multiline
-                    textAlignVertical="top"
-                  />
-                  {stageImportNames.length === 0 ? (
-                    <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setStageImportNames(parseStageImport(stageImportRaw))} disabled={!stageImportRaw.trim()}>
-                      <Text style={s.docImportPreviewBtnText}>Preview</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      {stageImportNames.map((name, i) => (
-                        <View key={i} style={s.docImportPreviewRow}>
-                          <Text style={s.docImportPreviewTitle} numberOfLines={1}>{name}</Text>
-                        </View>
-                      ))}
-                      <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportStages} disabled={importingStages}>
-                        {importingStages ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>Import {stageImportNames.length} stage{stageImportNames.length !== 1 ? 's' : ''}</Text>}
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              )}
-              <View style={s.mgmtSearchRow}>
-                <TextInput
-                  style={s.mgmtSearchInput}
-                  value={stageSearch}
-                  onChangeText={setStageSearch}
-                  placeholder={t('searchStage')}
-                  placeholderTextColor={theme.color.textMuted}
-                  clearButtonMode="while-editing"
-                  autoCorrect={false}
-                />
-              </View>
-              <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
-                <View style={[s.mgmtAddBlock, { flexDirection: 'row', alignItems: 'flex-end', gap: 8 }]}>
-                  <Text style={[s.mgmtAddSectionLabel, { position: 'absolute', top: 14, left: 14 }]}>{t('newStage').toUpperCase()}</Text>
-                  <TextInput style={[s.modalInput, { flex: 1, marginTop: 20 }]} value={newStageName} onChangeText={setNewStageName} placeholder={`${t('stageName')} *`} placeholderTextColor={theme.color.textMuted} />
-                  <TouchableOpacity style={s.mgmtAddBtn} onPress={handleCreateStage} disabled={savingNewStage}>
-                    {savingNewStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtAddBtnText}>+ {t('add')}</Text>}
-                  </TouchableOpacity>
-                </View>
-                {ministries.filter(m =>
-                  !stageSearch.trim() ||
-                  m.name.toLowerCase().includes(stageSearch.toLowerCase())
-                ).map((m) => (
-                  <View key={m.id}>
-                    {editStageId === m.id ? (
-                      <View style={s.mgmtEditRow}>
-                        <TextInput style={[s.modalInput, { flex: 1 }]} value={editStageName} onChangeText={setEditStageName} placeholder={t('stageName')} placeholderTextColor={theme.color.textMuted} autoFocus />
-                        <TouchableOpacity style={s.mgmtSaveBtn} onPress={handleSaveEditStage} disabled={savingEditStage}>
-                          {savingEditStage ? <ActivityIndicator color={theme.color.white} size="small" /> : <Text style={s.mgmtSaveBtnText}>{t('save')}</Text>}
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.mgmtCancelBtn} onPress={() => setEditStageId(null)}>
-                          <Text style={s.mgmtCancelBtnText}>✕</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <View>
-                        <View style={s.mgmtItemRow}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={s.mgmtItemName}>{m.name}</Text>
-                            {/* City chip */}
-                            {(() => {
-                              const cityName = m.city?.name ?? allCities.find(c => c.id === m.city_id)?.name ?? null;
-                              return (
-                            <TouchableOpacity
-                              style={s.stageCityChip}
-                              onPress={() => {
-                                setStageCityPickerId(v => v === m.id ? null : m.id);
-                                setStageCitySearch('');
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[s.stageCityChipText, cityName ? { color: theme.color.primary } : {}]}>
-                                📍 {cityName ?? t('setCityOptional')}
-                              </Text>
-                            </TouchableOpacity>
-                              );
-                            })()}
-                          </View>
-                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setStageCityPickerId(null); setEditStageId(m.id); setEditStageName(m.name); }}>
-                            <Text style={s.mgmtEditBtnText}>✎</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={s.mgmtEditBtn} onPress={() => { setStageCityPickerId(null); setContactsMinistryId(m.id); }}>
-                            <Text style={s.mgmtEditBtnText}>👥</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteStage(m)}>
-                            <Text style={s.mgmtDelBtnText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                        {/* City picker dropdown */}
-                        {stageCityPickerId === m.id && (
-                          <View style={s.stageCityPanel}>
-                            <TextInput
-                              style={s.mgmtSearchInput}
-                              value={stageCitySearch}
-                              onChangeText={text => { setStageCitySearch(text); setShowCreateStageCityForm(false); setNewStageCityName(text); }}
-                              placeholder={t('searchCity')}
-                              placeholderTextColor={theme.color.textMuted}
-                              autoCorrect={false}
-                            />
-                            {/* Create new city — always visible above list */}
-                            <TouchableOpacity
-                              style={[s.stageCityItem, { borderBottomWidth: 1, borderBottomColor: theme.color.border }]}
-                              onPress={() => { setShowCreateStageCityForm(v => !v); if (!newStageCityName) setNewStageCityName(stageCitySearch); }}
-                            >
-                              <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600' }}>
-                                {showCreateStageCityForm ? '− Cancel' : '+ Create New City'}
-                              </Text>
-                            </TouchableOpacity>
-                            {showCreateStageCityForm && (
-                              <View style={{ padding: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: theme.color.border }}>
-                                <TextInput
-                                  style={s.mgmtSearchInput}
-                                  value={newStageCityName}
-                                  onChangeText={setNewStageCityName}
-                                  placeholder={`${t('city')} *`}
-                                  placeholderTextColor={theme.color.textMuted}
-                                  autoFocus
-                                />
-                                <TouchableOpacity
-                                  style={[s.mgmtSaveBtn, savingStageCity && { opacity: 0.6 }]}
-                                  onPress={() => handleCreateStageCity(m.id)}
-                                  disabled={savingStageCity}
-                                >
-                                  {savingStageCity
-                                    ? <ActivityIndicator size="small" color={theme.color.white} />
-                                    : <Text style={s.mgmtSaveBtnText}>Save City</Text>}
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                            <View>
-                              {m.city_id && (
-                                <TouchableOpacity
-                                  style={s.stageCityItem}
-                                  onPress={() => handleSetStageCity(m.id, null)}
-                                >
-                                  <Text style={{ color: theme.color.danger, fontSize: 13 }}>✕ Remove city</Text>
-                                </TouchableOpacity>
-                              )}
-                              {allCities
-                                .filter(c => !stageCitySearch.trim() || c.name.toLowerCase().includes(stageCitySearch.toLowerCase()))
-                                .slice(0, 15)
-                                .map(city => (
-                                  <TouchableOpacity
-                                    key={city.id}
-                                    style={[s.stageCityItem, m.city_id === city.id && s.stageCityItemActive]}
-                                    onPress={() => handleSetStageCity(m.id, city.id)}
-                                  >
-                                    <Text style={[s.stageCityItemText, m.city_id === city.id && { color: theme.color.primary, fontWeight: '600' }]}>
-                                      {city.name}
-                                    </Text>
-                                    {m.city_id === city.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                                  </TouchableOpacity>
-                                ))}
-                              {allCities.filter(c => !stageCitySearch.trim() || c.name.toLowerCase().includes(stageCitySearch.toLowerCase())).length === 0 && (
-                                <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: 12 }}>No cities match "{stageCitySearch}"</Text>
-                              )}
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                ))}
-                {stageSearch.trim() && ministries.filter(m => m.name.toLowerCase().includes(stageSearch.toLowerCase())).length === 0 && (
-                  <Text style={s.mgmtEmpty}>No stages match "{stageSearch}"</Text>
-                )}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        onClose={() => setManageSection(null)}
+        t={t}
+        ministries={ministries}
+        allCities={allCities}
+        stageSearch={stageSearch}
+        setStageSearch={setStageSearch}
+        newStageName={newStageName}
+        setNewStageName={setNewStageName}
+        savingNewStage={savingNewStage}
+        handleCreateStage={handleCreateStage}
+        editStageId={editStageId}
+        setEditStageId={setEditStageId}
+        editStageName={editStageName}
+        setEditStageName={setEditStageName}
+        savingEditStage={savingEditStage}
+        handleSaveEditStage={handleSaveEditStage}
+        handleDeleteStage={handleDeleteStage}
+        stageCityPickerId={stageCityPickerId}
+        setStageCityPickerId={setStageCityPickerId}
+        stageCitySearch={stageCitySearch}
+        setStageCitySearch={setStageCitySearch}
+        showCreateStageCityForm={showCreateStageCityForm}
+        setShowCreateStageCityForm={setShowCreateStageCityForm}
+        newStageCityName={newStageCityName}
+        setNewStageCityName={setNewStageCityName}
+        savingStageCity={savingStageCity}
+        handleSetStageCity={handleSetStageCity}
+        handleCreateStageCity={handleCreateStageCity}
+        setContactsMinistryId={setContactsMinistryId}
+        showStageImport={showStageImport}
+        setShowStageImport={setShowStageImport}
+        stageImportRaw={stageImportRaw}
+        setStageImportRaw={setStageImportRaw}
+        stageImportNames={stageImportNames}
+        setStageImportNames={setStageImportNames}
+        importingStages={importingStages}
+        parseStageImport={parseStageImport}
+        handleImportStages={handleImportStages}
+        s={s}
+      />
 
       {/* ── ID / QR SCANNER MODAL ── (extracted to ./Create/components/IdScannerModal.tsx) */}
       <IdScannerModal
