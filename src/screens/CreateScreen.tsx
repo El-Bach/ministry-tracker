@@ -32,6 +32,7 @@ import PhoneInput, { DEFAULT_COUNTRY } from '../components/PhoneInput';
 import { MinistryContactsSheet } from '../components/MinistryContactsSheet';
 import { NetworkModal } from './Create/components/NetworkModal';
 import { IdScannerModal } from './Create/components/IdScannerModal';
+import { ManageClientsModal } from './Create/components/ManageClientsModal';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -950,97 +951,20 @@ export default function CreateScreen() {
         </View>
       </ScrollView>
 
-      {/* ── MANAGE CLIENTS MODAL ── */}
-      <Modal
+      {/* ── MANAGE CLIENTS MODAL ── (extracted to ./Create/components/ManageClientsModal.tsx) */}
+      <ManageClientsModal
         visible={manageSection === 'clients'}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setManageSection(null); setClientSearch(''); }}
-      >
-        <View style={s.modalOverlay}>
-          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-start', paddingTop: 60 }}>
-            <View style={[s.modalSheet, { maxHeight: '82%' }]}>
-              <View style={s.modalHeader}>
-                <View>
-                  <Text style={s.modalTitle}>{t('clients')}</Text>
-                  <Text style={s.modalSubtitle}>
-                    {clientSearch
-                      ? `${clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || (c.phone ?? '').includes(clientSearch)).length} of ${clients.length}`
-                      : `${clients.length} total`}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <TouchableOpacity
-                    style={s.modalAddBtn}
-                    onPress={() => { setManageSection(null); setClientSearch(''); openNewClientForm(); }}
-                  >
-                    <Text style={s.modalAddBtnText}>+ {t('add')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setManageSection(null); setClientSearch(''); }}>
-                    <Text style={s.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <View style={s.mgmtSearchRow}>
-                <TextInput
-                  style={s.mgmtSearchInput}
-                  value={clientSearch}
-                  onChangeText={setClientSearch}
-                  placeholder={t('searchPlaceholder')}
-                  placeholderTextColor={theme.color.textMuted}
-                  clearButtonMode="while-editing"
-                  autoCorrect={false}
-                />
-              </View>
-              <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
-                {clients.length === 0 ? (
-                  <Text style={s.mgmtEmpty}>{t('noFilesFound')}</Text>
-                ) : clients.filter(c =>
-                  !clientSearch.trim() ||
-                  c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-                  (c.phone ?? '').includes(clientSearch)
-                ).length === 0 ? (
-                  <Text style={s.mgmtEmpty}>No clients match "{clientSearch}"</Text>
-                ) : clients.filter(c =>
-                  !clientSearch.trim() ||
-                  c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-                  (c.phone ?? '').includes(clientSearch)
-                ).map((c) => (
-                  <View key={c.id} style={s.mgmtClientRow}>
-                    <View style={s.mgmtClientAvatar}>
-                      <Text style={s.mgmtClientAvatarText}>{c.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.mgmtItemName}>{c.name}</Text>
-                      {!!c.reference_name && (
-                        <Text style={s.mgmtItemRef}>عبر {c.reference_name}</Text>
-                      )}
-                      {c.phone ? (
-                        <TouchableOpacity onPress={() => openPhone(c.phone!, c.name)} activeOpacity={0.7}>
-                          <Text style={[s.mgmtItemSub, { color: theme.color.primary }]}>📞 {formatPhoneDisplay(c.phone)}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                    {permissions.can_edit_delete_clients && (
-                      <TouchableOpacity
-                        style={s.mgmtEditBtn}
-                        onPress={() => { setManageSection(null); (navigation as any).navigate('Dashboard', { screen: 'EditClient', params: { clientId: c.id } }); }}
-                      >
-                        <Text style={s.mgmtEditBtnText}>✎</Text>
-                      </TouchableOpacity>
-                    )}
-                    {permissions.can_edit_delete_clients && (
-                      <TouchableOpacity style={s.mgmtDelBtn} onPress={() => handleDeleteClient(c)}>
-                        <Text style={s.mgmtDelBtnText}>✕</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+        onClose={() => setManageSection(null)}
+        t={t}
+        clients={clients}
+        clientSearch={clientSearch}
+        setClientSearch={setClientSearch}
+        permissions={permissions}
+        openNewClientForm={openNewClientForm}
+        handleDeleteClient={handleDeleteClient}
+        onEditClient={(clientId) => (navigation as any).navigate('Dashboard', { screen: 'EditClient', params: { clientId } })}
+        s={s}
+      />
 
       {/* ── NEW CLIENT FORM ── */}
       <Modal
