@@ -227,12 +227,13 @@ export function StagesSection(props: Props) {
                       style={[s.stageChip, {
                         borderColor: stop.city_id ? theme.color.primary + '70' : theme.color.border,
                         backgroundColor: stop.city_id ? theme.color.primary + '18' : theme.color.bgBase,
+                        alignItems: 'flex-start',
                       }]}
                       onPress={() => { setOpenCityStopId(v => v === stop.id ? null : stop.id); setStopCitySearch(''); setShowCreateCityForm(false); setNewCityName(''); }}
                       activeOpacity={0.7}
                     >
                       <Text style={s.stageChipIcon}>📍</Text>
-                      <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted }]} numberOfLines={1}>
+                      <Text style={[s.stageChipLabel, { color: stop.city_id ? theme.color.primary : theme.color.textMuted, flexWrap: 'wrap' }]}>
                         {stopCityName ?? t('setCity')}
                       </Text>
                       <Text style={[s.stageChipArrow, { color: stop.city_id ? theme.color.primary + 'BB' : theme.color.border }]}>▾</Text>

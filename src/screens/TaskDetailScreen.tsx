@@ -1987,17 +1987,6 @@ const s = StyleSheet.create({
   voicePreviewLabel: { ...theme.typography.body, color: theme.color.textPrimary, fontWeight: '600', flex: 1 },
   voiceDiscardBtn:   { width: 32, height: 32, borderRadius: 16, backgroundColor: theme.color.bgBase, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.color.border },
   voiceDiscardBtnText: { color: theme.color.danger, fontWeight: '700', fontSize: 14 },
-  voiceTextBtn: {
-    borderWidth:       1.5,
-    borderColor:       theme.color.primary,
-    borderRadius:      theme.radius.md,
-    paddingHorizontal: theme.spacing.space3,
-    paddingVertical:   theme.spacing.space2,
-    minWidth:          52,
-    alignItems:        'center',
-    justifyContent:    'center',
-  },
-  voiceTextBtnText: { color: theme.color.primary, fontWeight: '700', fontSize: 13 },
   // Voice note player (in comment list)
   voiceNotePlayer:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.color.bgBase, borderRadius: theme.radius.md, padding: theme.spacing.space2, borderWidth: 1, borderColor: theme.color.border },
   voiceNotePlayBtn:  { width: 36, height: 36, borderRadius: 18, backgroundColor: theme.color.primary, alignItems: 'center', justifyContent: 'center' },
