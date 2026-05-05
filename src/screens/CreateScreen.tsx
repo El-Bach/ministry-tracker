@@ -37,6 +37,7 @@ import { NewClientForm } from './Create/components/NewClientForm';
 import { ManageServicesModal } from './Create/components/ManageServicesModal';
 import { ManageStagesModal } from './Create/components/ManageStagesModal';
 import { DocumentsRequiredModal } from './Create/components/DocumentsRequiredModal';
+import { useNetworkActions } from './Create/hooks/useNetworkActions';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -232,6 +233,23 @@ export default function CreateScreen() {
       navigation.setParams({ openSection: undefined });
     }
   }, [route.params]));
+
+  // ── Network actions hook (Phase 5a) ──────────────────────────────────────
+  const networkActions = useNetworkActions({
+    orgId, t,
+    setNetwork,
+    netName, netPhone, netReference, netRefPhone, netCityId,
+    setNetName, setNetPhone, setNetReference, setNetRefPhone, setNetCityId,
+    editNetworkId, setEditNetworkId, setShowNetworkForm, setSavingNetwork,
+    setNetFieldValues, setNetAddedFieldIds, setShowNetFieldPicker, setNetFieldSearch,
+    setNetCitySearch, setShowNetCityPicker,
+    setNetDatePickerFieldId, setNetDatePickerMonthYear, setNetDatePickerCurrent,
+    importRows, setImportRaw, setImportRows, setShowImportModal, setImportingContacts,
+  });
+  const {
+    matchesNetworkSearch, openNetworkForm, handleSaveNetworkContact,
+    handleDeleteNetworkContact, parseImportText, handleImportContacts,
+  } = networkActions;
 
   // ── Handlers ──────────────────────────────────────────────
   const openNewClientForm = async () => {
@@ -516,115 +534,6 @@ export default function CreateScreen() {
     await fetchStageReqs(ministryId);
   };
 
-  // ── Network helpers ───────────────────────────────────────
-  const matchesNetworkSearch = (n: any, query: string) => {
-    const q = query.toLowerCase();
-    return (
-      n.name?.toLowerCase().includes(q) ||
-      n.phone?.toLowerCase().includes(q) ||
-      n.reference?.toLowerCase().includes(q) ||
-      n.reference_phone?.toLowerCase().includes(q) ||
-      n.notes?.toLowerCase().includes(q) ||
-      n.city?.name?.toLowerCase().includes(q)
-    );
-  };
-
-  // ── Network handlers ─────────────────────────────────────
-  const openNetworkForm = async (contact?: any) => {
-    setNetFieldValues({});
-    setNetAddedFieldIds([]);
-    setShowNetFieldPicker(false);
-    setNetFieldSearch('');
-    setNetCitySearch('');
-    setShowNetCityPicker(false);
-    setNetDatePickerFieldId(null);
-    setNetDatePickerMonthYear(false);
-    setNetDatePickerCurrent(undefined);
-    if (contact) {
-      setEditNetworkId(contact.id);
-      setNetName(contact.name ?? '');
-      setNetPhone(contact.phone ?? '');
-      setNetReference(contact.reference ?? '');
-      setNetRefPhone(contact.reference_phone ?? '');
-      setNetCityId(contact.city_id ?? null);
-    } else {
-      setEditNetworkId(null);
-      setNetName(''); setNetPhone(''); setNetReference(''); setNetRefPhone(''); setNetCityId(null);
-    }
-    setShowNetworkForm(true);
-  };
-
-  const handleSaveNetworkContact = async () => {
-    if (!netName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingNetwork(true);
-    const payload = {
-      name: netName.trim(),
-      phone: netPhone.trim() || null,
-      reference: netReference.trim() || null,
-      reference_phone: netRefPhone.trim() || null,
-      city_id: netCityId ?? null,
-      org_id: orgId,
-    };
-    let assigneeId: string;
-    if (editNetworkId) {
-      await supabase.from('assignees').update(payload).eq('id', editNetworkId);
-      assigneeId = editNetworkId;
-    } else {
-      const { data: newContact, error } = await supabase.from('assignees').insert(payload).select().single();
-      if (error || !newContact) { setSavingNetwork(false); Alert.alert(t('error'), error?.message ?? t('failedToSave')); return; }
-      assigneeId = (newContact as any).id;
-    }
-    setSavingNetwork(false);
-    setShowNetworkForm(false);
-    setEditNetworkId(null);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
-    if (data) setNetwork(data);
-  };
-
-  const handleDeleteNetworkContact = (contact: any) => {
-    Alert.alert(`${t('delete')} ${t('network')}`, `Delete "${contact.name}"?`, [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'), style: 'destructive', onPress: async () => {
-          await supabase.from('assignees').delete().eq('id', contact.id);
-          setNetwork(prev => prev.filter(n => n.id !== contact.id));
-        },
-      },
-    ]);
-  };
-
-  // ── Network import helpers ────────────────────────────────
-  const parseImportText = (raw: string) => {
-    const lines = raw.split(/\r?\n/).filter(l => l.trim());
-    return lines.map(l => {
-      const cols = l.split('\t');
-      return {
-        name:      (cols[0] ?? '').trim(),
-        phone:     (cols[1] ?? '').trim(),
-        reference: (cols[2] ?? '').trim(),
-      };
-    }).filter(r => r.name);
-  };
-
-  const handleImportContacts = async () => {
-    if (!importRows.length) return;
-    setImportingContacts(true);
-    const inserts = importRows.map(r => ({
-      name:      r.name,
-      phone:     r.phone || null,
-      reference: r.reference || null,
-      org_id:    orgId,
-    }));
-    const { error } = await supabase.from('assignees').insert(inserts);
-    setImportingContacts(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setShowImportModal(false);
-    setImportRaw('');
-    setImportRows([]);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
-    if (data) setNetwork(data as any[]);
-    Alert.alert(t('success'), `${inserts.length} ${t('contacts')}`);
-  };
 
   // ── Service import helpers ───────────────────────────────────
   const parseSvcImportText = (raw: string) => {
