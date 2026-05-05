@@ -783,13 +783,14 @@ export default function SettingsScreen() {
        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
          {[
            { icon: '📁', title: t('help1Title'), steps: [t('help1S1'), t('help1S2'), t('help1S3'), t('help1S4')] },
-           { icon: '🗂', title: t('help2Title'), steps: [t('help2S1'), t('help2S2'), t('help2S3'), t('help2S4'), t('help2S5')] },
+           { icon: '🗂', title: t('help2Title'), steps: [t('help2S1'), t('help2S2'), t('help2S3'), t('help2S4'), t('help2S5'), t('help2S6')] },
            { icon: '👥', title: t('help3Title'), steps: [t('help3S1'), t('help3S2'), t('help3S3'), t('help3S4')] },
            { icon: '📄', title: t('help4Title'), steps: [t('help4S1'), t('help4S2'), t('help4S3'), t('help4S4')] },
            { icon: '💰', title: t('help5Title'), steps: [t('help5S1'), t('help5S2'), t('help5S3'), t('help5S4')] },
            { icon: '📅', title: t('help6Title'), steps: [t('help6S1'), t('help6S2'), t('help6S3')] },
            { icon: '🔍', title: t('help7Title'), steps: [t('help7S1'), t('help7S2'), t('help7S3')] },
            { icon: '🌐', title: t('help8Title'), steps: [t('help8S1'), t('help8S2'), t('help8S3'), t('help8S4')] },
+           { icon: '🏛', title: t('help9Title'), steps: [t('help9S1'), t('help9S2'), t('help9S3'), t('help9S4')] },
          ].map((section, i) => (
            <View key={i} style={ss.helpSection}>
              <View style={ss.helpSectionHeader}>
@@ -835,6 +836,8 @@ export default function SettingsScreen() {
            { q: t('faqQ12'), a: t('faqA12') },
            { q: t('faqQ13'), a: t('faqA13') },
            { q: t('faqQ14'), a: t('faqA14') },
+           { q: t('faqQ15'), a: t('faqA15') },
+           { q: t('faqQ16'), a: t('faqA16') },
          ].map((item, i) => (
            <TouchableOpacity
              key={i}

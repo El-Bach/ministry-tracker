@@ -73,7 +73,6 @@ export function DocumentsSection({
         <View style={s.docEmpty}>
           <Text style={s.docEmptyIcon}>📄</Text>
           <Text style={s.docEmptyText}>{t('noDocuments')}</Text>
-          {permissions.can_upload_documents && renderActionButtons()}
         </View>
       ) : (
         documents.map((doc) => {

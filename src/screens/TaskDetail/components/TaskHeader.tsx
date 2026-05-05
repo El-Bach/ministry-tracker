@@ -45,6 +45,9 @@ interface Props {
   task: Task;
   derivedStatus: string;
   derivedStatusColor: string;
+  /** Reason text shown below the status badge when the file was archived
+      via Rejected on its final stage. null otherwise. */
+  archivedRejectionReason: string | null;
   allMembers: TeamMember[];
   showAssigneePicker: boolean;
   setShowAssigneePicker: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -69,6 +72,7 @@ export function TaskHeader({
   task,
   derivedStatus,
   derivedStatusColor,
+  archivedRejectionReason,
   allMembers,
   showAssigneePicker,
   setShowAssigneePicker,
@@ -104,7 +108,14 @@ export function TaskHeader({
             </TouchableOpacity>
           )}
         </View>
-        <StatusBadge label={derivedStatus} color={derivedStatusColor} />
+        <View style={{ alignItems: 'flex-end' }}>
+          <StatusBadge label={derivedStatus} color={derivedStatusColor} />
+          {archivedRejectionReason && (
+            <View style={s.headerRejectionBox}>
+              <Text style={s.headerRejectionText}>⚠ {archivedRejectionReason}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Assignee row */}
@@ -176,18 +187,28 @@ export function TaskHeader({
         </View>
       </View>
 
-      {/* Opened + Due date row */}
+      {/* Opened + Due/Closed date row. Archived files show the archive date
+          (closed_at) in place of the editable due date. */}
       <View style={s.metaGrid}>
         <View style={s.metaCell}>
           <Text style={s.metaLabel}>{t('opened').toUpperCase()}</Text>
           <Text style={s.metaValue}>{formatDate(task.created_at)}</Text>
         </View>
-        <TouchableOpacity style={s.metaCell} onPress={onToggleDueDateCalendar} activeOpacity={0.7}>
-          <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
-          <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
-            {task.due_date ? formatDateOnly(task.due_date) : t('tapToSet')}
-          </Text>
-        </TouchableOpacity>
+        {task.is_archived ? (
+          <View style={s.metaCell}>
+            <Text style={s.metaLabel}>{t('archived').toUpperCase()}</Text>
+            <Text style={s.metaValue}>
+              {formatDate(task.closed_at ?? task.updated_at ?? task.created_at)}
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity style={s.metaCell} onPress={onToggleDueDateCalendar} activeOpacity={0.7}>
+            <Text style={s.metaLabel}>{t('dueDate').toUpperCase()} ✎</Text>
+            <Text style={[s.metaValue, !task.due_date && { color: theme.color.textMuted }]}>
+              {task.due_date ? formatDateOnly(task.due_date) : t('tapToSet')}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {task.notes ? (
@@ -225,6 +246,8 @@ const s = StyleSheet.create({
     gap: theme.spacing.space3,
   },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headerRejectionBox: { marginTop: 6, maxWidth: 220, backgroundColor: theme.color.danger + '18', borderLeftWidth: 3, borderLeftColor: theme.color.danger, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.radius.sm },
+  headerRejectionText: { color: theme.color.danger, fontSize: 12, fontWeight: '500', lineHeight: 16, textAlign: 'right' },
   clientName: { ...theme.typography.heading, fontSize: 18, fontWeight: '700', color: theme.color.textPrimary },
   clientProfileHint: { ...theme.typography.caption, color: theme.color.primary, marginTop: 2 },
   clientSub: { ...theme.typography.body, marginTop: 4 },

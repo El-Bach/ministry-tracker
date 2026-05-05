@@ -665,15 +665,24 @@ export default function TaskDetailScreen() {
     Rejected: 1, 'Pending Signature': 2, 'In Review': 3,
     Submitted: 4, Pending: 5, Done: 99, Closed: 100,
   };
+  // When the file is archived, the badge reflects the FINAL stage's actual
+  // status (Done / Rejected / Received & Closed) — the final stage is the
+  // single closing stage that drives archiving (see useTaskActions).
+  const finalStop = task.route_stops?.find(s => s.ministry?.name === FINAL_STAGE_NAME);
   const nonTerminalStops = (task.route_stops ?? []).filter(
-    (s) => s.status !== 'Done' && s.status !== 'Rejected'
+    (s) => s.status !== 'Done' && s.status !== 'Rejected' && s.status !== 'Received & Closed'
   );
-  const derivedStatus = nonTerminalStops.length > 0
-    ? nonTerminalStops.reduce((a, b) =>
-        (DETAIL_URGENCY[a.status] ?? 50) <= (DETAIL_URGENCY[b.status] ?? 50) ? a : b
-      ).status
-    : ((task.route_stops && task.route_stops.length > 0) ? 'Done' : task.current_status);
+  const derivedStatus = task.is_archived && finalStop
+    ? finalStop.status
+    : nonTerminalStops.length > 0
+      ? nonTerminalStops.reduce((a, b) =>
+          (DETAIL_URGENCY[a.status] ?? 50) <= (DETAIL_URGENCY[b.status] ?? 50) ? a : b
+        ).status
+      : ((task.route_stops && task.route_stops.length > 0) ? 'Done' : task.current_status);
   const derivedStatusColor = getStatusColor(derivedStatus);
+  // Reason to surface in the header when the file was rejected at closing
+  const archivedRejectionReason =
+    task.is_archived && finalStop?.status === 'Rejected' ? (finalStop.rejection_reason ?? null) : null;
 
   // Compute balances — contract price is NOT revenue, it's the agreed billing amount
   const totalRevenueUSD = transactions.filter((t) => t.type === 'revenue').reduce((sum, t) => sum + t.amount_usd, 0);
@@ -745,6 +754,7 @@ export default function TaskDetailScreen() {
           task={task}
           derivedStatus={derivedStatus}
           derivedStatusColor={derivedStatusColor}
+          archivedRejectionReason={archivedRejectionReason}
           allMembers={allMembers}
           showAssigneePicker={showAssigneePicker}
           setShowAssigneePicker={setShowAssigneePicker}
@@ -795,6 +805,9 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
+        {/* Section divider above Comments */}
+        <View style={{ height: 5, backgroundColor: theme.color.border, marginVertical: theme.spacing.space4 }} />
+
         {/* ── COMMENTS ── (Phase 3 extracted module) */}
         <CommentsSection
           comments={comments}
@@ -829,6 +842,9 @@ export default function TaskDetailScreen() {
           fmtDuration={fmtDuration}
         />
 
+        {/* Section divider between Comments and Documents */}
+        <View style={{ height: 5, backgroundColor: theme.color.border, marginVertical: theme.spacing.space4 }} />
+
         {/* ── DOCUMENTS ── (Phase 3 extracted module) */}
         <DocumentsSection
           documents={documents as any}
@@ -846,6 +862,9 @@ export default function TaskDetailScreen() {
           onDeleteDoc={(doc) => handleDeleteDocument(doc as any)}
           formatDate={formatDate}
         />
+
+        {/* Section divider below Documents */}
+        <View style={{ height: 5, backgroundColor: theme.color.border, marginVertical: theme.spacing.space4 }} />
 
         {/* ── STAGES ROUTE ── (Phase 3 extracted module) */}
         <StagesSection

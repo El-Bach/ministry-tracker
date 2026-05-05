@@ -273,9 +273,7 @@ export function MinistryContactsSheet({
                 <ActivityIndicator color={theme.color.primary} style={{ marginVertical: 24 }} />
               ) : contacts.length === 0 ? (
                 <Text style={s.emptyText}>
-                  No contacts yet.
-                  {mode !== 'pick' && !readOnly && ' Tap "+ Add contact" below to add the first one.'}
-                  {mode === 'pick' && ' Add ministry contacts in Manage > Stages first.'}
+                  No contacts yet.{!readOnly && ' Tap "+ Add contact" below to add the first one.'}
                 </Text>
               ) : (
                 contacts.map(c => (
@@ -339,14 +337,15 @@ export function MinistryContactsSheet({
                 ))
               )}
 
-              {/* + Add contact */}
-              {mode !== 'pick' && !readOnly && !showAdd && (
+              {/* + Add contact — available in both browse and pick mode so the
+                  user can add a missing contact without leaving TaskDetail */}
+              {!readOnly && !showAdd && (
                 <TouchableOpacity style={s.addBtn} onPress={() => setShowAdd(true)}>
                   <Text style={s.addBtnText}>+ Add contact</Text>
                 </TouchableOpacity>
               )}
 
-              {mode !== 'pick' && !readOnly && showAdd && (
+              {!readOnly && showAdd && (
                 <View style={s.addPanel}>
                   <Text style={s.helperText}>NEW MINISTRY CONTACT</Text>
                   <TextInput style={s.input} value={newName} onChangeText={setNewName} placeholder="Name *" placeholderTextColor={theme.color.textMuted} autoFocus />

@@ -841,13 +841,15 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
   //
   //   1. Patch task_route_stops.status (+ rejection_reason for "Rejected")
   //   2. Append to status_updates audit log
-  //   3. Re-read all stops to determine if EVERY stop is now terminal
-  //      (Done / Rejected / Received & Closed)
-  //   4. Patch tasks.current_status — and if all terminal, also set
-  //      is_archived = true, closed_at = now, due_date = today (when empty)
-  //   5. Show "Done — Saved" alert when archiving
-  //   6. Direct push notification to the file's main assignee (skip self)
-  //   7. Broadcast push fan-out via sendActivityNotificationToAll (honors
+  //   3. Patch tasks.current_status — and if THIS stop is the FINAL stage
+  //      (the pinned closing stage on every file) and the new status is
+  //      terminal (Done / Rejected / Received & Closed), also set
+  //      is_archived = true, closed_at = now, due_date = today (when empty).
+  //      Earlier stages never auto-archive — the workflow closes at the
+  //      final stage only.
+  //   4. Show "Done — Saved" alert when archiving
+  //   5. Direct push notification to the file's main assignee (skip self)
+  //   6. Broadcast push fan-out via sendActivityNotificationToAll (honors
   //      every recipient's notification_prefs)
   //
   // Offline path: enqueue the change (status_update action) + show
@@ -885,28 +887,14 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
           new_status: newStatus,
         });
 
-        // 3. Re-read all stops so we can decide if the file should archive.
-        //    Note: the row we just updated may not be visible yet via the
-        //    local task object (no realtime), so we hit the DB.
-        const { data: allStops } = await supabase
-          .from('task_route_stops')
-          .select('id, status')
-          .eq('task_id', taskId);
-
-        const TERMINAL = ['Done', 'Rejected', 'Received & Closed'];
-        let newTaskStatus = newStatus;
-        let shouldArchive = false;
-        if (allStops) {
-          // The freshly-read row already reflects newStatus, but be defensive:
-          // for the row we just updated, use newStatus directly.
-          const allDone = allStops.every((s: { id: string; status: string }, i: number) =>
-            (i === allStops.findIndex((x: { id: string }) => x.id === stop.id))
-              ? TERMINAL.includes(newStatus)
-              : TERMINAL.includes(s.status)
-          );
-          newTaskStatus = allDone ? 'Done' : newStatus;
-          shouldArchive = allDone;
-        }
+        // 3. Decide whether to archive. Only the FINAL stage (the pinned
+        //    closing stage that's always last on every file) drives this —
+        //    setting it to a terminal status closes the file regardless of
+        //    earlier stages' state. Earlier stages just track progress.
+        const TERMINAL       = ['Done', 'Rejected', 'Received & Closed'];
+        const isFinalStage   = stop.ministry?.name === FINAL_STAGE_NAME;
+        const shouldArchive  = isFinalStage && TERMINAL.includes(newStatus);
+        const newTaskStatus  = newStatus;
 
         // 4. Patch the task — archive cascade includes due_date default
         const todayStr = now.slice(0, 10); // YYYY-MM-DD

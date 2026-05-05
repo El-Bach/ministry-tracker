@@ -188,16 +188,18 @@ export type TranslationKey =
   // ── Phase 4: Help Guide content ────────────────────────────────────────────
   | 'helpGuideTitle'
   | 'help1Title' | 'help1S1' | 'help1S2' | 'help1S3' | 'help1S4'
-  | 'help2Title' | 'help2S1' | 'help2S2' | 'help2S3' | 'help2S4' | 'help2S5'
+  | 'help2Title' | 'help2S1' | 'help2S2' | 'help2S3' | 'help2S4' | 'help2S5' | 'help2S6'
   | 'help3Title' | 'help3S1' | 'help3S2' | 'help3S3' | 'help3S4'
   | 'help4Title' | 'help4S1' | 'help4S2' | 'help4S3' | 'help4S4'
   | 'help5Title' | 'help5S1' | 'help5S2' | 'help5S3' | 'help5S4'
   | 'help6Title' | 'help6S1' | 'help6S2' | 'help6S3'
   | 'help7Title' | 'help7S1' | 'help7S2' | 'help7S3'
   | 'help8Title' | 'help8S1' | 'help8S2' | 'help8S3' | 'help8S4'
-  // ── Phase 4: Extended FAQ entries (9-14) ───────────────────────────────────
+  | 'help9Title' | 'help9S1' | 'help9S2' | 'help9S3' | 'help9S4'
+  // ── Phase 4: Extended FAQ entries (9-14) + new entries (15-16) ─────────────
   | 'faqQ9' | 'faqA9' | 'faqQ10' | 'faqA10' | 'faqQ11' | 'faqA11'
   | 'faqQ12' | 'faqA12' | 'faqQ13' | 'faqA13' | 'faqQ14' | 'faqA14'
+  | 'faqQ15' | 'faqA15' | 'faqQ16' | 'faqA16'
   // ── Phase 5: Bug-fix translations for screens still showing English ──
   | 'quickActions' | 'todayBtn' | 'noEvents' | 'itemsCount'
   | 'editProfileSubtitle' | 'membersInviteesCount' | 'visibilityPermsSubtitle'
@@ -607,8 +609,8 @@ const ar: Translations = {
   faqA5: 'أعضاء الفريق هم زملاؤك الذين يسجلون الدخول إلى GovPilot. الشبكة (الأشخاص الخارجيون) هم جهات اتصال خارجية كالمحامين والوسطاء — ليس لديهم حسابات في التطبيق ولكن يمكن إسنادهم للمراحل لأغراض المتابعة.',
   faqQ6: 'كيف أتتبّع المدفوعات؟',
   faqA6: 'افتح ملفاً، انتقل إلى قسم المالية. السعر التعاقدي هو الرسوم المتفق عليها. استخدم "+ إضافة" لتسجيل المصاريف أو المدفوعات المستلمة. يُظهر الرصيد (المدفوعات المستلمة − المصاريف).',
-  faqQ7: 'ماذا يحدث عند اكتمال جميع المراحل؟',
-  faqA7: 'يتم أرشفة الملف تلقائياً ووضع علامة "مغلق" عليه. ينتقل من قائمة النشطة إلى قائمة الأرشيف على لوحة التحكم. يمكنك مازال عرضه وسجله المالي.',
+  faqQ7: 'متى تتم أرشفة الملف؟',
+  faqA7: 'فقط المرحلة النهائية تتحكم بالأرشفة. عند تعيين حالتها إلى منجز أو مرفوض أو مستلم ومغلق، يُؤرشف الملف تلقائياً وينتقل من قائمة النشطة إلى قائمة الأرشيف على لوحة التحكم. يمكن أن تكون المراحل السابقة في أي حالة — فهي فقط لتتبع التقدم.',
   faqQ8: 'هل يمكنني استخدام التطبيق دون اتصال بالإنترنت؟',
   faqA8: 'يتم وضع التعليقات وبعض الإجراءات في قائمة الانتظار وتُزامَن عند عودة الاتصال. لكن تحميل الملفات وتحديث المراحل ورفع المستندات تتطلب اتصالاً بالإنترنت.',
   // ── Misc ────
@@ -633,6 +635,7 @@ const ar: Translations = {
   help2S3: 'اضغط على شارة الحالة في المرحلة لتحديثها — يمكنك إضافة سبب الرفض.',
   help2S4: 'حدد مدينة 📍 لكل مرحلة لتتبع مكان كل خطوة.',
   help2S5: 'المراحل ذات تواريخ الاستحقاق تظهر في التقويم بنقاط ملونة.',
+  help2S6: 'عندما يتم تعيين المرحلة النهائية إلى منجز أو مرفوض أو مستلم ومغلق، يُؤرشف الملف تلقائياً.',
   help3Title: 'إسناد الأشخاص',
   help3S1: 'على مستوى الملف: افتح الملف واضغط على صف المُعيّن لإسناده إلى عضو فريق.',
   help3S2: 'على مستوى المرحلة: كل مرحلة لها شارة المُعيّن الخاصة بها — اضغط 👤 للإسناد.',
@@ -661,6 +664,11 @@ const ar: Translations = {
   help8S2: 'أضف محامين أو وكلاء أو أي أطراف خارجية مع الاسم والهاتف والمرجع.',
   help8S3: 'استورد عدة جهات اتصال دفعة واحدة باستخدام "📥 استيراد" (لصق من Excel).',
   help8S4: 'يمكن إسناد جهات الاتصال إلى مراحل محددة داخل ملف.',
+  help9Title: 'جهات اتصال الوزارة',
+  help9S1: 'يمكن لكل وزارة أن يكون لها قائمة جهات الاتصال الخاصة بها (موظفون، رؤساء أقسام). أدِرها من إنشاء ← مراحل بالضغط على 👥 بجانب اسم المرحلة.',
+  help9S2: 'أضف جهة اتصال مع الاسم والهاتف والمنصب وأوقات التواجد (مثلاً الإثنين-الجمعة 9-2) والملاحظات.',
+  help9S3: 'داخل أي ملف، اضغط 👥 على المرحلة لاختيار جهات الاتصال التي تريد عرضها تحت اسم المرحلة. حدّدها واضغط "تم".',
+  help9S4: 'اضغط على أي سطر جهة اتصال للاتصال أو المراسلة عبر واتساب.',
   // ── Extended FAQ ────
   faqQ9: 'كيف أحذف ملفاً؟',
   faqA9: 'اسحب يساراً على أي بطاقة ملف في لوحة التحكم واضغط "✕ حذف". سيُطلب منك التأكيد. أو افتح الملف واستخدم قائمة "⋯" في الرأس.',
@@ -674,6 +682,10 @@ const ar: Translations = {
   faqA13: 'افتح الملف واضغط أيقونة الطباعة 🖨 في الرأس. يُولّد هذا ملف PDF منسّق يلخص الملف والمراحل والشؤون المالية يمكنك مشاركته أو طباعته.',
   faqQ14: 'كيف أدعو عضو فريق؟',
   faqA14: 'انتقل إلى الإعدادات ← أعضاء الفريق ← "✉️ دعوة". أدخل بريده الإلكتروني أو رقم هاتفه واختر دوره. سيسجل في التطبيق بنفس المُعرّف ويُضاف تلقائياً إلى مؤسستك.',
+  faqQ15: 'كيف أضيف جهات اتصال الوزارة إلى مرحلة؟',
+  faqA15: 'أولاً، أضف جهات الاتصال إلى الوزارة نفسها: انتقل إلى إنشاء ← مراحل، اضغط 👥 بجانب اسم المرحلة، وأضف جهات الاتصال (اسم، هاتف، منصب، إلخ). ثم داخل أي ملف، اضغط 👥 على تلك المرحلة لاختيار جهات الاتصال التي تريد عرضها تحت اسم المرحلة.',
+  faqQ16: 'ماذا يحدث عند استعادة ملف من الأرشيف؟',
+  faqA16: 'السحب للاستعادة من قائمة الأرشيف يعيد المرحلة النهائية إلى "معلق" ويمسح تاريخ الأرشفة وتاريخ الاستحقاق. تحتفظ المراحل السابقة بتقدمها. يظهر الملف مجدداً في قائمة النشطة.',
   // ── Phase 5 fixes ────
   quickActions: 'إجراءات سريعة',
   todayBtn: 'اليوم',
@@ -1112,8 +1124,8 @@ const en: Translations = {
   faqA5: "Team Members are your colleagues who log in to GovPilot. Network (external assignees) are outside contacts like lawyers or agents — they don't have app accounts but can be assigned to stages for tracking.",
   faqQ6: 'How do I track payments?',
   faqA6: 'Open a file, scroll to FINANCIALS. The contract price is the agreed fee. Use + Add to record expenses or payments received. The balance shows (payments received − expenses).',
-  faqQ7: 'What happens when all stages are Done?',
-  faqA7: 'The file is automatically archived and marked as closed. It moves from the Active list to the Archive list on the Dashboard. You can still view it and its financial history.',
+  faqQ7: 'When does a file get archived?',
+  faqA7: "Only the FINAL stage controls archiving. When you set its status to Done, Rejected, or Received & Closed, the file is archived automatically and moves from Active to the Archive list on the Dashboard. Earlier stages can be in any state — they just track progress.",
   faqQ8: 'Can I use the app offline?',
   faqA8: 'Comments and some actions are queued offline and sync when your connection returns. However, loading files, updating stages, and uploading documents require an internet connection.',
   // ── Misc ────
@@ -1138,6 +1150,7 @@ const en: Translations = {
   help2S3: 'Tap the status badge on a stage to update it — you can also add a rejection reason.',
   help2S4: 'Set a city 📍 per stage to track where each step happens.',
   help2S5: 'Stages with due dates appear on the Calendar with color-coded dots.',
+  help2S6: 'When the FINAL stage is set to Done, Rejected, or Received & Closed, the file is automatically archived.',
   help3Title: 'Assigning People',
   help3S1: 'File-level: open a file and tap the Assignee row to assign a team member.',
   help3S2: 'Stage-level: each stage has its own assignee chip — tap 👤 to assign.',
@@ -1166,6 +1179,11 @@ const en: Translations = {
   help8S2: 'Add lawyers, agents, or any external parties with name, phone, and reference.',
   help8S3: 'Import multiple contacts at once using 📥 Import (paste from Excel).',
   help8S4: 'Contacts can be assigned to specific stages inside a file.',
+  help9Title: 'Ministry Contacts',
+  help9S1: 'Each ministry can have its own list of contacts (officers, clerks, department heads to call). Manage them in Create → Stages by tapping 👥 next to a stage name.',
+  help9S2: 'Add a contact with name, phone, position, presence (e.g. Mon–Fri 9am–2pm), and notes.',
+  help9S3: "Inside any file, tap 👥 on a stage to pick which contacts to display under that stage's name. Tick them and tap Done.",
+  help9S4: 'Tap any contact line to call or message via WhatsApp.',
   // ── Extended FAQ ────
   faqQ9: 'How do I delete a file?',
   faqA9: "Swipe left on any file card on the Dashboard and tap ✕ Delete. You'll be asked to confirm. Alternatively, open the file and use the ⋯ menu in the header.",
@@ -1179,6 +1197,10 @@ const en: Translations = {
   faqA13: 'Open the file and tap the 🖨 print icon in the header. This generates a formatted PDF summary of the file, stages, and financials which you can share or print.',
   faqQ14: 'How do I invite a team member?',
   faqA14: 'Go to Settings → Team Members → ✉️ Invite. Enter their email or phone number and choose their role. They register in the app with that same identifier and are automatically added to your organization.',
+  faqQ15: 'How do I add ministry contacts to a stage?',
+  faqA15: 'First add the contacts to the ministry itself: go to Create → Stages, tap 👥 next to a stage name, and add contacts (name, phone, position, etc). Then inside any file, tap 👥 on that stage to pick which contacts to display under the stage name.',
+  faqQ16: 'What happens when I restore a file from the archive?',
+  faqA16: 'Swipe-restore from the Archive list resets the final stage back to Pending and clears the archive date and due date. Earlier stages keep their progress. The file appears again in the Active list.',
   // ── Phase 5 fixes ────
   quickActions: 'Quick Actions',
   todayBtn: 'Today',
@@ -1622,8 +1644,8 @@ const fr: Translations = {
   faqA5: "Les Membres de l'équipe sont vos collègues qui se connectent à GovPilot. Le Réseau (assignés externes) sont des contacts externes comme avocats ou agents — ils n'ont pas de compte mais peuvent être assignés aux étapes pour le suivi.",
   faqQ6: 'Comment suivre les paiements ?',
   faqA6: 'Ouvrez un dossier, faites défiler jusqu\'à FINANCES. Le prix contractuel est le tarif convenu. Utilisez + Ajouter pour enregistrer les dépenses ou paiements reçus. Le solde affiche (paiements reçus − dépenses).',
-  faqQ7: 'Que se passe-t-il quand toutes les étapes sont terminées ?',
-  faqA7: "Le dossier est automatiquement archivé et marqué comme clôturé. Il passe de la liste Active à la liste Archive sur le tableau de bord. Vous pouvez toujours le consulter et son historique financier.",
+  faqQ7: 'Quand un dossier est-il archivé ?',
+  faqA7: "Seule l'étape FINALE contrôle l'archivage. Quand vous définissez son statut sur Terminé, Rejeté ou Reçu et Fermé, le dossier est archivé automatiquement et passe d'Actifs à la liste Archives sur le tableau de bord. Les étapes précédentes peuvent être dans n'importe quel état — elles ne servent qu'à suivre la progression.",
   faqQ8: "Puis-je utiliser l'application hors ligne ?",
   faqA8: "Les commentaires et certaines actions sont mis en file d'attente hors ligne et synchronisés à la reconnexion. Cependant, charger les dossiers, mettre à jour les étapes et téléverser des documents nécessitent une connexion Internet.",
   // ── Misc ────
@@ -1648,6 +1670,7 @@ const fr: Translations = {
   help2S3: "Appuyez sur le badge de statut d'une étape pour le mettre à jour — vous pouvez ajouter un motif de rejet.",
   help2S4: "Définissez une ville 📍 par étape pour suivre où chaque étape a lieu.",
   help2S5: "Les étapes avec échéances apparaissent dans le calendrier avec des points colorés.",
+  help2S6: "Quand l'étape FINALE est définie sur Terminé, Rejeté ou Reçu et Fermé, le dossier est automatiquement archivé.",
   help3Title: 'Assigner des personnes',
   help3S1: "Niveau dossier : ouvrez un dossier et appuyez sur la rangée Assigné pour assigner un membre.",
   help3S2: "Niveau étape : chaque étape a son propre badge d'assigné — appuyez sur 👤 pour assigner.",
@@ -1676,6 +1699,11 @@ const fr: Translations = {
   help8S2: 'Ajoutez avocats, agents ou toute partie externe avec nom, téléphone et référence.',
   help8S3: 'Importez plusieurs contacts à la fois avec 📥 Importer (coller depuis Excel).',
   help8S4: 'Les contacts peuvent être assignés à des étapes spécifiques dans un dossier.',
+  help9Title: 'Contacts du ministère',
+  help9S1: 'Chaque ministère peut avoir sa propre liste de contacts (agents, chefs de service à appeler). Gérez-les dans Créer → Étapes en touchant 👥 à côté du nom de l\'étape.',
+  help9S2: 'Ajoutez un contact avec nom, téléphone, poste, présence (par ex. lun-ven 9h-14h), et notes.',
+  help9S3: "Dans n'importe quel dossier, touchez 👥 sur une étape pour choisir les contacts à afficher sous le nom de l'étape. Cochez-les et touchez Terminer.",
+  help9S4: "Touchez n'importe quelle ligne de contact pour appeler ou envoyer un message via WhatsApp.",
   // ── Extended FAQ ────
   faqQ9: 'Comment supprimer un dossier ?',
   faqA9: "Glissez à gauche sur toute carte de dossier dans le tableau de bord et appuyez ✕ Supprimer. Une confirmation vous sera demandée. Ou ouvrez le dossier et utilisez le menu ⋯ en haut.",
@@ -1689,6 +1717,10 @@ const fr: Translations = {
   faqA13: "Ouvrez le dossier et appuyez sur l'icône d'impression 🖨 en haut. Cela génère un PDF formaté résumant le dossier, les étapes et les finances que vous pouvez partager ou imprimer.",
   faqQ14: 'Comment inviter un membre d\'équipe ?',
   faqA14: "Allez à Paramètres → Membres de l'équipe → ✉️ Inviter. Entrez son email ou téléphone et choisissez son rôle. Il s'inscrit dans l'app avec le même identifiant et est automatiquement ajouté à votre organisation.",
+  faqQ15: 'Comment ajouter des contacts du ministère à une étape ?',
+  faqA15: "D'abord, ajoutez les contacts au ministère lui-même : allez dans Créer → Étapes, touchez 👥 à côté du nom de l'étape, et ajoutez des contacts (nom, téléphone, poste, etc.). Puis dans n'importe quel dossier, touchez 👥 sur cette étape pour choisir les contacts à afficher sous le nom de l'étape.",
+  faqQ16: 'Que se passe-t-il quand je restaure un dossier depuis les archives ?',
+  faqA16: "Le balayer-restaurer depuis la liste Archives remet l'étape finale à En attente et efface la date d'archivage et la date d'échéance. Les étapes précédentes conservent leur progression. Le dossier réapparaît dans la liste Active.",
   // ── Phase 5 fixes ────
   quickActions: 'Actions rapides',
   todayBtn: "Aujourd'hui",

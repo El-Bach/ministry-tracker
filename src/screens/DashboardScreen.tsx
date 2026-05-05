@@ -772,9 +772,30 @@ export default function DashboardScreen() {
   };
 
   const handleUnarchiveTask = async (task: Task) => {
+    // Restore: clear archive cascade fields and reset the FINAL stage (the
+    // one that closed the file) back to Pending so the file looks active
+    // again. due_date + closed_at also cleared so a future re-archive gets
+    // fresh values. Earlier stages keep whatever status the user had set.
+    const finalStop = task.route_stops && task.route_stops.length > 0
+      ? [...task.route_stops].sort((a, b) => b.stop_order - a.stop_order)[0]
+      : undefined;
+
+    if (finalStop) {
+      await supabase
+        .from('task_route_stops')
+        .update({ status: 'Pending', rejection_reason: null })
+        .eq('id', finalStop.id);
+    }
+
     await supabase
       .from('tasks')
-      .update({ is_archived: false, updated_at: new Date().toISOString() })
+      .update({
+        is_archived:    false,
+        current_status: 'Pending',
+        due_date:       null,
+        closed_at:      null,
+        updated_at:     new Date().toISOString(),
+      })
       .eq('id', task.id);
     fetchData();
   };
@@ -1033,11 +1054,12 @@ export default function DashboardScreen() {
       {/* Expanded filter panel */}
       {showFilters && (
         <View style={styles.filterPanel}>
-          {/* Overdue filter — only shown when there are overdue files */}
+          {/* Each section: label on the left, chips on the right (one row) */}
+
           {summaryStats.overdue > 0 && (
-            <>
-              <Text style={styles.filterSectionLabel}>{t('fileStatus').toUpperCase()}</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            <View style={styles.filterRow}>
+              <Text style={styles.filterRowLabel}>{t('fileStatus').toUpperCase()}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRowInline}>
                 <TouchableOpacity
                   style={[styles.chip, !filters.overdueOnly && styles.chipActive]}
                   onPress={() => setFilters((f) => ({ ...f, overdueOnly: false }))}
@@ -1051,48 +1073,48 @@ export default function DashboardScreen() {
                   <Text style={[styles.chipText, filters.overdueOnly && styles.chipTextOverdue]}>⚠ Overdue</Text>
                 </TouchableOpacity>
               </ScrollView>
-            </>
+            </View>
           )}
 
-          {/* Service filter — only services present in current task set */}
-          <Text style={styles.filterSectionLabel}>
-            SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            <TouchableOpacity
-              style={[styles.chip, filters.serviceIds.length === 0 && styles.chipActive]}
-              onPress={() => setFilters((f) => ({ ...f, serviceIds: [] }))}
-            >
-              <Text style={[styles.chipText, filters.serviceIds.length === 0 && styles.chipTextActive]}>All</Text>
-            </TouchableOpacity>
-            {availableServices.map((sv) => {
-              const selected = filters.serviceIds.includes(sv.id);
-              return (
-                <TouchableOpacity
-                  key={sv.id}
-                  style={[styles.chip, selected && styles.chipActive]}
-                  onPress={() => setFilters((f) => ({
-                    ...f,
-                    serviceIds: selected
-                      ? f.serviceIds.filter((id) => id !== sv.id)
-                      : [...f.serviceIds, sv.id],
-                  }))}
-                >
-                  <Text style={[styles.chipText, selected && styles.chipTextActive]}>
-                    {sv.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterRowLabel}>
+              SERVICE{filters.serviceIds.length > 0 ? ` (${filters.serviceIds.length})` : ''}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRowInline}>
+              <TouchableOpacity
+                style={[styles.chip, filters.serviceIds.length === 0 && styles.chipActive]}
+                onPress={() => setFilters((f) => ({ ...f, serviceIds: [] }))}
+              >
+                <Text style={[styles.chipText, filters.serviceIds.length === 0 && styles.chipTextActive]}>All</Text>
+              </TouchableOpacity>
+              {availableServices.map((sv) => {
+                const selected = filters.serviceIds.includes(sv.id);
+                return (
+                  <TouchableOpacity
+                    key={sv.id}
+                    style={[styles.chip, selected && styles.chipActive]}
+                    onPress={() => setFilters((f) => ({
+                      ...f,
+                      serviceIds: selected
+                        ? f.serviceIds.filter((id) => id !== sv.id)
+                        : [...f.serviceIds, sv.id],
+                    }))}
+                  >
+                    <Text style={[styles.chipText, selected && styles.chipTextActive]}>
+                      {sv.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
 
-          {/* City filter — only cities present in current task set */}
           {availableCities.length > 0 && (
-            <>
-              <Text style={styles.filterSectionLabel}>
+            <View style={styles.filterRow}>
+              <Text style={styles.filterRowLabel}>
                 CITY{filters.cityIds.length > 0 ? ` (${filters.cityIds.length})` : ''}
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRowInline}>
                 <TouchableOpacity
                   style={[styles.chip, filters.cityIds.length === 0 && styles.chipActive]}
                   onPress={() => setFilters((f) => ({ ...f, cityIds: [] }))}
@@ -1119,7 +1141,7 @@ export default function DashboardScreen() {
                   );
                 })}
               </ScrollView>
-            </>
+            </View>
           )}
         </View>
       )}
@@ -1557,17 +1579,32 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
   },
   filterPanel: {
-    backgroundColor:  theme.color.bgSurface,
+    backgroundColor:   theme.color.bgSurface,
     borderBottomWidth: 1,
     borderBottomColor: theme.color.border,
-    paddingTop:        theme.spacing.space3,
-    paddingBottom:     theme.spacing.space2,
+    paddingVertical:   theme.spacing.space2,
     gap:               theme.spacing.space1 + 2,
   },
   filterSectionLabel: {
     ...theme.typography.sectionDivider,
     paddingHorizontal: theme.spacing.space4,
     marginTop:         theme.spacing.space2,
+  },
+  // Inline-row variant: label + horizontal chip strip on the same line.
+  filterRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: theme.spacing.space3,
+    paddingVertical:   theme.spacing.space1,
+    gap:               theme.spacing.space2,
+  },
+  filterRowLabel: {
+    ...theme.typography.sectionDivider,
+    width:    72,
+    flexShrink: 0,
+  },
+  chipRowInline: {
+    flex: 1,
   },
   chipRow: {
     paddingHorizontal: theme.spacing.space3,

@@ -122,8 +122,20 @@ function TaskCard({
   const stopsTotal = task.route_stops?.length ?? 0;
   const stopsDone  = task.route_stops?.filter((s) => s.status === 'Done').length ?? 0;
   const allDone    = stopsTotal > 0 && task.route_stops!.every(
-    (s) => s.status === 'Done' || s.status === 'Rejected'
+    (s) => s.status === 'Done' || s.status === 'Rejected' || s.status === 'Received & Closed'
   );
+  // Archived files render the FINAL stage's actual status — the badge then
+  // reads Done / Rejected / Received & Closed depending on what closed the file.
+  // "Final stage" = highest stop_order (matches the FINAL_STAGE pin position
+  // and survives renames / language differences). Archive detection must
+  // accept BOTH `is_archived = true` (the modern path) and "all stops are
+  // terminal" (legacy path), to match what the Dashboard treats as archived.
+  const isArchivedFile = task.is_archived === true || allDone;
+  const finalStop      = (task.route_stops && task.route_stops.length > 0)
+    ? [...task.route_stops].sort((a, b) => b.stop_order - a.stop_order)[0]
+    : undefined;
+  const TERMINAL_SET   = new Set(['Done', 'Rejected', 'Received & Closed']);
+  const finalIsTerminal = !!finalStop && TERMINAL_SET.has(finalStop.status);
 
   // Financial summary — only computed for archived (allDone) cards
   const txs = task.transactions ?? [];
@@ -144,17 +156,28 @@ function TaskCard({
   const fmtUSD = (n: number) => `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   const fmtLBP = (n: number) => `LBP ${Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
-  // Status logic: Done + Rejected are both terminal; show most urgent of remaining
+  // Status logic: Done + Rejected + Received & Closed are terminal — show
+  // the most urgent of remaining non-terminal stages.
   const nonTerminalStatuses = task.route_stops
-    ?.filter((s) => s.status !== 'Done' && s.status !== 'Rejected')
+    ?.filter((s) => s.status !== 'Done' && s.status !== 'Rejected' && s.status !== 'Received & Closed')
     .map((s) => s.status) ?? [];
   const urgentStatus = nonTerminalStatuses.length > 0
     ? getMostUrgentStatus(nonTerminalStatuses)
     : (stopsTotal > 0 ? 'Done' : task.current_status);
 
-  const displayStatus = (stopsTotal > 0 && !allDone && urgentStatus !== task.current_status)
-    ? urgentStatus
-    : task.current_status;
+  // Archived files always show a terminal status. Try in priority order:
+  //   1. task.current_status if it's terminal (set explicitly on archive)
+  //   2. final stage's status if terminal
+  //   3. fall back to current_status as last resort
+  // Active files keep the existing urgent / current_status logic.
+  const currentIsTerminal = TERMINAL_SET.has(task.current_status);
+  const displayStatus = isArchivedFile
+    ? (currentIsTerminal ? task.current_status
+       : finalIsTerminal  ? finalStop!.status
+       : task.current_status)
+    : (stopsTotal > 0 && !allDone && urgentStatus !== task.current_status)
+      ? urgentStatus
+      : task.current_status;
 
   const urgentColor  = allStatusColors[urgentStatus] ?? theme.color.primary;
   const accentColor  = allDone ? theme.color.success : urgentColor;
@@ -355,7 +378,19 @@ function TaskCard({
         >
           {stopsTotal > 0 ? `${stopsDone}/${stopsTotal} stages` : 'No stages'}
         </Text>
-        {task.due_date && !allDone && (
+        {isArchivedFile ? (
+          <Text
+            style={[styles.dueText, { fontSize: fs.caption }]}
+            accessibilityLabel={`Archived ${task.closed_at ?? task.updated_at ?? ''}`}
+          >
+            {(() => {
+              const iso = task.closed_at ?? task.updated_at ?? task.created_at;
+              if (!iso) return '';
+              const d = new Date(iso);
+              return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            })()}
+          </Text>
+        ) : task.due_date && (
           <Text
             style={[
               styles.dueText,

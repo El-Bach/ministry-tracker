@@ -182,8 +182,12 @@ export function FinancialsSection(props: Props) {
     value:         number;
     sign?:         '' | '+' | '-';
     decimals?:     number;
+    /** when false, only the number renders — caller must show $/LBP elsewhere
+        (e.g. a column header). Used by the P&L summary to avoid repeating the
+        symbol on every row. Default true. */
+    showSymbol?:   boolean;
     textStyle?:    any;
-  }> = ({ width, marginStart = 0, leftDivider, currency, value, sign = '', decimals = 0, textStyle }) => {
+  }> = ({ width, marginStart = 0, leftDivider, currency, value, sign = '', decimals = 0, showSymbol = true, textStyle }) => {
     const symbol = currency === 'USD' ? '$' : 'LBP';
     const number = Math.abs(value).toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -194,10 +198,10 @@ export function FinancialsSection(props: Props) {
         { width, marginStart, flexDirection: 'row', alignItems: 'baseline', paddingLeft: leftDivider ? 10 : 0 },
         leftDivider && { borderLeftWidth: 1, borderLeftColor: theme.color.border },
       ]}>
-        <Text style={[textStyle, { flex: 1, textAlign: 'right', marginRight: 4 }]} numberOfLines={1}>
+        <Text style={[textStyle, { flex: 1, textAlign: 'right', marginRight: showSymbol ? 4 : 0 }]} numberOfLines={1}>
           {sign ? `${sign} ` : ''}{number}
         </Text>
-        <Text style={textStyle}>{symbol}</Text>
+        {showSymbol && <Text style={textStyle}>{symbol}</Text>}
       </View>
     );
   };
@@ -213,7 +217,7 @@ export function FinancialsSection(props: Props) {
         <View style={s.contractPriceRow}>
           <View style={s.contractPriceHeaderRow}>
             <TouchableOpacity onPress={() => setShowPriceHistory(v => !v)} activeOpacity={0.7} style={{ flex: 1 }}>
-              <Text style={s.balanceLabel}>{t('contractPrice').toUpperCase()} {showPriceHistory ? '▲' : '▼'}</Text>
+              <Text style={[s.balanceLabel, { fontSize: 14 }]}>{t('contractPrice').toUpperCase()} {showPriceHistory ? '▲' : '▼'}</Text>
             </TouchableOpacity>
             {permissions.can_edit_contract_price && (
               <TouchableOpacity style={s.editPriceBtn} onPress={onOpenEditPrice}>
@@ -225,25 +229,26 @@ export function FinancialsSection(props: Props) {
               rows below so $/LBP align vertically across all rows. */}
           <View style={[s.balanceRow, { marginTop: theme.spacing.space1 }]}>
             <View style={{ flex: 1 }} />
-            <AmountCell width={100} currency="USD" value={contractPriceUSD} textStyle={s.contractPriceVal} />
-            <AmountCell width={180} leftDivider currency="LBP" value={contractPriceLBP} textStyle={s.contractPriceValLBP} />
+            <AmountCell width={80} currency="USD" value={contractPriceUSD} textStyle={s.contractPriceVal} />
+            <AmountCell width={150} leftDivider currency="LBP" value={contractPriceLBP} textStyle={s.contractPriceValLBP} />
           </View>
           {contractPriceUSD > 0 && (
             <View style={[s.balanceRow, { marginTop: theme.spacing.space2 }]}>
-              <Text style={s.balanceLabel}>{t('balance').toUpperCase()}</Text>
+              <Text style={[s.balanceLabel, { fontSize: 14 }]}>{t('balance').toUpperCase()}</Text>
               <AmountCell
-                width={100}
+                width={80}
                 currency="USD"
                 value={outstandingUSD}
-                textStyle={[s.balanceColTxt, outstandingUSD > 0 ? s.negative : s.positive]}
+                textStyle={[s.balanceColTxt, { fontSize: 14 }, outstandingUSD > 0 ? s.negative : s.positive]}
               />
               <AmountCell
-                width={180}
+                width={150}
                 leftDivider
                 currency="LBP"
                 value={outstandingLBP}
                 textStyle={[
                   s.balanceColLBPTxt,
+                  { fontSize: 14 },
                   contractPriceLBP > 0
                     ? (outstandingLBP > 0 ? s.negative : s.positive)
                     : s.balanceRevenueLBP,
@@ -290,32 +295,40 @@ export function FinancialsSection(props: Props) {
       {/* P&L summary */}
       {permissions.can_see_file_financials && (
         <View style={s.balanceSummary}>
+          {/* Column headers — $/LBP shown here so the rows below stay clean */}
+          <View style={[s.balanceRow, s.balanceHeaderRow]}>
+            <Text style={[s.balanceLabel, { flex: 1 }]}> </Text>
+            <Text style={s.balanceHeaderUSD}>USD</Text>
+            <Text style={s.balanceHeaderLBP}>LBP</Text>
+          </View>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('paymentsReceived').toUpperCase()}</Text>
-            <AmountCell width={100} currency="USD" value={totalRevenueUSD} textStyle={[s.balanceColTxt, s.balanceRevenue]} />
-            <AmountCell width={180} leftDivider currency="LBP" value={totalRevenueLBP} textStyle={[s.balanceColLBPTxt, s.balanceRevenueLBP]} />
+            <AmountCell width={80} currency="USD" value={totalRevenueUSD} showSymbol={false} textStyle={[s.balanceColTxt, s.balanceRevenue]} />
+            <AmountCell width={150} leftDivider currency="LBP" value={totalRevenueLBP} showSymbol={false} textStyle={[s.balanceColLBPTxt, s.balanceRevenueLBP]} />
           </View>
           <View style={s.balanceRow}>
             <Text style={s.balanceLabel}>{t('expense').toUpperCase()}S</Text>
-            <AmountCell width={100} currency="USD" value={totalExpenseUSD} sign="-" textStyle={[s.balanceColTxt, s.balanceExpense]} />
-            <AmountCell width={180} leftDivider currency="LBP" value={totalExpenseLBP} sign="-" textStyle={[s.balanceColLBPTxt, s.balanceExpenseLBP]} />
+            <AmountCell width={80} currency="USD" value={totalExpenseUSD} sign="-" showSymbol={false} textStyle={[s.balanceColTxt, s.balanceExpense]} />
+            <AmountCell width={150} leftDivider currency="LBP" value={totalExpenseLBP} sign="-" showSymbol={false} textStyle={[s.balanceColLBPTxt, s.balanceExpenseLBP]} />
           </View>
           <View style={s.balanceDivider} />
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('netBalance')}</Text>
             <AmountCell
-              width={100}
+              width={80}
               currency="USD"
               value={balanceUSD}
               sign={balanceUSD >= 0 ? '+' : '-'}
+              showSymbol={false}
               textStyle={[s.balanceColTxt, s.balanceTotal, balanceUSD >= 0 ? s.positive : s.negative]}
             />
             <AmountCell
-              width={180}
+              width={150}
               leftDivider
               currency="LBP"
               value={balanceLBP}
               sign={balanceLBP >= 0 ? '+' : '-'}
+              showSymbol={false}
               textStyle={[s.balanceColLBPTxt, s.balanceTotalLBP, balanceLBP >= 0 ? s.positive : s.negative]}
             />
           </View>
@@ -323,14 +336,15 @@ export function FinancialsSection(props: Props) {
           <View style={s.balanceRow}>
             <Text style={s.balanceTotalLabel}>{t('cvUSD')}</Text>
             <AmountCell
-              width={100}
+              width={80}
               currency="USD"
               value={totalCombinedUSD}
               sign={totalCombinedUSD >= 0 ? '+' : '-'}
               decimals={2}
+              showSymbol={false}
               textStyle={[s.balanceColTxt, s.balanceTotal, totalCombinedUSD >= 0 ? s.positive : s.negative]}
             />
-            <View style={{ width: 180, alignItems: 'flex-end', paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.color.border }}>
+            <View style={{ width: 150, alignItems: 'flex-end', paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.color.border }}>
               {editingRate ? (
                 <TextInput
                   style={s.rateInput}
@@ -736,21 +750,24 @@ const s = StyleSheet.create({
   // Contract price card
   contractPriceRow: { backgroundColor: theme.color.bgBase, padding: 14, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, gap: 6 },
   contractPriceHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  balanceLabel: { fontSize: 11, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5, flex: 1 },
+  balanceLabel: { fontSize: 13, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5, flex: 1 },
   editPriceBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: theme.color.primary + '22', borderRadius: theme.radius.sm },
-  editPriceBtnText: { color: theme.color.primary, fontSize: 12, fontWeight: '700' },
+  editPriceBtnText: { color: theme.color.primary, fontSize: 14, fontWeight: '700' },
   balanceAmounts: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  contractPriceVal: { fontSize: 15, fontWeight: '700', color: theme.color.primary },
-  contractPriceValLBP: { fontSize: 15, fontWeight: '700', color: theme.color.primary },
+  contractPriceVal: { fontSize: 14, fontWeight: '700', color: theme.color.primary },
+  contractPriceValLBP: { fontSize: 14, fontWeight: '700', color: theme.color.primary },
 
   // P&L summary
   balanceSummary: { backgroundColor: theme.color.bgBase, padding: 14, borderRadius: theme.radius.md, marginBottom: theme.spacing.space2, gap: 6 },
+  balanceHeaderRow: { paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.color.border },
+  balanceHeaderUSD: { width: 80, textAlign: 'right', fontSize: 13, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5 },
+  balanceHeaderLBP: { width: 150, textAlign: 'right', paddingLeft: 10, borderLeftWidth: 1, borderLeftColor: theme.color.border, fontSize: 13, fontWeight: '700', color: theme.color.textMuted, letterSpacing: 0.5 },
   balanceRow: { flexDirection: 'row', alignItems: 'center' },
   balanceCol: { fontSize: 14, fontWeight: '700', minWidth: 80, textAlign: 'right' },
   balanceColLBP: { fontSize: 13, color: theme.color.textSecondary, minWidth: 120, textAlign: 'right' },
   // Text-only variants for AmountCell — no width (the wrapper View owns
   // width). Inherit typography weight/size from balanceCol/balanceColLBP.
-  balanceColTxt:    { fontSize: 14, fontWeight: '700' },
+  balanceColTxt:    { fontSize: 13, fontWeight: '700' },
   balanceColLBPTxt: { fontSize: 13, color: theme.color.textSecondary },
   balanceRevenue: { color: theme.color.success },
   balanceRevenueLBP: { color: theme.color.success },
@@ -758,8 +775,8 @@ const s = StyleSheet.create({
   balanceExpenseLBP: { color: theme.color.danger },
   balanceDivider: { height: 1, backgroundColor: theme.color.border, marginVertical: 4 },
   balanceTotalLabel: { fontSize: 13, fontWeight: '700', color: theme.color.textPrimary, flex: 1 },
-  balanceTotal: { fontSize: 16 },
-  balanceTotalLBP: { fontSize: 14, fontWeight: '700' },
+  balanceTotal: { fontSize: 13 },
+  balanceTotalLBP: { fontSize: 13, fontWeight: '700' },
   positive: { color: theme.color.success },
   negative: { color: theme.color.danger },
   rateInput: { borderWidth: 1, borderColor: theme.color.border, borderRadius: theme.radius.sm, paddingHorizontal: 6, paddingVertical: 2, color: theme.color.textPrimary, fontSize: 12, minWidth: 100, textAlign: 'right' },
