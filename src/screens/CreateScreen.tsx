@@ -39,6 +39,7 @@ import { ManageStagesModal } from './Create/components/ManageStagesModal';
 import { DocumentsRequiredModal } from './Create/components/DocumentsRequiredModal';
 import { useNetworkActions } from './Create/hooks/useNetworkActions';
 import { useDocsActions } from './Create/hooks/useDocsActions';
+import { useStageActions } from './Create/hooks/useStageActions';
 
 type ManageSection = 'clients' | 'services' | 'stages' | 'network' | 'documents' | null;
 
@@ -111,12 +112,8 @@ export default function CreateScreen() {
   const [svcStageNewName, setSvcStageNewName] = useState('');
   const [savingNewSvcStage, setSavingNewSvcStage] = useState(false);
 
-  // Inline stage requirements
-  const [expandedStageReqId, setExpandedStageReqId] = useState<string | null>(null);
-  const [stageReqs, setStageReqs] = useState<Record<string, any[]>>({});
-  const [loadingStageReqs, setLoadingStageReqs] = useState<string | null>(null);
-  const [stageReqNewTitle, setStageReqNewTitle] = useState('');
-  const [savingNewStageReq, setSavingNewStageReq] = useState(false);
+  // (Inline stage-requirements state removed in Phase 5c — dead since the
+  // ManageStages modal dropped that inline panel)
 
   // New client full form
   const [showClientForm, setShowClientForm] = useState(false);
@@ -271,6 +268,23 @@ export default function CreateScreen() {
     parseDocImport, handleImportDocs,
   } = docsActions;
 
+  // ── Stage (Ministry) actions hook (Phase 5c) ─────────────────────────────
+  const stageActions = useStageActions({
+    orgId, t, fetchData,
+    newStageName, setNewStageName, setSavingNewStage,
+    editStageId, setEditStageId, editStageName, setSavingEditStage,
+    setStageCityPickerId, setStageCitySearch,
+    newStageCityName, setNewStageCityName, setShowCreateStageCityForm, setSavingStageCity,
+    setAllCities,
+    stageImportNames, setStageImportRaw, setStageImportNames,
+    setImportingStages, setShowStageImport, setMinistries,
+  });
+  const {
+    handleCreateStage, handleSaveEditStage, handleDeleteStage,
+    handleSetStageCity, handleCreateStageCity,
+    parseStageImport, handleImportStages,
+  } = stageActions;
+
   // ── Handlers ──────────────────────────────────────────────
   const openNewClientForm = async () => {
     setNewClientName('');
@@ -402,58 +416,6 @@ export default function CreateScreen() {
     }
   };
 
-  const handleCreateStage = async () => {
-    if (!newStageName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingNewStage(true);
-    await supabase.from('ministries').insert({ name: newStageName.trim(), type: 'parent', org_id: orgId });
-    setSavingNewStage(false);
-    setNewStageName('');
-    fetchData();
-  };
-
-  const handleSaveEditStage = async () => {
-    if (!editStageId || !editStageName.trim()) return;
-    setSavingEditStage(true);
-    await supabase.from('ministries').update({ name: editStageName.trim() }).eq('id', editStageId);
-    setSavingEditStage(false);
-    setEditStageId(null);
-    fetchData();
-  };
-
-  const handleDeleteStage = (m: Ministry) => {
-    const doDelete = async () => { await supabase.from('ministries').delete().eq('id', m.id); fetchData(); };
-    if (Platform.OS === 'web') {
-      if ((window as any).confirm(`Delete "${m.name}"?`)) doDelete();
-    } else {
-      Alert.alert(`${t('delete')} ${t('stages')}`, `Delete "${m.name}"?`, [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete'), style: 'destructive', onPress: doDelete },
-      ]);
-    }
-  };
-
-  const handleSetStageCity = async (ministryId: string, cityId: string | null) => {
-    await supabase.from('ministries').update({ city_id: cityId }).eq('id', ministryId);
-    setStageCityPickerId(null);
-    setStageCitySearch('');
-    fetchData();
-  };
-
-  const handleCreateStageCity = async (ministryId: string) => {
-    if (!newStageCityName.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
-    setSavingStageCity(true);
-    const { data, error } = await supabase
-      .from('cities')
-      .insert({ name: newStageCityName.trim(), org_id: orgId })
-      .select()
-      .single();
-    setSavingStageCity(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    setAllCities(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    setNewStageCityName('');
-    setShowCreateStageCityForm(false);
-    await handleSetStageCity(ministryId, data.id);
-  };
 
   // ── Inline Service Stages ─────────────────────────────────
   const fetchSvcStages = async (svcId: string) => {
@@ -520,39 +482,6 @@ export default function CreateScreen() {
     await fetchSvcStages(svcId);
   };
 
-  // ── Inline Stage Requirements ──────────────────────────────
-  const fetchStageReqs = async (ministryId: string) => {
-    setLoadingStageReqs(ministryId);
-    const { data } = await supabase
-      .from('ministry_requirements')
-      .select('*')
-      .eq('ministry_id', ministryId)
-      .order('sort_order');
-    setStageReqs((prev) => ({ ...prev, [ministryId]: data ?? [] }));
-    setLoadingStageReqs(null);
-  };
-
-  const handleToggleStageReqExpand = async (ministryId: string) => {
-    if (expandedStageReqId === ministryId) { setExpandedStageReqId(null); return; }
-    setExpandedStageReqId(ministryId);
-    await fetchStageReqs(ministryId);
-  };
-
-  const handleAddStageReq = async (ministryId: string) => {
-    const title = stageReqNewTitle.trim();
-    if (!title) return;
-    setSavingNewStageReq(true);
-    const reqs = stageReqs[ministryId] ?? [];
-    await supabase.from('ministry_requirements').insert({ ministry_id: ministryId, title, req_type: 'document', sort_order: reqs.length + 1 });
-    setSavingNewStageReq(false);
-    setStageReqNewTitle('');
-    await fetchStageReqs(ministryId);
-  };
-
-  const handleDeleteStageReq = async (ministryId: string, reqId: string) => {
-    await supabase.from('ministry_requirements').delete().eq('id', reqId);
-    await fetchStageReqs(ministryId);
-  };
 
 
   // ── Service import helpers ───────────────────────────────────
@@ -638,21 +567,6 @@ export default function CreateScreen() {
     Alert.alert(t('success'), `${inserts.length} ${t('clients')}${skippedMsg}`);
   };
 
-  // ── Stages import helpers ─────────────────────────────────
-  const parseStageImport = (raw: string): string[] =>
-    raw.split(/\r?\n/).map(l => l.split('\t')[0].trim()).filter(Boolean);
-
-  const handleImportStages = async () => {
-    if (!stageImportNames.length) return;
-    setImportingStages(true);
-    const inserts = stageImportNames.map(name => ({ name, type: 'parent' as const, org_id: orgId }));
-    const { data, error } = await supabase.from('ministries').insert(inserts).select();
-    setImportingStages(false);
-    if (error) { Alert.alert(t('error'), error.message); return; }
-    if (data) setMinistries(prev => [...prev, ...(data as any[])].sort((a,b) => a.name.localeCompare(b.name)));
-    setShowStageImport(false); setStageImportRaw(''); setStageImportNames([]);
-    Alert.alert(t('success'), `${inserts.length} ${t('stages')}`);
-  };
 
   // ── UI ────────────────────────────────────────────────────
   const quickActions = [
