@@ -26,6 +26,7 @@ import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
 import { SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
 import { useTranslation, TranslationKey } from '../lib/i18n';
+import { PLAN_BYPASS_EMAILS } from '../lib/config';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -279,7 +280,11 @@ export default function AccountScreen() {
   };
 
   const roleBadgeColor = ROLE_COLORS[teamMember?.role ?? 'member'] ?? theme.color.primary;
-  const currentPlanKey = (organization?.plan ?? 'free') as PlanKey;
+  const isBypassAccount = PLAN_BYPASS_EMAILS.some(
+    e => e.toLowerCase() === (teamMember?.email ?? '').toLowerCase()
+  );
+  // Bypass accounts always appear as premium (unlimited) in the UI
+  const currentPlanKey = isBypassAccount ? 'premium' : ((organization?.plan ?? 'free') as PlanKey);
   const planInfo = PLAN_LABELS[currentPlanKey] ?? PLAN_LABELS.free;
 
   const handleUpgradePress = (planKey: string) => {

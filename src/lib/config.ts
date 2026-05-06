@@ -12,6 +12,19 @@ export const SUPPORT_EMAIL = 'management@kts-lb.com';
 export const PRIVACY_URL = 'https://ministry-papers.netlify.app/privacy.html';
 export const TERMS_URL   = 'https://ministry-papers.netlify.app/terms.html';
 
+// ─── Bypass accounts (testing / owner override) ──────────────────────────────
+/**
+ * Emails listed here are FULLY EXEMPT from all plan enforcement:
+ *  • No plan-limit check runs on launch
+ *  • PlanWarningModal never shown
+ *  • PlanLockedScreen never shown
+ *  • AccountScreen shows unlimited usage
+ * Remove an email here when enforcement should resume for that account.
+ */
+export const PLAN_BYPASS_EMAILS: string[] = [
+  'kamal01892100@gmail.com',
+];
+
 // ─── Plan limits ─────────────────────────────────────────────────────────────
 
 /** Days the owner has to upgrade before the app is fully locked. */

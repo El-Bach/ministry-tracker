@@ -16,6 +16,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { PlanWarningModal } from './src/components/PlanWarningModal';
 import { PlanLockedScreen } from './src/components/PlanLockedScreen';
 import { checkPlanLimits, PlanStatus } from './src/lib/planEnforcement';
+import { PLAN_BYPASS_EMAILS } from './src/lib/config';
 import supabase from './src/lib/supabase';
 
 // ─── Sentry init ──────────────────────────────────────────────────────────────
@@ -52,6 +53,10 @@ function PlanEnforcementWrapper({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Only run once auth has fully resolved and the user is logged in
     if (loading || !session || !organization || !teamMember?.org_id) return;
+
+    // Bypass accounts are fully exempt — skip all plan enforcement
+    const email = teamMember?.email ?? '';
+    if (PLAN_BYPASS_EMAILS.some(e => e.toLowerCase() === email.toLowerCase())) return;
 
     checkPlanLimits(
       supabase,
