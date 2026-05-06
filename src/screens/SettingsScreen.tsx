@@ -30,6 +30,8 @@ import { normalizeToEmail, isPhoneInput } from '../lib/authHelpers';
 import { LANGUAGES, Language, saveLanguage, getCurrentLang, useTranslation } from '../lib/i18n';
 import { DEFAULT_COUNTRY, Country, SORTED_COUNTRIES } from '../components/PhoneInput';
 import { FlatList } from 'react-native';
+import { HelpGuideModal } from './Settings/components/HelpGuideModal';
+import { FaqModal } from './Settings/components/FaqModal';
 
 // ─── Section wrapper ──────────────────────────────────────────
 function Section({
@@ -136,7 +138,7 @@ export default function SettingsScreen() {
  // Help & FAQ modals
  const [showHelp, setShowHelp] = useState(false);
  const [showFaq,  setShowFaq]  = useState(false);
- const [openFaqId, setOpenFaqId] = useState<number | null>(null);
+ // (openFaqId state moved into FaqModal — only used inside that modal)
 
  // Language
  const [currentLang, setCurrentLangState] = useState(getCurrentLang());
@@ -605,96 +607,11 @@ export default function SettingsScreen() {
  <Text style={ss.version}>GovPilot v1.0.0</Text>
  </ScrollView>
 
+      {/* ── HELP GUIDE MODAL ── (extracted to ./Settings/components/HelpGuideModal.tsx) */}
+      <HelpGuideModal visible={showHelp} onClose={() => setShowHelp(false)} t={t} ss={ss} />
 
- {/* ── HELP GUIDE MODAL ── */}
- <Modal visible={showHelp} transparent={false} animationType="slide" onRequestClose={() => setShowHelp(false)}>
-   <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
-     <View style={ss.helpSheet}>
-       <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>{t('helpGuideTitle')}</Text>
-         <TouchableOpacity onPress={() => setShowHelp(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-           <Text style={ss.helpClose}>✕</Text>
-         </TouchableOpacity>
-       </View>
-       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-         {[
-           { icon: '📁', title: t('help1Title'), steps: [t('help1S1'), t('help1S2'), t('help1S3'), t('help1S4')] },
-           { icon: '🗂', title: t('help2Title'), steps: [t('help2S1'), t('help2S2'), t('help2S3'), t('help2S4'), t('help2S5'), t('help2S6')] },
-           { icon: '👥', title: t('help3Title'), steps: [t('help3S1'), t('help3S2'), t('help3S3'), t('help3S4')] },
-           { icon: '📄', title: t('help4Title'), steps: [t('help4S1'), t('help4S2'), t('help4S3'), t('help4S4')] },
-           { icon: '💰', title: t('help5Title'), steps: [t('help5S1'), t('help5S2'), t('help5S3'), t('help5S4')] },
-           { icon: '📅', title: t('help6Title'), steps: [t('help6S1'), t('help6S2'), t('help6S3')] },
-           { icon: '🔍', title: t('help7Title'), steps: [t('help7S1'), t('help7S2'), t('help7S3')] },
-           { icon: '🌐', title: t('help8Title'), steps: [t('help8S1'), t('help8S2'), t('help8S3'), t('help8S4')] },
-           { icon: '🏛', title: t('help9Title'), steps: [t('help9S1'), t('help9S2'), t('help9S3'), t('help9S4')] },
-         ].map((section, i) => (
-           <View key={i} style={ss.helpSection}>
-             <View style={ss.helpSectionHeader}>
-               <Text style={ss.helpSectionIcon}>{section.icon}</Text>
-               <Text style={ss.helpSectionTitle}>{section.title}</Text>
-             </View>
-             {section.steps.map((step, j) => (
-               <View key={j} style={ss.helpStep}>
-                 <View style={ss.helpStepDot} />
-                 <Text style={ss.helpStepText}>{step}</Text>
-               </View>
-             ))}
-           </View>
-         ))}
-       </ScrollView>
-     </View>
-   </SafeAreaView>
- </Modal>
-
- {/* ── FAQ MODAL ── */}
- <Modal visible={showFaq} transparent={false} animationType="slide" onRequestClose={() => setShowFaq(false)}>
-   <SafeAreaView style={ss.helpOverlay} edges={['top', 'bottom']}>
-     <View style={ss.helpSheet}>
-       <View style={ss.helpHeader}>
-         <Text style={ss.helpTitle}>{t('faqTitle')}</Text>
-         <TouchableOpacity onPress={() => setShowFaq(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-           <Text style={ss.helpClose}>✕</Text>
-         </TouchableOpacity>
-       </View>
-       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-         {[
-           { q: t('faqQ1'),  a: t('faqA1')  },
-           { q: t('faqQ2'),  a: t('faqA2')  },
-           { q: t('faqQ3'),  a: t('faqA3')  },
-           { q: t('faqQ4'),  a: t('faqA4')  },
-           { q: t('faqQ5'),  a: t('faqA5')  },
-           { q: t('faqQ6'),  a: t('faqA6')  },
-           { q: t('faqQ7'),  a: t('faqA7')  },
-           { q: t('faqQ8'),  a: t('faqA8')  },
-           { q: t('faqQ9'),  a: t('faqA9')  },
-           { q: t('faqQ10'), a: t('faqA10') },
-           { q: t('faqQ11'), a: t('faqA11') },
-           { q: t('faqQ12'), a: t('faqA12') },
-           { q: t('faqQ13'), a: t('faqA13') },
-           { q: t('faqQ14'), a: t('faqA14') },
-           { q: t('faqQ15'), a: t('faqA15') },
-           { q: t('faqQ16'), a: t('faqA16') },
-         ].map((item, i) => (
-           <TouchableOpacity
-             key={i}
-             style={[ss.faqItem, openFaqId === i && ss.faqItemOpen]}
-             onPress={() => setOpenFaqId(v => v === i ? null : i)}
-             activeOpacity={0.75}
-           >
-             <View style={ss.faqQuestion}>
-               <Text style={ss.faqQ}>{item.q}</Text>
-               <Text style={[ss.faqChevron, openFaqId === i && ss.faqChevronOpen]}>›</Text>
-             </View>
-             {openFaqId === i && (
-               <Text style={ss.faqA}>{item.a}</Text>
-             )}
-           </TouchableOpacity>
-         ))}
-       </ScrollView>
-     </View>
-   </SafeAreaView>
- </Modal>
-
+      {/* ── FAQ MODAL ── (extracted to ./Settings/components/FaqModal.tsx) */}
+      <FaqModal visible={showFaq} onClose={() => setShowFaq(false)} t={t} ss={ss} />
 
  {/* ── EDIT MEMBER ROLE MODAL ── */}
  <Modal visible={!!editMemberModal} transparent animationType="fade" onRequestClose={() => setEditMemberModal(null)}>
