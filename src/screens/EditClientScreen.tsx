@@ -349,7 +349,8 @@ export default function EditClientScreen() {
   const handleCreateCustomField = async () => {
     if (!newFieldLabel.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
     setSavingNewField(true);
-    const key = newFieldLabel.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const slug = newFieldLabel.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const key = `${slug || 'field'}_${Date.now()}`;
     const opts = ['select', 'multiselect'].includes(newFieldType)
       ? newFieldOptions.split(',').map((o) => o.trim()).filter(Boolean)
       : null;
@@ -358,7 +359,7 @@ export default function EditClientScreen() {
       .from('client_field_definitions')
       .insert({
         label: newFieldLabel.trim(),
-        field_key: key || `field_${Date.now()}`,
+        field_key: key,
         field_type: newFieldType,
         options: opts,
         is_required: newFieldRequired,

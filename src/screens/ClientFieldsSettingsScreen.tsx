@@ -88,8 +88,10 @@ export default function ClientFieldsSettingsScreen() {
  setShowEditModal(true);
  };
 
- const generateKey = (label: string) =>
- label.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+ const generateKey = (label: string) => {
+ const slug = label.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+ return `${slug || 'field'}_${Date.now()}`;
+ };
 
  const handleAdd = async () => {
  if (!formLabel.trim()) { Alert.alert(t('required'), t('fieldRequired')); return; }
