@@ -299,7 +299,16 @@ export type TranslationKey =
   | 'inviteTeammate' | 'continueArrow' | 'skipForNow' | 'inviteAndContinue' | 'skipInviteLater'
   | 'chooseLanguage' | 'estimatedDays'
   | 'visFilesTitle' | 'visStagesTitle' | 'visFinancialTitle' | 'visDocumentsTitle'
-  | 'visClientsTitle' | 'visCatalogTitle' | 'visActivityTitle';
+  | 'visClientsTitle' | 'visCatalogTitle' | 'visActivityTitle'
+  // ── Phase 14: AccountScreen plan features + labels ──────────────────────────
+  | 'companyNamePlaceholder' | 'transferOwnershipError'
+  | 'planFreeLabel' | 'planBasicLabel' | 'planPremiumLabel'
+  | 'planNameFree' | 'planNameBasic' | 'planNamePremium'
+  | 'feat3Members' | 'feat10Members' | 'featUnlimitedMembers'
+  | 'feat25Files' | 'featUnlimitedFiles'
+  | 'featDocScanning' | 'featBasicFinancial' | 'featFullFinancial'
+  | 'featStageTracking' | 'featReportsExport' | 'featPDFUpload'
+  | 'featPrioritySupport' | 'featPriorityEmailSupport' | 'featDedicatedManager';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -1014,6 +1023,29 @@ const ar: Translations = {
   visClientsTitle:    'العملاء',
   visCatalogTitle:    'الكتالوج',
   visActivityTitle:   'النشاط والتعليقات',
+  // Phase 14: AccountScreen
+  companyNamePlaceholder: 'اسم شركتك',
+  transferOwnershipError: 'يجب نقل الملكية لمشرف آخر قبل حذف حسابك.',
+  planFreeLabel:          'الخطة المجانية',
+  planBasicLabel:         'الخطة الأساسية',
+  planPremiumLabel:       'الخطة المميزة',
+  planNameFree:           'مجاني',
+  planNameBasic:          'أساسي',
+  planNamePremium:        'مميز',
+  feat3Members:           'حتى 3 أعضاء فريق',
+  feat10Members:          'حتى 10 أعضاء فريق',
+  featUnlimitedMembers:   'أعضاء فريق غير محدودين',
+  feat25Files:            'حتى 25 ملفاً نشطاً',
+  featUnlimitedFiles:     'ملفات نشطة غير محدودة',
+  featDocScanning:        'مسح المستندات ورفعها',
+  featBasicFinancial:     'تتبع مالي أساسي',
+  featFullFinancial:      'تتبع مالي كامل',
+  featStageTracking:      'تتبع المراحل والحالات',
+  featReportsExport:      'تقارير مالية وتصدير',
+  featPDFUpload:          'رفع مستندات PDF',
+  featPrioritySupport:    'دعم ذو أولوية',
+  featPriorityEmailSupport: 'دعم بريد إلكتروني ذو أولوية',
+  featDedicatedManager:   'مدير حساب مخصص',
 };
 
 const en: Translations = {
@@ -1706,6 +1738,29 @@ const en: Translations = {
   visClientsTitle:    'Clients',
   visCatalogTitle:    'Catalog',
   visActivityTitle:   'Activity & Comments',
+  // Phase 14: AccountScreen
+  companyNamePlaceholder: 'Your company name',
+  transferOwnershipError: 'You must transfer ownership to another admin before deleting your account.',
+  planFreeLabel:          'Free Plan',
+  planBasicLabel:         'Basic Plan',
+  planPremiumLabel:       'Premium Plan',
+  planNameFree:           'Free',
+  planNameBasic:          'Basic',
+  planNamePremium:        'Premium',
+  feat3Members:           'Up to 3 team members',
+  feat10Members:          'Up to 10 team members',
+  featUnlimitedMembers:   'Unlimited team members',
+  feat25Files:            'Up to 25 active files',
+  featUnlimitedFiles:     'Unlimited active files',
+  featDocScanning:        'Document scanning & upload',
+  featBasicFinancial:     'Basic financial tracking',
+  featFullFinancial:      'Full financial tracking',
+  featStageTracking:      'Stage & status tracking',
+  featReportsExport:      'Financial reports & export',
+  featPDFUpload:          'PDF document upload',
+  featPrioritySupport:    'Priority support',
+  featPriorityEmailSupport: 'Priority email support',
+  featDedicatedManager:   'Dedicated account manager',
 };
 
 const fr: Translations = {
@@ -2403,6 +2458,29 @@ const fr: Translations = {
   visClientsTitle:    'Clients',
   visCatalogTitle:    'Catalogue',
   visActivityTitle:   'Activité & Commentaires',
+  // Phase 14: AccountScreen
+  companyNamePlaceholder: 'Nom de votre société',
+  transferOwnershipError: 'Vous devez transférer la propriété à un autre administrateur avant de supprimer votre compte.',
+  planFreeLabel:          'Forfait Gratuit',
+  planBasicLabel:         'Forfait Basique',
+  planPremiumLabel:       'Forfait Premium',
+  planNameFree:           'Gratuit',
+  planNameBasic:          'Basique',
+  planNamePremium:        'Premium',
+  feat3Members:           "Jusqu'à 3 membres d'équipe",
+  feat10Members:          "Jusqu'à 10 membres d'équipe",
+  featUnlimitedMembers:   "Membres d'équipe illimités",
+  feat25Files:            "Jusqu'à 25 dossiers actifs",
+  featUnlimitedFiles:     'Dossiers actifs illimités',
+  featDocScanning:        'Scan & téléchargement de documents',
+  featBasicFinancial:     'Suivi financier basique',
+  featFullFinancial:      'Suivi financier complet',
+  featStageTracking:      'Suivi des étapes & statuts',
+  featReportsExport:      'Rapports financiers & export',
+  featPDFUpload:          'Téléchargement PDF',
+  featPrioritySupport:    'Support prioritaire',
+  featPriorityEmailSupport: 'Support email prioritaire',
+  featDedicatedManager:   'Gestionnaire de compte dédié',
 };
 
 // Fallback: use English for all other languages

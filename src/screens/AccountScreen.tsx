@@ -25,7 +25,7 @@ import { theme } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { emailToDisplay, isPhoneInput, normalizeToEmail } from '../lib/authHelpers';
 import { SUPPORT_EMAIL, PRIVACY_URL, TERMS_URL, PLAN_LIMITS } from '../lib/config';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, TranslationKey } from '../lib/i18n';
 
 const ROLE_COLORS: Record<string, string> = {
   owner:  theme.color.primary,
@@ -34,80 +34,91 @@ const ROLE_COLORS: Record<string, string> = {
   viewer: theme.color.textMuted,
 };
 
-const PLAN_LABELS: Record<string, { label: string; color: string }> = {
-  free:     { label: 'Free Plan',    color: theme.color.textMuted },
-  basic:    { label: 'Basic Plan',   color: theme.color.primary },
-  premium:  { label: 'Premium Plan', color: '#F59E0B' },
-  starter:  { label: 'Starter Plan', color: theme.color.success },
-  business: { label: 'Business Plan',color: theme.color.primary },
+const PLAN_LABELS: Record<string, { labelKey: TranslationKey; color: string }> = {
+  free:     { labelKey: 'planFreeLabel',    color: theme.color.textMuted },
+  basic:    { labelKey: 'planBasicLabel',   color: theme.color.primary },
+  premium:  { labelKey: 'planPremiumLabel', color: '#F59E0B' },
+  starter:  { labelKey: 'planBasicLabel',   color: theme.color.success },
+  business: { labelKey: 'planBasicLabel',   color: theme.color.primary },
 };
 
 // ── Pricing plans definition ───────────────────────────────────────────────
-const PLANS = [
+const PLANS: Array<{
+  key: string;
+  nameKey: TranslationKey;
+  emoji: string;
+  tagline: TranslationKey;
+  monthlyPrice: number;
+  annualPrice: number;
+  color: string;
+  accentBg: string;
+  badge?: string;
+  features: Array<{ textKey: TranslationKey; included: boolean; info?: string }>;
+}> = [
   {
     key: 'free',
-    name: 'Free',
+    nameKey: 'planNameFree',
     emoji: '🌱',
-    tagline: 'planFreeTagline' as const,
+    tagline: 'planFreeTagline',
     monthlyPrice: 0,
     annualPrice: 0,
     color: theme.color.textMuted,
     accentBg: theme.color.bgBase,
     features: [
-      { text: 'Up to 3 team members',       included: true  },
-      { text: 'Up to 25 active files',       included: true  },
-      { text: 'Document scanning & upload',  included: true  },
-      { text: 'Basic financial tracking',    included: true  },
-      { text: 'Stage & status tracking',     included: true  },
-      { text: 'Financial reports & export',  included: false },
-      { text: 'PDF document upload',         included: false },
-      { text: 'Priority support',            included: false },
-      { text: 'Unlimited team members',      included: false },
+      { textKey: 'feat3Members',          included: true  },
+      { textKey: 'feat25Files',           included: true  },
+      { textKey: 'featDocScanning',       included: true  },
+      { textKey: 'featBasicFinancial',    included: true  },
+      { textKey: 'featStageTracking',     included: true  },
+      { textKey: 'featReportsExport',     included: false },
+      { textKey: 'featPDFUpload',         included: false },
+      { textKey: 'featPrioritySupport',   included: false },
+      { textKey: 'featUnlimitedMembers',  included: false },
     ],
   },
   {
     key: 'basic',
-    name: 'Basic',
+    nameKey: 'planNameBasic',
     emoji: '⚡',
-    tagline: 'planStarterTagline' as const,
+    tagline: 'planStarterTagline',
     monthlyPrice: 29,
     annualPrice: 19,
     color: theme.color.primary,
     accentBg: theme.color.primary + '10',
     badge: 'POPULAR',
     features: [
-      { text: 'Up to 10 team members',       included: true  },
-      { text: 'Unlimited active files',       included: true  },
-      { text: 'Document scanning & upload',  included: true  },
-      { text: 'Full financial tracking',     included: true  },
-      { text: 'Stage & status tracking',     included: true  },
-      { text: 'Financial reports & export',  included: true  },
-      { text: 'PDF document upload',         included: true  },
-      { text: 'Priority email support',      included: true  },
-      { text: 'Unlimited team members',      included: false },
+      { textKey: 'feat10Members',             included: true  },
+      { textKey: 'featUnlimitedFiles',         included: true  },
+      { textKey: 'featDocScanning',            included: true  },
+      { textKey: 'featFullFinancial',          included: true  },
+      { textKey: 'featStageTracking',          included: true  },
+      { textKey: 'featReportsExport',          included: true  },
+      { textKey: 'featPDFUpload',              included: true  },
+      { textKey: 'featPriorityEmailSupport',   included: true  },
+      { textKey: 'featUnlimitedMembers',       included: false },
     ],
   },
   {
     key: 'premium',
-    name: 'Premium',
+    nameKey: 'planNamePremium',
     emoji: '👑',
-    tagline: 'planBusinessTagline' as const,
+    tagline: 'planBusinessTagline',
     monthlyPrice: 69,
     annualPrice: 49,
     color: '#F59E0B',
     accentBg: '#F59E0B10',
     features: [
-      { text: 'Unlimited team members',      included: true  },
-      { text: 'Unlimited active files',       included: true  },
-      { text: 'Document scanning & upload',  included: true  },
-      { text: 'Full financial tracking',     included: true  },
-      { text: 'Stage & status tracking',     included: true  },
-      { text: 'Financial reports & export',  included: true  },
-      { text: 'PDF document upload',         included: true  },
-      { text: 'Dedicated account manager',   included: true, info: 'A specific KTS team member is personally assigned to your account — they handle your support, answer questions, and help you directly. You get a direct contact, not a generic support queue.' },
+      { textKey: 'featUnlimitedMembers',  included: true  },
+      { textKey: 'featUnlimitedFiles',    included: true  },
+      { textKey: 'featDocScanning',       included: true  },
+      { textKey: 'featFullFinancial',     included: true  },
+      { textKey: 'featStageTracking',     included: true  },
+      { textKey: 'featReportsExport',     included: true  },
+      { textKey: 'featPDFUpload',         included: true  },
+      { textKey: 'featDedicatedManager',  included: true, info: 'A specific KTS team member is personally assigned to your account — they handle your support, answer questions, and help you directly. You get a direct contact, not a generic support queue.' },
     ],
   },
-] as const;
+];
 
 type PlanKey = 'free' | 'basic' | 'premium' | 'starter' | 'business';
 // PLAN_LIMITS imported from src/lib/config.ts
@@ -318,8 +329,8 @@ export default function AccountScreen() {
             } catch (e: any) {
               setDeletingAccount(false);
               const msg = e?.message?.includes('Transfer ownership')
-                ? 'You must transfer ownership to another admin before deleting your account.'
-                : e?.message ?? 'Something went wrong. Please try again.';
+                ? t('transferOwnershipError')
+                : e?.message ?? t('somethingWrong');
               Alert.alert('Error', msg);
             }
           },
@@ -361,7 +372,7 @@ export default function AccountScreen() {
                   style={s.orgNameInput}
                   value={editOrgName}
                   onChangeText={setEditOrgName}
-                  placeholder="Your company name"
+                  placeholder={t('companyNamePlaceholder')}
                   placeholderTextColor={theme.color.textMuted}
                   autoCapitalize="words"
                   autoFocus
@@ -399,7 +410,7 @@ export default function AccountScreen() {
           {/* Plan row — tappable → opens plans */}
           <TouchableOpacity style={s.planRow} onPress={() => setShowPlansModal(true)} activeOpacity={0.75}>
             <View style={[s.planBadge, { backgroundColor: planInfo.color + '18', borderColor: planInfo.color + '33' }]}>
-              <Text style={[s.planBadgeText, { color: planInfo.color }]}>{planInfo.label}</Text>
+              <Text style={[s.planBadgeText, { color: planInfo.color }]}>{t(planInfo.labelKey)}</Text>
             </View>
             <Text style={[s.viewPlansLink, { color: planInfo.color }]}>
               {currentPlanKey === 'free' ? t('viewPlansBtn') : t('managePlanBtn')}
@@ -667,7 +678,7 @@ export default function AccountScreen() {
                     <View style={s.planCardTop}>
                       <Text style={s.planEmoji}>{plan.emoji}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.planName, { color: plan.color }]}>{plan.name}</Text>
+                        <Text style={[s.planName, { color: plan.color }]}>{t(plan.nameKey)}</Text>
                         <Text style={s.planTagline}>{t(plan.tagline)}</Text>
                       </View>
                       <View style={s.priceBlock}>
@@ -689,10 +700,10 @@ export default function AccountScreen() {
                           <Text style={[s.featureIcon, { color: f.included ? plan.color : theme.color.border }]}>
                             {f.included ? '✓' : '✕'}
                           </Text>
-                          <Text style={[s.featureText, !f.included && s.featureTextDimmed]}>{f.text}</Text>
-                          {'info' in f && f.info ? (
+                          <Text style={[s.featureText, !f.included && s.featureTextDimmed]}>{t(f.textKey)}</Text>
+                          {f.info ? (
                             <TouchableOpacity
-                              onPress={() => Alert.alert('ℹ️ ' + f.text, f.info)}
+                              onPress={() => Alert.alert('ℹ️ ' + t(f.textKey), f.info)}
                               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                             >
                               <View style={s.infoBtn}>
