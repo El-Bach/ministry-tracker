@@ -300,6 +300,8 @@ export type TranslationKey =
   | 'chooseLanguage' | 'estimatedDays'
   | 'visFilesTitle' | 'visStagesTitle' | 'visFinancialTitle' | 'visDocumentsTitle'
   | 'visClientsTitle' | 'visCatalogTitle' | 'visActivityTitle'
+  // ── Phase 14: missing keys caught by tsc ────────────────────────────────────
+  | 'step' | 'client'
   // ── Phase 14: AccountScreen plan features + labels ──────────────────────────
   | 'companyNamePlaceholder' | 'transferOwnershipError'
   | 'planFreeLabel' | 'planBasicLabel' | 'planPremiumLabel'
@@ -1023,6 +1025,8 @@ const ar: Translations = {
   visClientsTitle:    'العملاء',
   visCatalogTitle:    'الكتالوج',
   visActivityTitle:   'النشاط والتعليقات',
+  step:               'الخطوة',
+  client:             'عميل',
   // Phase 14: AccountScreen
   companyNamePlaceholder: 'اسم شركتك',
   transferOwnershipError: 'يجب نقل الملكية لمشرف آخر قبل حذف حسابك.',
@@ -1738,6 +1742,8 @@ const en: Translations = {
   visClientsTitle:    'Clients',
   visCatalogTitle:    'Catalog',
   visActivityTitle:   'Activity & Comments',
+  step:               'Step',
+  client:             'Client',
   // Phase 14: AccountScreen
   companyNamePlaceholder: 'Your company name',
   transferOwnershipError: 'You must transfer ownership to another admin before deleting your account.',
@@ -2458,6 +2464,8 @@ const fr: Translations = {
   visClientsTitle:    'Clients',
   visCatalogTitle:    'Catalogue',
   visActivityTitle:   'Activité & Commentaires',
+  step:               'Étape',
+  client:             'Client',
   // Phase 14: AccountScreen
   companyNamePlaceholder: 'Nom de votre société',
   transferOwnershipError: 'Vous devez transférer la propriété à un autre administrateur avant de supprimer votre compte.',
