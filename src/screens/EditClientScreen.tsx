@@ -214,7 +214,7 @@ export default function EditClientScreen() {
   const navigation = useNavigation<Nav>();
   const { clientId } = route.params;
 
-  const { fields: allFieldDefs } = useFieldDefinitions();
+  const { fields: allFieldDefs, reload: reloadFieldDefs } = useFieldDefinitions();
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -370,6 +370,7 @@ export default function EditClientScreen() {
       .single();
     setSavingNewField(false);
     if (error) { Alert.alert(t('error'), error.message); return; }
+    await reloadFieldDefs();
     setActiveFieldIds((prev) => [...prev, data.id]);
     setShowCreateField(false);
     setShowFieldPicker(false);
