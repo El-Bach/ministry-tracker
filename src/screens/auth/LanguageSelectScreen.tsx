@@ -16,13 +16,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nManager } from 'react-native';
 
 import { theme } from '../../theme';
-import { LANGUAGES, Language, saveLanguage, isFirstLaunchKey, setCurrentLang } from '../../lib/i18n';
+import { LANGUAGES, Language, saveLanguage, isFirstLaunchKey, setCurrentLang, useTranslation } from '../../lib/i18n';
 
 interface Props {
   onDone: () => void;
 }
 
 export default function LanguageSelectScreen({ onDone }: Props) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string>('en');
 
   const handleContinue = async () => {
@@ -38,7 +39,7 @@ export default function LanguageSelectScreen({ onDone }: Props) {
           Alert.alert(
             'Restart Required',
             'Please close and reopen the app to apply the language direction.',
-            [{ text: 'OK', onPress: onDone }]
+            [{ text: t('ok'), onPress: onDone }]
           );
           return; // onDone called via Alert callback
         }
@@ -86,7 +87,7 @@ export default function LanguageSelectScreen({ onDone }: Props) {
           <Text style={{ color: theme.color.primary }}>Gov</Text>
           <Text style={{ color: theme.color.textPrimary }}>Pilot</Text>
         </Text>
-        <Text style={s.subtitle}>Choose your language</Text>
+        <Text style={s.subtitle}>{t('chooseLanguage')}</Text>
         <Text style={s.subtitleSub}>اختر لغتك  •  Choisissez votre langue</Text>
       </View>
 

@@ -289,7 +289,17 @@ export type TranslationKey =
   // ── Phase 12: FinancialReport, TaskDetail, StageRequirements, Login ──────────
   | 'filterByService' | 'filterByStage' | 'allServices' | 'allStages' | 'saveAndApply'
   | 'fromDate' | 'toDate' | 'closedLabel' | 'currentStatusLabel'
-  | 'cameraScan' | 'photoLibrary' | 'govFileTracking' | 'createNewCity' | 'requirement';
+  | 'cameraScan' | 'photoLibrary' | 'govFileTracking' | 'createNewCity' | 'requirement'
+  // ── Phase 13: Remaining screens (Create modals, StagesSection, Onboarding, Visibility) ──
+  | 'saveAndSelect' | 'saveAndAssign' | 'saveContact'
+  | 'noSubReqYet' | 'noDocsAddedYet' | 'allFieldsAdded' | 'noFieldsMatch' | 'noContactsYet'
+  | 'stopAccess' | 'removeForever' | 'yesContinue' | 'noPriceChanges' | 'noTransactionsYet'
+  | 'settingUpAccount' | 'setupIncomplete' | 'signOutAndTryAgain' | 'letsGetSetUp'
+  | 'yourCompanyTitle' | 'confirmOrgName' | 'yourFirstService' | 'firstServiceDesc'
+  | 'inviteTeammate' | 'continueArrow' | 'skipForNow' | 'inviteAndContinue' | 'skipInviteLater'
+  | 'chooseLanguage' | 'estimatedDays'
+  | 'visFilesTitle' | 'visStagesTitle' | 'visFinancialTitle' | 'visDocumentsTitle'
+  | 'visClientsTitle' | 'visCatalogTitle' | 'visActivityTitle';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -968,6 +978,42 @@ const ar: Translations = {
   govFileTracking:    'تتبع الملفات الحكومية',
   createNewCity:      'إنشاء مدينة جديدة',
   requirement:        'متطلب',
+  // Phase 13
+  saveAndSelect:      'حفظ واختيار',
+  saveAndAssign:      'حفظ وتعيين',
+  saveContact:        'حفظ جهة الاتصال',
+  noSubReqYet:        'لا توجد متطلبات فرعية. أضف أدناه.',
+  noDocsAddedYet:     'لم يتم إضافة مستندات بعد.',
+  allFieldsAdded:     'جميع الحقول مضافة',
+  noFieldsMatch:      'لا توجد حقول مطابقة',
+  noContactsYet:      'لا توجد جهات اتصال. اضغط ＋ جديد للإضافة.',
+  stopAccess:         'إيقاف الوصول',
+  removeForever:      'حذف نهائي',
+  yesContinue:        'نعم، تابع',
+  noPriceChanges:     'لم يتم تسجيل أي تغييرات بعد.',
+  noTransactionsYet:  'لا توجد معاملات بعد.',
+  settingUpAccount:   'جارٍ إعداد حسابك…',
+  setupIncomplete:    'الإعداد غير مكتمل',
+  signOutAndTryAgain: 'تسجيل الخروج وإعادة المحاولة',
+  letsGetSetUp:       'لنبدأ الإعداد',
+  yourCompanyTitle:   'شركتك',
+  confirmOrgName:     'أكّد اسم شركتك أو مكتبك. هذا ما سيراه فريقك.',
+  yourFirstService:   'خدمتك الأولى',
+  firstServiceDesc:   'أضف نوع الخدمة التي تقدمها ومرحلتها الأولى. يمكنك إضافة المزيد لاحقاً.',
+  inviteTeammate:     'دعوة زميل',
+  continueArrow:      'متابعة ←',
+  skipForNow:         'تخطّ الآن',
+  inviteAndContinue:  'دعوة ومتابعة ←',
+  skipInviteLater:    'تخطّ — سأدعو لاحقاً',
+  chooseLanguage:     'اختر لغتك',
+  estimatedDays:      'تقديري: {n} يوم',
+  visFilesTitle:      'الملفات',
+  visStagesTitle:     'المراحل',
+  visFinancialTitle:  'المالية',
+  visDocumentsTitle:  'المستندات',
+  visClientsTitle:    'العملاء',
+  visCatalogTitle:    'الكتالوج',
+  visActivityTitle:   'النشاط والتعليقات',
 };
 
 const en: Translations = {
@@ -1624,6 +1670,42 @@ const en: Translations = {
   govFileTracking:    'Government File Tracking',
   createNewCity:      'Create New City',
   requirement:        'Requirement',
+  // Phase 13
+  saveAndSelect:      'Save & Select',
+  saveAndAssign:      'Save & Assign',
+  saveContact:        'Save Contact',
+  noSubReqYet:        'No sub-requirements yet. Add below.',
+  noDocsAddedYet:     'No documents added yet.',
+  allFieldsAdded:     'All fields already added',
+  noFieldsMatch:      'No fields match',
+  noContactsYet:      'No contacts yet. Tap ＋ New to add one.',
+  stopAccess:         'Stop Access',
+  removeForever:      'Remove Forever',
+  yesContinue:        'Yes, Continue',
+  noPriceChanges:     'No changes recorded yet.',
+  noTransactionsYet:  'No transactions yet.',
+  settingUpAccount:   'Setting up your account…',
+  setupIncomplete:    'Setup Incomplete',
+  signOutAndTryAgain: 'Sign Out & Try Again',
+  letsGetSetUp:       "Let's get you set up",
+  yourCompanyTitle:   'Your Company',
+  confirmOrgName:     'Confirm your company or office name. This is what your team will see.',
+  yourFirstService:   'Your First Service',
+  firstServiceDesc:   'Add the type of service you handle and its first stage. You can add more later in the app.',
+  inviteTeammate:     'Invite a Teammate',
+  continueArrow:      'Continue →',
+  skipForNow:         'Skip for now',
+  inviteAndContinue:  'Invite & Continue →',
+  skipInviteLater:    "Skip — I'll invite later",
+  chooseLanguage:     'Choose your language',
+  estimatedDays:      'Est. {n} days',
+  visFilesTitle:      'Files',
+  visStagesTitle:     'Stages',
+  visFinancialTitle:  'Financial',
+  visDocumentsTitle:  'Documents',
+  visClientsTitle:    'Clients',
+  visCatalogTitle:    'Catalog',
+  visActivityTitle:   'Activity & Comments',
 };
 
 const fr: Translations = {
@@ -2285,6 +2367,42 @@ const fr: Translations = {
   govFileTracking:    'Suivi des dossiers gouvernementaux',
   createNewCity:      'Créer une nouvelle ville',
   requirement:        'Exigence',
+  // Phase 13
+  saveAndSelect:      'Enregistrer et sélectionner',
+  saveAndAssign:      'Enregistrer et assigner',
+  saveContact:        'Enregistrer le contact',
+  noSubReqYet:        'Aucune sous-exigence. Ajoutez ci-dessous.',
+  noDocsAddedYet:     'Aucun document ajouté.',
+  allFieldsAdded:     'Tous les champs sont déjà ajoutés',
+  noFieldsMatch:      'Aucun champ correspondant',
+  noContactsYet:      'Aucun contact. Appuyez ＋ Nouveau pour en ajouter.',
+  stopAccess:         'Bloquer l\'accès',
+  removeForever:      'Supprimer définitivement',
+  yesContinue:        'Oui, continuer',
+  noPriceChanges:     'Aucune modification enregistrée.',
+  noTransactionsYet:  'Aucune transaction.',
+  settingUpAccount:   'Configuration de votre compte…',
+  setupIncomplete:    'Configuration incomplète',
+  signOutAndTryAgain: 'Se déconnecter et réessayer',
+  letsGetSetUp:       'Commençons la configuration',
+  yourCompanyTitle:   'Votre entreprise',
+  confirmOrgName:     'Confirmez le nom de votre entreprise ou bureau. C\'est ce que verra votre équipe.',
+  yourFirstService:   'Votre premier service',
+  firstServiceDesc:   'Ajoutez le type de service que vous gérez et sa première étape. Vous pouvez en ajouter plus tard.',
+  inviteTeammate:     'Inviter un collègue',
+  continueArrow:      'Continuer →',
+  skipForNow:         'Passer pour l\'instant',
+  inviteAndContinue:  'Inviter et continuer →',
+  skipInviteLater:    'Passer — J\'inviterai plus tard',
+  chooseLanguage:     'Choisissez votre langue',
+  estimatedDays:      'Est. {n} jours',
+  visFilesTitle:      'Dossiers',
+  visStagesTitle:     'Étapes',
+  visFinancialTitle:  'Finances',
+  visDocumentsTitle:  'Documents',
+  visClientsTitle:    'Clients',
+  visCatalogTitle:    'Catalogue',
+  visActivityTitle:   'Activité & Commentaires',
 };
 
 // Fallback: use English for all other languages

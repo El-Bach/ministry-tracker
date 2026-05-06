@@ -352,7 +352,7 @@ export function StagesSection(props: Props) {
                         >
                           {savingCity
                             ? <ActivityIndicator color={theme.color.white} size="small" />
-                            : <Text style={s.newMemberSaveBtnText}>Save & Select</Text>}
+                            : <Text style={s.newMemberSaveBtnText}>{t('saveAndSelect')}</Text>}
                         </TouchableOpacity>
                       </View>
                     )}
@@ -382,7 +382,7 @@ export function StagesSection(props: Props) {
                       {stopCitySearch.trim() ? (
                         allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
                         && pinnedCityIds.filter(id => allCities.find(c => c.id === id)?.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).length === 0
-                          ? <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{stopCitySearch}"</Text>
+                          ? <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>{t('noCitiesMatch')} "{stopCitySearch}"</Text>
                           : allCities.filter(c => !pinnedCityIds.includes(c.id) && c.name.toLowerCase().includes(stopCitySearch.trim().toLowerCase())).map(city => (
                             <View key={city.id} style={[s.cityDropdownItem, stop.city_id === city.id && s.cityDropdownItemActive]}>
                               <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}
@@ -467,13 +467,13 @@ export function StagesSection(props: Props) {
                       {stopAssigneeSearch.trim() &&
                         allMembers.filter(m => m.name.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 &&
                         extAssignees.filter(a => a.name?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.phone?.toLowerCase().includes(stopAssigneeSearch.toLowerCase()) || a.reference?.toLowerCase().includes(stopAssigneeSearch.toLowerCase())).length === 0 && (
-                          <Text style={{ padding: theme.spacing.space3, color: theme.color.textMuted, fontSize: 13 }}>No contacts match "{stopAssigneeSearch}"</Text>
+                          <Text style={{ padding: theme.spacing.space3, color: theme.color.textMuted, fontSize: 13 }}>{t('noContactsMatch')} "{stopAssigneeSearch}"</Text>
                         )}
                       {!stopAssigneeSearch.trim() && (
                         <TouchableOpacity style={s.cityDropdownItem}
                           onPress={() => setShowCreateExtForm(v => !v)}>
                           <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                            {showCreateExtForm ? '− Cancel' : '+ Create New Contact'}
+                            {showCreateExtForm ? `− ${t('cancel')}` : `+ ${t('createNewContact')}`}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -493,7 +493,7 @@ export function StagesSection(props: Props) {
                         >
                           {savingExtAssignee
                             ? <ActivityIndicator color={theme.color.white} size="small" />
-                            : <Text style={s.newMemberSaveBtnText}>Save & Assign</Text>}
+                            : <Text style={s.newMemberSaveBtnText}>{t('saveAndAssign')}</Text>}
                         </TouchableOpacity>
                       </View>
                     )}

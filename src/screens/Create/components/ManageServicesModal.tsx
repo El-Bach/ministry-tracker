@@ -119,7 +119,7 @@ export function ManageServicesModal(props: Props) {
               <View style={s.modalHeader}>
                 <TouchableOpacity onPress={() => setShowSvcImportModal(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
-                  <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  <Text style={{ ...theme.typography.label, color: theme.color.primary }}>{t('back')}</Text>
                 </TouchableOpacity>
                 <Text style={s.modalTitle}>📥 {t('importServicesBtn')}</Text>
                 <TouchableOpacity onPress={() => { onClose(); setShowSvcImportModal(false); setServiceSearch(''); }}>
@@ -178,7 +178,7 @@ export function ManageServicesModal(props: Props) {
                     setSvcImportRows(rows);
                   }}
                 >
-                  <Text style={s.importPreviewBtnText}>Preview ({parseSvcImportText(svcImportRaw).length} rows)</Text>
+                  <Text style={s.importPreviewBtnText}>{t('preview')} ({parseSvcImportText(svcImportRaw).length})</Text>
                 </TouchableOpacity>
 
                 {svcImportRows.length > 0 && (
@@ -201,7 +201,7 @@ export function ManageServicesModal(props: Props) {
                     >
                       {importingServices
                         ? <ActivityIndicator color={theme.color.white} size="small" />
-                        : <Text style={s.modalSaveBtnText}>Import {svcImportRows.length} Service{svcImportRows.length !== 1 ? 's' : ''}</Text>}
+                        : <Text style={s.modalSaveBtnText}>{t('importBtn')} {svcImportRows.length} {t('service')}{svcImportRows.length !== 1 ? 's' : ''}</Text>}
                     </TouchableOpacity>
                   </>
                 )}

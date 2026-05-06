@@ -142,9 +142,9 @@ export default function ServiceStagesScreen() {
 
   const removeStage = (stage: Stage) => {
     Alert.alert(t('deleteStage'), `${t('confirmDelete')} — "${stage.name}"`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Remove', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           await supabase.from('service_default_stages').delete().eq('id', stage.id);
           setStages((prev) => prev.filter((s) => s.id !== stage.id));
@@ -155,12 +155,12 @@ export default function ServiceStagesScreen() {
 
   const deleteMinistryFromDirectory = (ministry: Ministry) => {
     Alert.alert(
-      'Delete Stage',
-      `Permanently delete "${ministry.name}" from the stages directory? This cannot be undone.`,
+      t('deleteStage'),
+      `${t('confirmDelete')} "${ministry.name}"`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             setDeletingMiniId(ministry.id);
             await supabase.from('ministries').delete().eq('id', ministry.id);

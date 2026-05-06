@@ -143,7 +143,7 @@ export function DocumentsRequiredModal(props: Props) {
                   {/* Expanded document list */}
                   {isExpanded && (
                     <View style={s.docListPanel}>
-                      {docs.length === 0 && <Text style={s.docEmpty}>No documents added yet</Text>}
+                      {docs.length === 0 && <Text style={s.docEmpty}>{t('noDocsAddedYet')}</Text>}
                       {docs.map((doc, idx) => {
                         const subreqs = docReqs[doc.id] ?? [];
                         const isReqOpen = expandedDocReqId === doc.id;
@@ -191,7 +191,7 @@ export function DocumentsRequiredModal(props: Props) {
                                 ) : (
                                   <>
                                     {subreqs.length === 0 && (
-                                      <Text style={s.docReqEmpty}>No sub-requirements yet. Add below.</Text>
+                                      <Text style={s.docReqEmpty}>{t('noSubReqYet')}</Text>
                                     )}
                                     {subreqs.map((req: any) => (
                                       <View key={req.id} style={s.docSubReqRow}>
@@ -301,7 +301,7 @@ export function DocumentsRequiredModal(props: Props) {
                               >
                                 {importingDocs
                                   ? <ActivityIndicator size="small" color={theme.color.white} />
-                                  : <Text style={s.docImportConfirmBtnText}>Import {docImportTitles.length} document{docImportTitles.length !== 1 ? 's' : ''}</Text>}
+                                  : <Text style={s.docImportConfirmBtnText}>{t('importBtn')} {docImportTitles.length} {t('document')}{docImportTitles.length !== 1 ? 's' : ''}</Text>}
                               </TouchableOpacity>
                             </>
                           )}

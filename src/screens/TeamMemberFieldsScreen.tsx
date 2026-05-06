@@ -151,12 +151,12 @@ export default function TeamMemberFieldsScreen() {
 
  const handleDelete = (field: FieldDefinition) => {
   Alert.alert(
-   'Delete Field',
-   `Delete "${field.label}"? All existing team member data for this field will be lost.`,
+   `${t('delete')} ${t('fieldTypeLabel')}`,
+   `${t('delete')} "${field.label}"?`,
    [
-    { text: 'Cancel', style: 'cancel' },
+    { text: t('cancel'), style: 'cancel' },
     {
-     text: 'Delete',
+     text: t('delete'),
      style: 'destructive',
      onPress: async () => {
       await supabase.from('team_member_field_definitions').delete().eq('id', field.id);

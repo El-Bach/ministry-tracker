@@ -86,7 +86,7 @@ export function ServiceSection(props: Props) {
         onPress={onOpenServicePicker}
       />
       {selectedService && (
-        <Text style={s.hint}>Est. {selectedService.estimated_duration_days} days</Text>
+        <Text style={s.hint}>{t('estimatedDays').replace('{n}', String(selectedService.estimated_duration_days))}</Text>
       )}
       {selectedService && (
         <TouchableOpacity

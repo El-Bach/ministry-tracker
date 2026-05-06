@@ -12,14 +12,15 @@ import { theme } from '../../../theme';
 import { s } from '../styles/createStyles';
 import { formatPhoneDisplay } from '../../../lib/phone';
 import { Client } from '../../../types';
+import { t as tStatic } from '../../../lib/i18n';
 
 function openPhone(phone: string, name?: string) {
   if (!phone) return;
   const clean = phone.replace(/[^0-9+]/g, '');
   Alert.alert(name ?? phone, phone, [
-    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 
@@ -102,7 +103,7 @@ export function ManageClientsModal(props: Props) {
               {clients.length === 0 ? (
                 <Text style={s.mgmtEmpty}>{t('noFilesFound')}</Text>
               ) : filtered.length === 0 ? (
-                <Text style={s.mgmtEmpty}>No clients match "{clientSearch}"</Text>
+                <Text style={s.mgmtEmpty}>{t('noClientsMatch')} "{clientSearch}"</Text>
               ) : filtered.map((c) => (
                 <View key={c.id} style={s.mgmtClientRow}>
                   <View style={s.mgmtClientAvatar}>

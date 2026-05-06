@@ -116,7 +116,7 @@ export function StagesSection(props: Props) {
     <View style={s.section}>
       <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
       {routeStops.length === 0 && (
-        <Text style={s.hint}>No default stages for this service. Add stages below.</Text>
+        <Text style={s.hint}>{t('noDefaultStages')}</Text>
       )}
 
       {routeStops.length > 0 && (

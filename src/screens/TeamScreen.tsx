@@ -23,7 +23,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
-import { useTranslation } from '../lib/i18n';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 import { useAuth } from '../hooks/useAuth';
 import { useRealtime } from '../hooks/useRealtime';
 import { TeamMember, Task, StatusLabel, DashboardStackParamList } from '../types';
@@ -33,9 +33,9 @@ import { formatPhoneDisplay } from '../lib/phone';
 function openPhone(phone: string, name?: string) {
   const clean = phone.replace(/[^0-9+]/g, '');
   Alert.alert(name ?? phone, phone, [
-    { text: '📞 Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 

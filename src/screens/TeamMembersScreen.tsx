@@ -190,8 +190,8 @@ export default function TeamMembersScreen() {
       'Change Role',
       `Change ${tm.name}'s role from ${tm.role} to ${meta?.label ?? newRole}?\n\n${meta?.desc ?? ''}`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('confirm'), onPress: async () => {
           const { error } = await supabase.from('team_members').update({ role: newRole }).eq('id', tm.id);
           if (error) { Alert.alert(t('error'), error.message); return; }
           fetchData();
@@ -206,8 +206,8 @@ export default function TeamMembersScreen() {
       'Stop Access',
       `Stop ${tm.name} from using the app? Their data is kept. You can permanently remove them after.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Stop Access', style: 'destructive', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('stopAccess'), style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('team_members')
             .update({ deleted_at: new Date().toISOString(), deleted_by: teamMember?.id })
             .eq('id', tm.id);
@@ -224,8 +224,8 @@ export default function TeamMembersScreen() {
       '⚠️ Permanently Remove',
       `Remove ${tm.name} completely? This cannot be undone.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove Forever', style: 'destructive', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('removeForever'), style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('team_members').delete().eq('id', tm.id);
           if (error) Alert.alert(t('error'), error.message);
           else fetchData();
@@ -311,8 +311,8 @@ export default function TeamMembersScreen() {
           '👤 Name Already Exists',
           `A team member named "${sameName.name}" already exists.\n\nIs this a different person?`,
           [
-            { text: 'Cancel',       style: 'cancel' },
-            { text: 'Yes, Continue', onPress: () => doGenerateCode(fullPhone) },
+            { text: t('cancel'),     style: 'cancel' },
+            { text: t('yesContinue'), onPress: () => doGenerateCode(fullPhone) },
           ],
         );
         return;
@@ -364,8 +364,8 @@ export default function TeamMembersScreen() {
       'Revoke Code',
       `Revoke code ${code}?\n\nThe linked employee will be stopped from using the app.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Revoke', style: 'destructive', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('revoke'), style: 'destructive', onPress: async () => {
           const now = new Date().toISOString();
           // Soft-delete the code
           await supabase.from('org_join_codes')
@@ -387,8 +387,8 @@ export default function TeamMembersScreen() {
       '🗑 Delete Code',
       `Permanently delete revoked code ${code}?\n\nThis cannot be undone.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: async () => {
           const { error } = await supabase.from('org_join_codes').delete().eq('id', codeId);
           if (error) Alert.alert(t('error'), error.message);
           else fetchData();
@@ -594,7 +594,7 @@ export default function TeamMembersScreen() {
             </View>
 
             {activeCodes.length === 0 && revokedCodes.length === 0 && (
-              <Text style={s.emptyHint}>No invite codes yet. Tap ＋ New to create one.</Text>
+              <Text style={s.emptyHint}>{t('noInviteCodesYet')}</Text>
             )}
             {searchQ && filteredActiveCodes.length === 0 && filteredRevokedCodes.length === 0 &&
               (activeCodes.length > 0 || revokedCodes.length > 0) && (

@@ -202,9 +202,9 @@ export default function ClientProfileScreen() {
   const handlePhonePress = (phone: string, name?: string) => {
     const clean = phone.replace(/[^0-9+]/g, '');
     Alert.alert(name ?? phone, phone, [
-      { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-      { text: '💬 WhatsApp',  onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+      { text: t('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+      { text: t('cancel'), style: 'cancel' },
     ]);
   };
 
@@ -221,9 +221,9 @@ export default function ClientProfileScreen() {
 
   const handleDeleteTask = (task: Task) => {
     Alert.alert(t('deleteFile'), `${t('confirmDelete')} — "${task.service?.name ?? t('file')}"`, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           await supabase.from('tasks').delete().eq('id', task.id);
           setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -312,12 +312,12 @@ export default function ClientProfileScreen() {
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Client',
-      `Delete "${client.name}"? All associated files will also be deleted. This cannot be undone.`,
+      `${t('delete')} ${t('client')}`,
+      `${t('delete')} "${client.name}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             await supabase.from('clients').delete().eq('id', clientId);
             navigation.goBack();

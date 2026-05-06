@@ -198,8 +198,8 @@ export default function OnboardingScreen() {
         'Account Setup Incomplete',
         'Your account profile could not be found. Please sign out and register again after the administrator has applied the required database update.',
         [
-          { text: 'Sign Out', style: 'destructive', onPress: signOut },
-          { text: 'Try Again', onPress: finishOnboarding },
+          { text: t('signOut'), style: 'destructive', onPress: signOut },
+          { text: t('tryAgain'), onPress: finishOnboarding },
         ]
       );
     }
@@ -256,7 +256,7 @@ export default function OnboardingScreen() {
       <SafeAreaView style={s.safe}>
         <View style={s.initLoader}>
           <ActivityIndicator size="large" color={theme.color.primary} />
-          <Text style={s.initText}>Setting up your account…</Text>
+          <Text style={s.initText}>{t('settingUpAccount')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -269,13 +269,13 @@ export default function OnboardingScreen() {
       <SafeAreaView style={s.safe}>
         <View style={s.initLoader}>
           <Text style={s.incompleteIcon}>⚠️</Text>
-          <Text style={s.incompleteTitle}>Setup Incomplete</Text>
+          <Text style={s.incompleteTitle}>{t('setupIncomplete')}</Text>
           <Text style={s.incompleteDesc}>
             Your account was created but the profile setup did not finish.
             Please sign out and register again.
           </Text>
           <TouchableOpacity style={s.incompleteBtn} onPress={signOut} activeOpacity={0.8}>
-            <Text style={s.incompleteBtnText}>Sign Out & Try Again</Text>
+            <Text style={s.incompleteBtnText}>{t('signOutAndTryAgain')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -298,8 +298,8 @@ export default function OnboardingScreen() {
           <View style={s.logoBox}>
             <Text style={s.logoIcon}>🚀</Text>
           </View>
-          <Text style={s.title}>Let's get you set up</Text>
-          <Text style={s.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
+          <Text style={s.title}>{t('letsGetSetUp')}</Text>
+          <Text style={s.subtitle}>{t('step')} {step} / {TOTAL_STEPS}</Text>
           <Text style={s.poweredBy}>
             Powered by <Text style={s.poweredByKts}>KTS</Text>
           </Text>
@@ -309,8 +309,8 @@ export default function OnboardingScreen() {
         {/* ─── Step 1: Company name ─── */}
         {step === 1 && (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Your Company</Text>
-            <Text style={s.cardDesc}>Confirm your company or office name. This is what your team will see.</Text>
+            <Text style={s.cardTitle}>{t('yourCompanyTitle')}</Text>
+            <Text style={s.cardDesc}>{t('confirmOrgName')}</Text>
             <View style={s.field}>
               <Text style={s.label}>COMPANY / OFFICE NAME</Text>
               <TextInput
@@ -330,7 +330,7 @@ export default function OnboardingScreen() {
             >
               {loading
                 ? <ActivityIndicator color={theme.color.white} />
-                : <Text style={s.btnText}>Continue →</Text>}
+                : <Text style={s.btnText}>{t('continueArrow')}</Text>}
             </TouchableOpacity>
           </View>
         )}
@@ -338,8 +338,8 @@ export default function OnboardingScreen() {
         {/* ─── Step 2: First service + stage ─── */}
         {step === 2 && (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Your First Service</Text>
-            <Text style={s.cardDesc}>Add the type of service you handle and its first stage. You can add more later in the app.</Text>
+            <Text style={s.cardTitle}>{t('yourFirstService')}</Text>
+            <Text style={s.cardDesc}>{t('firstServiceDesc')}</Text>
             <View style={s.field}>
               <Text style={s.label}>SERVICE NAME</Text>
               <TextInput
@@ -370,10 +370,10 @@ export default function OnboardingScreen() {
             >
               {loading
                 ? <ActivityIndicator color={theme.color.white} />
-                : <Text style={s.btnText}>Continue →</Text>}
+                : <Text style={s.btnText}>{t('continueArrow')}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={s.skipBtn} onPress={() => setStep(3)} disabled={loading}>
-              <Text style={s.skipText}>Skip for now</Text>
+              <Text style={s.skipText}>{t('skipForNow')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -381,7 +381,7 @@ export default function OnboardingScreen() {
         {/* ─── Step 3: Invite teammate ─── */}
         {step === 3 && (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Invite a Teammate</Text>
+            <Text style={s.cardTitle}>{t('inviteTeammate')}</Text>
             <Text style={s.cardDesc}>
               Add a colleague to your organization. They'll receive an invitation and join automatically when they sign up.
             </Text>
@@ -460,7 +460,7 @@ export default function OnboardingScreen() {
             >
               {loading
                 ? <ActivityIndicator color={theme.color.white} />
-                : <Text style={s.btnText}>Invite & Continue →</Text>}
+                : <Text style={s.btnText}>{t('inviteAndContinue')}</Text>}
             </TouchableOpacity>
 
             {/* Skip */}
@@ -471,14 +471,14 @@ export default function OnboardingScreen() {
             >
               {loading
                 ? <ActivityIndicator size="small" color={theme.color.textMuted} />
-                : <Text style={s.skipText}>Skip — I'll invite later</Text>}
+                : <Text style={s.skipText}>{t('skipInviteLater')}</Text>}
             </TouchableOpacity>
           </View>
         )}
 
         {/* Sign out link */}
         <TouchableOpacity style={s.signoutBtn} onPress={signOut} disabled={loading}>
-          <Text style={s.signoutText}>Sign out</Text>
+          <Text style={s.signoutText}>{t('signOut')}</Text>
         </TouchableOpacity>
 
       </KeyboardAwareScrollView>

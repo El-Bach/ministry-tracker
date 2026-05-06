@@ -1298,7 +1298,7 @@ export default function TaskDetailScreen() {
                             </TouchableOpacity>
                           ))}
                         {editCitySearch.trim().length > 0 && allCities.filter(c => c.name.toLowerCase().includes(editCitySearch.trim().toLowerCase())).length === 0 && (
-                          <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>No cities match "{editCitySearch}"</Text>
+                          <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: theme.spacing.space3 }}>{t('noCitiesMatch')} "{editCitySearch}"</Text>
                         )}
                       </View>
                     </View>

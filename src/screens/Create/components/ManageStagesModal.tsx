@@ -139,7 +139,7 @@ export function ManageStagesModal(props: Props) {
                 />
                 {stageImportNames.length === 0 ? (
                   <TouchableOpacity style={s.docImportPreviewBtn} onPress={() => setStageImportNames(parseStageImport(stageImportRaw))} disabled={!stageImportRaw.trim()}>
-                    <Text style={s.docImportPreviewBtnText}>Preview</Text>
+                    <Text style={s.docImportPreviewBtnText}>{t('preview')}</Text>
                   </TouchableOpacity>
                 ) : (
                   <>
@@ -149,7 +149,7 @@ export function ManageStagesModal(props: Props) {
                       </View>
                     ))}
                     <TouchableOpacity style={s.docImportConfirmBtn} onPress={handleImportStages} disabled={importingStages}>
-                      {importingStages ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>Import {stageImportNames.length} stage{stageImportNames.length !== 1 ? 's' : ''}</Text>}
+                      {importingStages ? <ActivityIndicator size="small" color={theme.color.white} /> : <Text style={s.docImportConfirmBtnText}>{t('importBtn')} {stageImportNames.length} {t('stage')}{stageImportNames.length !== 1 ? 's' : ''}</Text>}
                     </TouchableOpacity>
                   </>
                 )}
@@ -261,7 +261,7 @@ export function ManageStagesModal(props: Props) {
                               >
                                 {savingStageCity
                                   ? <ActivityIndicator size="small" color={theme.color.white} />
-                                  : <Text style={s.mgmtSaveBtnText}>Save City</Text>}
+                                  : <Text style={s.mgmtSaveBtnText}>{t('saveCityBtn')}</Text>}
                               </TouchableOpacity>
                             </View>
                           )}
@@ -290,7 +290,7 @@ export function ManageStagesModal(props: Props) {
                                 </TouchableOpacity>
                               ))}
                             {allCities.filter((c: any) => !stageCitySearch.trim() || c.name.toLowerCase().includes(stageCitySearch.toLowerCase())).length === 0 && (
-                              <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: 12 }}>No cities match "{stageCitySearch}"</Text>
+                              <Text style={{ color: theme.color.textMuted, fontSize: 13, padding: 12 }}>{t('noCitiesMatch')} "{stageCitySearch}"</Text>
                             )}
                           </View>
                         </View>
@@ -300,7 +300,7 @@ export function ManageStagesModal(props: Props) {
                 </View>
               ))}
               {stageSearch.trim() && filtered.length === 0 && (
-                <Text style={s.mgmtEmpty}>No stages match "{stageSearch}"</Text>
+                <Text style={s.mgmtEmpty}>{t('noStagesMatch')} "{stageSearch}"</Text>
               )}
             </ScrollView>
           </View>

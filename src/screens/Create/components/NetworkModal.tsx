@@ -16,6 +16,7 @@ import { Calendar } from 'react-native-calendars';
 import { theme } from '../../../theme';
 import { s } from '../styles/createStyles';
 import { formatPhoneDisplay } from '../../../lib/phone';
+import { t as tStatic } from '../../../lib/i18n';
 
 // Local copy of the call/WhatsApp Alert helper. Duplicated rather than
 // imported so the component is self-contained — same trivial helper sits in
@@ -24,9 +25,9 @@ function openPhone(phone: string, name?: string) {
   if (!phone) return;
   const clean = phone.replace(/[^0-9+]/g, '');
   Alert.alert(name ?? phone, phone, [
-    { text: '📞 Phone Call', onPress: () => Linking.openURL(`tel:${clean}`) },
-    { text: '💬 WhatsApp', onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
-    { text: 'Cancel', style: 'cancel' },
+    { text: tStatic('callBtn'), onPress: () => Linking.openURL(`tel:${clean}`) },
+    { text: tStatic('whatsappBtn'), onPress: () => Linking.openURL(`https://wa.me/${clean.replace(/^\+/, '')}`) },
+    { text: tStatic('cancel'), style: 'cancel' },
   ]);
 }
 
@@ -139,7 +140,7 @@ export function NetworkModal(props: Props) {
               <View style={s.modalHeader}>
                 <TouchableOpacity onPress={() => setShowImportModal(false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ color: theme.color.primary, fontSize: 18 }}>‹</Text>
-                  <Text style={{ ...theme.typography.label, color: theme.color.primary }}>Back</Text>
+                  <Text style={{ ...theme.typography.label, color: theme.color.primary }}>{t('back')}</Text>
                 </TouchableOpacity>
                 <Text style={s.modalTitle}>📥 {t('importBtn')}</Text>
                 <TouchableOpacity onPress={() => { onClose(); setShowNetworkForm(false); setShowImportModal(false); }}>
@@ -216,7 +217,7 @@ export function NetworkModal(props: Props) {
                     setImportRows(rows);
                   }}
                 >
-                  <Text style={s.importPreviewBtnText}>Preview ({parseImportText(importRaw).length} rows)</Text>
+                  <Text style={s.importPreviewBtnText}>{t('preview')} ({parseImportText(importRaw).length})</Text>
                 </TouchableOpacity>
 
                 {importRows.length > 0 && (
@@ -239,7 +240,7 @@ export function NetworkModal(props: Props) {
                     >
                       {importingContacts
                         ? <ActivityIndicator color={theme.color.white} size="small" />
-                        : <Text style={s.modalSaveBtnText}>Import {importRows.length} Contact{importRows.length !== 1 ? 's' : ''}</Text>}
+                        : <Text style={s.modalSaveBtnText}>{t('importBtn')} {importRows.length} {t('contact')}{importRows.length !== 1 ? 's' : ''}</Text>}
                     </TouchableOpacity>
                   </>
                 )}
@@ -253,7 +254,7 @@ export function NetworkModal(props: Props) {
                     clearButtonMode="while-editing" autoCorrect={false} />
                 </View>
                 <ScrollView contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
-                  {network.length === 0 && <Text style={s.mgmtEmpty}>No contacts yet. Tap + New to add one.</Text>}
+                  {network.length === 0 && <Text style={s.mgmtEmpty}>{t('noContactsYet')}</Text>}
                   {network
                     .filter(n => !networkSearch.trim() || matchesNetworkSearch(n, networkSearch))
                     .map((contact) => (
@@ -292,7 +293,7 @@ export function NetworkModal(props: Props) {
                       </View>
                     ))}
                   {networkSearch.trim() && network.filter(n => matchesNetworkSearch(n, networkSearch)).length === 0 && (
-                    <Text style={s.mgmtEmpty}>No contacts match "{networkSearch}"</Text>
+                    <Text style={s.mgmtEmpty}>{t('noContactsMatch')} "{networkSearch}"</Text>
                   )}
                 </ScrollView>
               </>
@@ -496,11 +497,11 @@ export function NetworkModal(props: Props) {
                           </TouchableOpacity>
                         ))}
                       {netFieldDefs.filter((d: any) => !netAddedFieldIds.includes(d.id)).length === 0 && (
-                        <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>All fields already added</Text>
+                        <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>{t('allFieldsAdded')}</Text>
                       )}
                       {netFieldDefs.filter((d: any) => !netAddedFieldIds.includes(d.id) && (!netFieldSearch.trim() || d.label.toLowerCase().includes(netFieldSearch.toLowerCase()))).length === 0
                         && netFieldDefs.filter((d: any) => !netAddedFieldIds.includes(d.id)).length > 0 && (
-                        <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>No fields match "{netFieldSearch}"</Text>
+                        <Text style={{ padding: 12, color: theme.color.textMuted, ...theme.typography.caption }}>{t('noFieldsMatch')} "{netFieldSearch}"</Text>
                       )}
                     </View>
                   </View>
@@ -514,7 +515,7 @@ export function NetworkModal(props: Props) {
                 >
                   {savingNetwork
                     ? <ActivityIndicator color={theme.color.white} size="small" />
-                    : <Text style={s.modalSaveBtnText}>Save Contact</Text>}
+                    : <Text style={s.modalSaveBtnText}>{t('saveContact')}</Text>}
                 </TouchableOpacity>
               </ScrollView>
             )}

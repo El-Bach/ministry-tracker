@@ -447,7 +447,9 @@ export default function VisibilitySettingsScreen() {
           <View key={group.title} style={s.group}>
             <View style={s.groupHeader}>
               <Text style={s.groupIcon}>{group.icon}</Text>
-              <Text style={s.groupTitle}>{group.title}</Text>
+              <Text style={s.groupTitle}>
+                {({'Files': t('visFilesTitle'), 'Stages': t('visStagesTitle'), 'Financial': t('visFinancialTitle'), 'Documents': t('visDocumentsTitle'), 'Clients': t('visClientsTitle'), 'Catalog': t('visCatalogTitle'), 'Activity & Comments': t('visActivityTitle')} as Record<string,string>)[group.title] ?? group.title}
+              </Text>
             </View>
 
             {group.items.map((item, idx) => (

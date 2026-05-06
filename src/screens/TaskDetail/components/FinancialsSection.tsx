@@ -264,7 +264,7 @@ export function FinancialsSection(props: Props) {
         <View style={s.priceHistoryBlock}>
           <Text style={s.priceHistoryLabel}>CONTRACT PRICE CHANGES</Text>
           {priceHistory.length === 0 ? (
-            <Text style={s.priceHistoryEmpty}>No changes recorded yet</Text>
+            <Text style={s.priceHistoryEmpty}>{t('noPriceChanges')}</Text>
           ) : (
             priceHistory.map((h) => (
               <View key={h.id} style={s.priceHistoryRow}>
@@ -559,7 +559,7 @@ export function FinancialsSection(props: Props) {
 
       {/* Transaction list */}
       {permissions.can_see_file_financials && (transactions.length === 0 ? (
-        <Text style={s.emptyText}>No transactions yet</Text>
+        <Text style={s.emptyText}>{t('noTransactionsYet')}</Text>
       ) : (
         transactions.map((tx) => {
           // Inline edit form
