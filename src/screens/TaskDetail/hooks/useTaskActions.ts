@@ -1050,6 +1050,7 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
             city_id:          editStageCities[s.id]?.cityId ?? s.city_id ?? null,
             due_date:         existing?.due_date ?? null,
             assigned_to:      existing?.assigned_to ?? null,
+            ext_assignee_id:  existing?.ext_assignee_id ?? null,
             rejection_reason: existing?.rejection_reason ?? null,
           };
         }),
@@ -1061,6 +1062,7 @@ export function useTaskActions(opts: UseTaskActionsOptions): UseTaskActionsRetur
           city_id:          existingFinal?.city_id ?? null,
           due_date:         existingFinal?.due_date ?? null,
           assigned_to:      existingFinal?.assigned_to ?? null,
+          ext_assignee_id:  existingFinal?.ext_assignee_id ?? null,
           rejection_reason: existingFinal?.rejection_reason ?? null,
         },
       ];
