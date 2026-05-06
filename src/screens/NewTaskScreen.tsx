@@ -33,6 +33,7 @@ import { DatePickerField } from './NewTask/components/DatePickerField';
 import { RequiredDocsSheet } from './NewTask/components/RequiredDocsSheet';
 import { FieldTypePickerModal } from './NewTask/components/FieldTypePickerModal';
 import { FieldPickerModal } from './NewTask/components/FieldPickerModal';
+import { ScheduleSection } from './NewTask/components/ScheduleSection';
 import { toISO } from './NewTask/utils/dateHelpers';
 
 // ─── Final closure stage — always last, auto-created ────────────────
@@ -1558,34 +1559,16 @@ export default function NewTaskScreen() {
  </View>
  )}
 
- {/* ── SCHEDULE ── */}
- <View style={s.section}>
- <Text style={s.sectionTitle}>{t('scheduleLabel').toUpperCase()}</Text>
-
- {/* Created time — auto from device */}
- <View style={s.createdRow}>
- <Text style={s.fieldLabel}>{t('fileCreatedLabel')}</Text>
- <Text style={s.createdValue}>{createdDisplay}</Text>
- </View>
-
- {/* Due date — calendar or manual */}
- <Text style={s.fieldLabel}>{t('dueDate')} <Text style={s.optionalTag}>(optional)</Text></Text>
- <DatePickerField value={dueDate} onChange={setDueDate} />
-
- <View style={s.notesContainer}>
- <Text style={s.fieldLabel}>{t('notes')} <Text style={s.optionalTag}>(optional)</Text></Text>
- <TextInput
- style={s.notesInput}
- value={notes}
- onChangeText={setNotes}
- placeholder={t('notes')}
- placeholderTextColor={theme.color.textMuted}
- multiline
- numberOfLines={4}
- textAlignVertical="top"
- />
- </View>
- </View>
+      {/* ── SCHEDULE ── (extracted to ./NewTask/components/ScheduleSection.tsx) */}
+      <ScheduleSection
+        t={t}
+        createdDisplay={createdDisplay}
+        dueDate={dueDate}
+        setDueDate={setDueDate}
+        notes={notes}
+        setNotes={setNotes}
+        s={s}
+      />
 
  {/* ── SUBMIT ── */}
  <TouchableOpacity
