@@ -35,6 +35,7 @@ import { FieldTypePickerModal } from './NewTask/components/FieldTypePickerModal'
 import { FieldPickerModal } from './NewTask/components/FieldPickerModal';
 import { ScheduleSection } from './NewTask/components/ScheduleSection';
 import { ClientSection } from './NewTask/components/ClientSection';
+import { ServiceSection } from './NewTask/components/ServiceSection';
 import { FieldRow } from './NewTask/components/FieldRow';
 import { toISO } from './NewTask/utils/dateHelpers';
 
@@ -920,200 +921,36 @@ export default function NewTaskScreen() {
         s={s}
       />
 
- {/* ── SERVICE ── */}
- <View style={s.section}>
- <Text style={s.sectionTitle}>{t('services').toUpperCase()}</Text>
- <FieldRow
- label={t('services')}
- value={selectedService?.name ?? ''}
- onPress={() => setModal('service')}
- s={s}
- />
- {selectedService && (
- <Text style={s.hint}>Est. {selectedService.estimated_duration_days} days</Text>
- )}
- {selectedService && (
-   <TouchableOpacity
-     style={s.docsSheetBtn}
-     onPress={() => { setShowDocSheet(true); loadServiceDocsForSheet(selectedService.id); }}
-     activeOpacity={0.75}
-   >
-     <Text style={s.docsSheetBtnText}>📋 {t('requiredDocs')}</Text>
-   </TouchableOpacity>
- )}
- <TouchableOpacity
- style={s.addInlineBtn}
- onPress={() => setShowNewServiceForm((v) => !v)}
- >
- <Text style={s.addInlineBtnText}>
- {showNewServiceForm ? `− ${t('cancel')}` : `${t('add')} ${t('service')}`}
- </Text>
- </TouchableOpacity>
- {showNewServiceForm && (
- <View style={s.inlineForm}>
-   <TextInput
-     style={s.inlineInput}
-     value={newServiceName}
-     onChangeText={setNewServiceName}
-     placeholder={`${t('serviceName')} *`}
-     placeholderTextColor={theme.color.textMuted}
-     autoFocus
-   />
-   {/* Stages builder */}
-   {newServiceStages.length > 0 && (
-     <View style={s.newSvcStageList}>
-       {newServiceStages.map((draft, idx) => (
-         <View key={idx}>
-           <View style={s.newSvcStageRow}>
-             <View style={s.stageIndex}>
-               <Text style={s.stageIndexText}>{idx + 1}</Text>
-             </View>
-             <View style={{ flex: 1 }}>
-               <Text style={s.newSvcStageName} numberOfLines={1}>{draft.name}</Text>
-               <TouchableOpacity
-                 onPress={() => {
-                   setExpandedSvcStageIdx(expandedSvcStageIdx === idx ? null : idx);
-                   setSvcStageCitySearch('');
-                   setSvcStageCreateOpen(false);
-                   setSvcStageNewCityName('');
-                 }}
-               >
-                 <Text style={{ fontSize: 11, color: draft.cityName ? theme.color.primary : theme.color.textMuted, marginTop: 2, fontWeight: draft.cityName ? '600' : '400' }}>
-                   {draft.cityName ? `📍 ${draft.cityName}` : '📍 Tap to set city'}
-                 </Text>
-               </TouchableOpacity>
-             </View>
-             <TouchableOpacity onPress={() => {
-               setNewServiceStages((prev) => prev.filter((_, i) => i !== idx));
-               if (expandedSvcStageIdx === idx) setExpandedSvcStageIdx(null);
-             }}>
-               <Text style={s.stageRemove}>✕</Text>
-             </TouchableOpacity>
-           </View>
-
-           {/* Inline city picker for this draft stage */}
-           {expandedSvcStageIdx === idx && (
-             <View style={s.stageDetailPanel}>
-               <TextInput
-                 style={s.stageDetailSearch}
-                 value={svcStageCitySearch}
-                 onChangeText={setSvcStageCitySearch}
-                 placeholder={t('searchCity')}
-                 placeholderTextColor={theme.color.textMuted}
-               />
-               {draft.cityId && (
-                 <TouchableOpacity onPress={() => setDraftStageCity(idx, null)}>
-                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove city</Text>
-                 </TouchableOpacity>
-               )}
-               {allCities
-                 .filter(c => !svcStageCitySearch.trim() || c.name.includes(svcStageCitySearch.trim()))
-                 .slice(0, 10)
-                 .map(c => (
-                   <TouchableOpacity
-                     key={c.id}
-                     style={[s.stageDetailItem, draft.cityId === c.id && s.stageDetailItemActive]}
-                     onPress={() => { setDraftStageCity(idx, { id: c.id, name: c.name }); setSvcStageCitySearch(''); }}
-                   >
-                     <Text style={s.stageDetailItemText}>{c.name}</Text>
-                     {draft.cityId === c.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                   </TouchableOpacity>
-                 ))}
-               {/* Create new city for this draft */}
-               {!svcStageCreateOpen ? (
-                 <TouchableOpacity
-                   style={s.inlineCreateBtn}
-                   onPress={() => {
-                     setSvcStageCreateOpen(true);
-                     if (svcStageCitySearch.trim()) setSvcStageNewCityName(svcStageCitySearch.trim());
-                   }}
-                 >
-                   <Text style={s.inlineCreateBtnText}>＋ Create new city</Text>
-                 </TouchableOpacity>
-               ) : (
-                 <View style={s.inlineCreateForm}>
-                   <TextInput
-                     style={s.inlineCreateInput}
-                     value={svcStageNewCityName}
-                     onChangeText={setSvcStageNewCityName}
-                     placeholder={t('city')}
-                     placeholderTextColor={theme.color.textMuted}
-                     autoFocus
-                   />
-                   <View style={s.inlineCreateActions}>
-                     <TouchableOpacity
-                       style={s.inlineCancelBtn}
-                       onPress={() => { setSvcStageCreateOpen(false); setSvcStageNewCityName(''); }}
-                     >
-                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity
-                       style={[s.inlineSaveBtn, svcStageSavingCity && { opacity: 0.6 }]}
-                       disabled={svcStageSavingCity}
-                       onPress={() => createCityForDraftStage(idx)}
-                     >
-                       <Text style={s.inlineSaveBtnText}>{svcStageSavingCity ? t('pleaseWait') : t('save')}</Text>
-                     </TouchableOpacity>
-                   </View>
-                 </View>
-               )}
-
-               <TouchableOpacity
-                 style={s.stageDetailSaveBtn}
-                 onPress={() => {
-                   setExpandedSvcStageIdx(null);
-                   setSvcStageCitySearch('');
-                   setSvcStageCreateOpen(false);
-                   setSvcStageNewCityName('');
-                 }}
-               >
-                 <Text style={s.stageDetailSaveBtnText}>✓ Done</Text>
-               </TouchableOpacity>
-             </View>
-           )}
-         </View>
-       ))}
-     </View>
-   )}
-   <View style={s.newSvcAddRow}>
-     <TextInput
-       style={[s.inlineInput, { flex: 1, marginBottom: 0 }]}
-       value={newServiceStageInput}
-       onChangeText={setNewServiceStageInput}
-       placeholder={`+ ${t('stageName')}`}
-       placeholderTextColor={theme.color.textMuted}
-       onSubmitEditing={() => {
-         if (newServiceStageInput.trim()) {
-           setNewServiceStages((prev) => [...prev, { name: newServiceStageInput.trim() }]);
-           setNewServiceStageInput('');
-         }
-       }}
-       returnKeyType="done"
-     />
-     <TouchableOpacity
-       style={s.newSvcPlusBtn}
-       onPress={() => {
-         if (newServiceStageInput.trim()) {
-           setNewServiceStages((prev) => [...prev, { name: newServiceStageInput.trim() }]);
-           setNewServiceStageInput('');
-         }
-       }}
-     >
-       <Text style={s.newSvcPlusBtnText}>+</Text>
-     </TouchableOpacity>
-   </View>
-   <TouchableOpacity
-     style={[s.inlineSaveBtn, savingService && s.disabled]}
-     onPress={handleCreateService}
-     disabled={savingService}
-   >
-     {savingService
-       ? <ActivityIndicator color={theme.color.white} size="small" />
-       : <Text style={s.inlineSaveBtnText}>{t('save')}</Text>}
-   </TouchableOpacity>
- </View>
- )}
- </View>
+      {/* ── SERVICE ── (extracted to ./NewTask/components/ServiceSection.tsx) */}
+      <ServiceSection
+        t={t}
+        selectedService={selectedService}
+        onOpenServicePicker={() => setModal('service')}
+        onOpenDocSheet={(serviceId) => { setShowDocSheet(true); loadServiceDocsForSheet(serviceId); }}
+        showNewServiceForm={showNewServiceForm}
+        setShowNewServiceForm={setShowNewServiceForm}
+        newServiceName={newServiceName}
+        setNewServiceName={setNewServiceName}
+        newServiceStages={newServiceStages}
+        setNewServiceStages={setNewServiceStages}
+        newServiceStageInput={newServiceStageInput}
+        setNewServiceStageInput={setNewServiceStageInput}
+        expandedSvcStageIdx={expandedSvcStageIdx}
+        setExpandedSvcStageIdx={setExpandedSvcStageIdx}
+        svcStageCitySearch={svcStageCitySearch}
+        setSvcStageCitySearch={setSvcStageCitySearch}
+        svcStageCreateOpen={svcStageCreateOpen}
+        setSvcStageCreateOpen={setSvcStageCreateOpen}
+        svcStageNewCityName={svcStageNewCityName}
+        setSvcStageNewCityName={setSvcStageNewCityName}
+        svcStageSavingCity={svcStageSavingCity}
+        setDraftStageCity={setDraftStageCity}
+        createCityForDraftStage={createCityForDraftStage}
+        allCities={allCities}
+        savingService={savingService}
+        handleCreateService={handleCreateService}
+        s={s}
+      />
 
  {/* ── STAGES — appears after service is selected ── */}
  {selectedService && (
