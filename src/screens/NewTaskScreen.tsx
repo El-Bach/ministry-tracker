@@ -36,6 +36,7 @@ import { FieldPickerModal } from './NewTask/components/FieldPickerModal';
 import { ScheduleSection } from './NewTask/components/ScheduleSection';
 import { ClientSection } from './NewTask/components/ClientSection';
 import { ServiceSection } from './NewTask/components/ServiceSection';
+import { StagesSection } from './NewTask/components/StagesSection';
 import { FieldRow } from './NewTask/components/FieldRow';
 import { toISO } from './NewTask/utils/dateHelpers';
 
@@ -952,347 +953,61 @@ export default function NewTaskScreen() {
         s={s}
       />
 
- {/* ── STAGES — appears after service is selected ── */}
- {selectedService && (
- <View style={s.section}>
- <Text style={s.sectionTitle}>{t('stagesSection').toUpperCase()}</Text>
- {routeStops.length === 0 && (
-   <Text style={s.hint}>No default stages for this service. Add stages below.</Text>
- )}
-
- {routeStops.length > 0 && (
- <View style={s.selectedStages}>
- {routeStops.map((stage, idx) => (
- <View key={stage.id} style={s.stageRow}>
-   <View style={s.stageIndex}>
-     <Text style={s.stageIndexText}>{idx + 1}</Text>
-   </View>
-   <View style={{ flex: 1 }}>
-     {/* Stage name row */}
-     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-       {editingStageIdx === idx ? (
-         <TextInput
-           style={[s.inlineInput, { flex: 1, marginVertical: 0, paddingVertical: 6 }]}
-           value={editingStageName}
-           onChangeText={setEditingStageName}
-           autoFocus
-           onSubmitEditing={handleRenameStage}
-           returnKeyType="done"
-         />
-       ) : (
-         <TouchableOpacity
-           style={{ flex: 1 }}
-           onPress={() => {
-             setOpenStageDetailId(v => v === stage.id ? null : stage.id);
-             setStageCitySearch('');
-             setStageAssigneeSearch('');
-             setStageDetailTab('city');
-           }}
-           activeOpacity={0.7}
-         >
-           <Text style={s.stageName} numberOfLines={1}>{stage.name}</Text>
-           {/* Show the discovery hint only when nothing is set yet — once a city or assignee
-               is picked, those values appear in the picker (with ✓), so we don't duplicate
-               them under the stage name. */}
-           {!stageCityMap[stage.id] && !stageAssigneeMap[stage.id] && (
-             <Text style={{ fontSize: 11, color: theme.color.textMuted, marginTop: 2 }}>
-               📍 tap to set city & assignee
-             </Text>
-           )}
-         </TouchableOpacity>
-       )}
-       <View style={s.stageActions}>
-         {editingStageIdx === idx ? (
-           <>
-             <TouchableOpacity onPress={handleRenameStage} disabled={savingStageRename}>
-               {savingStageRename
-                 ? <ActivityIndicator size="small" color={theme.color.success} />
-                 : <Text style={s.stageRenameConfirm}>✓</Text>}
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => setEditingStageIdx(null)}>
-               <Text style={s.stageRemove}>✕</Text>
-             </TouchableOpacity>
-           </>
-         ) : (
-           <>
-             <TouchableOpacity onPress={() => { setEditingStageIdx(idx); setEditingStageName(stage.name); }}>
-               <Text style={s.stageEdit}>✎</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => moveStop(idx, -1)} disabled={idx === 0}>
-               <Text style={[s.stageArrow, idx === 0 && s.disabled]}>↑</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => moveStop(idx, 1)} disabled={idx === routeStops.length - 1}>
-               <Text style={[s.stageArrow, idx === routeStops.length - 1 && s.disabled]}>↓</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => removeRouteStop(stage.id)}>
-               <Text style={s.stageRemove}>✕</Text>
-             </TouchableOpacity>
-           </>
-         )}
-       </View>
-     </View>
-
-     {/* Inline city + assignee picker */}
-     {openStageDetailId === stage.id && (
-       <View style={s.stageDetailPanel}>
-         {/* Tab selector */}
-         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-           <TouchableOpacity
-             style={[s.stageDetailTab, stageDetailTab === 'city' && s.stageDetailTabActive]}
-             onPress={() => setStageDetailTab('city')}
-           >
-             <Text style={[s.stageDetailTabText, stageDetailTab === 'city' && { color: theme.color.primary }]}>
-               📍 City
-             </Text>
-           </TouchableOpacity>
-           <TouchableOpacity
-             style={[s.stageDetailTab, stageDetailTab === 'assignee' && s.stageDetailTabActive]}
-             onPress={() => setStageDetailTab('assignee')}
-           >
-             <Text style={[s.stageDetailTabText, stageDetailTab === 'assignee' && { color: theme.color.primary }]}>
-               👤 Assignee
-             </Text>
-           </TouchableOpacity>
-         </View>
-
-         {stageDetailTab === 'city' && (
-           <>
-             <TextInput
-               style={s.stageDetailSearch}
-               value={stageCitySearch}
-               onChangeText={setStageCitySearch}
-               placeholder={t('searchCity')}
-               placeholderTextColor={theme.color.textMuted}
-             />
-             <View>
-               {stageCityMap[stage.id] && (
-                 <TouchableOpacity onPress={() => persistStageCity(stage.id, null)}>
-                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>✕ Remove city</Text>
-                 </TouchableOpacity>
-               )}
-               {allCities
-                 .filter(c => !stageCitySearch.trim() || c.name.includes(stageCitySearch.trim()))
-                 .slice(0, 10)
-                 .map(c => (
-                   <TouchableOpacity
-                     key={c.id}
-                     style={[s.stageDetailItem, stageCityMap[stage.id]?.cityId === c.id && s.stageDetailItemActive]}
-                     onPress={() => { persistStageCity(stage.id, { cityId: c.id, cityName: c.name }); setStageCitySearch(''); }}
-                   >
-                     <Text style={s.stageDetailItemText}>{c.name}</Text>
-                     {stageCityMap[stage.id]?.cityId === c.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                   </TouchableOpacity>
-                 ))}
-               {/* Create new city */}
-               {!showCreateCityForm ? (
-                 <TouchableOpacity
-                   style={s.inlineCreateBtn}
-                   onPress={() => {
-                     setShowCreateCityForm(true);
-                     // Pre-fill from search if user typed something
-                     if (stageCitySearch.trim()) setNewCityName(stageCitySearch.trim());
-                     // Delay focus so KeyboardAwareScrollView has time to scroll
-                     // the input above the keyboard before it pops up.
-                     setTimeout(() => newCityInputRef.current?.focus(), 300);
-                   }}
-                 >
-                   <Text style={s.inlineCreateBtnText}>＋ Create new city</Text>
-                 </TouchableOpacity>
-               ) : (
-                 <View style={s.inlineCreateForm}>
-                   <TextInput
-                     ref={newCityInputRef}
-                     style={s.inlineCreateInput}
-                     value={newCityName}
-                     onChangeText={setNewCityName}
-                     placeholder={t('city')}
-                     placeholderTextColor={theme.color.textMuted}
-                   />
-                   <View style={s.inlineCreateActions}>
-                     <TouchableOpacity
-                       style={s.inlineCancelBtn}
-                       onPress={() => { setShowCreateCityForm(false); setNewCityName(''); }}
-                     >
-                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity
-                       style={[s.inlineSaveBtn, savingNewCity && { opacity: 0.6 }]}
-                       disabled={savingNewCity}
-                       onPress={() => handleCreateCityForStage(stage.id)}
-                     >
-                       <Text style={s.inlineSaveBtnText}>{savingNewCity ? t('pleaseWait') : t('createAndAdd')}</Text>
-                     </TouchableOpacity>
-                   </View>
-                 </View>
-               )}
-             </View>
-           </>
-         )}
-
-         {stageDetailTab === 'assignee' && (
-           <>
-             <TextInput
-               style={s.stageDetailSearch}
-               value={stageAssigneeSearch}
-               onChangeText={setStageAssigneeSearch}
-               placeholder={t('searchMember')}
-               placeholderTextColor={theme.color.textMuted}
-             />
-             <View>
-               {stageAssigneeMap[stage.id] && (
-                 <TouchableOpacity onPress={() => setStageAssigneeMap(m => ({ ...m, [stage.id]: null }))}>
-                   <Text style={{ color: theme.color.danger, padding: 8, fontSize: 13 }}>{t('removeAssignment')}</Text>
-                 </TouchableOpacity>
-               )}
-               <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 4, fontWeight: '700' }}>{t('teamSectionLabel')}</Text>
-               {teamMembers
-                 .filter(tm => !stageAssigneeSearch.trim() || tm.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
-                 .slice(0, 15)
-                 .map(tm => (
-                   <TouchableOpacity
-                     key={tm.id}
-                     style={[s.stageDetailItem, stageAssigneeMap[stage.id]?.id === tm.id && s.stageDetailItemActive]}
-                     onPress={() => { setStageAssigneeMap(m => ({ ...m, [stage.id]: { id: tm.id, name: tm.name, isExt: false } })); setStageAssigneeSearch(''); }}
-                   >
-                     <Text style={s.stageDetailItemText}>{tm.name}</Text>
-                     {stageAssigneeMap[stage.id]?.id === tm.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                   </TouchableOpacity>
-                 ))}
-               {allAssignees.length > 0 && (
-                 <Text style={{ fontSize: 11, color: theme.color.textMuted, paddingHorizontal: 8, paddingTop: 8, fontWeight: '700' }}>{t('externalSectionLabel')}</Text>
-               )}
-               {allAssignees
-                 .filter(a => !stageAssigneeSearch.trim() || a.name.toLowerCase().includes(stageAssigneeSearch.toLowerCase()))
-                 .slice(0, 15)
-                 .map(a => (
-                   <TouchableOpacity
-                     key={a.id}
-                     style={[s.stageDetailItem, stageAssigneeMap[stage.id]?.id === a.id && s.stageDetailItemActive]}
-                     onPress={() => { setStageAssigneeMap(m => ({ ...m, [stage.id]: { id: a.id, name: a.name, isExt: true } })); setStageAssigneeSearch(''); }}
-                   >
-                     <Text style={s.stageDetailItemText}>{a.name}</Text>
-                     {stageAssigneeMap[stage.id]?.id === a.id && <Text style={{ color: theme.color.primary }}>✓</Text>}
-                   </TouchableOpacity>
-                 ))}
-               {/* Create new external contact */}
-               {!showCreateExtForm ? (
-                 <TouchableOpacity
-                   style={s.inlineCreateBtn}
-                   onPress={() => {
-                     setShowCreateExtForm(true);
-                     if (stageAssigneeSearch.trim()) setNewExtName(stageAssigneeSearch.trim());
-                     // Delay focus so KeyboardAwareScrollView can scroll the input above the keyboard
-                     setTimeout(() => newExtNameInputRef.current?.focus(), 300);
-                   }}
-                 >
-                   <Text style={s.inlineCreateBtnText}>＋ {t('createNewContact')}</Text>
-                 </TouchableOpacity>
-               ) : (
-                 <View style={s.inlineCreateForm}>
-                   <TextInput
-                     ref={newExtNameInputRef}
-                     style={s.inlineCreateInput}
-                     value={newExtName}
-                     onChangeText={setNewExtName}
-                     placeholder={`${t('name')} *`}
-                     placeholderTextColor={theme.color.textMuted}
-                   />
-                   <TextInput
-                     style={s.inlineCreateInput}
-                     value={newExtPhone}
-                     onChangeText={setNewExtPhone}
-                     placeholder={t('phoneNumberOpt')}
-                     placeholderTextColor={theme.color.textMuted}
-                     keyboardType="phone-pad"
-                   />
-                   <TextInput
-                     style={s.inlineCreateInput}
-                     value={newExtReference}
-                     onChangeText={setNewExtReference}
-                     placeholder={t('referenceOpt')}
-                     placeholderTextColor={theme.color.textMuted}
-                   />
-                   <View style={s.inlineCreateActions}>
-                     <TouchableOpacity
-                       style={s.inlineCancelBtn}
-                       onPress={() => {
-                         setShowCreateExtForm(false);
-                         setNewExtName(''); setNewExtPhone(''); setNewExtReference('');
-                       }}
-                     >
-                       <Text style={s.inlineCancelBtnText}>{t('cancel')}</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity
-                       style={[s.inlineSaveBtn, savingNewExt && { opacity: 0.6 }]}
-                       disabled={savingNewExt}
-                       onPress={() => handleCreateExtAssigneeForStage(stage.id)}
-                     >
-                       <Text style={s.inlineSaveBtnText}>{savingNewExt ? t('pleaseWait') : t('createAndAdd')}</Text>
-                     </TouchableOpacity>
-                   </View>
-                 </View>
-               )}
-             </View>
-           </>
-         )}
-
-         {/* Save & close — confirms current city/assignee selection and collapses the picker */}
-         <TouchableOpacity
-           style={s.stageDetailSaveBtn}
-           onPress={() => {
-             setOpenStageDetailId(null);
-             setStageCitySearch('');
-             setStageAssigneeSearch('');
-             setShowCreateCityForm(false);
-             setShowCreateExtForm(false);
-           }}
-         >
-           <Text style={s.stageDetailSaveBtnText}>✓ {t('save')}</Text>
-         </TouchableOpacity>
-       </View>
-     )}
-   </View>
- </View>
- ))}
- </View>
- )}
-
- <TouchableOpacity style={s.addStopBtn} onPress={() => setModal('stage')}>
- <Text style={s.addStopBtnText}>{t('addStageBtn')}</Text>
- </TouchableOpacity>
-
- <TouchableOpacity
- style={s.addInlineBtn}
- onPress={() => setShowNewStageForm((v) => !v)}
- >
- <Text style={s.addInlineBtnText}>
- {showNewStageForm ? `− ${t('cancel')}` : t('createStage')}
- </Text>
- </TouchableOpacity>
- {showNewStageForm && (
- <View style={s.inlineForm}>
- <TextInput
- style={s.inlineInput}
- value={newStageName}
- onChangeText={setNewStageName}
- placeholder={`${t('stageName')} *`}
- placeholderTextColor={theme.color.textMuted}
- />
- <TouchableOpacity
- style={[s.inlineSaveBtn, savingStage && s.disabled]}
- onPress={handleCreateStage}
- disabled={savingStage}
- >
- {savingStage ? (
- <ActivityIndicator color={theme.color.white} size="small" />
- ) : (
- <Text style={s.inlineSaveBtnText}>{t('save')} & {t('addStage')}</Text>
- )}
- </TouchableOpacity>
- </View>
- )}
- </View>
- )}
+      {/* ── STAGES ── (extracted to ./NewTask/components/StagesSection.tsx) */}
+      <StagesSection
+        t={t}
+        selectedService={selectedService}
+        routeStops={routeStops}
+        editingStageIdx={editingStageIdx}
+        setEditingStageIdx={setEditingStageIdx}
+        editingStageName={editingStageName}
+        setEditingStageName={setEditingStageName}
+        savingStageRename={savingStageRename}
+        handleRenameStage={handleRenameStage}
+        moveStop={moveStop}
+        removeRouteStop={removeRouteStop}
+        openStageDetailId={openStageDetailId}
+        setOpenStageDetailId={setOpenStageDetailId}
+        stageDetailTab={stageDetailTab}
+        setStageDetailTab={setStageDetailTab}
+        stageCityMap={stageCityMap}
+        stageCitySearch={stageCitySearch}
+        setStageCitySearch={setStageCitySearch}
+        allCities={allCities}
+        persistStageCity={persistStageCity}
+        showCreateCityForm={showCreateCityForm}
+        setShowCreateCityForm={setShowCreateCityForm}
+        newCityName={newCityName}
+        setNewCityName={setNewCityName}
+        newCityInputRef={newCityInputRef}
+        savingNewCity={savingNewCity}
+        handleCreateCityForStage={handleCreateCityForStage}
+        stageAssigneeMap={stageAssigneeMap}
+        setStageAssigneeMap={setStageAssigneeMap}
+        stageAssigneeSearch={stageAssigneeSearch}
+        setStageAssigneeSearch={setStageAssigneeSearch}
+        teamMembers={teamMembers}
+        allAssignees={allAssignees}
+        showCreateExtForm={showCreateExtForm}
+        setShowCreateExtForm={setShowCreateExtForm}
+        newExtName={newExtName}
+        setNewExtName={setNewExtName}
+        newExtPhone={newExtPhone}
+        setNewExtPhone={setNewExtPhone}
+        newExtReference={newExtReference}
+        setNewExtReference={setNewExtReference}
+        newExtNameInputRef={newExtNameInputRef}
+        savingNewExt={savingNewExt}
+        handleCreateExtAssigneeForStage={handleCreateExtAssigneeForStage}
+        onOpenStagePicker={() => setModal('stage')}
+        showNewStageForm={showNewStageForm}
+        setShowNewStageForm={setShowNewStageForm}
+        newStageName={newStageName}
+        setNewStageName={setNewStageName}
+        savingStage={savingStage}
+        handleCreateStage={handleCreateStage}
+        s={s}
+      />
 
       {/* ── SCHEDULE ── (extracted to ./NewTask/components/ScheduleSection.tsx) */}
       <ScheduleSection
