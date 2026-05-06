@@ -84,7 +84,7 @@ export default function CalendarScreen() {
       supabase.from('status_labels').select('*').eq('org_id', teamMember?.org_id ?? ''),
       supabase
         .from('task_route_stops')
-        .select('id, due_date, task_id, status, ministry:ministries(name), task:tasks!task_id(id, current_status, assigned_to, client:clients(name), service:services(name))')
+        .select('id, due_date, task_id, status, ministry:ministries(name), task:tasks!task_id(id, org_id, current_status, assigned_to, client:clients(name), service:services(name))')
         .not('due_date', 'is', null),
       teamMember?.id
         ? supabase.from('file_visibility_blocks').select('task_id').eq('team_member_id', teamMember.id)
@@ -113,7 +113,14 @@ export default function CalendarScreen() {
 
     if (tasksRes.data) setTasks((tasksRes.data as Task[]).filter(t => isVisible(t.id)));
     if (labelsRes.data) setStatusLabels(labelsRes.data as StatusLabel[]);
-    if (stopsRes.data) setStops((stopsRes.data as unknown as StopWithTask[]).filter(s => isVisible(s.task_id)));
+    if (stopsRes.data) {
+      const orgId = teamMember?.org_id ?? '';
+      setStops(
+        (stopsRes.data as unknown as StopWithTask[]).filter(
+          s => (s.task as any)?.org_id === orgId && isVisible(s.task_id),
+        ),
+      );
+    }
     setLoading(false);
   }, [teamMember?.org_id, teamMember?.id, permissions.can_see_all_files]);
 
