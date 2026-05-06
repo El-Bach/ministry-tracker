@@ -9,6 +9,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/newTaskStyles';
 import { Service, City, TeamMember } from '../../../types';
 
 interface RouteStopLite { id: string; name: string }
@@ -88,7 +89,6 @@ interface Props {
   savingStage: boolean;
   handleCreateStage: () => void;
 
-  s: any;
 }
 
 export function StagesSection(props: Props) {
@@ -108,7 +108,6 @@ export function StagesSection(props: Props) {
     onOpenStagePicker,
     showNewStageForm, setShowNewStageForm, newStageName, setNewStageName,
     savingStage, handleCreateStage,
-    s,
   } = props;
 
   if (!selectedService) return null;

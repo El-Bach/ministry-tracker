@@ -9,6 +9,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/newTaskStyles';
 import PhoneInput from '../../../components/PhoneInput';
 import { FieldDefinition, FieldValue } from '../../../components/ClientFieldsForm';
 import { Client } from '../../../types';
@@ -56,8 +57,6 @@ interface Props {
   // Save
   handleCreateClient: () => void;
 
-  // Shared screen styles
-  s: any;
 }
 
 export function ClientSection(props: Props) {
@@ -72,7 +71,6 @@ export function ClientSection(props: Props) {
     activeFieldIds, setActiveFieldIds,
     allFieldDefs, customFieldValues, setCustomFieldValues,
     onOpenFieldPicker, handleCreateClient,
-    s,
   } = props;
 
   return (
@@ -82,7 +80,6 @@ export function ClientSection(props: Props) {
         label={t('clients')}
         value={selectedClient ? selectedClient.name : ''}
         onPress={onOpenClientPicker}
-        s={s}
       />
       <TouchableOpacity
         style={s.addInlineBtn}

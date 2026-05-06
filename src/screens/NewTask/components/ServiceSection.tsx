@@ -8,6 +8,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/newTaskStyles';
 import { Service, City } from '../../../types';
 import { FieldRow } from './FieldRow';
 
@@ -57,8 +58,6 @@ interface Props {
   savingService: boolean;
   handleCreateService: () => void;
 
-  // Shared screen styles
-  s: any;
 }
 
 export function ServiceSection(props: Props) {
@@ -76,7 +75,6 @@ export function ServiceSection(props: Props) {
     svcStageSavingCity, setDraftStageCity, createCityForDraftStage,
     allCities,
     savingService, handleCreateService,
-    s,
   } = props;
 
   return (
@@ -86,7 +84,6 @@ export function ServiceSection(props: Props) {
         label={t('services')}
         value={selectedService?.name ?? ''}
         onPress={onOpenServicePicker}
-        s={s}
       />
       {selectedService && (
         <Text style={s.hint}>Est. {selectedService.estimated_duration_days} days</Text>

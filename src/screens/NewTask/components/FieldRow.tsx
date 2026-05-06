@@ -9,17 +9,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useTranslation } from '../../../lib/i18n';
+import { s } from '../styles/newTaskStyles';
 
 interface Props {
   label: string;
   value: string;
   onPress: () => void;
   placeholder?: string;
-  /** Shared screen styles object — passed in until Phase 6 dedup. */
-  s: any;
 }
 
-export function FieldRow({ label, value, onPress, placeholder, s }: Props) {
+export function FieldRow({ label, value, onPress, placeholder }: Props) {
   const { t } = useTranslation();
   if (value) {
     return (

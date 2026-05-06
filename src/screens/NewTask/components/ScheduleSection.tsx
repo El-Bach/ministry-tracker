@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Text, TextInput } from 'react-native';
 import { theme } from '../../../theme';
+import { s } from '../styles/newTaskStyles';
 import { DatePickerField } from './DatePickerField';
 
 interface Props {
@@ -22,12 +23,10 @@ interface Props {
   notes: string;
   setNotes: (v: string) => void;
 
-  // Shared screen styles — passed in until Phase 6 dedup
-  s: any;
 }
 
 export function ScheduleSection({
-  t, createdDisplay, dueDate, setDueDate, notes, setNotes, s,
+  t, createdDisplay, dueDate, setDueDate, notes, setNotes,
 }: Props) {
   return (
     <View style={s.section}>
