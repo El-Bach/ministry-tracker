@@ -1042,7 +1042,7 @@ export default function TaskDetailScreen() {
                 placeholderTextColor={theme.color.textMuted}
                 keyboardType="number-pad"
               />
-              <Text style={[s.txAmountLabel, { marginTop: 12 }]}>Note (optional)</Text>
+              <Text style={[s.txAmountLabel, { marginTop: 12 }]}>{t('noteOptionalLabel')}</Text>
               <TextInput
                 style={s.txInput}
                 value={editPriceNote}
@@ -1074,12 +1074,12 @@ export default function TaskDetailScreen() {
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Update: {selectedStop?.ministry?.name}</Text>
+              <Text style={s.modalTitle}>{t('updateStatus')}: {selectedStop?.ministry?.name}</Text>
               <TouchableOpacity onPress={() => setShowStatusPicker(false)}>
                 <Text style={s.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <Text style={s.modalHint}>Current: {selectedStop?.status}</Text>
+            <Text style={s.modalHint}>{t('currentStatusLabel')}: {selectedStop?.status}</Text>
             {statusLabels.map((sl) => (
               <TouchableOpacity
                 key={sl.id}
@@ -1122,7 +1122,7 @@ export default function TaskDetailScreen() {
           <View style={s.modalOverlay}>
             <View style={[s.modalSheet, { paddingBottom: theme.spacing.space4 }]}>
               <View style={s.modalHeader}>
-                <Text style={s.modalTitle}>Rejection Reason</Text>
+                <Text style={s.modalTitle}>{t('rejectionReason')}</Text>
                 <TouchableOpacity onPress={() => { setShowRejectionInput(false); setPendingRejectionStop(null); setRejectionReason(''); }}>
                   <Text style={s.modalClose}>✕</Text>
                 </TouchableOpacity>
@@ -1188,7 +1188,7 @@ export default function TaskDetailScreen() {
               {/* Selected stages list */}
               <Text style={s.editStagesSubtitle}>CURRENT STAGES</Text>
               {editingStops.length === 0 && (
-                <Text style={s.editStagesEmpty}>No stages added yet</Text>
+                <Text style={s.editStagesEmpty}>{t('noStagesAddedYet')}</Text>
               )}
               {editingStops.map((stage, idx) => (
                 <View key={stage.id}>
@@ -1245,7 +1245,7 @@ export default function TaskDetailScreen() {
                         onPress={() => { setEditCreateCityOpen(v => !v); if (!newCityName) setNewCityName(editCitySearch); }}
                       >
                         <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '600', padding: theme.spacing.space2 }}>
-                          {editCreateCityOpen ? '− Cancel' : '+ Create New City'}
+                          {editCreateCityOpen ? `− ${t('cancel')}` : `+ ${t('createNewCity')}`}
                         </Text>
                       </TouchableOpacity>
                       {editCreateCityOpen && (
@@ -1264,7 +1264,7 @@ export default function TaskDetailScreen() {
                           >
                             {savingCity
                               ? <ActivityIndicator size="small" color={theme.color.white} />
-                              : <Text style={s.newMemberSaveBtnText}>Save City</Text>}
+                              : <Text style={s.newMemberSaveBtnText}>{t('saveCityBtn')}</Text>}
                           </TouchableOpacity>
                         </View>
                       )}
@@ -1341,10 +1341,10 @@ export default function TaskDetailScreen() {
                   </TouchableOpacity>
                 ))}
               {[...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length === 0 && (
-                <Text style={s.editStagesEmpty}>All stages are already added.</Text>
+                <Text style={s.editStagesEmpty}>{t('allStagesAlreadyAdded')}</Text>
               )}
               {editStageSearch !== '' && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME && st.name.toLowerCase().includes(editStageSearch.toLowerCase())).length === 0 && [...allStages].filter((st) => !editingStops.find((e) => e.id === st.id) && st.name !== FINAL_STAGE_NAME).length > 0 && (
-                <Text style={s.editStagesEmpty}>No stages match "{editStageSearch}"</Text>
+                <Text style={s.editStagesEmpty}>{t('noStagesMatch')} "{editStageSearch}"</Text>
               )}
 
               {/* Create new stage */}
@@ -1593,7 +1593,7 @@ export default function TaskDetailScreen() {
               renderLoading={() => (
                 <View style={s.viewerLoading}>
                   <ActivityIndicator size="large" color={theme.color.primary} />
-                  <Text style={s.viewerLoadingText}>Loading document...</Text>
+                  <Text style={s.viewerLoadingText}>{t('loadingDocument')}</Text>
                 </View>
               )}
               onError={() => { Alert.alert(t('error'), t('somethingWrong')); setViewingDoc(null); }}
@@ -1711,7 +1711,7 @@ export default function TaskDetailScreen() {
             {loadingSheetDocs ? (
               <ActivityIndicator color={theme.color.primary} style={{ margin: 32 }} />
             ) : sheetDocs.length === 0 ? (
-              <Text style={ds.empty}>No documents listed for this service.</Text>
+              <Text style={ds.empty}>{t('noDocumentsForService')}</Text>
             ) : (
               <ScrollView contentContainerStyle={{ padding: theme.spacing.space3 }} keyboardShouldPersistTaps="handled">
                 {sheetDocs.map((doc: any, idx: number) => {

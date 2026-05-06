@@ -285,7 +285,11 @@ export type TranslationKey =
   | 'phoneHintLogin' | 'phoneHintContact'
   | 'planFootnoteText'
   // ── Phase 11: NewTaskScreen remaining strings ──────────────────────────────
-  | 'createAndAdd' | 'createNewContact' | 'fieldNameLabel' | 'optionsSeparated';
+  | 'createAndAdd' | 'createNewContact' | 'fieldNameLabel' | 'optionsSeparated'
+  // ── Phase 12: FinancialReport, TaskDetail, StageRequirements, Login ──────────
+  | 'filterByService' | 'filterByStage' | 'allServices' | 'allStages' | 'saveAndApply'
+  | 'fromDate' | 'toDate' | 'closedLabel' | 'currentStatusLabel'
+  | 'cameraScan' | 'photoLibrary' | 'govFileTracking' | 'createNewCity' | 'requirement';
 
 type Translations = Record<TranslationKey, string>;
 
@@ -949,6 +953,21 @@ const ar: Translations = {
   createNewContact: 'إضافة جهة اتصال جديدة',
   fieldNameLabel: 'اسم الحقل',
   optionsSeparated: 'الخيارات (مفصولة بفاصلة)',
+  // Phase 12
+  filterByService:    'تصفية حسب الخدمة',
+  filterByStage:      'تصفية حسب المرحلة',
+  allServices:        'جميع الخدمات',
+  allStages:          'جميع المراحل',
+  saveAndApply:       'حفظ وتطبيق',
+  fromDate:           'من تاريخ',
+  toDate:             'إلى تاريخ',
+  closedLabel:        'مغلق',
+  currentStatusLabel: 'الحالة الحالية',
+  cameraScan:         'الكاميرا / مسح',
+  photoLibrary:       'مكتبة الصور',
+  govFileTracking:    'تتبع الملفات الحكومية',
+  createNewCity:      'إنشاء مدينة جديدة',
+  requirement:        'متطلب',
 };
 
 const en: Translations = {
@@ -1590,6 +1609,21 @@ const en: Translations = {
   createNewContact: 'Create new contact',
   fieldNameLabel: 'Field Name',
   optionsSeparated: 'Options (comma-separated)',
+  // Phase 12
+  filterByService:    'Filter by Service',
+  filterByStage:      'Filter by Stage',
+  allServices:        'All Services',
+  allStages:          'All Stages',
+  saveAndApply:       'Save & Apply',
+  fromDate:           'From Date',
+  toDate:             'To Date',
+  closedLabel:        'Closed',
+  currentStatusLabel: 'Current',
+  cameraScan:         'Camera / Scan',
+  photoLibrary:       'Photo Library',
+  govFileTracking:    'Government File Tracking',
+  createNewCity:      'Create New City',
+  requirement:        'Requirement',
 };
 
 const fr: Translations = {
@@ -2236,6 +2270,21 @@ const fr: Translations = {
   createNewContact: 'Créer un nouveau contact',
   fieldNameLabel: 'Nom du champ',
   optionsSeparated: 'Options (séparées par virgule)',
+  // Phase 12
+  filterByService:    'Filtrer par service',
+  filterByStage:      'Filtrer par étape',
+  allServices:        'Tous les services',
+  allStages:          'Toutes les étapes',
+  saveAndApply:       'Enregistrer et appliquer',
+  fromDate:           'Date de début',
+  toDate:             'Date de fin',
+  closedLabel:        'Fermé',
+  currentStatusLabel: 'Actuel',
+  cameraScan:         'Caméra / Scan',
+  photoLibrary:       'Bibliothèque de photos',
+  govFileTracking:    'Suivi des dossiers gouvernementaux',
+  createNewCity:      'Créer une nouvelle ville',
+  requirement:        'Exigence',
 };
 
 // Fallback: use English for all other languages

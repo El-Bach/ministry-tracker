@@ -177,12 +177,12 @@ export default function StageRequirementsScreen() {
 
   async function handleDelete(req: StopRequirement) {
     Alert.alert(
-      'Delete Requirement',
-      `Delete "${req.title}"?`,
+      `${t('delete')} ${t('requirement')}`,
+      `${t('delete')} "${req.title}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             const { error } = await supabase
@@ -311,12 +311,12 @@ export default function StageRequirementsScreen() {
 
   function showAttachmentOptions() {
     Alert.alert(
-      'Attach Document',
-      'Choose source',
+      t('attachScanDoc'),
+      '',
       [
-        { text: 'Camera / Scan', onPress: pickFromCamera },
-        { text: 'Photo Library', onPress: pickFromLibrary },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cameraScan'), onPress: pickFromCamera },
+        { text: t('photoLibrary'), onPress: pickFromLibrary },
+        { text: t('cancel'), style: 'cancel' },
       ]
     );
   }

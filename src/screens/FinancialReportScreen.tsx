@@ -497,7 +497,7 @@ export default function FinancialReportScreen() {
             {r.contractPriceLBP > 0 && <Text style={s.rowContractBadgeLBP}>{fmtLBP(r.contractPriceLBP)}</Text>}
           </View>
           <Text style={s.rowService}>{r.serviceName}</Text>
-          {r.closedAt && <Text style={s.rowDate}>Closed {formatDate(r.closedAt)}</Text>}
+          {r.closedAt && <Text style={s.rowDate}>{t('closedLabel')} {formatDate(r.closedAt)}</Text>}
         </View>
         <View style={[s.statusPill, { backgroundColor: TERMINAL.includes(r.status) ? theme.color.success + '22' : theme.color.primary + '22' }]}>
           <Text style={[s.statusPillText, { color: TERMINAL.includes(r.status) ? theme.color.success : theme.color.primaryText }]}>{r.status}</Text>
@@ -706,7 +706,7 @@ export default function FinancialReportScreen() {
         <ActivityIndicator color={theme.color.primary} style={{ marginTop: 60 }} size="large" />
       ) : filtered.length === 0 ? (
         <View style={s.empty}>
-          <Text style={s.emptyText}>No files match your filters</Text>
+          <Text style={s.emptyText}>{t('noFilesMatch')}</Text>
         </View>
       ) : (
         <FlatList
@@ -724,10 +724,10 @@ export default function FinancialReportScreen() {
       <Modal visible={showServicePicker} transparent animationType="fade" onRequestClose={() => setShowServicePicker(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowServicePicker(false)}>
           <View style={s.pickerSheet}>
-            <Text style={s.pickerTitle}>Filter by Service</Text>
+            <Text style={s.pickerTitle}>{t('filterByService')}</Text>
             <ScrollView>
               <TouchableOpacity style={s.pickerRow} onPress={() => { setFilterService(''); setShowServicePicker(false); }}>
-                <Text style={[s.pickerLabel, !filterService && s.pickerLabelSelected]}>All Services</Text>
+                <Text style={[s.pickerLabel, !filterService && s.pickerLabelSelected]}>{t('allServices')}</Text>
                 {!filterService && <Text style={s.pickerCheck}>✓</Text>}
               </TouchableOpacity>
               {serviceOptions.map((svc) => (
@@ -754,7 +754,7 @@ export default function FinancialReportScreen() {
           onPress={() => { setShowStagePicker(false); setStageSearch(''); }}
         >
           <TouchableOpacity activeOpacity={1} style={s.pickerSheet}>
-            <Text style={s.pickerTitle}>Filter by Stage</Text>
+            <Text style={s.pickerTitle}>{t('filterByStage')}</Text>
 
             {/* Search bar */}
             <TextInput
@@ -773,7 +773,7 @@ export default function FinancialReportScreen() {
                 style={s.pickerRow}
                 onPress={() => { setFilterStage(''); setFilterStageName(''); setShowStagePicker(false); setStageSearch(''); }}
               >
-                <Text style={[s.pickerLabel, !filterStage && s.pickerLabelSelected]}>All Stages</Text>
+                <Text style={[s.pickerLabel, !filterStage && s.pickerLabelSelected]}>{t('allStages')}</Text>
                 {!filterStage && <Text style={s.pickerCheck}>✓</Text>}
               </TouchableOpacity>
               {stageOptions
@@ -789,7 +789,7 @@ export default function FinancialReportScreen() {
                   </TouchableOpacity>
                 ))}
               {stageSearch.trim() !== '' && stageOptions.filter((st) => st.name.toLowerCase().includes(stageSearch.toLowerCase())).length === 0 && (
-                <Text style={s.pickerEmpty}>No stages match "{stageSearch}"</Text>
+                <Text style={s.pickerEmpty}>{t('noStagesMatch')} "{stageSearch}"</Text>
               )}
             </ScrollView>
           </TouchableOpacity>
@@ -800,7 +800,7 @@ export default function FinancialReportScreen() {
       <Modal visible={showDateFrom} transparent animationType="fade" onRequestClose={() => setShowDateFrom(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowDateFrom(false)}>
           <TouchableOpacity activeOpacity={1} style={s.calendarSheet}>
-            <Text style={s.pickerTitle}>From Date</Text>
+            <Text style={s.pickerTitle}>{t('fromDate')}</Text>
             <Calendar
               current={dateFrom || TODAY_YMD}
               onDayPress={(d: { dateString: string }) => { setDateFrom(d.dateString); setShowDateFrom(false); }}
@@ -831,7 +831,7 @@ export default function FinancialReportScreen() {
       <Modal visible={showDateTo} transparent animationType="fade" onRequestClose={() => setShowDateTo(false)}>
         <TouchableOpacity style={s.pickerOverlay} activeOpacity={1} onPress={() => setShowDateTo(false)}>
           <TouchableOpacity activeOpacity={1} style={s.calendarSheet}>
-            <Text style={s.pickerTitle}>To Date</Text>
+            <Text style={s.pickerTitle}>{t('toDate')}</Text>
             <Calendar
               current={dateTo || TODAY_YMD}
               onDayPress={(d: { dateString: string }) => { setDateTo(d.dateString); setShowDateTo(false); }}
@@ -885,7 +885,7 @@ export default function FinancialReportScreen() {
               >
                 {savingRate
                   ? <ActivityIndicator color={theme.color.white} />
-                  : <Text style={s.rateSaveBtnText}>Save & Apply</Text>
+                  : <Text style={s.rateSaveBtnText}>{t('saveAndApply')}</Text>
                 }
               </TouchableOpacity>
             </TouchableOpacity>
@@ -901,7 +901,7 @@ export default function FinancialReportScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.detailClient}>{detailRow?.clientName}</Text>
                 <Text style={s.detailService}>{detailRow?.serviceName}</Text>
-                {detailRow?.closedAt && <Text style={s.detailService}>Closed {formatDate(detailRow.closedAt)}</Text>}
+                {detailRow?.closedAt && <Text style={s.detailService}>{t('closedLabel')} {formatDate(detailRow.closedAt)}</Text>}
               </View>
               <TouchableOpacity onPress={() => setDetailRow(null)}>
                 <Text style={s.detailClose}>✕</Text>
@@ -965,7 +965,7 @@ export default function FinancialReportScreen() {
                 <View style={s.detailSection}>
                   <Text style={s.detailSectionTitle}>TRANSACTIONS (÷ {rate.toLocaleString('en-US')} LBP/USD)</Text>
                   {detailTxs.length === 0 ? (
-                    <Text style={s.detailEmpty}>No transactions recorded</Text>
+                    <Text style={s.detailEmpty}>{t('noTransactions')}</Text>
                   ) : (
                     <>
                       {/* C/V table header */}

@@ -174,7 +174,7 @@ export default function LoginScreen() {
           >
             GovPilot
           </Text>
-          <Text style={styles.subtitle}>Government File Tracking</Text>
+          <Text style={styles.subtitle}>{t('govFileTracking')}</Text>
           <Text style={styles.poweredBy}>
             Powered by <Text style={styles.poweredByKts}>KTS</Text>
           </Text>
