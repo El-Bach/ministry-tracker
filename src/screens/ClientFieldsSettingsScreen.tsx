@@ -21,6 +21,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useTranslation } from '../lib/i18n';
+import { useAuth } from '../hooks/useAuth';
 import { FieldDefinition } from '../components/ClientFieldsForm';
 
 const FIELD_TYPES = [
@@ -43,6 +44,8 @@ const FIELD_TYPES = [
 export default function ClientFieldsSettingsScreen() {
  const [fields, setFields] = useState<FieldDefinition[]>([]);
   const { t } = useTranslation();
+  const { teamMember } = useAuth();
+  const orgId = teamMember?.org_id ?? '';
  const [loading, setLoading] = useState(true);
  const [showAddModal, setShowAddModal] = useState(false);
  const [showEditModal, setShowEditModal] = useState(false);
@@ -60,6 +63,7 @@ export default function ClientFieldsSettingsScreen() {
  const { data } = await supabase
  .from('client_field_definitions')
  .select('*')
+ .eq('org_id', orgId)
  .order('sort_order');
  if (data) setFields(data as FieldDefinition[]);
  setLoading(false);
@@ -113,6 +117,7 @@ export default function ClientFieldsSettingsScreen() {
  is_active: true,
  options: options ? JSON.stringify(options) : null,
  sort_order: maxOrder + 1,
+ org_id: orgId,
  });
  setSaving(false);
  if (error) { Alert.alert(t('error'), error.message); return; }

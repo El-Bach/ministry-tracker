@@ -217,7 +217,7 @@ export function useClientActions(opts: UseClientActionsOptions) {
     const { error } = await supabase.from('clients').insert(inserts);
     setImportingClients(false);
     if (error) { Alert.alert(t('error'), error.message); return; }
-    const { data } = await supabase.from('clients').select('*').order('name');
+    const { data } = await supabase.from('clients').select('*').eq('org_id', orgId).order('name');
     if (data) setClients(data as Client[]);
     setShowClientImport(false); setClientImportRaw(''); setClientImportRows([]);
     const skippedMsg = duplicates.length > 0 ? `\n${t('skippedDuplicates')}: ${duplicates.join(', ')}` : '';

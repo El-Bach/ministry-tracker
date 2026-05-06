@@ -128,7 +128,7 @@ export function useNetworkActions(opts: UseNetworkActionsOptions) {
     setSavingNetwork(false);
     setShowNetworkForm(false);
     setEditNetworkId(null);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').eq('org_id', orgId).order('name');
     if (data) setNetwork(data as any[]);
   };
 
@@ -172,7 +172,7 @@ export function useNetworkActions(opts: UseNetworkActionsOptions) {
     setShowImportModal(false);
     setImportRaw('');
     setImportRows([]);
-    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').order('name');
+    const { data } = await supabase.from('assignees').select('*, city:cities(id,name)').eq('org_id', orgId).order('name');
     if (data) setNetwork(data as any[]);
     Alert.alert(t('success'), `${inserts.length} ${t('contacts')}`);
   };

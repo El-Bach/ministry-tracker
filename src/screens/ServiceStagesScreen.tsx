@@ -22,6 +22,7 @@ import { useRoute, RouteProp } from '@react-navigation/native';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
 import { useTranslation } from '../lib/i18n';
+import { useAuth } from '../hooks/useAuth';
 import { DashboardStackParamList } from '../types';
 
 type RouteType = RouteProp<DashboardStackParamList, 'ServiceStages'>;
@@ -41,6 +42,8 @@ interface Ministry {
 export default function ServiceStagesScreen() {
   const route = useRoute<RouteType>();
   const { t } = useTranslation();
+  const { teamMember } = useAuth();
+  const orgId = teamMember?.org_id ?? '';
   const { serviceId, serviceName } = route.params;
 
   const [stages, setStages] = useState<Stage[]>([]);
@@ -68,7 +71,7 @@ export default function ServiceStagesScreen() {
         .select('*, ministry:ministries(id, name)')
         .eq('service_id', serviceId)
         .order('stop_order'),
-      supabase.from('ministries').select('id, name').order('name'),
+      supabase.from('ministries').select('id, name').eq('org_id', orgId).order('name'),
     ]);
     setStages(
       (stagesRes.data ?? []).map((d: any) => ({
@@ -121,7 +124,7 @@ export default function ServiceStagesScreen() {
     setAdding(true);
     const { data: mData, error: mErr } = await supabase
       .from('ministries')
-      .insert({ name: newMiniName.trim(), type: 'child' })
+      .insert({ name: newMiniName.trim(), type: 'child', org_id: orgId })
       .select()
       .single();
     if (mErr) { Alert.alert(t('error'), mErr.message); setAdding(false); return; }

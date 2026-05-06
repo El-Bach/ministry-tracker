@@ -169,12 +169,16 @@ export default function TeamMembersScreen() {
     if (tmRes.data)   setTeamMembers(tmRes.data as any[]);
     if (codeRes.data) setJoinCodes(codeRes.data);
     if (defsRes.data) setAllFieldDefs(defsRes.data);
-    if (valsRes.data) {
+    if (valsRes.data && tmRes.data) {
+      // Only include field values belonging to members of this org
+      const orgMemberIds = new Set((tmRes.data as any[]).map((tm: any) => tm.id));
       const valMap: Record<string, Record<string, string>> = {};
-      valsRes.data.forEach((v: any) => {
-        if (!valMap[v.team_member_id]) valMap[v.team_member_id] = {};
-        valMap[v.team_member_id][v.field_id] = String(v.value_boolean ?? v.value_number ?? v.value_text ?? '');
-      });
+      (valsRes.data as any[])
+        .filter((v: any) => orgMemberIds.has(v.team_member_id))
+        .forEach((v: any) => {
+          if (!valMap[v.team_member_id]) valMap[v.team_member_id] = {};
+          valMap[v.team_member_id][v.field_id] = String(v.value_boolean ?? v.value_number ?? v.value_text ?? '');
+        });
       setAllFieldValues(valMap);
     }
     setLoading(false);

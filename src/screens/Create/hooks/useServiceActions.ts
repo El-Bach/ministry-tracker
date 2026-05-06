@@ -210,7 +210,7 @@ export function useServiceActions(opts: UseServiceActionsOptions) {
     setShowSvcImportModal(false);
     setSvcImportRaw('');
     setSvcImportRows([]);
-    const { data } = await supabase.from('services').select('*').order('name');
+    const { data } = await supabase.from('services').select('*').eq('org_id', orgId).order('name');
     if (data) setServices(data as Service[]);
     Alert.alert(t('success'), `${inserts.length} ${t('services')}`);
   };

@@ -23,6 +23,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import supabase from '../lib/supabase';
 import { theme } from '../theme';
+import { useAuth } from '../hooks/useAuth';
 import SignedImage from './SignedImage';
 
 export interface FieldDefinition {
@@ -52,18 +53,22 @@ interface Props {
 export function useFieldDefinitions() {
   const [fields, setFields] = useState<FieldDefinition[]>([]);
   const [loading, setLoading] = useState(true);
+  const { teamMember } = useAuth();
+  const orgId = teamMember?.org_id ?? '';
 
   const load = async () => {
+    if (!orgId) return;
     const { data } = await supabase
       .from('client_field_definitions')
       .select('*')
+      .eq('org_id', orgId)
       .eq('is_active', true)
       .order('sort_order');
     if (data) setFields(data as FieldDefinition[]);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [orgId]);
   return { fields, loading, reload: load };
 }
 
