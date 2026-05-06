@@ -34,46 +34,14 @@ import { RequiredDocsSheet } from './NewTask/components/RequiredDocsSheet';
 import { FieldTypePickerModal } from './NewTask/components/FieldTypePickerModal';
 import { FieldPickerModal } from './NewTask/components/FieldPickerModal';
 import { ScheduleSection } from './NewTask/components/ScheduleSection';
+import { ClientSection } from './NewTask/components/ClientSection';
+import { FieldRow } from './NewTask/components/FieldRow';
 import { toISO } from './NewTask/utils/dateHelpers';
 
 // ─── Final closure stage — always last, auto-created ────────────────
 const FINAL_STAGE_NAME = 'تسليم المعاملة النهائية و اغلاق الحسابات';
 
 
-// ─── Field Row ────────────────────────────────────────────────
-function FieldRow({
- label, value, onPress, placeholder,
-}: {
- label: string;
- value: string;
- onPress: () => void;
- placeholder?: string;
-}) {
- const { t } = useTranslation();
- if (value) {
-   // Selected state: show selected value prominently, label becomes small hint
-   return (
-     <TouchableOpacity style={s.fieldRowSelected} onPress={onPress} activeOpacity={0.7}>
-       <View style={{ flex: 1 }}>
-         <Text style={s.fieldRowSelectedHint}>{label}</Text>
-         <Text style={s.fieldRowSelectedValue}>{value}</Text>
-       </View>
-       <Text style={s.fieldChevron}>›</Text>
-     </TouchableOpacity>
-   );
- }
- return (
- <TouchableOpacity style={s.fieldRow} onPress={onPress} activeOpacity={0.7}>
- <Text style={s.fieldLabel}>{label}</Text>
- <View style={s.fieldValue}>
- <Text style={s.fieldPlaceholder}>
- {placeholder || t('select')}
- </Text>
- <Text style={s.fieldChevron}>›</Text>
- </View>
- </TouchableOpacity>
- );
-}
 
 type NewTaskRoute = RouteProp<DashboardStackParamList, 'NewTask'>;
 type Nav = NativeStackNavigationProp<DashboardStackParamList>;
@@ -923,105 +891,34 @@ export default function NewTaskScreen() {
    extraHeight={120}
  >
 
- {/* ── CLIENT ── */}
- <View style={s.section}>
- <Text style={s.sectionTitle}>{t('clients').toUpperCase()}</Text>
- <FieldRow
- label={t('clients')}
- value={selectedClient ? selectedClient.name : ''}
- onPress={() => setModal('client')}
- />
- <TouchableOpacity
- style={s.addInlineBtn}
- onPress={() => setShowNewClientForm((v) => !v)}
- >
- <Text style={s.addInlineBtnText}>
- {showNewClientForm ? `− ${t('cancel')}` : t('createNewClient')}
- </Text>
- </TouchableOpacity>
- {showNewClientForm && (
- <View style={s.inlineForm}>
- <TextInput
- style={s.inlineInput}
- value={newClientName}
- onChangeText={setNewClientName}
- placeholder={t('fullNameRequired')}
- placeholderTextColor={theme.color.textMuted}
- />
- <PhoneInput
- value={newClientPhone}
- onChangeText={setNewClientPhone}
- countryCode={newClientPhoneCountry}
- onCountryChange={(c) => setNewClientPhoneCountry(c.code)}
- placeholder={t('phoneNumber')}
- style={{ marginBottom: 10 }}
- />
- <TextInput
- style={s.inlineInput}
- value={newClientRefName}
- onChangeText={setNewClientRefName}
- placeholder={t('referenceName')}
- placeholderTextColor={theme.color.textMuted}
- />
- <PhoneInput
- value={newClientRefPhone}
- onChangeText={setNewClientRefPhone}
- countryCode={newClientRefPhoneCountry}
- onCountryChange={(c) => setNewClientRefPhoneCountry(c.code)}
- placeholder={t('referencePhone')}
- style={{ marginBottom: 10 }}
- />
- {/* Active custom fields — only ones user added */}
- {activeFieldIds.length > 0 && (
- <View style={s.activeFieldsContainer}>
- {activeFieldIds.map((fieldId) => {
- const def = allFieldDefs.find((f) => f.id === fieldId);
- if (!def) return null;
- const val = customFieldValues[fieldId];
- return (
- <View key={fieldId} style={s.activeFieldRow}>
- <View style={s.activeFieldHeader}>
- <Text style={s.activeFieldLabel}>{def.label}</Text>
- <TouchableOpacity
- onPress={() => {
- setActiveFieldIds((prev) => prev.filter((id) => id !== fieldId));
- setCustomFieldValues((prev) => {
- const copy = { ...prev };
- delete copy[fieldId];
- return copy;
- });
- }}
- >
- <Text style={s.activeFieldRemove}>✕</Text>
- </TouchableOpacity>
- </View>
- <DynamicFieldInput
- definition={def}
- value={val}
- onChange={(v) =>
- setCustomFieldValues((prev) => ({ ...prev, [fieldId]: v }))
- }
- />
- </View>
- );
- })}
- </View>
- )}
-
- {/* + Add Field button */}
- <TouchableOpacity
- style={s.addFieldBtn}
- onPress={() => setShowFieldPicker(true)}
- >
- <Text style={s.addFieldBtnText}>+ Add Field</Text>
- </TouchableOpacity>
-
- <TouchableOpacity style={s.inlineSaveBtn} onPress={handleCreateClient}>
- <Text style={s.inlineSaveBtnText}>{t('save')}</Text>
- </TouchableOpacity>
- </View>
- )}
- </View>
+      {/* ── CLIENT ── (extracted to ./NewTask/components/ClientSection.tsx) */}
+      <ClientSection
+        t={t}
+        selectedClient={selectedClient}
+        onOpenClientPicker={() => setModal('client')}
+        showNewClientForm={showNewClientForm}
+        setShowNewClientForm={setShowNewClientForm}
+        newClientName={newClientName}
+        setNewClientName={setNewClientName}
+        newClientPhone={newClientPhone}
+        setNewClientPhone={setNewClientPhone}
+        newClientPhoneCountry={newClientPhoneCountry}
+        setNewClientPhoneCountry={setNewClientPhoneCountry}
+        newClientRefName={newClientRefName}
+        setNewClientRefName={setNewClientRefName}
+        newClientRefPhone={newClientRefPhone}
+        setNewClientRefPhone={setNewClientRefPhone}
+        newClientRefPhoneCountry={newClientRefPhoneCountry}
+        setNewClientRefPhoneCountry={setNewClientRefPhoneCountry}
+        activeFieldIds={activeFieldIds}
+        setActiveFieldIds={setActiveFieldIds}
+        allFieldDefs={allFieldDefs}
+        customFieldValues={customFieldValues}
+        setCustomFieldValues={setCustomFieldValues}
+        onOpenFieldPicker={() => setShowFieldPicker(true)}
+        handleCreateClient={handleCreateClient}
+        s={s}
+      />
 
  {/* ── SERVICE ── */}
  <View style={s.section}>
@@ -1030,6 +927,7 @@ export default function NewTaskScreen() {
  label={t('services')}
  value={selectedService?.name ?? ''}
  onPress={() => setModal('service')}
+ s={s}
  />
  {selectedService && (
  <Text style={s.hint}>Est. {selectedService.estimated_duration_days} days</Text>
